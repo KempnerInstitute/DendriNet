@@ -12,6 +12,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as functional
 
+INIT_METHODS = frozenset({"softplus_normal", "kaiming"})
+
 
 class DendriteConv2d(nn.Module):
     """
@@ -45,7 +47,7 @@ class DendriteConv2d(nn.Module):
     epsilon : float, optional
         Small constant for numerical stability (default: 1e-4)
     init_method : str, optional
-        Weight initialization method (default: 'softplus_normal')
+        Weight initialization method: 'softplus_normal' (default) or 'kaiming'.
     n_e_dendrites : int, optional
         Number of excitatory dendrites per output neuron/channel.
     n_i_dendrites : int, optional
@@ -109,6 +111,11 @@ class DendriteConv2d(nn.Module):
         )
         self.groups = groups
         self.epsilon = epsilon
+        if init_method not in INIT_METHODS:
+            raise ValueError(
+                f"DendriteConv2d init_method must be one of {sorted(INIT_METHODS)}, "
+                f"got {init_method!r}"
+            )
         self.init_method = init_method
         self.branch_aggregation = branch_aggregation
         self.n_e_dendrites = n_e_dendrites
@@ -279,6 +286,11 @@ class DendriteConv2d(nn.Module):
             )
             nn.init.kaiming_normal_(self.apical_E, mode="fan_out", nonlinearity="relu")
             nn.init.kaiming_normal_(self.apical_I, mode="fan_out", nonlinearity="relu")
+        else:
+            raise ValueError(
+                f"DendriteConv2d init_method must be one of {sorted(INIT_METHODS)}, "
+                f"got {self.init_method!r}"
+            )
 
         if self.bias_E is not None:
             nn.init.zeros_(self.bias_E)

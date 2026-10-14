@@ -6,12 +6,19 @@ either from soma to input or from input to soma.
 """
 
 import logging
+from dataclasses import fields
 
 import torch
 
+from dendritic_modeling.config.training import FreezeLayersStrategyConfig
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import ExcitationInhibitionNetwork
 from dendritic_modeling.training.strategies.standard import Trainer
+from dendritic_modeling.training.strategies.trainability import (
+    restore_requires_grad,
+    snapshot_requires_grad,
+    train_only,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -72,26 +79,6 @@ def _layer_logger_info(learning_strategy: str, layer_idx: int) -> str:
     return f"[{learning_strategy}] layer={layer_idx}, "
 
 
-def _set_only_module_trainable(model: torch.nn.Module, module: torch.nn.Module) -> None:
-    for param in model.parameters():
-        param.requires_grad = False
-    for param in module.parameters():
-        param.requires_grad = True
-
-
-def _set_all_parameters_trainable(model: torch.nn.Module) -> None:
-    for param in model.parameters():
-        param.requires_grad = True
-
-
-def _restore_best_state_and_unfreeze(
-    model: torch.nn.Module,
-    best_state_dict: dict,
-) -> None:
-    model.load_state_dict(best_state_dict)
-    _set_all_parameters_trainable(model)
-
-
 def _prepend_loss_histories(
     prefix: LossHistories,
     suffix: LossHistories,
@@ -129,6 +116,11 @@ class LayerWiseTrainer(Trainer):
 
     """
 
+    # Pretrain, per-layer and final-tune phases use separate loops.
+    supports_lr_schedule = False
+    strategy_options = frozenset(
+        item.name for item in fields(FreezeLayersStrategyConfig)
+    )
     pretrain_epochs: int = 10
     reverse_training: bool = False
     epochs_per_layer: int = 5
@@ -179,32 +171,48 @@ class LayerWiseTrainer(Trainer):
         self.filename_prefix = _strategy_filename_prefix(learning_strategy)
         self.logger_info_prefix = _strategy_logger_prefix(learning_strategy)
 
-        for layer_idx, layer_module in layer_plan:
-            _set_only_module_trainable(model, layer_module)
-            logger.info(
-                f"Training only layer {layer_idx} for "
-                f"{self.epochs_per_layer} epochs."
-            )
-
-            train_losses, valid_losses, train_losses_base, train_losses_reg = (
-                self._run_training_loop(
-                    n_epochs=self.epochs_per_layer,
-                    model=model,
-                    train_loader=train_loader,
-                    valid_loader=valid_loader,
-                    train_losses=train_losses,
-                    valid_losses=valid_losses,
-                    train_losses_base=train_losses_base,
-                    train_losses_reg=train_losses_reg,
-                    logger_info=_layer_logger_info(learning_strategy, layer_idx),
-                    wandb_info={"layer": layer_idx},
+        # Parameters fixed before this phase (fixed gate slopes, frozen
+        # encoders, reactivation_update_mode) stay fixed while their layer
+        # trains, and every flag returns to its prior value afterwards.
+        trainability = snapshot_requires_grad(model)
+        try:
+            for layer_idx, layer_module in layer_plan:
+                train_only(model, [layer_module], trainability)
+                logger.info(
+                    f"Training only layer {layer_idx} for "
+                    f"{self.epochs_per_layer} epochs."
                 )
-            )
+
+                train_losses, valid_losses, train_losses_base, train_losses_reg = (
+                    self._run_training_loop(
+                        n_epochs=self.epochs_per_layer,
+                        model=model,
+                        train_loader=train_loader,
+                        valid_loader=valid_loader,
+                        train_losses=train_losses,
+                        valid_losses=valid_losses,
+                        train_losses_base=train_losses_base,
+                        train_losses_reg=train_losses_reg,
+                        logger_info=_layer_logger_info(learning_strategy, layer_idx),
+                    )
+                )
+        finally:
+            restore_requires_grad(trainability)
 
         self._loss_plotting(
             train_losses, valid_losses, train_losses_base, train_losses_reg
         )
         return train_losses, valid_losses, train_losses_base, train_losses_reg
+
+    def _resume_from_best_state(self, model: BaseModel) -> None:
+        """Load the best validation state of the pretraining and layer phases."""
+        if getattr(self, "best_state_is_initial", False):
+            raise RuntimeError(
+                f"{self.logger_info_prefix}no pretraining or layer epoch had a "
+                "finite validation loss, so final tuning would restart from the "
+                "untrained weights."
+            )
+        self._unwrap_model(model).load_state_dict(self.best_state_dict)
 
     def _run_final_tuning(
         self,
@@ -248,13 +256,21 @@ class LayerWiseTrainer(Trainer):
             Training results dictionary
         """
 
-        if not isinstance(model.core_network, ExcitationInhibitionNetwork):
-            logger.info(
-                "Model has no 'core_network.layers'. " "Falling back to normal train."
+        self._require_single_process(
+            "it freezes all but one layer after DistributedDataParallel has "
+            "registered every trainable parameter"
+        )
+        core = getattr(self._unwrap_model(model), "core_network", None)
+        if not isinstance(core, ExcitationInhibitionNetwork):
+            # Previously this silently ran standard training instead.
+            raise ValueError(
+                "freeze_layers trains the layers of a DendriNet "
+                "(ExcitationInhibitionNetwork) core one at a time; "
+                f"{type(core).__name__} cores are not supported. Use strategy "
+                "'standard'."
             )
-            return super().train(model, train_data, valid_data)
 
-        net_obj: ExcitationInhibitionNetwork = model.core_network
+        net_obj: ExcitationInhibitionNetwork = core
         n_layers = len(net_obj.layers)
 
         total_epochs = _layerwise_total_epochs(
@@ -263,50 +279,66 @@ class LayerWiseTrainer(Trainer):
             self.epochs_per_layer,
             self.final_tune_epochs,
         )
-        self._initialize_attributes(model, total_epochs)
+        with self._run_epoch_count(total_epochs):
+            self._initialize_attributes(model, total_epochs)
 
-        (
-            pretrain_train_losses,
-            pretrain_valid_losses,
-            pretrain_train_losses_base,
-            pretrain_train_losses_reg,
-        ) = self._pretrain(model, train_data, valid_data)
+            (
+                pretrain_train_losses,
+                pretrain_valid_losses,
+                pretrain_train_losses_base,
+                pretrain_train_losses_reg,
+            ) = self._pretrain(model, train_data, valid_data)
 
-        learning_strategy, layer_plan = _ordered_layer_training_plan(
-            net_obj.layers,
-            self.reverse_training,
-        )
-
-        logger.info(
-            f"Training with {learning_strategy} strategy: " f"found {n_layers} layers. "
-        )
-
-        train_loader, valid_loader = self._dataloaders(train_data, valid_data)
-
-        train_losses, valid_losses, train_losses_base, train_losses_reg = (
-            self._train_layer_plan(
-                model,
-                train_loader,
-                valid_loader,
-                layer_plan,
-                learning_strategy,
+            learning_strategy, layer_plan = _ordered_layer_training_plan(
+                net_obj.layers,
+                self.reverse_training,
             )
-        )
 
-        logger.info(
-            f"Finished {learning_strategy} training. "
-            "Unfreezing all layers and loading best state."
-        )
-        _restore_best_state_and_unfreeze(model, self.best_state_dict)
+            logger.info(
+                f"Training with {learning_strategy} strategy: "
+                f"found {n_layers} layers. "
+            )
 
-        train_losses, valid_losses, train_losses_base, train_losses_reg = (
-            _prepend_loss_histories(
-                (
-                    pretrain_train_losses,
-                    pretrain_valid_losses,
-                    pretrain_train_losses_base,
-                    pretrain_train_losses_reg,
-                ),
+            train_loader, valid_loader = self._dataloaders(train_data, valid_data)
+
+            train_losses, valid_losses, train_losses_base, train_losses_reg = (
+                self._train_layer_plan(
+                    model,
+                    train_loader,
+                    valid_loader,
+                    layer_plan,
+                    learning_strategy,
+                )
+            )
+
+            logger.info(
+                f"Finished {learning_strategy} training. Final tuning starts from "
+                "the best state so far."
+            )
+            self._resume_from_best_state(model)
+
+            train_losses, valid_losses, train_losses_base, train_losses_reg = (
+                _prepend_loss_histories(
+                    (
+                        pretrain_train_losses,
+                        pretrain_valid_losses,
+                        pretrain_train_losses_base,
+                        pretrain_train_losses_reg,
+                    ),
+                    (
+                        train_losses,
+                        valid_losses,
+                        train_losses_base,
+                        train_losses_reg,
+                    ),
+                )
+            )
+
+            final_results = self._run_final_tuning(model, train_data, valid_data)
+
+            final_epochs = len(final_results.get("train_losses", []))
+            _prepend_loss_histories_to_results(
+                final_results,
                 (
                     train_losses,
                     valid_losses,
@@ -314,20 +346,13 @@ class LayerWiseTrainer(Trainer):
                     train_losses_reg,
                 ),
             )
-        )
-
-        final_results = self._run_final_tuning(model, train_data, valid_data)
-
-        _prepend_loss_histories_to_results(
-            final_results,
-            (
-                train_losses,
-                valid_losses,
-                train_losses_base,
-                train_losses_reg,
-            ),
-        )
-        return final_results
+            layer_epochs = len(train_losses) - len(pretrain_train_losses)
+            final_results["phases"] = [
+                {"name": "pretraining", "epochs": len(pretrain_train_losses)},
+                {"name": "layers", "epochs": layer_epochs},
+                {"name": "final_tuning", "epochs": final_epochs},
+            ]
+            return final_results
 
 
 __all__ = ["LayerWiseTrainer"]

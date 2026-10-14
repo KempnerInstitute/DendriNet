@@ -8,6 +8,7 @@ from torch.nn.init import _no_grad_normal_
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize_expectations import (
     _expected_weight_for_transform,
     _mean_for_expected_weight,
+    _solve_first_crossing_expected_weight_mean,
     normalize_adaptive_initialization_policy,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize_reactivation import (
@@ -135,6 +136,100 @@ def mechanism_neutral_dbl_init(dbl):
             _apply_reactivation_init(dbl, m_auto=1.5, b_auto=0.5)
 
 
+def _normal_for_expected_weight(
+    transform: str, mean: float, std: float, upper_quantile: float, target: float
+) -> tuple[float, float]:
+    """Return a raw-weight (mean, std) whose top-K expected weight is ``target``.
+
+    ``exp`` and ``softplus`` move the mean. ``relu`` scales mean and std
+    instead: ``relu(a x) = a relu(x)``, so every contact keeps its activity,
+    where moving the mean down would switch contacts off.
+    """
+    if (transform or "exp").lower() == "relu":
+        current = _expected_weight_for_transform(
+            transform="relu", mean=mean, std=std, upper_quantile=upper_quantile
+        )
+        scale = max(float(target), 1e-12) / max(current, 1e-12)
+        return mean * scale, std * scale
+    return (
+        _mean_for_expected_weight(
+            transform, std, upper_quantile, target, reference_mean=mean
+        ),
+        std,
+    )
+
+
+def _scaled_normal(
+    transform: str, mean: float, std: float, upper_quantile: float, scale_factor: float
+) -> tuple[float, float]:
+    """Return a raw-weight (mean, std) that scales the expected weight by ``exp(-f)``.
+
+    For ``exp`` weights this is the mean shift ``mean - f``.
+    """
+    if scale_factor <= 0.0:
+        return mean, std
+    if (transform or "exp").lower() == "exp":
+        return mean - scale_factor, std
+    target = _expected_weight_for_transform(
+        transform=transform, mean=mean, std=std, upper_quantile=upper_quantile
+    ) * exp(-scale_factor)
+    return _normal_for_expected_weight(transform, mean, std, upper_quantile, target)
+
+
+def shunting_child_coupling(
+    e_g_exc: float, e_g_inh: float, block_size: int, leak: float = 1.0
+) -> tuple[float, float]:
+    """Return the per-child coupling and gate centre of a shunting compartment.
+
+    With its children at their output 0.5, a total child coupling ``G`` holds
+    a compartment with expected conductances ``E`` and ``I`` and leak ``L`` at
+    ``V = (E + 0.5 G) / (E + I + L + G)``, between ``E / (E + I + L)`` at
+    ``G = 0`` and 0.5 for large ``G``. ``G`` is chosen so that ``V`` is the
+    returned gate centre: 0.49 when ``E / (E + I + L) < 0.48`` (a strong
+    coupling), otherwise the midpoint between ``E / (E + I + L)`` and 0.5,
+    which ``G = E + I + L`` realizes. The midpoint rule also covers
+    ``E >= I + L`` (for example a compartment without inhibition), where no
+    coupling brings ``V`` below 0.5.
+    """
+    e_vinf = e_g_exc / (e_g_exc + e_g_inh + leak)
+    if e_vinf < 0.5:
+        e_vinf = max(0.49, 0.5 * e_vinf + 0.25)
+        sum_g_branch = ((e_g_exc + e_g_inh + leak) * e_vinf - e_g_exc) / (0.5 - e_vinf)
+    else:
+        e_vinf = 0.5 * e_vinf + 0.25
+        sum_g_branch = e_g_exc + e_g_inh + leak
+    return max(sum_g_branch / block_size, 1e-6), e_vinf
+
+
+def _initial_leak(dbl) -> float:
+    """The compartment leak at initialization (the learnable leak starts there)."""
+    return float(getattr(dbl, "leak_conductance", 1.0))
+
+
+def _require_branch_contacts(dbl, method: str) -> None:
+    """Raise when a pathway the initializer divides by has no contacts per branch.
+
+    The analytical initializers scale by the expected contacts per branch,
+    ``K``. DeepST sets ``K = int(target_density * in_features)``, which is
+    zero when the density gives less than one contact per branch.
+    """
+    for name, synapses in (
+        ("excitatory", dbl.branch_excitation),
+        ("inhibitory", dbl.branch_inhibition),
+    ):
+        if synapses is None or getattr(synapses, "K", 1):
+            continue
+        raise ValueError(
+            f"dbl_init_method {method!r} needs at least one {name} contact per "
+            f"branch, but this layer's {name} synapses expect "
+            f"K={getattr(synapses, 'K', None)} over "
+            f"{getattr(synapses, 'in_features', '?')} inputs (DeepST rounds "
+            "target_density x in_features down). Raise the target density, use "
+            "rewiring_mode: constant_branch (which keeps the pathway's synapse "
+            "count per branch), or choose another dbl_init_method."
+        )
+
+
 def analytical_expectation_dbl_init(dbl, adaptive=True, branch_factors=None):
     """
     Initialize a dendritic branch layer.
@@ -148,6 +243,7 @@ def analytical_expectation_dbl_init(dbl, adaptive=True, branch_factors=None):
     from .branch_layer import DendriticBranchLayer
 
     assert isinstance(dbl, DendriticBranchLayer)
+    _require_branch_contacts(dbl, "analytical_expectation")
 
     with torch.no_grad():
         E_g_exc = 0
@@ -185,19 +281,20 @@ def analytical_expectation_dbl_init(dbl, adaptive=True, branch_factors=None):
             exc_std = sqrt(2 / (dbl.excitatory_input_dim + 1))
 
             if not dbl.input_inhibitory and not dbl.input_branches:
-                step = 0.01
-                done = False
-                while not done:
-                    E_w_exc = _expected_weight_for_transform(
-                        transform=weight_transform,
-                        mean=exc_mean,
-                        std=exc_std,
-                        upper_quantile=exc_upper_quantile,
-                    )
-                    if 0.5 * dbl.branch_excitation.K * E_w_exc <= 1:
-                        done = True
-                    else:
-                        exc_mean -= step
+                exc_mean = _solve_first_crossing_expected_weight_mean(
+                    weight_transform,
+                    exc_std,
+                    exc_upper_quantile,
+                    2.0 / dbl.branch_excitation.K,
+                    direction=-1,
+                    reference_mean=exc_mean,
+                )
+                E_w_exc = _expected_weight_for_transform(
+                    transform=weight_transform,
+                    mean=exc_mean,
+                    std=exc_std,
+                    upper_quantile=exc_upper_quantile,
+                )
 
             else:
                 E_w_exc = _expected_weight_for_transform(
@@ -216,6 +313,11 @@ def analytical_expectation_dbl_init(dbl, adaptive=True, branch_factors=None):
 
             if dbl.input_excitatory:
                 ie_ratio = dbl.branch_inhibition.K / dbl.branch_excitation.K
+                if ie_ratio <= 0.0:
+                    raise ValueError(
+                        "analytical E/I initialization requires positive "
+                        "excitatory and inhibitory contact counts"
+                    )
                 inh_std = inh_std * ie_ratio if ie_ratio < 1 else inh_std
                 E_w_inh = _expected_weight_for_transform(
                     transform=weight_transform,
@@ -224,32 +326,24 @@ def analytical_expectation_dbl_init(dbl, adaptive=True, branch_factors=None):
                     upper_quantile=inh_upper_quantile,
                 )
 
-                step = 0.01
-                done = False
                 if E_w_exc >= ie_ratio * E_w_inh:
-                    while not done:
-                        E_w_inh = _expected_weight_for_transform(
-                            transform=weight_transform,
-                            mean=inh_mean,
-                            std=inh_std,
-                            upper_quantile=inh_upper_quantile,
-                        )
-                        if E_w_exc <= ie_ratio * E_w_inh:
-                            done = True
-                        else:
-                            inh_mean += step
+                    direction = 1
                 else:
-                    while not done:
-                        E_w_inh = _expected_weight_for_transform(
-                            transform=weight_transform,
-                            mean=inh_mean,
-                            std=inh_std,
-                            upper_quantile=inh_upper_quantile,
-                        )
-                        if E_w_exc >= ie_ratio * E_w_inh:
-                            done = True
-                        else:
-                            inh_mean -= step
+                    direction = -1
+                inh_mean = _solve_first_crossing_expected_weight_mean(
+                    weight_transform,
+                    inh_std,
+                    inh_upper_quantile,
+                    E_w_exc / ie_ratio,
+                    direction=direction,
+                    reference_mean=inh_mean,
+                )
+                E_w_inh = _expected_weight_for_transform(
+                    transform=weight_transform,
+                    mean=inh_mean,
+                    std=inh_std,
+                    upper_quantile=inh_upper_quantile,
+                )
 
             else:
                 E_w_inh = _expected_weight_for_transform(
@@ -271,6 +365,7 @@ def analytical_expectation_dbl_init(dbl, adaptive=True, branch_factors=None):
                         E_g_exc,
                         E_g_inh,
                         adaptive_target_conductance,
+                        leak=_initial_leak(dbl),
                     )
                 )
             else:
@@ -284,15 +379,21 @@ def analytical_expectation_dbl_init(dbl, adaptive=True, branch_factors=None):
                 and adaptive_policy == "legacy_scale"
                 and network_scale_factor > 0.0
             ):
-                exc_mean_adjusted = exc_mean - network_scale_factor
+                exc_mean_adjusted, exc_std = _scaled_normal(
+                    weight_transform,
+                    exc_mean,
+                    exc_std,
+                    exc_upper_quantile,
+                    network_scale_factor,
+                )
             elif E_g_exc > 0.0 and E_g_exc_target != E_g_exc:
                 target_w_exc = 2.0 * E_g_exc_target / dbl.branch_excitation.K
-                exc_mean_adjusted = _mean_for_expected_weight(
+                exc_mean_adjusted, exc_std = _normal_for_expected_weight(
                     weight_transform,
+                    exc_mean,
                     exc_std,
                     exc_upper_quantile,
                     target_w_exc,
-                    reference_mean=exc_mean,
                 )
             else:
                 exc_mean_adjusted = exc_mean
@@ -308,7 +409,13 @@ def analytical_expectation_dbl_init(dbl, adaptive=True, branch_factors=None):
 
         if dbl.branch_recurrent is not None:
             rec_std = sqrt(2 / (dbl.recurrent_input_dim + 1))
-            rec_mean_adjusted = -network_scale_factor if adaptive else 0.0
+            rec_mean_adjusted, rec_std = _scaled_normal(
+                weight_transform,
+                0.0,
+                rec_std,
+                dbl.branch_recurrent.K / dbl.recurrent_input_dim,
+                network_scale_factor,
+            )
             _seeded_parameter_init(
                 dbl,
                 "rec_excitatory",
@@ -320,7 +427,13 @@ def analytical_expectation_dbl_init(dbl, adaptive=True, branch_factors=None):
 
         if dbl.branch_rec_inhibition is not None:
             rec_inh_std = sqrt(2 / (dbl.rec_inhibitory_input_dim + 1))
-            rec_inh_mean_adjusted = -network_scale_factor if adaptive else 0.0
+            rec_inh_mean_adjusted, rec_inh_std = _scaled_normal(
+                weight_transform,
+                0.0,
+                rec_inh_std,
+                dbl.branch_rec_inhibition.K / dbl.rec_inhibitory_input_dim,
+                network_scale_factor,
+            )
             _seeded_parameter_init(
                 dbl,
                 "rec_inhibitory",
@@ -336,15 +449,21 @@ def analytical_expectation_dbl_init(dbl, adaptive=True, branch_factors=None):
                 and adaptive_policy == "legacy_scale"
                 and network_scale_factor > 0.0
             ):
-                inh_mean_adjusted = inh_mean - network_scale_factor
+                inh_mean_adjusted, inh_std = _scaled_normal(
+                    weight_transform,
+                    inh_mean,
+                    inh_std,
+                    inh_upper_quantile,
+                    network_scale_factor,
+                )
             elif E_g_inh > 0.0 and E_g_inh_target != E_g_inh:
                 target_w_inh = 2.0 * E_g_inh_target / dbl.branch_inhibition.K
-                inh_mean_adjusted = _mean_for_expected_weight(
+                inh_mean_adjusted, inh_std = _normal_for_expected_weight(
                     weight_transform,
+                    inh_mean,
                     inh_std,
                     inh_upper_quantile,
                     target_w_inh,
-                    reference_mean=inh_mean,
                 )
             else:
                 inh_mean_adjusted = inh_mean
@@ -360,19 +479,12 @@ def analytical_expectation_dbl_init(dbl, adaptive=True, branch_factors=None):
 
         if dbl.input_branches:
             if dbl.use_shunting:
-                E_Vinf = E_g_exc / (E_g_exc + E_g_inh + 1)
-                # Map E_Vinf close to 0.5 to give strong initial branch
-                # conductances. Clamp strictly below 0.5 to keep the
-                # downstream conductance formula well-defined.
-                if E_Vinf < 0.5:
-                    E_Vinf = max(0.49, 0.5 * E_Vinf + 0.25)
-                else:
-                    E_Vinf = min(0.499, 0.5 * E_Vinf + 0.25)
-
-                sum_g_branch = ((E_g_exc + E_g_inh + 1) * E_Vinf - E_g_exc) / (
-                    0.5 - E_Vinf
+                g_branch, E_Vinf = shunting_child_coupling(
+                    E_g_exc,
+                    E_g_inh,
+                    dbl.branches_to_output.block_size,
+                    leak=_initial_leak(dbl),
                 )
-                g_branch = max(sum_g_branch / dbl.branches_to_output.block_size, 1e-6)
                 m = 1.5
             else:
                 # g_branch = E_g_exc + E_g_inh + 1
@@ -389,7 +501,7 @@ def analytical_expectation_dbl_init(dbl, adaptive=True, branch_factors=None):
             dbl.branches_to_output.initialize(g_branch=g_branch)
         else:
             if dbl.use_shunting:
-                E_Vinf = E_g_exc / (E_g_exc + E_g_inh + 1)
+                E_Vinf = E_g_exc / (E_g_exc + E_g_inh + _initial_leak(dbl))
                 m = 1.5
             else:
                 E_Vinf = 0
@@ -408,6 +520,7 @@ def ei_equivalence_dbl_init(dbl):
     from .branch_layer import DendriticBranchLayer
 
     assert isinstance(dbl, DendriticBranchLayer)
+    _require_branch_contacts(dbl, "ei_equivalence")
 
     with torch.no_grad():
         E_g_exc = 0
@@ -508,10 +621,11 @@ def ei_equivalence_dbl_init(dbl):
 
         if dbl.input_branches:
             if dbl.use_shunting:
-                g_branch = E_g_exc + E_g_inh + 1
+                leak = _initial_leak(dbl)
+                g_branch = E_g_exc + E_g_inh + leak
                 sum_g_branch = g_branch * dbl.branches_to_output.block_size
                 E_Vinf = (E_g_exc + 0.5 * sum_g_branch) / (
-                    E_g_exc + E_g_inh + sum_g_branch + 1
+                    E_g_exc + E_g_inh + sum_g_branch + leak
                 )
                 m = 1.5
             else:
@@ -529,7 +643,7 @@ def ei_equivalence_dbl_init(dbl):
             dbl.branches_to_output.initialize(g_branch=g_branch)
         else:
             if dbl.use_shunting:
-                E_Vinf = E_g_exc / (E_g_exc + E_g_inh + 1)
+                E_Vinf = E_g_exc / (E_g_exc + E_g_inh + _initial_leak(dbl))
                 m = 1.5
             else:
                 E_Vinf = 0
@@ -611,11 +725,14 @@ def naive_dbl_init(dbl):
             E_g_inh = 0.5 * dbl.branch_inhibition.K * E_w_inh
 
         if dbl.input_branches:
-            g_branch = E_g_exc + E_g_inh + 1
+            leak = _initial_leak(dbl)
+            g_branch = E_g_exc + E_g_inh + leak
             dbl.branches_to_output.initialize(g_branch=g_branch)
 
             if dbl.use_shunting:
-                E_Vinf = (E_g_exc + 0.5 * g_branch) / (E_g_exc + E_g_inh + g_branch + 1)
+                E_Vinf = (E_g_exc + 0.5 * g_branch) / (
+                    E_g_exc + E_g_inh + g_branch + leak
+                )
                 m = 1.5
             else:
                 # Additive voltage V = E - I is centered near 0 (it is NOT
@@ -628,7 +745,7 @@ def naive_dbl_init(dbl):
                 m = 0.1
         else:
             if dbl.use_shunting:
-                E_Vinf = E_g_exc / (E_g_exc + E_g_inh + 1)
+                E_Vinf = E_g_exc / (E_g_exc + E_g_inh + _initial_leak(dbl))
                 m = 1.5
             else:
                 E_Vinf = E_g_exc - E_g_inh
@@ -711,7 +828,7 @@ def default_dbl_init(dbl):
 
         if dbl.input_branches:
             if dbl.use_shunting:
-                g_branch = E_g_exc + E_g_inh + 1
+                g_branch = E_g_exc + E_g_inh + _initial_leak(dbl)
             else:
                 g_branch = 1
 

@@ -54,6 +54,7 @@ class TestEISweepAnalyzer(unittest.TestCase):
         self.assertIn("ie_value", cols)
         self.assertIn("ei_ratio", cols)
         self.assertIn("use_shunting", cols)
+        self.assertIn("reactivation_init_policy", cols)
 
     def test_plot_types(self):
         """Test plot types."""
@@ -95,6 +96,7 @@ class TestBranchSweepAnalyzer(unittest.TestCase):
         cols = self.analyzer.get_groupby_columns()
         self.assertIn("nparams", cols)
         self.assertIn("branch_factors", cols)
+        self.assertIn("reactivation_init_policy", cols)
 
     def test_plot_types(self):
         """Test plot types."""

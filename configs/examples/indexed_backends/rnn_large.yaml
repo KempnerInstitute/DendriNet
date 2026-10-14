@@ -1,0 +1,199 @@
+# Large recurrent unified E/I network with one functionally equivalent variant
+# per indexed projection backend. Generate the variants with dendritic-sweep;
+# see README.md in this directory.
+
+slurm_config:
+  run_name: "indexed_rnn_large"
+  account: ""
+  partition: ""
+  time: "08:00:00"
+  nodes: 1
+  ntasks_per_node: 1
+  gpus_per_node: 1
+  launcher: torchrun
+  cpus_per_task: 16
+  mem: 128GB
+  training_script: src/dendritic_modeling/scripts/training/train_experiments.py
+
+experiment_settings:
+  seeds_per_condition: 1
+  base_seed: 42
+  seed_paths:
+    - model.core.unified_ei.layers.0.excitatory.indexed_seed
+    - model.core.unified_ei.layers.0.inhibitory.indexed_seed
+
+sweep_variants:
+  - name: eager
+    overrides:
+      model.core.unified_ei.layers.0.excitatory.indexed_projection_backend: eager
+      model.core.unified_ei.layers.0.inhibitory.indexed_projection_backend: eager
+  - name: recompute
+    overrides:
+      model.core.unified_ei.layers.0.excitatory.indexed_projection_backend: recompute
+      model.core.unified_ei.layers.0.inhibitory.indexed_projection_backend: recompute
+  - name: triton_transposed
+    overrides:
+      model.core.unified_ei.layers.0.excitatory.indexed_projection_backend: triton_transposed
+      model.core.unified_ei.layers.0.inhibitory.indexed_projection_backend: triton_transposed
+  - name: auto
+    overrides:
+      model.core.unified_ei.layers.0.excitatory.indexed_projection_backend: auto
+      model.core.unified_ei.layers.0.inhibitory.indexed_projection_backend: auto
+
+sweep_config: {}
+filter_config: {mode: default}
+sweep_contract: {expected_config_count: 4}
+
+base_config:
+  config_version: 3
+  experiment:
+    seed: 42
+    train_valid_split: 0.8
+    deterministic: true
+    cudnn_benchmark: false
+    allow_tf32: false
+    float32_matmul_precision: highest
+    checkpointing:
+      enabled: true
+      save_every_n_epochs: 10
+
+  data:
+    dataset_name: context_dependent_decision
+    base_dir: ""
+    processing:
+      flatten: false
+      normalize: false
+    dataset_params:
+      context_dependent_decision:
+        n_samples: 10000
+        signal_dim: 4
+        context_duration: 10
+        # Integration lengths are sampled from 20-80 steps.
+        variable_integration: true
+        min_integration: 20
+        max_integration: 80
+        coherence_levels: [0.1, 0.2, 0.4, 0.8]
+        noise_std: 0.1
+
+  model:
+    task: classification
+    encoder:
+      type: identity
+      params:
+        input_dim: 10
+    core:
+      type: unified_ei
+      unified_ei:
+        output_mode: last
+        store_routing: false
+        input_projection_dims: [64]
+        layers:
+          - recurrent: true
+            dt: 1.0
+            excitatory:
+              n_neurons: 4096
+              branch_factors: [4, 4]
+              ff_excitatory_synapses_by_level: [0, 0, 8]
+              ff_inhibitory_synapses_by_level: [0, 0, 0]
+              rec_excitatory_synapses_by_level: [8, 24, 64]
+              rec_inhibitory_synapses_by_level: [2, 8, 16]
+              level_taus: [125.0, 25.0, 5.0]
+              topk_type: indexed
+              topk_init_method: xavier_normal
+              indexed_seed: 42
+              indexed_output_chunk_size: 8192
+              indexed_index_dtype: auto
+              indexed_workspace_mb: 128
+              indexed_cache_transformed_weights: true
+              indexed_projection_backend: recompute
+              indexed_persistent_indices: true
+              indexed_init_mode: per_rank
+              allow_self_recurrence: false
+              somatic_synapses: true
+              use_shunting: true
+              weight_transform: softplus
+              reactivate: true
+              reactivation_type: param_tanh
+              reactivation_init_policy: analytical
+              reactivation_init_m: 1.5
+              reactivation_init_b: 0.5
+              reactivation_memory_efficient: true
+              dbl_init_method: analytical_expectation
+              dynamics_mode: rate
+            inhibitory:
+              n_neurons: 1024
+              branch_factors: []
+              ff_excitatory_synapses_by_level: [8]
+              ff_inhibitory_synapses_by_level: [0]
+              rec_excitatory_synapses_by_level: [64]
+              rec_inhibitory_synapses_by_level: [32]
+              level_taus: [5.0]
+              topk_type: indexed
+              topk_init_method: xavier_normal
+              indexed_seed: 43
+              indexed_output_chunk_size: 8192
+              indexed_index_dtype: auto
+              indexed_workspace_mb: 128
+              indexed_cache_transformed_weights: true
+              indexed_projection_backend: recompute
+              indexed_persistent_indices: true
+              indexed_init_mode: per_rank
+              allow_self_recurrence: false
+              somatic_synapses: true
+              use_shunting: true
+              weight_transform: softplus
+              reactivate: true
+              reactivation_type: param_tanh
+              reactivation_init_policy: analytical
+              reactivation_init_m: 1.5
+              reactivation_init_b: 0.5
+              reactivation_memory_efficient: true
+              dbl_init_method: analytical_expectation
+              dynamics_mode: rate
+    decoder:
+      type: MLP
+      params:
+        hidden_dims: []
+        output_dim: 2
+
+  training:
+    main:
+      strategy: recurrent
+      common:
+        epochs: 50
+        batch_size: 32
+        num_workers: 4
+        pin_memory: true
+        persistent_workers: true
+        prefetch_factor: 2
+        shuffle: true
+        loss_function: ce
+        early_stopping: true
+        patience: 20
+        load_best_state_dict: true
+        grad_clip_value: 1.0
+        use_amp: true
+        synapse_decay_rate: 0.01
+        weight_boosting: true
+        param_groups:
+          lr: 0.001
+          split_params: true
+          topk_lr: 0.001
+          blocklinear_lr: 0.0001
+          reactivation_lr: 0.0001
+          decoder_lr: 0.001
+      optimizer: {name: adam}
+      strategies:
+        standard: {}
+        recurrent: {}
+
+  analysis:
+    performance:
+      enabled: true
+      training: false
+      params: {accuracy: true}
+
+  outputs:
+    run_name: indexed_rnn_large
+    results_dir: outputs/indexed_backends/rnn
+  distributed: {mode: none}

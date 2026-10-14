@@ -1,5 +1,6 @@
 """Tests for the GPU-memory estimator."""
 
+import math
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -232,10 +233,24 @@ class TestGPUMemoryEstimator:
         """Test initialization with default parameters."""
         estimator = GPUMemoryEstimator()
 
-        assert estimator.dtype == "fp16"
+        assert estimator.dtype == "fp32"  # fp32 master weights, also under AMP
         assert estimator.optimizer == "adam"
-        assert estimator.bytes_per_param == 2  # fp16
+        assert estimator.bytes_per_param == 4
+        assert estimator.activation_bytes == 4
         assert estimator.optimizer_state_multiplier == 2.0  # adam
+
+    def test_amp_halves_activation_storage_only(self):
+        estimator = GPUMemoryEstimator(dtype="fp32", activation_dtype="fp16")
+
+        assert (estimator.bytes_per_param, estimator.activation_bytes) == (4, 2)
+
+    def test_the_smallest_sufficient_gpu_comes_first(self):
+        estimator = GPUMemoryEstimator()
+        small = MemoryBreakdown(1.0, 1.0, 1.0, 1.0, 0.0, 4.0)
+
+        config = estimator.get_optimal_gpu_config(small, 80, 40)
+
+        assert config["gpu_type"] == "A100-40GB"
 
     def test_init_custom_parameters(self):
         """Test initialization with custom parameters."""
@@ -622,12 +637,12 @@ class TestGPUMemoryEstimator:
         """Test GPU recommendation for large model."""
         estimator = GPUMemoryEstimator()
 
-        # Create large model
+        # A large model on the meta device: shapes without storage.
         model = nn.Sequential(
-            nn.Linear(10000, 5000),
-            nn.Linear(5000, 2500),
-            nn.Linear(2500, 1000),
-            nn.Linear(1000, 100),
+            nn.Linear(10000, 5000, device="meta"),
+            nn.Linear(5000, 2500, device="meta"),
+            nn.Linear(2500, 1000, device="meta"),
+            nn.Linear(1000, 100, device="meta"),
         )
 
         # First get memory breakdown, then get recommendations
@@ -819,7 +834,7 @@ class TestGPUEstimationEdgeCases:
         class LargeLayer(nn.Module):
             def __init__(self):
                 super().__init__()
-                self.weight = nn.Parameter(torch.randn(10000, 10000))
+                self.weight = nn.Parameter(torch.empty(10000, 10000, device="meta"))
 
         model = LargeLayer()
 
@@ -921,3 +936,42 @@ class TestGPUEstimationEdgeCases:
 
         # fp16 and bf16 should use similar memory
         assert abs(breakdowns["fp16"].parameters - breakdowns["bf16"].parameters) < 0.1
+
+
+@pytest.mark.parametrize("core_type", ["dendritic_shunting", "flat_additive", "einet"])
+def test_estimation_builds_every_einet_core_type_as_training_does(tmp_path, core_type):
+    import yaml
+
+    from dendritic_modeling.utils.gpu_estimation import estimate_config
+
+    path = tmp_path / "config.yaml"
+    path.write_text(
+        yaml.safe_dump(
+            {
+                "data": {"dataset_name": "mnist"},
+                "model": {
+                    "core": {
+                        "type": core_type,
+                        "architecture": {
+                            "excitatory_layer_sizes": [8],
+                            "excitatory_branch_factors": [2],
+                        },
+                        "connectivity": {"ee_synapses_per_branch_per_layer": [4]},
+                    }
+                },
+                "training": {"main": {"common": {"use_amp": True}}},
+            }
+        )
+    )
+
+    estimate = estimate_config(str(path), report=False)
+
+    assert math.prod(estimate.input_shape) == 784  # MNIST images
+    assert estimate.model.core_network.output_dim == 8
+    assert (
+        estimate.estimator.bytes_per_param,
+        estimate.estimator.activation_bytes,
+    ) == (
+        4,
+        2,
+    )

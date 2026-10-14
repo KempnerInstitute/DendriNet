@@ -1,4 +1,4 @@
-"""HierarchicalDendriticTensorMap — flatten-based dendritic core for backbone replacement.
+"""HierarchicalDendriticTensorMap — flatten-based dendritic core over a feature map.
 
 This is the baseline spatial core: it flattens the encoder's spatial output,
 runs it through a standard :class:`ConfigurableEINetwork` hierarchy (the same

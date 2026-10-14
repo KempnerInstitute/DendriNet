@@ -16,6 +16,7 @@ import numpy as np
 import torch
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
+from dendritic_modeling.analysis.utils.lesions import lesion_raw_value
 from dendritic_modeling.analysis.utils.runtime import (
     analysis_device_context,
     evaluation_kwargs_from_runtime,
@@ -28,6 +29,7 @@ from dendritic_modeling.networks import (
     DendriticBranchLayer,
     ExcitationInhibitionNetwork,
 )
+from dendritic_modeling.plotting.styles import bar_kwargs, indexed_hatch, indexed_style
 from dendritic_modeling.training.utils.evaluation import (
     evaluate_accuracy,
     evaluate_auc,
@@ -74,19 +76,22 @@ class SingleLayerContributionAnalyzer(AbstractAnalyzer):
         results_dict[contribution_type][module_name] = {}
         results_dict[contribution_type][module_name]["depth"] = module.layer_idx
 
+        def _lesion(bank) -> None:
+            bank.pre_w.data.fill_(lesion_raw_value(bank))
+
         for name, mod in iter_named_modules_of_type(model, DendriticBranchLayer):
             if (
                 name != module_name
                 and mod.branch_excitation is not None
                 and mod.branch_inhibition is not None
             ):
-                mod.branch_excitation.pre_w.data.fill_(-1000)
-                mod.branch_inhibition.pre_w.data.fill_(-1000)
+                _lesion(mod.branch_excitation)
+                _lesion(mod.branch_inhibition)
 
         if contribution_type == "excitation":
-            module.branch_inhibition.pre_w.data.fill_(-1000)
+            _lesion(module.branch_inhibition)
         if contribution_type == "inhibition":
-            module.branch_excitation.pre_w.data.fill_(-1000)
+            _lesion(module.branch_excitation)
 
         def _evaluate_metric(metric_func: Callable, metric_key: str):
             metric_score = metric_func(
@@ -94,23 +99,25 @@ class SingleLayerContributionAnalyzer(AbstractAnalyzer):
             )[-1]
             results_dict[contribution_type][module_name][metric_key] = metric_score
 
-        if self.accuracy:
-            _evaluate_metric(metric_func=evaluate_accuracy, metric_key="accuracy")
-        if self.auc:
-            _evaluate_metric(metric_func=evaluate_auc, metric_key="auc")
-        if self.categorical_ll:
-            _evaluate_metric(
-                metric_func=evaluate_categorical_loglikelihood,
-                metric_key="log likelihood",
-            )
-        if self.mse:
-            _evaluate_metric(metric_func=evaluate_mse, metric_key="mse")
-        if self.cosine_similarity:
-            _evaluate_metric(
-                metric_func=evaluate_cosine_similarity, metric_key="cosine similarity"
-            )
-
-        model.load_state_dict(state_dict)
+        try:
+            if self.accuracy:
+                _evaluate_metric(metric_func=evaluate_accuracy, metric_key="accuracy")
+            if self.auc:
+                _evaluate_metric(metric_func=evaluate_auc, metric_key="auc")
+            if self.categorical_ll:
+                _evaluate_metric(
+                    metric_func=evaluate_categorical_loglikelihood,
+                    metric_key="log likelihood",
+                )
+            if self.mse:
+                _evaluate_metric(metric_func=evaluate_mse, metric_key="mse")
+            if self.cosine_similarity:
+                _evaluate_metric(
+                    metric_func=evaluate_cosine_similarity,
+                    metric_key="cosine similarity",
+                )
+        finally:
+            model.load_state_dict(state_dict)
 
         return results_dict
 
@@ -126,9 +133,12 @@ class SingleLayerContributionAnalyzer(AbstractAnalyzer):
         """Analyze each layer's contribution in isolation"""
         self.logger.info("Starting single layer contribution analysis...")
 
-        try:
-            assert isinstance(model.core_network, ExcitationInhibitionNetwork)
-        except AssertionError:
+        if not isinstance(
+            getattr(model, "core_network", None), ExcitationInhibitionNetwork
+        ):
+            self.logger.warning(
+                "Single layer contribution analysis needs an EINet core; skipping."
+            )
             return
 
         eval_kwargs = evaluation_kwargs_from_runtime(runtime)
@@ -261,7 +271,11 @@ def plot_layer_contribution(
         for i, ablation_type in enumerate(synapse_ablation_types):
             x = np.array(depths) + width * (i - (n_ablation_types - 1) / 2)
             ax.bar(
-                x, res[ablation_type]["performance"], width=width, label=ablation_type
+                x,
+                res[ablation_type]["performance"],
+                width=width,
+                label=ablation_type,
+                **bar_kwargs(indexed_style(i).color, indexed_hatch(i)),
             )
         # Create depth labels - correct soma/distal ordering
         # Lower depth values = closer to soma, higher = more distal

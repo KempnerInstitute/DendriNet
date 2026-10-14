@@ -1,8 +1,8 @@
-"""Regression tests for EI network variants.
+"""Construction and determinism tests for EI network variants.
 
-These tests verify that network construction and forward pass outputs remain
-stable across code changes. They use frozen seeds so any change in initialization
-or forward-pass logic is immediately detected.
+Builds made twice with one seed in one process must agree; these tests do not
+detect a change between commits. Cross-commit default-path goldens are in
+``tests/test_default_path_goldens.py``.
 """
 
 from unittest.mock import patch
@@ -27,7 +27,6 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.ei_network 
     _prepare_ei_layer_size_sequences,
     _prepare_ei_synapse_schedules,
     _resolve_ei_layer_build_spec,
-    _validate_direct_inhibitory_stream_contract,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform import (
     TransferLayer,
@@ -62,11 +61,7 @@ def _minimal_config():
             "ie_synapses_per_branch_per_layer": [5],
             "ii_synapses_per_branch_per_layer": [0],
         },
-        "transfer": {
-            "input_mode": 1,
-            "independent_pathways": False,
-            "allow_direct_inhibitory_stream": True,
-        },
+        "transfer": {"independent_pathways": False},
         "morphology": {
             "use_shunting": True,
             "weight_transform": "exp",
@@ -98,13 +93,9 @@ def _build_network(net_type, seed=42):
     return get_architecture(net_type, config, input_dim=INPUT_DIM)
 
 
-def _config_with_inhibitory_layers(input_mode, inhibitory_layer_sizes):
+def _config_with_inhibitory_layers(inhibitory_layer_sizes):
     """Return a minimal EI config with optional explicit inhibitory cells."""
     config = _minimal_config()
-    config["transfer"]["input_mode"] = input_mode
-    config["transfer"]["allow_direct_inhibitory_stream"] = (
-        input_mode == 1 and not inhibitory_layer_sizes
-    )
     config["architecture"]["inhibitory_layer_sizes"] = list(inhibitory_layer_sizes)
     config["architecture"]["inhibitory_branch_factors"] = (
         [2] if inhibitory_layer_sizes else []
@@ -120,15 +111,15 @@ def _config_with_inhibitory_layers(input_mode, inhibitory_layer_sizes):
 
 
 # ---------------------------------------------------------------------------
-# Deterministic forward pass (golden-value regression)
+# Deterministic forward pass (same-commit determinism)
 # ---------------------------------------------------------------------------
 
 
 class TestDeterministicForward:
-    """Verify that seed=42 + fixed input → same output tensor.
+    """Two builds with seed 42 and one input give the same output (determinism).
 
-    If any initialization or forward logic changes, these tests will fail,
-    alerting the developer that network behavior has changed.
+    Both builds run at the same commit, so this does not detect behaviour
+    changes between commits; the default-path goldens do.
     """
 
     def _forward_output(self, net_type, seed=42):
@@ -332,7 +323,8 @@ class TestMultiLayerNetwork:
         config = _minimal_config()
         config["architecture"]["excitatory_layer_sizes"] = [15, OUTPUT_DIM]
         config["connectivity"]["ee_synapses_per_branch_per_layer"] = [5, 5]
-        config["connectivity"]["ie_synapses_per_branch_per_layer"] = [5, 5]
+        # Only the first layer reads the transferred inhibitory stream.
+        config["connectivity"]["ie_synapses_per_branch_per_layer"] = [5, 0]
         config["connectivity"]["ei_synapses_per_branch_per_layer"] = [0, 0]
         config["connectivity"]["ii_synapses_per_branch_per_layer"] = [0, 0]
         torch.manual_seed(42)
@@ -352,7 +344,8 @@ class TestWithInhibitoryNeurons:
     def test_inhibitory_layer_sizes(self):
         config = _minimal_config()
         config["architecture"]["inhibitory_layer_sizes"] = [5]
-        config["transfer"]["input_mode"] = 0
+        # Point I cells would have no input without somatic synapses.
+        config["architecture"]["inhibitory_branch_factors"] = [1]
         config["connectivity"]["ei_synapses_per_branch_per_layer"] = [3]
         config["connectivity"]["ii_synapses_per_branch_per_layer"] = [2]
         torch.manual_seed(42)
@@ -361,97 +354,63 @@ class TestWithInhibitoryNeurons:
         out = net(x)
         assert out.shape == (BATCH, OUTPUT_DIM)
 
-    def test_input_mode1_empty_inhibitory_layers_uses_direct_inhibitory_stream(self):
-        config = _config_with_inhibitory_layers(input_mode=1, inhibitory_layer_sizes=[])
+    def test_empty_inhibitory_layers_use_direct_inhibitory_stream(self):
+        config = _config_with_inhibitory_layers(inhibitory_layer_sizes=[])
         torch.manual_seed(42)
         net = ConfigurableEINetwork(config=config, input_dim=INPUT_DIM)
         assert net.layers[0].inhibitory_cells is None
-        x = torch.rand(BATCH, INPUT_DIM)
-        out = net(x)
-        assert out.shape == (BATCH, OUTPUT_DIM)
-
-    def test_input_mode1_direct_stream_can_require_explicit_opt_in(self):
-        config = _config_with_inhibitory_layers(input_mode=1, inhibitory_layer_sizes=[])
-        config["transfer"].pop("allow_direct_inhibitory_stream")
-        config["transfer"]["require_explicit_direct_inhibitory_stream"] = True
-        with pytest.raises(ValueError, match="allow_direct_inhibitory_stream"):
-            ConfigurableEINetwork(config=config, input_dim=INPUT_DIM)
-
-    @pytest.mark.parametrize("input_mode", [0])
-    def test_defined_inhibitory_layer_size_builds_inhibitory_population(
-        self, input_mode
-    ):
-        config = _config_with_inhibitory_layers(
-            input_mode=input_mode, inhibitory_layer_sizes=[5]
-        )
-        torch.manual_seed(42)
-        net = ConfigurableEINetwork(config=config, input_dim=INPUT_DIM)
-        assert net.layers[0].inhibitory_cells is not None
-        x = torch.rand(BATCH, INPUT_DIM)
-        out = net(x)
-        assert out.shape == (BATCH, OUTPUT_DIM)
-
-    def test_zero_drive_inhibitory_layer_size_uses_direct_inhibitory_stream(self):
-        config = _config_with_inhibitory_layers(
-            input_mode=0, inhibitory_layer_sizes=[5]
-        )
-        config["connectivity"]["ei_synapses_per_branch_per_layer"] = [0]
-        config["connectivity"]["ii_synapses_per_branch_per_layer"] = [0]
-        config["connectivity"]["ie_synapses_per_branch_per_layer"] = [3]
-
-        torch.manual_seed(42)
-        net = ConfigurableEINetwork(config=config, input_dim=INPUT_DIM)
-        layer = net.layers[0]
-
-        assert layer.inhibitory_cells is None
-        assert layer.excitatory_cells.branch_layers[0].branch_inhibition is not None
-
-        x = torch.rand(BATCH, INPUT_DIM)
-        out = net(x)
-        assert out.shape == (BATCH, OUTPUT_DIM)
-        assert torch.isfinite(out).all()
-
-    def test_input_mode1_defined_inhibitory_size_is_legacy_direct_stream_by_default(
-        self,
-    ):
-        config = _config_with_inhibitory_layers(
-            input_mode=1, inhibitory_layer_sizes=[5]
-        )
-        torch.manual_seed(42)
-        net = ConfigurableEINetwork(config=config, input_dim=INPUT_DIM)
-        assert net.layers[0].inhibitory_cells is None
-        x = torch.rand(BATCH, INPUT_DIM)
-        out = net(x)
-        assert out.shape == (BATCH, OUTPUT_DIM)
-
-    def test_input_mode1_can_opt_into_explicit_inhibitory_population(self):
-        config = _config_with_inhibitory_layers(
-            input_mode=1, inhibitory_layer_sizes=[5]
-        )
-        config["transfer"]["input_mode1_build_inhibitory_population"] = True
-        torch.manual_seed(42)
-        net = ConfigurableEINetwork(config=config, input_dim=INPUT_DIM)
-        assert net.layers[0].inhibitory_cells is not None
-        x = torch.rand(BATCH, INPUT_DIM)
-        out = net(x)
-        assert out.shape == (BATCH, OUTPUT_DIM)
-
-    def test_transfer_legacy_aliases_still_work_for_direct_dicts(self):
-        config = _config_with_inhibitory_layers(
-            input_mode=1, inhibitory_layer_sizes=[5]
-        )
-        config["transfer"].pop("allow_direct_inhibitory_stream", None)
-        config["transfer"]["allow_direct_inhibitory_input"] = True
-        config["transfer"]["build_inhibitory_population_for_input_mode1"] = True
-
-        torch.manual_seed(42)
-        net = ConfigurableEINetwork(config=config, input_dim=INPUT_DIM)
-
-        assert net.transfer_params["allow_direct_inhibitory_stream"] is True
-        assert "allow_direct_inhibitory_input" not in net.transfer_params
-        assert net.layers[0].inhibitory_cells is not None
+        branch = net.layers[0].excitatory_cells.branch_layers[0]
+        assert branch.branch_inhibition.in_features == INPUT_DIM
         out = net(torch.rand(BATCH, INPUT_DIM))
         assert out.shape == (BATCH, OUTPUT_DIM)
+
+    def test_defined_inhibitory_layer_size_builds_inhibitory_population(self):
+        config = _config_with_inhibitory_layers(inhibitory_layer_sizes=[5])
+        torch.manual_seed(42)
+        net = ConfigurableEINetwork(config=config, input_dim=INPUT_DIM)
+        assert net.layers[0].inhibitory_cells is not None
+        x = torch.rand(BATCH, INPUT_DIM)
+        out = net(x)
+        assert out.shape == (BATCH, OUTPUT_DIM)
+
+    def test_point_inhibitory_cells_without_somatic_synapses_raise(self):
+        config = _minimal_config()
+        config["architecture"]["inhibitory_layer_sizes"] = [5]
+        config["connectivity"]["ei_synapses_per_branch_per_layer"] = [3]
+        config["connectivity"]["ii_synapses_per_branch_per_layer"] = [2]
+        with pytest.raises(ValueError, match="set somatic_synapses: true"):
+            get_architecture("dendritic_shunting", config, input_dim=INPUT_DIM)
+
+    def test_inhibitory_cells_without_input_synapses_raise(self):
+        config = _config_with_inhibitory_layers(inhibitory_layer_sizes=[5])
+        config["connectivity"]["ei_synapses_per_branch_per_layer"] = [0]
+        config["connectivity"]["ii_synapses_per_branch_per_layer"] = [0]
+        with pytest.raises(ValueError, match="gives them no input synapses"):
+            ConfigurableEINetwork(config=config, input_dim=INPUT_DIM)
+
+    def test_retired_input_mode_one_rejects_cells_it_did_not_build(self):
+        config = _config_with_inhibitory_layers(inhibitory_layer_sizes=[5])
+        config["transfer"]["input_mode"] = 1
+        with pytest.raises(ValueError, match="without the inhibitory cells"):
+            ConfigurableEINetwork(config=config, input_dim=INPUT_DIM)
+
+    @pytest.mark.parametrize(
+        "flag",
+        [
+            "input_mode1_build_inhibitory_population",
+            "build_inhibitory_population_for_input_mode1",
+        ],
+    )
+    def test_retired_build_opt_in_builds_the_same_population(self, flag):
+        config = _config_with_inhibitory_layers(inhibitory_layer_sizes=[5])
+        torch.manual_seed(42)
+        reference = ConfigurableEINetwork(config=config, input_dim=INPUT_DIM)
+        config["transfer"].update({"input_mode": 1, flag: True})
+        torch.manual_seed(42)
+        net = ConfigurableEINetwork(config=config, input_dim=INPUT_DIM)
+        assert "input_mode" not in net.transfer_params
+        for key, value in reference.state_dict().items():
+            assert torch.equal(net.state_dict()[key], value)
 
 
 # ---------------------------------------------------------------------------
@@ -467,10 +426,10 @@ class TestTransferFunction:
         exc, _inh = net.transfer_fn(x)
         assert exc.shape[-1] == INPUT_DIM
 
-    def test_transfer_input_mode0_duplicates_full_input(self):
+    def test_transfer_duplicates_full_input(self):
         transfer = TransferLayer(
             input_dim=7,
-            transfer_params={"input_mode": 0, "independent_pathways": False},
+            transfer_params={"independent_pathways": False},
         )
         x = torch.randn(3, 7)
         exc, inh = transfer(x)
@@ -479,28 +438,10 @@ class TestTransferFunction:
         assert torch.allclose(exc, x)
         assert torch.allclose(inh, x)
 
-    def test_transfer_input_mode0_allows_independent_split_shapes(self):
+    def test_transfer_independent_split_shapes(self):
         transfer = TransferLayer(
             input_dim=7,
             transfer_params={
-                "input_mode": 0,
-                "independent_pathways": True,
-                "excitatory_dim": 4,
-                "inhibitory_dim": 3,
-            },
-        )
-        x = torch.randn(3, 7)
-        exc, inh = transfer(x)
-        assert exc.shape == (3, 4)
-        assert inh.shape == (3, 3)
-        assert transfer.excitatory_dim == 4
-        assert transfer.inhibitory_dim == 3
-
-    def test_transfer_input_mode1_independent_split_shapes(self):
-        transfer = TransferLayer(
-            input_dim=7,
-            transfer_params={
-                "input_mode": 1,
                 "independent_pathways": True,
                 "excitatory_dim": 4,
                 "inhibitory_dim": 3,
@@ -518,7 +459,6 @@ class TestTransferFunction:
             TransferLayer(
                 input_dim=7,
                 transfer_params={
-                    "input_mode": 1,
                     "independent_pathways": True,
                     "excitatory_dim": 5,
                     "inhibitory_dim": 5,
@@ -528,7 +468,7 @@ class TestTransferFunction:
     def test_transfer_rejects_runtime_input_dim_mismatch(self):
         transfer = TransferLayer(
             input_dim=7,
-            transfer_params={"input_mode": 0, "independent_pathways": False},
+            transfer_params={"independent_pathways": False},
         )
         with pytest.raises(ValueError, match="expected last input dimension 7"):
             transfer(torch.randn(3, 8))
@@ -583,7 +523,6 @@ class TestSynapseModeMLPNetwork:
         config = _minimal_config()
         config["architecture"]["inhibitory_layer_sizes"] = [5]
         config["architecture"]["inhibitory_branch_factors"] = [2]
-        config["transfer"]["input_mode"] = 0
         config["connectivity"]["ei_synapses_per_branch_per_layer"] = [3]
         config["connectivity"]["ii_synapses_per_branch_per_layer"] = [2]
         torch.manual_seed(42)
@@ -845,7 +784,6 @@ class TestEINetworkSynapseScheduleHelpers:
             ie_synapses_per_branch_per_layer=[2],
             ii_synapses_per_branch_per_layer=[1],
             num_layers=3,
-            input_mode=0,
             has_inhibitory_neurons=True,
         )
 
@@ -858,23 +796,10 @@ class TestEINetworkSynapseScheduleHelpers:
             ie_synapses_per_branch_per_layer=[],
             ii_synapses_per_branch_per_layer=[],
             num_layers=2,
-            input_mode=0,
             has_inhibitory_neurons=False,
         )
 
         assert schedules == ([5, 5], [0, 0], [0, 0], [0, 0])
-
-    def test_prepare_synapse_schedules_requires_ie_for_input_mode1(self):
-        with pytest.raises(ValueError, match="ie_synapses_per_branch_per_layer"):
-            _prepare_ei_synapse_schedules(
-                ee_synapses_per_branch_per_layer=[5],
-                ei_synapses_per_branch_per_layer=[],
-                ie_synapses_per_branch_per_layer=[],
-                ii_synapses_per_branch_per_layer=[],
-                num_layers=1,
-                input_mode=1,
-                has_inhibitory_neurons=False,
-            )
 
     def test_prepare_synapse_schedules_requires_i_schedules_with_i_neurons(self):
         with pytest.raises(ValueError, match="ei_synapses_per_branch_per_layer"):
@@ -884,7 +809,6 @@ class TestEINetworkSynapseScheduleHelpers:
                 ie_synapses_per_branch_per_layer=[2],
                 ii_synapses_per_branch_per_layer=[1],
                 num_layers=1,
-                input_mode=0,
                 has_inhibitory_neurons=True,
             )
 
@@ -895,32 +819,6 @@ class TestEINetworkLayerSizeHelpers:
             input_dim=20,
             excitatory_layer_sizes=[10, 5],
             inhibitory_layer_sizes=[8, 4],
-            input_mode=0,
-            input_mode1_builds_i=False,
-        )
-
-        assert exc == [20, 10, 5]
-        assert inh == [None, 8, 4]
-
-    def test_prepare_layer_size_sequences_preserves_direct_stream_default(self):
-        exc, inh = _prepare_ei_layer_size_sequences(
-            input_dim=20,
-            excitatory_layer_sizes=[10, 5],
-            inhibitory_layer_sizes=[8, 4],
-            input_mode=1,
-            input_mode1_builds_i=False,
-        )
-
-        assert exc == [20, 10, 5]
-        assert inh == [None, None, None]
-
-    def test_prepare_layer_size_sequences_preserves_input_mode1_opt_in(self):
-        exc, inh = _prepare_ei_layer_size_sequences(
-            input_dim=20,
-            excitatory_layer_sizes=[10, 5],
-            inhibitory_layer_sizes=[8, 4],
-            input_mode=1,
-            input_mode1_builds_i=True,
         )
 
         assert exc == [20, 10, 5]
@@ -981,50 +879,6 @@ class TestEINetworkLayerBuildSpec:
         assert spec["build_inhibitory_cells"] is False
 
 
-class TestEINetworkDirectStreamValidation:
-    def test_direct_stream_requires_explicit_opt_in_when_required(self):
-        with pytest.raises(ValueError, match="directly instead of building inhibitory"):
-            _validate_direct_inhibitory_stream_contract(
-                input_mode=1,
-                has_inhibitory_neurons=False,
-                ie_synapses_per_branch_per_layer=[1],
-                allow_direct_inhibitory_stream=False,
-                require_direct_stream_opt_in=True,
-            )
-
-    def test_direct_stream_allows_explicit_opt_in(self):
-        _validate_direct_inhibitory_stream_contract(
-            input_mode=1,
-            has_inhibitory_neurons=False,
-            ie_synapses_per_branch_per_layer=[1],
-            allow_direct_inhibitory_stream=True,
-            require_direct_stream_opt_in=True,
-        )
-
-    def test_direct_stream_validation_ignores_non_direct_cases(self):
-        _validate_direct_inhibitory_stream_contract(
-            input_mode=0,
-            has_inhibitory_neurons=False,
-            ie_synapses_per_branch_per_layer=[1],
-            allow_direct_inhibitory_stream=False,
-            require_direct_stream_opt_in=True,
-        )
-        _validate_direct_inhibitory_stream_contract(
-            input_mode=1,
-            has_inhibitory_neurons=True,
-            ie_synapses_per_branch_per_layer=[1],
-            allow_direct_inhibitory_stream=False,
-            require_direct_stream_opt_in=True,
-        )
-        _validate_direct_inhibitory_stream_contract(
-            input_mode=1,
-            has_inhibitory_neurons=False,
-            ie_synapses_per_branch_per_layer=[0],
-            allow_direct_inhibitory_stream=False,
-            require_direct_stream_opt_in=True,
-        )
-
-
 # ---------------------------------------------------------------------------
 # Factory: classical architecture dispatches
 # ---------------------------------------------------------------------------
@@ -1080,6 +934,41 @@ class TestNetworkProperties:
     def test_apply_rewiring_no_error(self):
         net = _build_network("dendritic_shunting")
         net.apply_rewiring()  # Should not raise
+
+    def test_mlp_inhibitory_cells_have_no_branch_layers_and_count_densely(self):
+        from types import SimpleNamespace
+
+        from dendritic_modeling.config import TransferFunctionConfig
+        from dendritic_modeling.networks import ExcitationInhibitionNetwork
+
+        torch.manual_seed(0)
+        net = ExcitationInhibitionNetwork(
+            input_dim=8,
+            transfer_params=TransferFunctionConfig().asdict(),
+            excitatory_layer_sizes=[4],
+            inhibitory_layer_sizes=[3],
+            excitatory_branch_factors=[2],
+            inhibitory_branch_factors=[2],
+            ee_synapses_per_branch_per_layer=[2],
+            ei_synapses_per_branch_per_layer=[2],
+            ie_synapses_per_branch_per_layer=[2],
+            ii_synapses_per_branch_per_layer=[0],
+            inhibitory_network_type="mlp",
+        )
+        layer = net.layers[0]
+        assert net.branch_layers == list(layer.excitatory_cells.branch_layers)
+        assert net.n_branch_layers == len(layer.excitatory_cells.branch_layers)
+        mlp = sum(p.numel() for p in layer.inhibitory_cells.parameters())
+        excitatory_only = ExcitationInhibitionNetwork.get_effective_params(
+            SimpleNamespace(
+                layers=[
+                    SimpleNamespace(
+                        excitatory_cells=layer.excitatory_cells, inhibitory_cells=None
+                    )
+                ]
+            )
+        )
+        assert net.get_effective_params() == excitatory_only + mlp
 
 
 # ---------------------------------------------------------------------------

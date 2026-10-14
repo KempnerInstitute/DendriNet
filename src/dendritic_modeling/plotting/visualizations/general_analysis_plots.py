@@ -5,12 +5,19 @@ import json
 import logging
 import os
 import re
-from collections import defaultdict
 from typing import Any, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+
+from dendritic_modeling.plotting.styles import (
+    bar_kwargs,
+    indexed_hatch,
+    indexed_linestyle,
+    indexed_style,
+    split_style,
+)
 
 from .plotting_utils import (
     convert_layer_names,
@@ -261,14 +268,11 @@ def plot_layer_ablation(
         if not depths:
             continue
 
-        # Create depth labels - correct soma/distal ordering
-        depth_labels = []
-        for depth in depths:
-            if depth == min(depths):
-                depth_labels.append("Soma")
-            else:
-                distal_layer = depth - min(depths)
-                depth_labels.append(f"Distal {distal_layer}")
+        # Analyzer results use soma-relative depths: zero is the soma and
+        # positive values are dendritic stages moving distally.  Do not infer
+        # the soma from the minimum *observed* depth because synapse ablations
+        # legitimately omit depth zero when somatic synapses are disabled.
+        depth_labels = ["Soma" if depth == 0 else f"Distal {depth}" for depth in depths]
 
         width = 0.8 / max(len(bases_present), 1)
 
@@ -294,7 +298,13 @@ def plot_layer_ablation(
                 ]
 
                 x = np.array(depths) + width * (i - (len(bases_present) - 1) / 2)
-                ax.bar(x, decreases, width=width, label=base.replace("_", " ").title())
+                ax.bar(
+                    x,
+                    decreases,
+                    width=width,
+                    label=base.replace("_", " ").title(),
+                    **bar_kwargs(indexed_style(i).color, indexed_hatch(i)),
+                )
 
             ax.set_xticks(depths)
             ax.set_xticklabels(depth_labels, rotation=45)
@@ -362,12 +372,10 @@ def plot_per_layer_ablation(layer_results: dict[str, dict[str, dict]], **kwargs)
 
             # Create a consistent structure for all depths
             layers_info = []
-            for i, depth in enumerate(all_depths):
-                # Use consistent naming: lowest depth = Soma, higher depths = Distal layers
-                if i == 0:
-                    display_name = "Soma"
-                else:
-                    display_name = f"Distal Layer {i}"
+            for depth in all_depths:
+                # Depth values are soma-relative, so a missing zero must not
+                # cause the first dendritic stage to be displayed as soma.
+                display_name = "Soma" if depth == 0 else f"Distal Layer {depth}"
 
                 # Find the layer data for this depth
                 layer_metrics = None
@@ -416,8 +424,9 @@ def plot_per_layer_ablation(layer_results: dict[str, dict[str, dict]], **kwargs)
                         values,
                         width,
                         label=ablation_type.replace("_", " ").title(),
-                        color=colors[i % len(colors)],
-                        alpha=0.8,
+                        **bar_kwargs(
+                            colors[i % len(colors)], indexed_hatch(i), alpha=0.8
+                        ),
                     )
 
                     # Add value labels on bars
@@ -624,11 +633,20 @@ def plot_weight_distributions(weight_data: dict[str, list[np.ndarray]], **kwargs
         fig, ax = create_figure(figsize=(10, 6))
 
         if weight_data:
-            for name, weights in weight_data.items():
+            for index, (name, weights) in enumerate(weight_data.items()):
                 if weights:
-                    # Flatten all weight arrays and plot histogram
+                    # Flatten all weight arrays; outlines in their own line
+                    # styles keep overlapping histograms apart without colour.
                     flat_weights = np.concatenate([w.flatten() for w in weights])
-                    ax.hist(flat_weights, bins=50, alpha=0.7, label=name)
+                    ax.hist(
+                        flat_weights,
+                        bins=50,
+                        histtype="step",
+                        linewidth=2,
+                        linestyle=indexed_linestyle(index),
+                        color=indexed_style(index).color,
+                        label=name,
+                    )
             setup_basic_plot(ax, "Weight Distributions", "Weight Value", "Frequency")
             ax.legend()
         else:
@@ -652,401 +670,212 @@ def plot_weight_distributions(weight_data: dict[str, list[np.ndarray]], **kwargs
         return handle_plot_error("weight distribution plotting", e)
 
 
-def plot_synapse_turnover(
-    turnover_results: dict,
-    save_path: Optional[str] = None,
-    filename: str = "synapse_turnover",
-):
-    """Generate plots for synaptic turnover analysis results."""
-    try:
-        # Validate input data
-        if not turnover_results:
-            logger.warning("Empty turnover results provided")
-            return None
-
-        logger.info(
-            f"Plotting turnover results with keys: {list(turnover_results.keys())}"
-        )
-
-        # Check if we have the new format with incremental and cumulative data
-        if "incremental" in turnover_results and "cumulative" in turnover_results:
-            # New format with both incremental and cumulative data
-            figures = []
-
-            # Log data availability
-            inc_data = turnover_results["incremental"]
-            cum_data = turnover_results["cumulative"]
-            n_snapshots = turnover_results.get("n_snapshots", 0)
-
-            logger.info(f"Found {n_snapshots} snapshots for turnover analysis")
-            logger.info(
-                f"Incremental data keys: {list(inc_data.keys()) if inc_data else 'None'}"
-            )
-            logger.info(
-                f"Cumulative data keys: {list(cum_data.keys()) if cum_data else 'None'}"
-            )
-
-            # Create incremental turnover plot (t vs t-1)
-            fig1 = _plot_turnover_data(
-                turnover_results["incremental"],
-                "Incremental Synaptic Turnover (t vs t-1)",
-                "incremental",
-            )
-            figures.append(fig1)
-
-            # Create cumulative turnover plot (t vs t-0)
-            fig2 = _plot_turnover_data(
-                turnover_results["cumulative"],
-                "Cumulative Synaptic Turnover (t vs t-0)",
-                "cumulative",
-            )
-            figures.append(fig2)
-
-            # Save both plots
-            if save_path:
-                if fig1:
-                    save_plot(fig1, save_path, f"{filename}_incremental")
-                if fig2:
-                    save_plot(fig2, save_path, f"{filename}_cumulative")
-
-            return figures
-
-        else:
-            # Original format - assume it's the old structure
-            logger.warning("Using original turnover format - may not display correctly")
-            return _plot_turnover_original_format(turnover_results, save_path, filename)
-
-    except Exception as e:
-        logger.error(f"Error in synapse turnover plotting: {e}")
-        return handle_plot_error(
-            "synapse turnover plotting", e, create_placeholder=False
-        )
+_TURNOVER_PATHWAY_STYLES = {
+    "exc": "-",
+    "inh": "--",
+    "rec_exc": "-.",
+    "rec_inh": ":",
+}
+_TURNOVER_COUNT_STYLES = {
+    "formed": ("o", "#0072B2"),
+    "eliminated": ("v", "#D55E00"),
+}
 
 
-def _plot_turnover_data(turnover_data: dict, title: str, plot_type: str) -> plt.Figure:
-    """Helper function to plot turnover data."""
-    try:
-        fig, axes = plt.subplots(2, 2, figsize=(15, 10))
+def plot_synapse_turnover(results: dict) -> plt.Figure:
+    """Plot contacts formed and eliminated per pathway between snapshots.
 
-        # Plot for excitatory connections
-        if "exc" in turnover_data:
-            _plot_single_turnover(
-                axes[0, 0], turnover_data["exc"], f"Excitatory {title}"
-            )
+    ``results`` is the output of ``SynapticTurnoverAnalyzer.results()``.
+    Pathways differ by line style and counts by marker and colour, so the
+    panels read without colour.
+    """
+    epochs = results["snapshot_epochs"][1:]
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4), sharey=True)
+    for ax, mode, title in (
+        (axes[0], "incremental", "Since the previous snapshot"),
+        (axes[1], "cumulative", "Since the first snapshot"),
+    ):
+        for pathway, linestyle in _TURNOVER_PATHWAY_STYLES.items():
+            counts = results[mode].get(pathway)
+            if counts is None:
+                continue
+            for count, (marker, color) in _TURNOVER_COUNT_STYLES.items():
+                ax.plot(
+                    epochs,
+                    counts[count],
+                    linestyle=linestyle,
+                    marker=marker,
+                    color=color,
+                    label=f"{pathway} {count}",
+                )
+        ax.set_title(title)
+        ax.set_xlabel("Epoch")
+        ax.grid(True, alpha=0.3)
+    axes[0].set_ylabel("Contacts")
+    axes[1].legend(loc="best", fontsize=8)
+    fig.tight_layout()
+    return fig
 
-        # Plot for inhibitory connections
-        if "inh" in turnover_data:
-            _plot_single_turnover(
-                axes[0, 1], turnover_data["inh"], f"Inhibitory {title}"
-            )
 
-        # Plot for both types combined
-        if "both" in turnover_data:
-            _plot_single_turnover(
-                axes[1, 0], turnover_data["both"], f"Combined {title}"
-            )
+def plot_layer_synapse_statistics(results: dict) -> plt.Figure:
+    """Plot each branch layer's cumulative turnover against epoch.
 
-        # Summary statistics plot
-        _plot_turnover_summary(axes[1, 1], turnover_data, plot_type)
+    ``results`` is the output of ``SynapticTurnoverAnalyzer.results()``; one
+    panel per branch layer shows the contacts formed and eliminated since the
+    first snapshot for each pathway. Pathways differ by line style and counts
+    by marker and colour.
+    """
+    epochs = results["snapshot_epochs"][1:]
+    names = list(results["modules"])
+    n_cols = min(3, max(len(names), 1))
+    n_rows = max(1, int(np.ceil(len(names) / n_cols)))
+    fig, axes = plt.subplots(
+        n_rows,
+        n_cols,
+        figsize=(4.2 * n_cols, 3.0 * n_rows),
+        squeeze=False,
+        sharex=True,
+    )
+    for ax, name in zip(axes.flat, names):
+        module = results["modules"][name]
+        for pathway, counts in module["cumulative"].items():
+            linestyle = _TURNOVER_PATHWAY_STYLES.get(pathway, "-")
+            for count, (marker, color) in _TURNOVER_COUNT_STYLES.items():
+                ax.plot(
+                    epochs,
+                    counts[count],
+                    linestyle=linestyle,
+                    marker=marker,
+                    color=color,
+                    markersize=3,
+                    label=f"{pathway} {count}",
+                )
+        ax.set_title(f"{name}\n{module['population']}", fontsize=7)
+        ax.set_xlabel("Epoch", fontsize=7)
+        ax.set_ylabel("Contacts since first snapshot", fontsize=7)
+        ax.tick_params(labelsize=6)
+        ax.legend(fontsize=5, frameon=False)
+    for ax in list(axes.flat)[len(names) :]:
+        ax.set_visible(False)
+    fig.tight_layout()
+    return fig
 
-        plt.tight_layout()
-        return fig
 
-    except Exception as e:
-        logger.warning(f"Error plotting turnover data: {e}")
+_CENSUS_PATHWAY_STYLES = {
+    "exc": ("-", "o", "#0072B2"),
+    "inh": ("--", "v", "#D55E00"),
+    "rec_exc": ("-.", "s", "#009E73"),
+    "rec_inh": (":", "D", "#CC79A7"),
+}
+
+
+def _census_branch_counts(census: dict, name: str, pathway: str) -> list[int] | None:
+    module = census["modules"].get(name)
+    if module is None or pathway not in module["pathways"]:
         return None
+    return module["pathways"][pathway]["realized_per_branch"]
 
 
-def _plot_single_turnover(ax: plt.Axes, data: dict, title: str):
-    """Plot turnover data for a single type."""
-    try:
-        # Check if data has required keys and non-empty values
-        required_keys = ["active", "stable", "transient"]
-        if not all(key in data for key in required_keys):
-            ax.text(
-                0.5,
-                0.5,
-                f"Missing turnover data\nRequired: {required_keys}\nFound: {list(data.keys())}",
-                ha="center",
-                va="center",
-                transform=ax.transAxes,
-            )
-            return
+def plot_active_synapses_per_branch(
+    census: dict, before: dict | None = None
+) -> plt.Figure:
+    """Plot the distribution of realized contacts per branch, per branch layer.
 
-        # Check if data arrays are not empty
-        if not any(len(data[key]) > 0 for key in required_keys):
-            ax.text(
-                0.5,
-                0.5,
-                "Empty turnover data\nNo snapshots to compare",
-                ha="center",
-                va="center",
-                transform=ax.transAxes,
-            )
-            return
-
-        # Plot if we have data
-        max_len = max(len(data[key]) for key in required_keys if len(data[key]) > 0)
-        if max_len > 0:
-            snapshots = list(range(max_len))
-
-            # Define colors and styles for better visibility
-            plot_styles = [
-                ("active", "#2E8B57", "o", "Active", "-"),  # Sea green, solid line
-                ("stable", "#4169E1", "s", "Stable", "--"),  # Royal blue, dashed line
-                ("transient", "#DC143C", "^", "Transient", ":"),  # Crimson, dotted line
-            ]
-
-            plotted_any = False
-            for key, color, marker, label, linestyle in plot_styles:
-                if key in data and len(data[key]) > 0:
-                    values = data[key][:max_len]  # Ensure same length
-                    ax.plot(
-                        snapshots[: len(values)],
-                        values,
-                        color=color,
-                        marker=marker,
-                        label=label,
-                        linestyle=linestyle,
-                        linewidth=2,
-                        markersize=6,
-                        alpha=0.8,
-                    )
-                    plotted_any = True
-
-                    # Add text annotation for flat lines
-                    if len(set(values)) == 1:  # All values are the same (flat line)
-                        mid_x = len(values) // 2
-                        ax.annotate(
-                            f"{label}: {values[0]}",
-                            xy=(mid_x, values[0]),
-                            xytext=(10, 10),
-                            textcoords="offset points",
-                            fontsize=9,
-                            alpha=0.7,
-                            bbox={
-                                "boxstyle": "round,pad=0.3",
-                                "facecolor": color,
-                                "alpha": 0.2,
-                            },
-                        )
-
-            if plotted_any:
-                ax.set_xlabel("Snapshot Number")
-                ax.set_ylabel("Synapse Count")
-                ax.set_title(title, fontweight="bold")
-                ax.legend(loc="best", fontsize=9)
-                ax.grid(True, alpha=0.3)
-
-                # Improve axis formatting
-                ax.tick_params(axis="both", which="major", labelsize=9)
-
-                # Set y-axis to start from 0 if all values are positive
-                y_min = min(
-                    min(data[key]) for key in required_keys if len(data[key]) > 0
+    ``census`` (and the optional pre-pruning ``before``) come from
+    :func:`~dendritic_modeling.analysis.utils.connectivity_census.connectivity_census`.
+    Pathways differ by line style and colour; the pre-pruning distributions
+    are drawn thinner.
+    """
+    names = list(census["modules"])
+    n_cols = min(3, max(len(names), 1))
+    n_rows = max(1, int(np.ceil(len(names) / n_cols)))
+    fig, axes = plt.subplots(
+        n_rows, n_cols, figsize=(4.2 * n_cols, 3.0 * n_rows), squeeze=False
+    )
+    for ax, name in zip(axes.flat, names):
+        for pathway, (linestyle, _marker, color) in _CENSUS_PATHWAY_STYLES.items():
+            for phase, source, width in (
+                ("after", census, 1.8),
+                ("before", before, 0.8),
+            ):
+                if source is None:
+                    continue
+                counts = _census_branch_counts(source, name, pathway)
+                if not counts:
+                    continue
+                bins = np.arange(0, max(counts) + 2) - 0.5
+                label = pathway if before is None else f"{pathway} ({phase} pruning)"
+                ax.hist(
+                    counts,
+                    bins=bins,
+                    histtype="step",
+                    linestyle=linestyle,
+                    linewidth=width,
+                    color=color,
+                    label=label,
                 )
-                if y_min >= 0:
-                    ax.set_ylim(bottom=0)
-
-    except Exception as e:
-        ax.text(
-            0.5,
-            0.5,
-            f"Turnover data\n(Error: {str(e)[:50]})",
-            ha="center",
-            va="center",
-            transform=ax.transAxes,
+        module = census["modules"][name]
+        ax.set_title(
+            f"{name}\n{module['population']}, depth {module['soma_relative_depth']}",
+            fontsize=7,
         )
+        ax.set_xlabel("Realized contacts per branch", fontsize=7)
+        ax.set_ylabel("Branches", fontsize=7)
+        ax.tick_params(labelsize=6)
+        ax.legend(fontsize=5, frameon=False)
+    for ax in list(axes.flat)[len(names) :]:
+        ax.set_visible(False)
+    fig.tight_layout()
+    return fig
 
 
-def _plot_turnover_summary(ax: plt.Axes, turnover_data: dict, plot_type: str):
-    """Plot summary statistics for turnover."""
-    try:
-        summary_metrics = []
-        labels = []
-        colors = []
+def plot_active_synapses_summary_by_layer(
+    census: dict, before: dict | None = None
+) -> plt.Figure:
+    """Plot the mean and SD of realized contacts per branch against depth.
 
-        color_map = {"exc": "green", "inh": "red", "both": "blue"}
-
-        for conn_type in ["exc", "inh", "both"]:
-            if conn_type in turnover_data:
-                data = turnover_data[conn_type]
-
-                # Use the actual data keys: active, stable, transient
-                for metric_name in ["active", "stable", "transient"]:
-                    if metric_name in data and len(data[metric_name]) > 0:
-                        # Calculate final value and change from start
-                        values = data[metric_name]
-                        if len(values) > 1:
-                            final_value = values[-1]
-                            initial_value = values[0]
-                            change = final_value - initial_value
-
-                            summary_metrics.append(change)
-                            labels.append(
-                                f"{conn_type.upper()}\n{metric_name.capitalize()}\nChange"
-                            )
-                            colors.append(color_map[conn_type])
-
-        if summary_metrics:
-            bars = ax.bar(range(len(labels)), summary_metrics, color=colors, alpha=0.7)
-
-            # Add value labels on bars
-            for bar, value in zip(bars, summary_metrics):
-                height = bar.get_height()
-                ax.text(
-                    bar.get_x() + bar.get_width() / 2.0,
-                    height
-                    + (abs(height) * 0.02 if height >= 0 else -abs(height) * 0.02),
-                    f"{value:+.0f}",
-                    ha="center",
-                    va="bottom" if height >= 0 else "top",
-                    fontsize=9,
+    One panel per population label; branch layers of the same population and
+    soma-relative depth are pooled. Pathways differ by marker, line style and
+    colour; pre-pruning values are drawn with hollow markers.
+    """
+    populations = sorted({m["population"] for m in census["modules"].values()})
+    fig, axes = plt.subplots(
+        1, len(populations), figsize=(4.5 * len(populations), 3.4), squeeze=False
+    )
+    for ax, population in zip(axes[0], populations):
+        for pathway, (linestyle, marker, color) in _CENSUS_PATHWAY_STYLES.items():
+            for phase, source in (("after", census), ("before", before)):
+                if source is None:
+                    continue
+                pooled: dict[int, list[int]] = {}
+                for name, module in source["modules"].items():
+                    counts = _census_branch_counts(source, name, pathway)
+                    if module["population"] != population or not counts:
+                        continue
+                    pooled.setdefault(module["soma_relative_depth"], []).extend(counts)
+                if not pooled:
+                    continue
+                depths = sorted(pooled)
+                means = [float(np.mean(pooled[d])) for d in depths]
+                stds = [float(np.std(pooled[d])) for d in depths]
+                ax.errorbar(
+                    depths,
+                    means,
+                    yerr=stds,
+                    linestyle=linestyle if phase == "after" else ":",
+                    marker=marker,
+                    markerfacecolor=color if phase == "after" else "none",
+                    color=color,
+                    capsize=2,
+                    label=pathway if before is None else f"{pathway} ({phase} pruning)",
                 )
-
-            ax.set_title(f"{plot_type.capitalize()} Net Change Summary")
-            ax.set_ylabel("Net Change (Final - Initial)")
-            ax.set_xticks(range(len(labels)))
-            ax.set_xticklabels(labels, fontsize=8)
-            ax.grid(True, alpha=0.3)
-            ax.axhline(y=0, color="black", linestyle="-", alpha=0.5)
-        else:
-            ax.text(
-                0.5,
-                0.5,
-                "No summary data available\n(No turnover data found)",
-                ha="center",
-                va="center",
-                transform=ax.transAxes,
-            )
-
-    except Exception as e:
-        ax.text(
-            0.5,
-            0.5,
-            f"Summary Error:\n{str(e)[:50]}",
-            ha="center",
-            va="center",
-            transform=ax.transAxes,
-        )
-
-
-def _plot_turnover_original_format(
-    turnover_results: dict, save_path: str, filename: str
-):
-    """Handle original turnover format."""
-    try:
-        figures = []
-
-        for connection_type in ["exc", "inh", "both"]:
-            if connection_type in turnover_results:
-                fig = _plot_turnover_data(
-                    {connection_type: turnover_results[connection_type]},
-                    f"Synaptic Turnover - {connection_type.capitalize()}",
-                    "original",
-                )
-                if fig:
-                    figures.append(fig)
-                    if save_path:
-                        save_plot(fig, save_path, f"{filename}_{connection_type}")
-
-        return figures
-
-    except Exception as e:
-        logger.warning(f"Error plotting original turnover format: {e}")
-        return []
-
-
-def plot_layer_synapse_statistics(
-    layer_stats: dict,
-    save_path: Optional[str] = None,
-    filename: str = "layer_synapse_statistics",
-):
-    """Plot per-layer synapse type statistics (ee, ei, ie, ii)."""
-    try:
-        logger.info("Generating layer synapse statistics plots...")
-
-        # Create figure with subplots for incremental and cumulative
-        fig, (ax1, ax2) = create_subplots(1, 2, figsize=(16, 6))
-
-        synapse_types = ["ee", "ei", "ie", "ii"]
-        colors = ["blue", "red", "green", "orange"]
-
-        # Plot incremental statistics
-        if (
-            "incremental" in layer_stats
-            and "per_layer_avg" in layer_stats["incremental"]
-        ):
-            incremental_data = layer_stats["incremental"]["per_layer_avg"]
-            x_positions = range(len(synapse_types))
-
-            # Calculate averages for each synapse type
-            avg_values = []
-            for syn_type in synapse_types:
-                if incremental_data.get(syn_type):
-                    # Average across all time points
-                    avg_values.append(np.mean(incremental_data[syn_type]))
-                else:
-                    avg_values.append(0)
-
-            bars1 = ax1.bar(x_positions, avg_values, color=colors, alpha=0.7)
-            ax1.set_title("Average Per-Layer Synapse Counts (Incremental)")
-            ax1.set_xlabel("Synapse Type")
-            ax1.set_ylabel("Average Count per Layer")
-            ax1.set_xticks(x_positions)
-            ax1.set_xticklabels([s.upper() for s in synapse_types])
-
-            # Add value labels on bars
-            for bar, value in zip(bars1, avg_values):
-                height = bar.get_height()
-                ax1.text(
-                    bar.get_x() + bar.get_width() / 2.0,
-                    height,
-                    f"{value:.1f}",
-                    ha="center",
-                    va="bottom",
-                )
-
-        # Plot cumulative statistics
-        if "cumulative" in layer_stats and "per_layer_avg" in layer_stats["cumulative"]:
-            cumulative_data = layer_stats["cumulative"]["per_layer_avg"]
-
-            # Calculate averages for each synapse type
-            avg_values_cum = []
-            for syn_type in synapse_types:
-                if cumulative_data.get(syn_type):
-                    # Average across all time points
-                    avg_values_cum.append(np.mean(cumulative_data[syn_type]))
-                else:
-                    avg_values_cum.append(0)
-
-            bars2 = ax2.bar(x_positions, avg_values_cum, color=colors, alpha=0.7)
-            ax2.set_title("Average Per-Layer Synapse Counts (Cumulative)")
-            ax2.set_xlabel("Synapse Type")
-            ax2.set_ylabel("Average Count per Layer")
-            ax2.set_xticks(x_positions)
-            ax2.set_xticklabels([s.upper() for s in synapse_types])
-
-            # Add value labels on bars
-            for bar, value in zip(bars2, avg_values_cum):
-                height = bar.get_height()
-                ax2.text(
-                    bar.get_x() + bar.get_width() / 2.0,
-                    height,
-                    f"{value:.1f}",
-                    ha="center",
-                    va="bottom",
-                )
-
-        plt.tight_layout()
-
-        if save_path:
-            save_plot(fig, save_path, filename)
-
-        return fig
-
-    except Exception as e:
-        return handle_plot_error("layer synapse statistics plotting", e)
+        ax.set_title(population, fontsize=8)
+        ax.set_xlabel("Soma-relative depth (0 = soma)", fontsize=7)
+        ax.set_ylabel("Realized contacts per branch", fontsize=7)
+        ax.tick_params(labelsize=6)
+        ax.legend(fontsize=5, frameon=False)
+    fig.tight_layout()
+    return fig
 
 
 def plot_performance_metrics(performance_data: dict, **kwargs):
@@ -1195,10 +1024,16 @@ def plot_performance_evolution(
         # Create evolution plot
         fig, ax = create_figure(figsize=(12, 8))
 
-        # Plot each metric
-        for metric, values in all_data.items():
+        # Plot each metric with its own marker and line style
+        for index, (metric, values) in enumerate(all_data.items()):
             if len(values) == len(epochs):
-                ax.plot(epochs, values, marker="o", label=metric, linewidth=2)
+                ax.plot(
+                    epochs,
+                    values,
+                    **indexed_style(index).kwargs(),
+                    label=metric,
+                    linewidth=2,
+                )
 
         ax.set_xlabel("Epoch")
         ax.set_ylabel("Performance Metric Value")
@@ -1234,13 +1069,28 @@ def plot_loss_curves(
 
         epochs = range(1, len(train_losses) + 1)
 
+        # Every curve has its own line style besides its colour.
+        train_color = split_style("train").color
+
         # Plot main losses
-        ax.plot(epochs, train_losses, "b-", linewidth=2, label="Training Loss (Total)")
+        ax.plot(
+            epochs,
+            train_losses,
+            color=train_color,
+            linestyle="-",
+            linewidth=2,
+            label="Training Loss (Total)",
+        )
 
         if valid_losses:
             epochs_val = range(1, len(valid_losses) + 1)
             ax.plot(
-                epochs_val, valid_losses, "r-", linewidth=2, label="Validation Loss"
+                epochs_val,
+                valid_losses,
+                color=split_style("valid").color,
+                linestyle="--",
+                linewidth=2,
+                label="Validation Loss",
             )
 
         # Plot separate components if available
@@ -1248,7 +1098,8 @@ def plot_loss_curves(
             ax.plot(
                 epochs,
                 train_losses_base,
-                "b--",
+                color=train_color,
+                linestyle="-.",
                 alpha=0.7,
                 linewidth=1.5,
                 label="Training Loss (Base)",
@@ -1258,7 +1109,8 @@ def plot_loss_curves(
             ax.plot(
                 epochs,
                 train_losses_reg,
-                "g:",
+                color=indexed_style(2).color,
+                linestyle=":",
                 alpha=0.8,
                 linewidth=1.5,
                 label="Regularization Loss",
@@ -1404,48 +1256,48 @@ def plot_noise_sweep_branch_results(results_csv_path, noise_type="gaussian"):
     )
 
     # Plot accuracy vs noise level
-    for n_branches in noise_df["n_branches"].unique():
+    for index, n_branches in enumerate(noise_df["n_branches"].unique()):
         branch_data = noise_df[noise_df["n_branches"] == n_branches]
         axes[0, 0].plot(
             branch_data["noise_level"],
             branch_data["accuracy"],
-            "o-",
+            **indexed_style(index).kwargs(),
             label=f"Branches={n_branches}",
         )
     setup_basic_plot(axes[0, 0], "Accuracy vs Noise Level", "Noise Level", "Accuracy")
     axes[0, 0].legend()
 
     # Plot loss vs noise level
-    for n_branches in noise_df["n_branches"].unique():
+    for index, n_branches in enumerate(noise_df["n_branches"].unique()):
         branch_data = noise_df[noise_df["n_branches"] == n_branches]
         axes[0, 1].plot(
             branch_data["noise_level"],
             branch_data["loss"],
-            "o-",
+            **indexed_style(index).kwargs(),
             label=f"Branches={n_branches}",
         )
     setup_basic_plot(axes[0, 1], "Loss vs Noise Level", "Noise Level", "Loss")
     axes[0, 1].legend()
 
     # Plot precision vs noise level
-    for n_branches in noise_df["n_branches"].unique():
+    for index, n_branches in enumerate(noise_df["n_branches"].unique()):
         branch_data = noise_df[noise_df["n_branches"] == n_branches]
         axes[1, 0].plot(
             branch_data["noise_level"],
             branch_data["precision"],
-            "o-",
+            **indexed_style(index).kwargs(),
             label=f"Branches={n_branches}",
         )
     setup_basic_plot(axes[1, 0], "Precision vs Noise Level", "Noise Level", "Precision")
     axes[1, 0].legend()
 
     # Plot recall vs noise level
-    for n_branches in noise_df["n_branches"].unique():
+    for index, n_branches in enumerate(noise_df["n_branches"].unique()):
         branch_data = noise_df[noise_df["n_branches"] == n_branches]
         axes[1, 1].plot(
             branch_data["noise_level"],
             branch_data["recall"],
-            "o-",
+            **indexed_style(index).kwargs(),
             label=f"Branches={n_branches}",
         )
     setup_basic_plot(axes[1, 1], "Recall vs Noise Level", "Noise Level", "Recall")
@@ -1484,45 +1336,48 @@ def plot_noise_sweep_ei_results(results_csv_path, noise_type="gaussian"):
     )
 
     # Plot accuracy vs noise level
-    for ei_ratio in noise_df["ei_ratio"].unique():
+    for index, ei_ratio in enumerate(noise_df["ei_ratio"].unique()):
         ei_data = noise_df[noise_df["ei_ratio"] == ei_ratio]
         axes[0, 0].plot(
             ei_data["noise_level"],
             ei_data["accuracy"],
-            "o-",
+            **indexed_style(index).kwargs(),
             label=f"E/I_var = {ei_ratio}",
         )
     setup_basic_plot(axes[0, 0], "Accuracy vs Noise Level", "Noise Level", "Accuracy")
     axes[0, 0].legend()
 
     # Plot loss vs noise level
-    for ei_ratio in noise_df["ei_ratio"].unique():
+    for index, ei_ratio in enumerate(noise_df["ei_ratio"].unique()):
         ei_data = noise_df[noise_df["ei_ratio"] == ei_ratio]
         axes[0, 1].plot(
-            ei_data["noise_level"], ei_data["loss"], "o-", label=f"E/I_var = {ei_ratio}"
+            ei_data["noise_level"],
+            ei_data["loss"],
+            **indexed_style(index).kwargs(),
+            label=f"E/I_var = {ei_ratio}",
         )
     setup_basic_plot(axes[0, 1], "Loss vs Noise Level", "Noise Level", "Loss")
     axes[0, 1].legend()
 
     # Plot precision vs noise level
-    for ei_ratio in noise_df["ei_ratio"].unique():
+    for index, ei_ratio in enumerate(noise_df["ei_ratio"].unique()):
         ei_data = noise_df[noise_df["ei_ratio"] == ei_ratio]
         axes[1, 0].plot(
             ei_data["noise_level"],
             ei_data["precision"],
-            "o-",
+            **indexed_style(index).kwargs(),
             label=f"E/I_var = {ei_ratio}",
         )
     setup_basic_plot(axes[1, 0], "Precision vs Noise Level", "Noise Level", "Precision")
     axes[1, 0].legend()
 
     # Plot recall vs noise level
-    for ei_ratio in noise_df["ei_ratio"].unique():
+    for index, ei_ratio in enumerate(noise_df["ei_ratio"].unique()):
         ei_data = noise_df[noise_df["ei_ratio"] == ei_ratio]
         axes[1, 1].plot(
             ei_data["noise_level"],
             ei_data["recall"],
-            "o-",
+            **indexed_style(index).kwargs(),
             label=f"E/I_var = {ei_ratio}",
         )
     setup_basic_plot(axes[1, 1], "Recall vs Noise Level", "Noise Level", "Recall")
@@ -1540,443 +1395,3 @@ def plot_noise_sweep_ei_results(results_csv_path, noise_type="gaussian"):
 
     logger.info("Plot saved to: %s", save_path_final)
     return fig, axes
-
-
-def plot_active_synapses_per_branch(
-    connectivity_stats: dict,
-    save_path: Optional[str] = None,
-    filename: str = "active_synapses_per_branch",
-) -> plt.Figure:
-    """
-    Plot active E and I synapses per branch per layer.
-
-    Args:
-        connectivity_stats: Dictionary containing layer and branch statistics
-        save_path: Directory to save the plot
-        filename: Base filename for the plot
-
-    Returns:
-        matplotlib Figure object
-    """
-    try:
-        # Extract data from connectivity stats
-        layer_stats = connectivity_stats.get("layer_stats", {})
-        branch_stats = connectivity_stats.get("branch_stats", {})
-
-        if not layer_stats and not branch_stats:
-            logger.warning(
-                "No layer or branch statistics found - generating default empty plot"
-            )
-            fig, ax = plt.subplots(figsize=(12, 8))
-            ax.text(
-                0.5,
-                0.5,
-                "No pruning statistics available\n(Small model or no synapses pruned)",
-                ha="center",
-                va="center",
-                fontsize=12,
-            )
-            ax.set_title("Active Synapses per Branch", fontsize=14, fontweight="bold")
-            ax.set_xlabel("Layer")
-            ax.set_ylabel("Number of Active Synapses")
-            if save_path and filename:
-                save_plot(fig, save_path, filename)
-            return fig
-
-        # Organize data by layer and branch
-        layers_data = defaultdict(list)
-
-        # Parse branch names to extract layer and branch indices
-        for branch_name, stats in branch_stats.items():
-            # Expected format: "layer_X_branch_Y"
-            try:
-                parts = branch_name.split("_")
-                if len(parts) >= 4 and parts[0] == "layer" and parts[2] == "branch":
-                    layer_idx = int(parts[1])
-                    branch_idx = int(parts[3])
-
-                    exc_active = stats.get("excitatory", {}).get("active", 0)
-                    inh_active = stats.get("inhibitory", {}).get("active", 0)
-
-                    layers_data[layer_idx].append(
-                        {
-                            "branch_idx": branch_idx,
-                            "excitatory": exc_active,
-                            "inhibitory": inh_active,
-                            "total": exc_active + inh_active,
-                        }
-                    )
-            except (ValueError, IndexError):
-                logger.warning(f"Could not parse branch name: {branch_name}")
-                continue
-
-        # Sort data by layer and branch indices
-        sorted_layers = sorted(layers_data.keys())
-        for layer_idx in sorted_layers:
-            layers_data[layer_idx].sort(key=lambda x: x["branch_idx"])
-
-        # Create the plot
-        n_layers = len(sorted_layers)
-        if n_layers == 0:
-            logger.warning("No valid layer data found for plotting")
-            return None
-
-        # Calculate layout
-        n_cols = min(3, n_layers)
-        n_rows = (n_layers + n_cols - 1) // n_cols
-
-        fig, axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, 4 * n_rows))
-
-        # Handle different subplot configurations
-        if n_layers == 1:
-            axes = [axes]  # Single subplot
-        elif n_rows == 1 and n_cols > 1:
-            axes = list(axes)  # Single row, multiple columns
-        elif n_cols == 1 and n_rows > 1:
-            axes = list(axes)  # Single column, multiple rows
-        else:
-            axes = axes.flatten()  # Multiple rows and columns
-
-        # Plot data for each layer
-        for plot_idx, layer_idx in enumerate(sorted_layers):
-            ax = axes[plot_idx] if plot_idx < len(axes) else None
-            if ax is None:
-                continue
-
-            layer_data = layers_data[layer_idx]
-
-            # Extract data for plotting
-            branch_indices = [d["branch_idx"] for d in layer_data]
-            exc_counts = [d["excitatory"] for d in layer_data]
-            inh_counts = [d["inhibitory"] for d in layer_data]
-
-            # Create bar plot
-            x_pos = np.arange(len(branch_indices))
-            width = 0.35
-
-            bars1 = ax.bar(
-                x_pos - width / 2,
-                exc_counts,
-                width,
-                label="Excitatory",
-                color="red",
-                alpha=0.7,
-            )
-            bars2 = ax.bar(
-                x_pos + width / 2,
-                inh_counts,
-                width,
-                label="Inhibitory",
-                color="blue",
-                alpha=0.7,
-            )
-
-            # Customize the plot
-            ax.set_xlabel("Branch Index")
-            ax.set_ylabel("Number of Active Synapses")
-            ax.set_title(f"Layer {layer_idx}: Active Synapses per Branch")
-            ax.set_xticks(x_pos)
-            ax.set_xticklabels(branch_indices)
-            ax.legend()
-            ax.grid(True, alpha=0.3)
-
-            # Add value labels on bars
-            for bar in bars1:
-                height = bar.get_height()
-                if height > 0:
-                    ax.annotate(
-                        f"{int(height)}",
-                        xy=(bar.get_x() + bar.get_width() / 2, height),
-                        xytext=(0, 3),  # 3 points vertical offset
-                        textcoords="offset points",
-                        ha="center",
-                        va="bottom",
-                        fontsize=8,
-                    )
-
-            for bar in bars2:
-                height = bar.get_height()
-                if height > 0:
-                    ax.annotate(
-                        f"{int(height)}",
-                        xy=(bar.get_x() + bar.get_width() / 2, height),
-                        xytext=(0, 3),  # 3 points vertical offset
-                        textcoords="offset points",
-                        ha="center",
-                        va="bottom",
-                        fontsize=8,
-                    )
-
-        # Hide unused subplots
-        for plot_idx in range(n_layers, len(axes)):
-            axes[plot_idx].set_visible(False)
-
-        plt.tight_layout()
-
-        # Add overall title
-        fig.suptitle(
-            "Active Excitatory and Inhibitory Synapses per Branch per Layer",
-            fontsize=14,
-            y=0.98,
-        )
-
-        # Save the plot
-        if save_path:
-            save_plot(fig, save_path, filename)
-            logger.info(
-                f"Active synapses per branch plot saved to {save_path}/{filename}"
-            )
-
-        return fig
-
-    except Exception as e:
-        logger.error(f"Error in plot_active_synapses_per_branch: {e}")
-        return handle_plot_error("active synapses per branch plotting", e)
-
-
-def plot_active_synapses_summary_by_layer(
-    connectivity_stats: dict,
-    save_path: Optional[str] = None,
-    filename: str = "active_synapses_summary_by_layer",
-) -> plt.Figure:
-    """
-    Plot mean and std of active synapses per layer for each synapse type.
-
-    This function creates a plot showing:
-    - X-axis: Layer number (L)
-    - Y-axis: Number of active synapses
-    - For each layer L: mean and std of active synapses across all branches in that layer
-    - Separate plots for excitatory (EE), inhibitory (IE), and total synapses
-
-    Args:
-        connectivity_stats: Dictionary containing layer and branch statistics
-        save_path: Directory to save the plot
-        filename: Base filename for the plot
-
-    Returns:
-        matplotlib Figure object
-    """
-    try:
-        # Extract data from connectivity stats
-        layer_stats = connectivity_stats.get("layer_stats", {})
-
-        logger.debug("Connectivity stats keys: %s", list(connectivity_stats.keys()))
-        logger.debug("Layer stats keys: %s", list(layer_stats.keys()))
-
-        if not layer_stats:
-            logger.warning("No layer statistics found - generating default empty plot")
-            fig, ax = plt.subplots(figsize=(12, 8))
-            ax.text(
-                0.5,
-                0.5,
-                "No layer statistics available\n(Small model or no synapses pruned)",
-                ha="center",
-                va="center",
-                fontsize=12,
-            )
-            ax.set_title(
-                "Active Synapses Summary by Layer", fontsize=14, fontweight="bold"
-            )
-            ax.set_xlabel("Layer")
-            ax.set_ylabel("Number of Active Synapses")
-            if save_path and filename:
-                save_plot(fig, save_path, filename)
-            return fig
-
-        # Organize data by layer
-        layers_summary = {}
-
-        # Extract detailed branch data from layer_stats
-        for layer_name, layer_data in layer_stats.items():
-            # Extract layer index from name like "layer_0"
-            try:
-                layer_idx = int(layer_name.split("_")[1])
-            except (ValueError, IndexError):
-                logger.warning(f"Could not parse layer name: {layer_name}")
-                continue
-
-            branch_stats = layer_data.get("branch_stats", {})
-            if not branch_stats:
-                continue
-
-            # Collect synapse counts for all branches in this layer
-            exc_counts = []
-            inh_counts = []
-            total_counts = []
-
-            for _branch_name, branch_data in branch_stats.items():
-                exc_active = branch_data.get("excitatory", {}).get("active", 0)
-                inh_active = branch_data.get("inhibitory", {}).get("active", 0)
-                total_active = exc_active + inh_active
-
-                exc_counts.append(exc_active)
-                inh_counts.append(inh_active)
-                total_counts.append(total_active)
-
-            # Calculate statistics for this layer
-            if exc_counts or inh_counts:
-                layers_summary[layer_idx] = {
-                    "excitatory": {
-                        "mean": np.mean(exc_counts) if exc_counts else 0,
-                        "std": np.std(exc_counts) if len(exc_counts) > 1 else 0,
-                        "count": len(exc_counts),
-                    },
-                    "inhibitory": {
-                        "mean": np.mean(inh_counts) if inh_counts else 0,
-                        "std": np.std(inh_counts) if len(inh_counts) > 1 else 0,
-                        "count": len(inh_counts),
-                    },
-                    "total": {
-                        "mean": np.mean(total_counts) if total_counts else 0,
-                        "std": np.std(total_counts) if len(total_counts) > 1 else 0,
-                        "count": len(total_counts),
-                    },
-                }
-
-        if not layers_summary:
-            logger.warning("No valid layer data found for summary plotting")
-            return None
-
-        # Prepare data for plotting
-        sorted_layers = sorted(layers_summary.keys())
-
-        # Extract data arrays
-        exc_means = [
-            layers_summary[layer]["excitatory"]["mean"] for layer in sorted_layers
-        ]
-        exc_stds = [
-            layers_summary[layer]["excitatory"]["std"] for layer in sorted_layers
-        ]
-
-        inh_means = [
-            layers_summary[layer]["inhibitory"]["mean"] for layer in sorted_layers
-        ]
-        inh_stds = [
-            layers_summary[layer]["inhibitory"]["std"] for layer in sorted_layers
-        ]
-
-        total_means = [
-            layers_summary[layer]["total"]["mean"] for layer in sorted_layers
-        ]
-        total_stds = [layers_summary[layer]["total"]["std"] for layer in sorted_layers]
-
-        # Create the plot with 3 subplots
-        fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(15, 5))
-
-        x_pos = np.array(sorted_layers)
-
-        # Plot 1: Excitatory synapses
-        ax1.errorbar(
-            x_pos,
-            exc_means,
-            yerr=exc_stds,
-            marker="o",
-            capsize=5,
-            capthick=2,
-            color="red",
-            ecolor="red",
-            alpha=0.7,
-            label="Excitatory (EE)",
-        )
-        ax1.set_xlabel("Layer Number")
-        ax1.set_ylabel("Active Synapses (Mean ± Std)")
-        ax1.set_title("Excitatory Synapses per Branch")
-        ax1.grid(True, alpha=0.3)
-        ax1.set_xticks(sorted_layers)
-
-        # Add branch count annotations
-        for i, layer_idx in enumerate(sorted_layers):
-            branch_count = layers_summary[layer_idx]["excitatory"]["count"]
-            ax1.annotate(
-                f"n={branch_count}",
-                xy=(layer_idx, exc_means[i]),
-                xytext=(0, 10),
-                textcoords="offset points",
-                ha="center",
-                va="bottom",
-                fontsize=8,
-            )
-
-        # Plot 2: Inhibitory synapses
-        ax2.errorbar(
-            x_pos,
-            inh_means,
-            yerr=inh_stds,
-            marker="s",
-            capsize=5,
-            capthick=2,
-            color="blue",
-            ecolor="blue",
-            alpha=0.7,
-            label="Inhibitory (IE)",
-        )
-        ax2.set_xlabel("Layer Number")
-        ax2.set_ylabel("Active Synapses (Mean ± Std)")
-        ax2.set_title("Inhibitory Synapses per Branch")
-        ax2.grid(True, alpha=0.3)
-        ax2.set_xticks(sorted_layers)
-
-        # Add branch count annotations
-        for i, layer_idx in enumerate(sorted_layers):
-            branch_count = layers_summary[layer_idx]["inhibitory"]["count"]
-            ax2.annotate(
-                f"n={branch_count}",
-                xy=(layer_idx, inh_means[i]),
-                xytext=(0, 10),
-                textcoords="offset points",
-                ha="center",
-                va="bottom",
-                fontsize=8,
-            )
-
-        # Plot 3: Total synapses
-        ax3.errorbar(
-            x_pos,
-            total_means,
-            yerr=total_stds,
-            marker="^",
-            capsize=5,
-            capthick=2,
-            color="green",
-            ecolor="green",
-            alpha=0.7,
-            label="Total (EE + IE)",
-        )
-        ax3.set_xlabel("Layer Number")
-        ax3.set_ylabel("Active Synapses (Mean ± Std)")
-        ax3.set_title("Total Synapses per Branch")
-        ax3.grid(True, alpha=0.3)
-        ax3.set_xticks(sorted_layers)
-
-        # Add branch count annotations
-        for i, layer_idx in enumerate(sorted_layers):
-            branch_count = layers_summary[layer_idx]["total"]["count"]
-            ax3.annotate(
-                f"n={branch_count}",
-                xy=(layer_idx, total_means[i]),
-                xytext=(0, 10),
-                textcoords="offset points",
-                ha="center",
-                va="bottom",
-                fontsize=8,
-            )
-
-        plt.tight_layout()
-
-        # Add overall title
-        fig.suptitle(
-            "Active Synapses per Branch: Mean ± Std by Layer and Synapse Type",
-            fontsize=14,
-            y=1.02,
-        )
-
-        # Save the plot
-        if save_path:
-            save_plot(fig, save_path, filename)
-            logger.info(f"Active synapses summary plot saved to {save_path}/{filename}")
-
-        return fig
-
-    except Exception as e:
-        logger.error(f"Error in plot_active_synapses_summary_by_layer: {e}")
-        return handle_plot_error("active synapses summary by layer plotting", e)

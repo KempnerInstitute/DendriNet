@@ -1,3 +1,5 @@
+import math
+
 import pytest
 import torch
 
@@ -151,3 +153,48 @@ def test_compartment_snr_layer_capture_hooks_remove_partial_hooks(
         analyzer._attach_layer_capture_hooks("layer", layer)
 
     assert _count_forward_and_pre_hooks(layer) == 0
+
+
+def _discriminability(x, y, permutations=50):
+    from dendritic_modeling.analysis.tools.compartment_snr import class_discriminability
+
+    return class_discriminability(
+        x,
+        y,
+        null_permutations=permutations,
+        null_quantile=0.95,
+        generator=torch.Generator().manual_seed(0),
+    )
+
+
+def test_label_free_activity_has_no_significant_direction():
+    generator = torch.Generator().manual_seed(1)
+    x = torch.randn(1000, 64, generator=generator)
+    y = torch.randint(0, 5, (1000,), generator=generator)
+    result = _discriminability(x, y)
+    assert result["n_sig_dirs"] == 0.0
+    # In-sample eigenvalues of noise: about (C - 1) D / (n - 1) in total.
+    assert abs(result["d_total"] - 4 * 64 / 999) < 0.1
+    assert abs(result["d_total"] - result["d_total_null_mean"]) < 0.1
+    assert result["dim_over_n"] == 64 / 1000
+
+
+def test_a_one_dimensional_class_signal_gives_one_direction():
+    generator = torch.Generator().manual_seed(2)
+    y = torch.randint(0, 4, (1000,), generator=generator)
+    x = torch.randn(1000, 16, generator=generator)
+    x[:, 0] += y.float()
+    result = _discriminability(x, y)
+    assert result["n_sig_dirs"] == 1.0
+    assert 0.0 < result["d_max"] <= 1.0
+    assert result["d_total"] <= 3.0
+
+
+def test_discriminability_without_null_or_signal():
+    generator = torch.Generator().manual_seed(3)
+    y = torch.randint(0, 3, (200,), generator=generator)
+    x = torch.randn(200, 4, generator=generator)
+    without_null = _discriminability(x, y, permutations=0)
+    assert math.isnan(without_null["n_sig_dirs"])
+    constant = _discriminability(torch.ones(200, 4), y)
+    assert constant["d_total"] == 0.0 and constant["n_sig_dirs"] == 0.0

@@ -167,6 +167,53 @@ class TestDataCollector(unittest.TestCase):
         self.assertEqual(data["layer_mi_V_C_depth3"], 0.2)
         self.assertNotIn("layer_mi_V_C_depth1", data)
 
+    def _information_columns(self, payload):
+        collector = DataCollector(self.results_dir)
+        config_dir = self.results_dir / "results" / "config_0"
+        info_dir = config_dir / "information_analysis"
+        info_dir.mkdir(exist_ok=True)
+        with open(info_dir / "final", "w") as f:
+            json.dump(payload, f)
+        return collector._load_information(config_dir)
+
+    def test_information_depths_come_from_the_analyzer(self):
+        names = [f"core.layers.0.excitatory_cells.branch_layers.{i}" for i in range(3)]
+        data = self._information_columns(
+            {
+                "layer_statistics": {
+                    name: {"I(Vout;C)_mean": 0.1 * (i + 1)}
+                    for i, name in enumerate(names)
+                },
+                # The analyzer's soma-relative depths, not the key order.
+                "layer_soma_relative_depths": {names[0]: 2, names[1]: 1, names[2]: 0},
+            }
+        )
+        self.assertEqual(data["layer_mi_V_C_depth2"], 0.1)
+        self.assertAlmostEqual(data["layer_mi_V_C_depth0"], 0.3)
+
+    def test_information_columns_of_several_trees_name_the_tree(self):
+        statistics, depths = {}, {}
+        for population in ("pyr", "pv"):
+            for depth in (1, 0):
+                name = (
+                    f"core.layers.0.populations.{population}.branch_layers.{1 - depth}"
+                )
+                statistics[name] = {"I(Vout;C)_mean": depth + (population == "pv")}
+                depths[name] = depth
+        data = self._information_columns(
+            {"layer_statistics": statistics, "layer_soma_relative_depths": depths}
+        )
+        self.assertEqual(data["layer_mi_V_C_core_layers_0_populations_pyr_depth1"], 1)
+        self.assertEqual(data["layer_mi_V_C_core_layers_0_populations_pv_depth1"], 2)
+        self.assertNotIn("layer_mi_V_C_depth1", data)
+
+    def test_information_layers_without_a_depth_are_reported_not_guessed(self):
+        data = self._information_columns(
+            {"layer_statistics": {"core.branch_layers.0": {"I(Vout;C)_mean": 0.4}}}
+        )
+        self.assertEqual(data["layer_mi_depth_unresolved"], 1)
+        self.assertFalse(any(key.startswith("layer_mi_V_C") for key in data))
+
     def test_load_gain_enriched_schema_exports_raw_and_generalization_scores(self):
         """New multiplicative-gain payloads should expose raw, ID, and OOD scores."""
         collector = DataCollector(self.results_dir)
@@ -203,6 +250,8 @@ class TestDataCollector(unittest.TestCase):
                 {
                     "total_parameters": 120,
                     "trainable_parameters": 110,
+                    "core_total_parameters": 100,
+                    "core_trainable_parameters": 95,
                     "synapse_candidate_parameters": 90,
                     "non_synaptic_parameters": 30,
                     "candidate_synapse_slots": 80,
@@ -228,6 +277,8 @@ class TestDataCollector(unittest.TestCase):
 
         data = collector._load_model_resources(config_dir)
         self.assertEqual(data["resource_trainable_parameters"], 110)
+        self.assertEqual(data["resource_core_total_parameters"], 100)
+        self.assertEqual(data["resource_core_trainable_parameters"], 95)
         self.assertEqual(data["resource_active_synapses"], 12)
         self.assertEqual(data["resource_ff_excitatory_active_synapses"], 7)
         self.assertEqual(data["resource_ff_inhibitory_candidate_slots"], 30)
@@ -259,3 +310,55 @@ class TestDataCollector(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def _write_run(
+    results_dir: Path, config_id: int, *, seed: int, topk_lr: float, accuracy: float
+):
+    config = (
+        "experiment:\n"
+        f"  seed: {seed}\n"
+        "model:\n"
+        "  core:\n"
+        "    sparsity:\n"
+        "      indexed:\n"
+        f"        seed: {seed}\n"
+        "training:\n"
+        "  main:\n"
+        "    common:\n"
+        "      param_groups:\n"
+        f"        topk_lr: {topk_lr}\n"
+        f"_sweep_config_id: {config_id}\n"
+        f"outputs:\n  run_name: run_{config_id}\n"
+    )
+    (results_dir / "configs" / f"config_{config_id}.yaml").write_text(config)
+    performance = results_dir / "results" / f"config_{config_id}" / "performance"
+    performance.mkdir(parents=True)
+    (performance / "final.json").write_text(
+        json.dumps({"test": {"accuracy": accuracy}})
+    )
+
+
+def test_runs_that_differ_only_in_an_uncurated_swept_path_stay_separate(tmp_path):
+    from dendritic_modeling.scripts.sweeps.utils.aggregation import aggregate_over_seeds
+
+    (tmp_path / "configs").mkdir()
+    (tmp_path / "results").mkdir()
+    # Two learning rates, two replicate seeds each; the seed is also written
+    # into a component seed path, as experiment_settings.seed_paths does.
+    for config_id, (seed, lr, accuracy) in enumerate(
+        [(0, 0.001, 0.5), (1, 0.001, 0.7), (0, 0.01, 0.8), (1, 0.01, 0.9)]
+    ):
+        _write_run(tmp_path, config_id, seed=seed, topk_lr=lr, accuracy=accuracy)
+
+    collector = DataCollector(tmp_path)
+    data = collector.collect_all()
+    path = "training.main.common.param_groups.topk_lr"
+    assert path in collector.config_columns
+    assert "model.core.sparsity.indexed.seed" not in collector.config_columns
+
+    aggregated = aggregate_over_seeds(data, [], condition_cols=collector.config_columns)
+    rows = aggregated.sort_values(path).to_dict("records")
+    assert [row[path] for row in rows] == [0.001, 0.01]
+    assert [row["n_replicates"] for row in rows] == [2, 2]
+    assert [round(row["accuracy_test_mean"], 6) for row in rows] == [0.6, 0.85]

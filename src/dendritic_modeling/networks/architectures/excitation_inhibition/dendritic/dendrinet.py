@@ -5,11 +5,16 @@ This module implements the DendriNet and DendriNetWithOutputs classes
 which generate linear layers of neurons with sequential dendritic branches.
 """
 
+import functools
+import inspect
 from copy import deepcopy
+from dataclasses import replace
 
 import torch
 import torch.nn as nn
 
+from dendritic_modeling.config.keys import field_default
+from dendritic_modeling.config.synapse_payloads import DeepSTConfig
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_config import (
     DendriticBranchConfig,
 )
@@ -17,6 +22,8 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.b
     DendriticBranchLayer,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_options import (
+    explicit_options,
+    reject_conflicts,
     resolve_dendrinet_synapse_config,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.dendrinet_config import (
@@ -25,9 +32,17 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.d
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.synapse_config import (
     DendriticSynapseConfig,
 )
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.tangent_anchors import (
+    resolve_tangent_anchors_by_depth,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.spatial_morphology import (
+    sample_configured_indices,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.structured_mask import (
     sample_configured_mask,
 )
+
+_DEEPST_INIT_METHOD = field_default(DeepSTConfig, "init_method")
 
 
 def _sample_dendrinet_structured_mask(
@@ -89,6 +104,64 @@ def _sample_dendrinet_structured_masks(
     return excitatory_connection_mask, inhibitory_connection_mask
 
 
+def _sample_dendrinet_structured_indices(
+    structured_connectivity,
+    *,
+    structured_excitatory_pathway,
+    structured_inhibitory_pathway,
+    out_dim,
+    excitatory_input_dim,
+    excitatory_synapses_per_branch,
+    inhibitory_input_dim,
+    inhibitory_synapses_per_branch,
+    n_soma,
+    branch_factors,
+    index_dtype,
+    structured_layer_idx,
+    level_idx,
+):
+    """Sample optional compact excitatory and inhibitory indices."""
+
+    excitatory_connection_indices = None
+    if (
+        excitatory_input_dim is not None
+        and excitatory_synapses_per_branch is not None
+        and excitatory_synapses_per_branch > 0
+    ):
+        excitatory_connection_indices = sample_configured_indices(
+            structured_connectivity,
+            pathway=structured_excitatory_pathway,
+            out_features=out_dim,
+            in_features=excitatory_input_dim,
+            synapses_per_branch=excitatory_synapses_per_branch,
+            owner_count=n_soma,
+            branch_factors=branch_factors,
+            layer_idx=structured_layer_idx,
+            level_idx=level_idx,
+            index_dtype=index_dtype,
+        )
+
+    inhibitory_connection_indices = None
+    if (
+        inhibitory_input_dim is not None
+        and inhibitory_synapses_per_branch is not None
+        and inhibitory_synapses_per_branch > 0
+    ):
+        inhibitory_connection_indices = sample_configured_indices(
+            structured_connectivity,
+            pathway=structured_inhibitory_pathway,
+            out_features=out_dim,
+            in_features=inhibitory_input_dim,
+            synapses_per_branch=inhibitory_synapses_per_branch,
+            owner_count=n_soma,
+            branch_factors=branch_factors,
+            layer_idx=structured_layer_idx,
+            level_idx=level_idx,
+            index_dtype=index_dtype,
+        )
+    return excitatory_connection_indices, inhibitory_connection_indices
+
+
 def _make_dendrinet_branch_layer(
     *,
     output_dim,
@@ -100,6 +173,8 @@ def _make_dendrinet_branch_layer(
     layer_idx,
     synapse_config,
     branch_extra_kwargs,
+    excitatory_connection_indices=None,
+    inhibitory_connection_indices=None,
     excitatory_connection_mask=None,
     inhibitory_connection_mask=None,
 ):
@@ -113,6 +188,8 @@ def _make_dendrinet_branch_layer(
             inhibitory_synapses_per_branch=inhibitory_synapses_per_branch,
             input_branch_factor=input_branch_factor,
             layer_idx=layer_idx,
+            excitatory_connection_indices=excitatory_connection_indices,
+            inhibitory_connection_indices=inhibitory_connection_indices,
             excitatory_connection_mask=excitatory_connection_mask,
             inhibitory_connection_mask=inhibitory_connection_mask,
         ),
@@ -171,6 +248,7 @@ def _build_dendrinet_branch_layers(
     *,
     n_soma,
     n_branch_layers,
+    branch_factors,
     layer_sizes,
     input_branch_factors,
     excitatory_input_dim,
@@ -187,7 +265,40 @@ def _build_dendrinet_branch_layers(
 ):
     """Build DendriNet branch layers in forward construction order."""
 
+    if n_branch_layers == 0 and not somatic_synapses:
+        raise ValueError(
+            "a DendriNet without dendritic levels (branch_factors: []) receives "
+            "input only at the soma, but somatic_synapses is false; set "
+            "somatic_synapses: true"
+        )
+    branch_extra_kwargs = dict(branch_extra_kwargs)
+    n0_by_depth, t0_by_depth = resolve_tangent_anchors_by_depth(
+        branch_extra_kwargs.pop("additive_tangent_n0_by_depth", ()),
+        branch_extra_kwargs.pop("additive_tangent_t0_by_depth", ()),
+        n_levels=n_branch_layers + 1,
+        scalar_n0=synapse_config.morphology.additive_tangent_n0,
+        scalar_t0=synapse_config.morphology.additive_tangent_t0,
+        epsilon=synapse_config.morphology.epsilon,
+    )
+
+    def config_at_depth(config, depth):
+        if not n0_by_depth:
+            return config
+        return replace(
+            config,
+            morphology=replace(
+                config.morphology,
+                additive_tangent_n0=n0_by_depth[depth],
+                additive_tangent_t0=t0_by_depth[depth],
+            ),
+        )
+
     branch_layers = []
+    indexed_config = getattr(synapse_config, "indexed", None)
+    index_dtype = getattr(indexed_config, "index_dtype", "int64")
+    soma_synapse_config = config_at_depth(
+        _soma_override_synapse_config(synapse_config), 0
+    )
     for i in range(n_branch_layers):
         (
             excitatory_connection_mask,
@@ -204,17 +315,37 @@ def _build_dendrinet_branch_layers(
             structured_layer_idx=structured_layer_idx,
             level_idx=i,
         )
+        (
+            excitatory_connection_indices,
+            inhibitory_connection_indices,
+        ) = _sample_dendrinet_structured_indices(
+            structured_connectivity,
+            structured_excitatory_pathway=structured_excitatory_pathway,
+            structured_inhibitory_pathway=structured_inhibitory_pathway,
+            out_dim=layer_sizes[i],
+            excitatory_input_dim=excitatory_input_dim,
+            excitatory_synapses_per_branch=excitatory_synapses_per_branch,
+            inhibitory_input_dim=inhibitory_input_dim,
+            inhibitory_synapses_per_branch=inhibitory_synapses_per_branch,
+            n_soma=n_soma,
+            branch_factors=branch_factors,
+            index_dtype=index_dtype,
+            structured_layer_idx=structured_layer_idx,
+            level_idx=i,
+        )
         lyr = _make_dendrinet_branch_layer(
             output_dim=layer_sizes[i],
             excitatory_input_dim=excitatory_input_dim,
             excitatory_synapses_per_branch=excitatory_synapses_per_branch,
             inhibitory_input_dim=inhibitory_input_dim,
             inhibitory_synapses_per_branch=inhibitory_synapses_per_branch,
+            excitatory_connection_indices=excitatory_connection_indices,
+            inhibitory_connection_indices=inhibitory_connection_indices,
             excitatory_connection_mask=excitatory_connection_mask,
             inhibitory_connection_mask=inhibitory_connection_mask,
             input_branch_factor=input_branch_factors[i],
             layer_idx=n_branch_layers - i,
-            synapse_config=synapse_config,
+            synapse_config=config_at_depth(synapse_config, n_branch_layers - i),
             branch_extra_kwargs=branch_extra_kwargs,
         )
         branch_layers.append(lyr)
@@ -236,6 +367,24 @@ def _build_dendrinet_branch_layers(
             structured_layer_idx=structured_layer_idx,
             level_idx=soma_level_idx,
         )
+        (
+            excitatory_connection_indices,
+            inhibitory_connection_indices,
+        ) = _sample_dendrinet_structured_indices(
+            structured_connectivity,
+            structured_excitatory_pathway=structured_excitatory_pathway,
+            structured_inhibitory_pathway=structured_inhibitory_pathway,
+            out_dim=n_soma,
+            excitatory_input_dim=excitatory_input_dim,
+            excitatory_synapses_per_branch=excitatory_synapses_per_branch,
+            inhibitory_input_dim=inhibitory_input_dim,
+            inhibitory_synapses_per_branch=inhibitory_synapses_per_branch,
+            n_soma=n_soma,
+            branch_factors=branch_factors,
+            index_dtype=index_dtype,
+            structured_layer_idx=structured_layer_idx,
+            level_idx=soma_level_idx,
+        )
         branch_layers.append(
             _make_dendrinet_branch_layer(
                 output_dim=n_soma,
@@ -243,11 +392,13 @@ def _build_dendrinet_branch_layers(
                 excitatory_synapses_per_branch=excitatory_synapses_per_branch,
                 inhibitory_input_dim=inhibitory_input_dim,
                 inhibitory_synapses_per_branch=inhibitory_synapses_per_branch,
+                excitatory_connection_indices=excitatory_connection_indices,
+                inhibitory_connection_indices=inhibitory_connection_indices,
                 excitatory_connection_mask=excitatory_connection_mask,
                 inhibitory_connection_mask=inhibitory_connection_mask,
                 input_branch_factor=input_branch_factors[-1],
                 layer_idx=0,
-                synapse_config=synapse_config,
+                synapse_config=soma_synapse_config,
                 branch_extra_kwargs=branch_extra_kwargs,
             )
         )
@@ -259,14 +410,44 @@ def _build_dendrinet_branch_layers(
                 excitatory_synapses_per_branch=None,
                 inhibitory_input_dim=None,
                 inhibitory_synapses_per_branch=None,
+                excitatory_connection_indices=None,
+                inhibitory_connection_indices=None,
                 input_branch_factor=input_branch_factors[-1],
                 layer_idx=0,
-                synapse_config=synapse_config,
+                synapse_config=soma_synapse_config,
                 branch_extra_kwargs=branch_extra_kwargs,
             )
         )
 
     return branch_layers
+
+
+def _soma_override_synapse_config(synapse_config):
+    """Return the synapse config to use for the soma output layer.
+
+    When ``reactivation.soma_type`` is set, the soma (``layer_idx=0``) stage
+    uses that activation type with ``soma_init_m`` / ``soma_init_b`` as its
+    initialization parameters, while every other branch level keeps the base
+    gate. ``soma_type=None`` (the default) returns the shared config object
+    unchanged, so historical construction is byte-identical.
+    """
+
+    reactivation = getattr(synapse_config, "reactivation", None)
+    soma_type = getattr(reactivation, "soma_type", None)
+    if not soma_type:
+        return synapse_config
+    from dataclasses import replace
+
+    return replace(
+        synapse_config,
+        reactivation=replace(
+            reactivation,
+            type=str(soma_type),
+            init_m=reactivation.soma_init_m,
+            init_b=reactivation.soma_init_b,
+            soma_type=None,
+        ),
+    )
 
 
 class DendriNet(nn.Module):
@@ -320,12 +501,14 @@ class DendriNet(nn.Module):
         efficient_blocklinear: bool = False,
         freeze_excitatory_connectivity=False,
         freeze_inhibitory_connectivity=False,
-        init_method=None,
+        init_method=_DEEPST_INIT_METHOD,
         weight_threshold=1e-6,
         adaptive_initialization=True,
         adaptive_initialization_policy="preserve_shunting_center",
         adaptive_target_conductance=5.0,
         initial_child_conductance=1.0,
+        initial_conductance_scale=1.0,
+        initial_child_conductance_log_sd=0.0,
         structured_connectivity=None,
         structured_layer_idx: int = 0,
         structured_excitatory_pathway: str = "ee",
@@ -339,6 +522,26 @@ class DendriNet(nn.Module):
         if config is not None:
             dendrinet_config = DendriNetConfig.from_config(config)
             config_kwargs = dendrinet_config.to_kwargs()
+            reject_conflicts(
+                "DendriNet",
+                "config",
+                config_kwargs,
+                explicit_options(
+                    {
+                        name: value
+                        for name, value in locals().items()
+                        if name in _DENDRINET_CONFIG_ARGUMENTS
+                    },
+                    _dendrinet_defaults(),
+                ),
+            )
+            if synapse_config is not None and DendriticSynapseConfig.from_config(
+                synapse_config
+            ) != DendriticSynapseConfig.from_config(dendrinet_config.synapse_config):
+                raise ValueError(
+                    "DendriNet received config and a different synapse_config; "
+                    "set the synapse options in config.synapse_config"
+                )
             n_soma = config_kwargs["n_soma"]
             branch_factors = config_kwargs["branch_factors"]
             excitatory_input_dim = config_kwargs["excitatory_input_dim"]
@@ -359,6 +562,12 @@ class DendriNet(nn.Module):
                 "structured_inhibitory_pathway"
             ]
             synapse_config = dendrinet_config.synapse_config
+            kwargs["additive_tangent_n0_by_depth"] = config_kwargs[
+                "additive_tangent_n0_by_depth"
+            ]
+            kwargs["additive_tangent_t0_by_depth"] = config_kwargs[
+                "additive_tangent_t0_by_depth"
+            ]
 
         _validate_dendrinet_dimensions(
             n_soma=n_soma,
@@ -394,12 +603,14 @@ class DendriNet(nn.Module):
             dendritic_activation=dendritic_activation,
             reactivate=reactivate,
             reactivation_type=reactivation_type,
+            formal_defaults=_dendrinet_defaults(),
         )
         self.synapse_config = synapse_config
 
         branch_layers = _build_dendrinet_branch_layers(
             n_soma=n_soma,
             n_branch_layers=self.n_branch_layers,
+            branch_factors=self.branch_factors,
             layer_sizes=layer_sizes,
             input_branch_factors=input_branch_factors,
             excitatory_input_dim=excitatory_input_dim,
@@ -436,17 +647,9 @@ class DendriNet(nn.Module):
 
     def forward(self, x, inhibitory_input=None):
         output = None
-        for i in range(self.n_branch_layers + 1):
-            # Store excitatory and inhibitory inputs for visualization if needed
-            # The excitatory input for the current layer is always x
-            if hasattr(self.branch_layers[i], "excitatory_input"):
-                self.branch_layers[i].excitatory_input = x
-
-            # The inhibitory input is whatever was passed in or None
-            if hasattr(self.branch_layers[i], "inhibitory_input"):
-                self.branch_layers[i].inhibitory_input = inhibitory_input
-
-            output = self.branch_layers[i](x, inhibitory_input, output)
+        for layer in self.branch_layers:
+            # Every level receives the cell's inputs and its child outputs.
+            output = layer(x, inhibitory_input, output)
         return output
 
     def sum_weights(self, pruned=False):
@@ -495,3 +698,30 @@ class DendriNet(nn.Module):
 
 
 __all__ = ["DendriNet", "DendriNetConfig"]
+
+
+_DENDRINET_CONFIG_ARGUMENTS = frozenset(
+    {
+        "n_soma",
+        "branch_factors",
+        "excitatory_input_dim",
+        "excitatory_synapses_per_branch",
+        "inhibitory_input_dim",
+        "inhibitory_synapses_per_branch",
+        "somatic_synapses",
+        "structured_connectivity",
+        "structured_layer_idx",
+        "structured_excitatory_pathway",
+        "structured_inhibitory_pathway",
+    }
+)
+
+
+@functools.lru_cache(maxsize=1)
+def _dendrinet_defaults() -> dict:
+    """Signature defaults of ``DendriNet.__init__``."""
+    return {
+        name: parameter.default
+        for name, parameter in inspect.signature(DendriNet.__init__).parameters.items()
+        if parameter.default is not inspect.Parameter.empty
+    }

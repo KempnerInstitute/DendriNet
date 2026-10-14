@@ -1,0 +1,22 @@
+# Analysis overlay for an existing feedforward population checkpoint.
+# Merge the analysis section into its experiment config, or pass this file to
+# dendritic-analyze-checkpoint with --analysis-config.
+analysis:
+  runtime:
+    final: {mode: stream, batch_size: 256, num_workers: 0}
+  source_tuning_support:
+    enabled: true
+    training: false
+    params:
+      reference_split: validation
+      evaluation_split: test
+      pathways: [ff_excitatory, ff_inhibitory]
+      target_polarities: [excitatory, inhibitory]
+      # Pixels plus context cues are mixed source coordinates, not an image.
+      image_shape: null
+      image_source_layers: []
+      input_batch_index: 0
+      label_batch_index: 1
+      require_independent_splits: true
+      retain_coordinate_profiles: false
+      continuous_activity_threshold: 0.0

@@ -11,9 +11,13 @@ source-target pair::
 
     B(src, tgt) = f_soma(src, tgt) - f_distal(src, tgt)
 
-where ``f_level`` is the within-pair fraction of per-compartment mean synaptic
-weight assigned to that dendritic level. Positive values indicate soma-biased
-targeting; negative values indicate distal-biased targeting.
+where ``f_level`` is the within-pair fraction of realized synaptic weight mass
+delivered to that dendritic level (see
+``dendritic_modeling.analysis.utils.compartment_targeting``, shared with the
+inhibitory-specialization analysis). Positive values indicate soma-biased
+targeting; negative values indicate distal-biased targeting. Pairs without a
+realized synapse are disconnected and excluded from the statistics; a source
+with no connected target is classed ``disconnected``.
 
 This is a structural routing descriptor. It does not by itself imply causal
 dynamic gating, but it can reveal motifs that are consistent with output-gain
@@ -27,12 +31,30 @@ from typing import Any
 
 import torch
 
+from dendritic_modeling.analysis.utils.compartment_targeting import (
+    TargetingClassLabels,
+    apply_weight_transform,
+    classify_sources,
+    level_weight_mass,
+    pair_level_stats,
+    pair_stats_by_class as shared_pair_stats_by_class,
+    population_fraction_summary,
+    reshape_by_compartment,
+    targeting_index,
+)
+
 TARGETING_CLASS_ORDER = [
     "soma-biased",
     "mixed-targeting",
     "diffuse",
     "distal-biased",
+    "disconnected",
 ]
+_CLASS_LABELS = TargetingClassLabels(
+    soma="soma-biased",
+    distal="distal-biased",
+    mixed="mixed-targeting",
+)
 
 
 @dataclass(frozen=True)
@@ -132,132 +154,16 @@ LOCAL_RECURRENT_ROUTE_KEYS = [
 ]
 
 
-def _apply_weight_transform(
-    pre_w: torch.Tensor,
-    weight_transform: str,
-) -> torch.Tensor:
-    transform = weight_transform.lower()
-    if transform == "exp":
-        return torch.exp(pre_w)
-    if transform == "softplus":
-        return torch.nn.functional.softplus(pre_w)
-    if transform == "relu":
-        return torch.relu(pre_w)
-    if transform == "identity":
-        return pre_w
-    raise ValueError(f"Unsupported weight_transform: {weight_transform}")
-
-
-def _reshape_weight_matrix_by_compartment(
-    w: torch.Tensor,
-    n_target: int,
-) -> torch.Tensor | None:
-    """Reshape ``(n_target * K_l, n_source)`` to ``(n_target, K_l, n_source)``."""
-    out_features, _n_source = w.shape
-    if n_target <= 0 or out_features % n_target != 0:
-        return None
-    branch_factor = out_features // n_target
-    if branch_factor == 0:
-        return None
-    return w.reshape(n_target, branch_factor, -1)
-
-
-def _compartment_mean_level_weights(
-    compartment_weights: list[torch.Tensor],
-) -> list[torch.Tensor]:
-    """Average each level over its branch count to compare levels fairly."""
-    return [w.sum(dim=1) / float(w.shape[1]) for w in compartment_weights]
-
-
-def _compute_targeting_index(
-    per_level: list[torch.Tensor],
-    eps: float = 1e-12,
-) -> tuple[torch.Tensor, list[torch.Tensor]]:
-    """Compute per-pair soma-minus-distal targeting index and level fractions."""
-    if len(per_level) < 2:
-        raise ValueError("Need at least two levels to compute targeting index")
-    stacked = torch.stack(per_level, dim=0)  # (L, n_target, n_source)
-    total = stacked.sum(dim=0).clamp(min=eps)
-    level_fracs = [stacked[i] / total for i in range(stacked.shape[0])]
-    f_distal = level_fracs[0]
-    f_soma = level_fracs[-1]
-    bias = (f_soma - f_distal).T  # (n_source, n_target)
-    return bias, level_fracs
-
-
-def _classify_sources(
-    bias: torch.Tensor,
-    hi: float,
-    sigma: float,
-) -> tuple[torch.Tensor, torch.Tensor, list[str]]:
-    """Classify each source unit by how it distributes targeting across targets."""
-    mean_bias = bias.mean(dim=1)
-    std_bias = bias.std(dim=1, unbiased=False)
-    classes: list[str] = []
-    for m, s in zip(mean_bias.tolist(), std_bias.tolist()):
-        if s > sigma:
-            classes.append("mixed-targeting")
-        elif m > hi:
-            classes.append("soma-biased")
-        elif m < -hi:
-            classes.append("distal-biased")
-        else:
-            classes.append("diffuse")
-    return mean_bias, std_bias, classes
-
-
-def _pair_level_stats(
-    bias: torch.Tensor,
-    hi: float,
-) -> dict[str, float]:
-    n = bias.numel()
-    if n == 0:
-        return {
-            "strong_soma_pct": 0.0,
-            "strong_distal_pct": 0.0,
-            "balanced_pct": 0.0,
-            "any_soma_bias_pct": 0.0,
-            "n_pairs": 0,
-        }
-    return {
-        "strong_soma_pct": float((bias >= hi).float().mean().item() * 100.0),
-        "strong_distal_pct": float((bias <= -hi).float().mean().item() * 100.0),
-        "balanced_pct": float(
-            ((bias > -hi) & (bias < hi)).float().mean().item() * 100.0
-        ),
-        "any_soma_bias_pct": float((bias > 0).float().mean().item() * 100.0),
-        "n_pairs": int(n),
-    }
-
-
 def pair_stats_by_class(
     bias: torch.Tensor,
     classes: list[str],
     hi: float = 0.1,
+    connected: torch.Tensor | None = None,
 ) -> dict[str, dict[str, float]]:
-    """Per-class summary of the pair-level targeting-index distribution."""
-    out: dict[str, dict[str, float]] = {}
-    for cname in TARGETING_CLASS_ORDER:
-        idx = [i for i, c in enumerate(classes) if c == cname]
-        if not idx:
-            out[cname] = {"n_source": 0, "n_pairs": 0}
-            continue
-        vals = bias[idx].reshape(-1)
-        out[cname] = {
-            "n_source": len(idx),
-            "n_pairs": int(vals.numel()),
-            "mean": float(vals.mean().item()),
-            "std": float(vals.std(unbiased=False).item()),
-            "q10": float(torch.quantile(vals, 0.10).item()),
-            "q50": float(torch.quantile(vals, 0.50).item()),
-            "q90": float(torch.quantile(vals, 0.90).item()),
-            "strong_soma_pct": float((vals >= hi).float().mean().item() * 100.0),
-            "strong_distal_pct": float((vals <= -hi).float().mean().item() * 100.0),
-            "balanced_pct": float(
-                ((vals > -hi) & (vals < hi)).float().mean().item() * 100.0
-            ),
-        }
-    return out
+    """Per-class summary of the connected pairs' targeting index."""
+    return shared_pair_stats_by_class(
+        bias, classes, TARGETING_CLASS_ORDER, hi=hi, connected=connected
+    )
 
 
 def extract_compartment_weights_from_state_dict(
@@ -293,8 +199,8 @@ def extract_compartment_weights_from_state_dict(
                 f"Mask shape at level {level} is {tuple(mask.shape)}, expected "
                 f"{tuple(pre_w.shape)}"
             )
-        w = _apply_weight_transform(pre_w, weight_transform) * mask
-        compartment_w = _reshape_weight_matrix_by_compartment(w, n_target=n_target)
+        w = apply_weight_transform(pre_w, weight_transform) * mask
+        compartment_w = reshape_by_compartment(w, n_target=n_target)
         if compartment_w is None:
             raise ValueError(
                 f"Could not reshape weights at level {level} for n_target={n_target}"
@@ -313,26 +219,30 @@ def summarize_compartment_targeting_from_compartment_weights(
     hi: float = 0.1,
     sigma: float = 0.15,
 ) -> dict[str, Any]:
-    """Summarize generic soma-vs-distal targeting from compartment weights."""
+    """Summarize soma-versus-distal targeting from compartment weights."""
     if not compartment_weights:
         raise ValueError("Expected at least one level of compartment weights")
     n_target = int(compartment_weights[0].shape[0])
     n_source = int(compartment_weights[0].shape[2])
-    per_level = _compartment_mean_level_weights(compartment_weights)
-    bias, level_fracs = _compute_targeting_index(per_level)
-    mean_bias, std_bias, classes = _classify_sources(bias, hi=hi, sigma=sigma)
-    class_counts = {c: int(classes.count(c)) for c in TARGETING_CLASS_ORDER}
+    out = targeting_index(level_weight_mass(compartment_weights))
+    if out is None:
+        raise ValueError("Need at least two levels to compute targeting index")
+    bias, level_fracs, connected = out
+    mean_bias, std_bias, classes = classify_sources(
+        bias, hi=hi, sigma=sigma, labels=_CLASS_LABELS, connected=connected
+    )
     frac_by_level = [lvl.T for lvl in level_fracs]
     return {
         "n_target": n_target,
         "n_source": n_source,
         "n_levels": len(level_fracs),
         "targeting_index": bias,
+        "connected_pairs": connected,
         "mean_bias": mean_bias,
         "std_bias": std_bias,
         "classes": classes,
-        "class_counts": class_counts,
-        "pair_level": _pair_level_stats(bias, hi=hi),
+        "class_counts": {c: int(classes.count(c)) for c in TARGETING_CLASS_ORDER},
+        "pair_level": pair_level_stats(bias, hi=hi, connected=connected),
         "level_fracs": level_fracs,
         "frac_by_level_src_target": frac_by_level,
         "frac_distal": frac_by_level[0],
@@ -342,13 +252,7 @@ def summarize_compartment_targeting_from_compartment_weights(
             else torch.zeros_like(frac_by_level[0])
         ),
         "frac_soma": frac_by_level[-1],
-        "frac_distal_pop": float(level_fracs[0].mean().item()),
-        "frac_middle_pop": (
-            float(torch.stack(level_fracs[1:-1], dim=0).mean().item())
-            if len(level_fracs) > 2
-            else 0.0
-        ),
-        "frac_soma_pop": float(level_fracs[-1].mean().item()),
+        **population_fraction_summary(level_fracs, connected=connected.T),
     }
 
 

@@ -59,13 +59,15 @@ def build_multi_sine_forecast(
         "seed": kwargs.get("seed", 42),
         "normalize_signal": kwargs.get("normalize_signal", True),
     }
+    train = MultiSineForecastDataset(n_samples=n_train, **common)
     return deferred_split(
-        MultiSineForecastDataset(n_samples=n_train, **common),
+        train,
         MultiSineForecastDataset(
             n_samples=test_size(n_train, 1000),
             **{
                 **common,
                 "seed": kwargs.get("test_seed", common["seed"] + 1),
+                "normalization_stats": (train.state_mean, train.state_std),
             },
         ),
     )
@@ -97,6 +99,9 @@ def build_lorenz_sequence(
         "normalization_steps": kwargs.get("normalization_steps", 10000),
         "initial_state_scale": kwargs.get("initial_state_scale", 0.1),
     }
+    # Both splits normalize with the statistics of the training seed's
+    # reference trajectory.
+    common["stats_seed"] = common["seed"]
     return deferred_split(
         LorenzSequenceDataset(n_samples=n_train, **common),
         LorenzSequenceDataset(

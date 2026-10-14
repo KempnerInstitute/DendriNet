@@ -12,6 +12,7 @@ import torch
 import torch.optim as optim
 
 from dendritic_modeling.config.training import OptimizerConfig
+from dendritic_modeling.plugins import load_plugins
 
 OptimizerBuilder = Callable[
     [Iterator[torch.nn.Parameter], OptimizerConfig], torch.optim.Optimizer
@@ -60,7 +61,8 @@ def unregister_optimizer(name: str) -> None:
 
 
 def get_available_optimizers() -> list[str]:
-    """Return registered optimizer names."""
+    """Return registered optimizer names, including those of plugins."""
+    load_plugins()
     return sorted(OPTIMIZER_REGISTRY)
 
 
@@ -101,12 +103,16 @@ def _parameter_group_lr(
 def _build_adam(model_parameters, config: OptimizerConfig) -> torch.optim.Optimizer:
     params = _base_optimizer_params(config)
     params.update({"betas": config.betas, "eps": config.eps})
+    if config.foreach is not None:
+        params["foreach"] = config.foreach
     return optim.Adam(model_parameters, **params)
 
 
 def _build_adamw(model_parameters, config: OptimizerConfig) -> torch.optim.Optimizer:
     params = _base_optimizer_params(config)
     params.update({"betas": config.betas, "eps": config.eps})
+    if config.foreach is not None:
+        params["foreach"] = config.foreach
     return optim.AdamW(model_parameters, **params)
 
 
@@ -147,12 +153,51 @@ def create_optimizer(
     optimizer_name = config.name.lower()
     builder = OPTIMIZER_REGISTRY.get(optimizer_name)
     if builder is None:
+        load_plugins()
+        builder = OPTIMIZER_REGISTRY.get(optimizer_name)
+    if builder is None:
         valid_optimizers = get_available_optimizers()
         raise ValueError(
             f"Unsupported optimizer: {optimizer_name}. "
             f"Choose from {valid_optimizers}"
         )
     return builder(model_parameters, config)
+
+
+def validate_param_group_learning_rates(
+    config: OptimizerConfig, param_groups_config: Any
+) -> None:
+    """Reject an ``optimizer.lr`` that the param-group optimizer would not apply.
+
+    Training builds the optimizer from ``model.get_param_groups(...)``
+    (``training.main.common.param_groups``), and every group carries its own
+    learning rate, so ``OptimizerConfig.lr`` is only the unused optimizer
+    default. The rate it is meant to set is the base rate ``param_groups.lr``
+    (the single group without ``split_params``; the catch-all groups with it,
+    while ``topk_lr``/``blocklinear_lr``/``reactivation_lr``/``decoder_lr`` set
+    their components). A non-default ``optimizer.lr`` must therefore equal
+    ``param_groups.lr``; equal values pass silently. MuonH also takes each
+    group's rate (scaled by ``muon_lr_multiplier`` for matrices), so the same
+    check applies to it.
+    """
+    default_lr = OptimizerConfig.__dataclass_fields__["lr"].default
+    optimizer_lr = float(config.lr)
+    if optimizer_lr == float(default_lr):
+        return
+    if isinstance(param_groups_config, dict):
+        base_lr = param_groups_config.get("lr")
+    else:
+        base_lr = getattr(param_groups_config, "lr", None)
+    if base_lr is None or float(base_lr) == optimizer_lr:
+        return
+    raise ValueError(
+        f"training.main.optimizer.lr={optimizer_lr} is not applied: the optimizer "
+        "is built from training.main.common.param_groups, whose base rate "
+        f"param_groups.lr={float(base_lr)} is used instead (and topk_lr, "
+        "blocklinear_lr, reactivation_lr, decoder_lr for their components with "
+        "split_params). Set training.main.common.param_groups.lr, and remove "
+        "optimizer.lr or set it equal to that value."
+    )
 
 
 def create_parameter_groups(
@@ -216,6 +261,10 @@ def validate_optimizer_config(config: OptimizerConfig) -> None:
         )
 
     if config.name.lower() in ["adam", "adamw"]:
+        if config.foreach is not None and not isinstance(config.foreach, bool):
+            raise ValueError(
+                "Adam/AdamW foreach must be boolean or None, " f"got {config.foreach!r}"
+            )
         if len(config.betas) != 2 or not all(0 <= b < 1 for b in config.betas):
             raise ValueError(f"Invalid betas for {config.name}: {config.betas}")
 

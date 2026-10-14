@@ -10,6 +10,10 @@ from collections.abc import Callable
 import torch
 from torch.utils.data import DataLoader
 
+from dendritic_modeling.analysis.utils.activation_memory import (
+    available_device_bytes,
+    full_pass_cannot_fit,
+)
 from dendritic_modeling.analysis.utils.runtime import (
     analysis_device_context,
     estimate_dataset_size_mb,
@@ -205,6 +209,31 @@ def _metric_call_kwargs(
     )
 
 
+def _materialized_pass_cannot_fit(
+    model: Classifier | Regressor,
+    items,
+    *,
+    device: str,
+    move_device: bool,
+    metric_name: str,
+) -> bool:
+    """Whether the one-pass evaluation of ``items`` certainly runs out of memory.
+
+    Only a pass that the activation-memory bound proves too large is streamed
+    instead (see ``dendritic_modeling.analysis.utils.activation_memory``); a
+    pass that fits keeps its single full batch.
+    """
+    if not move_device or not isinstance(model, torch.nn.Module):
+        return False
+    if available_device_bytes(device) is None:  # no bound off CUDA devices
+        return False
+    with analysis_device_context(model, device):
+        cannot_fit, reason = full_pass_cannot_fit(model, items, device=device)
+    if cannot_fit:
+        logger.info("Streaming evaluation for %s: %s", metric_name, reason)
+    return cannot_fit
+
+
 def _evaluate_materialized_metric(
     *,
     metric_func: Callable,
@@ -398,8 +427,18 @@ def _evaluate_metric_generic(
                 items = dataset[:]
             except Exception:
                 # Some wrappers don't support slicing; fall back to streaming.
-                pass
-            else:
+                items = None
+            # Stream a split whose single forward pass cannot fit on the
+            # device, instead of first failing with an out-of-memory error.
+            if items is not None and _materialized_pass_cannot_fit(
+                model,
+                items,
+                device=device,
+                move_device=move_device,
+                metric_name=metric_name,
+            ):
+                items = None
+            if items is not None:
                 materialized_result = _evaluate_materialized_metric(
                     metric_func=metric_func,
                     model=model,

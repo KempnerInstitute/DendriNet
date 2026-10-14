@@ -2,6 +2,7 @@
 Test new parameters added for enhanced analysis and trainer configurations.
 """
 
+import math
 from types import SimpleNamespace
 
 from dendritic_modeling.analysis.core.information import InformationAnalyzer
@@ -11,7 +12,6 @@ from dendritic_modeling.config.analysis import (
 )
 from dendritic_modeling.config.training import (
     CommonTrainerConfig,
-    EncoderTrainingConfig,
     MainTrainingConfig,
     TrainingConfig,
 )
@@ -75,39 +75,31 @@ class TestNewTrainerParameters:
     def test_training_optimization_flags(self):
         """Test that training optimization flags work."""
         trainer = CommonTrainerConfig(
-            enable_nan_checking=True, enable_adaptive_clipping=True, use_amp=True
+            enable_nan_checking=True, grad_clip_mode="Norm", use_amp=True
         )
 
         assert trainer.enable_nan_checking is True
-        assert trainer.enable_adaptive_clipping is True
+        assert trainer.grad_clip_mode == "norm"
         assert trainer.use_amp is True
 
-    def test_dual_trainer_structure(self):
-        """Test that the dual trainer structure works."""
+    def test_main_trainer_structure(self):
+        """The main phase carries the trainer options."""
         main_trainer = CommonTrainerConfig(
-            enable_nan_checking=True, enable_adaptive_clipping=True, use_amp=True
+            enable_nan_checking=True, grad_clip_mode="norm", use_amp=True
         )
 
-        encoder_trainer = CommonTrainerConfig(
-            enable_nan_checking=False, enable_adaptive_clipping=False, use_amp=False
-        )
-
-        config = TrainingConfig(
-            main=MainTrainingConfig(common=main_trainer),
-            encoder=EncoderTrainingConfig(common=encoder_trainer),
-        )
+        config = TrainingConfig(main=MainTrainingConfig(common=main_trainer))
 
         assert config.main.common.enable_nan_checking is True
-        assert config.encoder.common.enable_nan_checking is False
         assert config.main.common.use_amp is True
-        assert config.encoder.common.use_amp is False
+        assert not hasattr(config, "encoder")
 
     def test_trainer_defaults(self):
         """Test that trainer defaults are correct."""
         trainer = CommonTrainerConfig()
 
         assert trainer.enable_nan_checking is False
-        assert trainer.enable_adaptive_clipping is False
+        assert trainer.grad_clip_mode is None
         assert trainer.use_amp is False
 
 
@@ -127,7 +119,7 @@ def test_backward_compatibility():
     # Test that trainer configuration still exposes optimization knobs
     trainer = CommonTrainerConfig()
     assert hasattr(trainer, "enable_nan_checking")
-    assert hasattr(trainer, "enable_adaptive_clipping")
+    assert hasattr(trainer, "grad_clip_mode")
 
 
 def test_synthetic_soma_entry_uses_real_soma_statistics():
@@ -302,7 +294,7 @@ def test_extract_soma_statistics_copies_all_mapped_metrics():
         assert soma_stats[soma_key] == float(idx + 1)
 
 
-def test_soma_statistics_copy_defaults_missing_metrics_to_zero():
+def test_soma_statistics_copy_marks_missing_metrics_unmeasured():
     analyzer = InformationAnalyzer(InformationAnalysisParams())
 
     soma_stats = analyzer._copy_soma_statistics_from_layer(
@@ -315,17 +307,17 @@ def test_soma_statistics_copy_defaults_missing_metrics_to_zero():
     assert set(soma_stats) == set(analyzer._soma_statistics_metric_map())
     assert soma_stats["soma_vout_mean"] == 1.5
     assert soma_stats["soma_vb_std"] == 0.25
-    assert soma_stats["soma_vout_std"] == 0.0
-    assert soma_stats["soma_vb_mean"] == 0.0
+    assert math.isnan(soma_stats["soma_vout_std"])
+    assert math.isnan(soma_stats["soma_vb_mean"])
 
 
-def test_extract_soma_statistics_defaults_to_zero_without_real_soma_layer():
+def test_extract_soma_statistics_is_unmeasured_without_real_soma_layer():
     analyzer = InformationAnalyzer(InformationAnalysisParams())
 
     soma_stats = analyzer._extract_soma_statistics(None, {})
 
     assert set(soma_stats) == set(analyzer._soma_statistics_metric_map())
-    assert all(value == 0.0 for value in soma_stats.values())
+    assert all(math.isnan(value) for value in soma_stats.values())
 
 
 def test_synthetic_soma_entry_skips_when_soma_already_captured():

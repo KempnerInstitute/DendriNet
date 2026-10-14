@@ -4,13 +4,11 @@ from functools import partial
 from typing import Any, Optional
 
 import torch
+import torch.distributed as dist
 import torch.nn as nn
 
 from dendritic_modeling.models import BaseModel
-from dendritic_modeling.networks import (
-    DendriticBranchLayer,
-    ExcitationInhibitionNetwork,
-)
+from dendritic_modeling.networks import DendriticBranchLayer
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
     TopKLinear,
 )
@@ -29,13 +27,6 @@ def _has_dendritic_branch_layers(model: BaseModel) -> bool:
         return any(iter_modules_of_type(model, DendriticBranchLayer))
     except Exception:
         return False
-
-
-def _supports_local_learning_train(model: BaseModel) -> bool:
-    has_ei = hasattr(model, "core_network") and isinstance(
-        model.core_network, ExcitationInhibitionNetwork
-    )
-    return has_ei or _has_dendritic_branch_layers(model)
 
 
 def _resolve_freeze_update_modes(
@@ -153,27 +144,36 @@ def _move_batch_to_device(
     return x_batch.to(device), y_batch.to(device)
 
 
-def _accumulate_local_logging_loss(
-    *,
-    train_loss: float,
-    train_loss_base: float,
-    train_loss_reg: float,
-    loss: torch.Tensor,
-) -> tuple[float, float, float]:
-    """Accumulate local-learning logging loss totals for one batch."""
+def _accumulate_local_logging_loss(loss_sum: torch.Tensor, loss: torch.Tensor) -> None:
+    """Add one batch's logging loss to the epoch's float64 device sum.
 
-    loss_item = loss.item()
-    return train_loss + loss_item, train_loss_base + loss_item, train_loss_reg
+    The sum is read once per epoch; float64 additions in step order reproduce
+    the host sum of the per-step ``loss.item()`` values.
+    """
+
+    loss_sum += loss.detach().to(torch.float64)
 
 
 def _average_local_epoch_losses(
-    *,
-    train_loss: float,
-    train_loss_base: float,
-    train_loss_reg: float,
+    loss_sum: torch.Tensor,
     n_batches: int,
 ) -> tuple[float, float, float]:
-    """Average local-learning epoch loss totals with legacy division semantics."""
+    """Average the epoch loss sum over batches and DDP ranks.
+
+    Local rules have no auxiliary regularization, so the total and base
+    losses are the logging loss and the regularization loss is zero.
+    """
+
+    if dist.is_available() and dist.is_initialized() and dist.get_world_size() > 1:
+        totals = torch.zeros(4, dtype=torch.float64, device=loss_sum.device)
+        totals[:2] = loss_sum
+        totals[3] = float(n_batches)
+        dist.all_reduce(totals, op=dist.ReduceOp.SUM)
+        train_loss, train_loss_base, train_loss_reg, count = totals.tolist()
+        n_batches = int(count)
+    else:
+        train_loss = train_loss_base = loss_sum.item()
+        train_loss_reg = 0.0
 
     return (
         train_loss / n_batches,
@@ -268,18 +268,22 @@ def _collect_backprop_param_groups(
     encoder_update_mode: str,
     decoder_update_mode: str,
 ) -> list[list[torch.nn.Parameter]]:
+    component_model = model.module if hasattr(model, "module") else model
     backprop_param_groups: list[list[torch.nn.Parameter]] = []
     if (
         encoder_update_mode == "backprop"
-        and hasattr(model, "encoder_network")
-        and model.encoder_network is not None
+        and hasattr(component_model, "encoder_network")
+        and component_model.encoder_network is not None
     ):
-        enc_params = _collect_trainable_parameters(model.encoder_network)
+        enc_params = _collect_trainable_parameters(component_model.encoder_network)
         if enc_params:
             backprop_param_groups.append(enc_params)
 
-    if hasattr(model, "decoder_network") and decoder_update_mode == "backprop":
-        dec_params = _collect_trainable_parameters(model.decoder_network)
+    if (
+        hasattr(component_model, "decoder_network")
+        and decoder_update_mode == "backprop"
+    ):
+        dec_params = _collect_trainable_parameters(component_model.decoder_network)
         if dec_params:
             backprop_param_groups.append(dec_params)
 
@@ -389,7 +393,10 @@ def _apply_local_decoder_update(
 ) -> None:
     """Apply decoder-local gradients when the current epoch mode requests them."""
 
-    if not (hasattr(model, "decoder_network") and decoder_update_mode == "local"):
+    component_model = model.module if hasattr(model, "module") else model
+    if not (
+        hasattr(component_model, "decoder_network") and decoder_update_mode == "local"
+    ):
         return
 
     _apply_decoder_local_gradients(
@@ -409,6 +416,42 @@ def _should_clip_gradients(clip_grad_value: Any) -> bool:
 def _clip_model_gradients(model: BaseModel, clip_grad_value: Any) -> None:
     if _should_clip_gradients(clip_grad_value):
         torch.nn.utils.clip_grad_value_(model.parameters(), clip_grad_value)
+
+
+def _average_distributed_gradients(model: BaseModel) -> None:
+    """Average manually assigned local gradients across distributed ranks."""
+
+    if not dist.is_available() or not dist.is_initialized():
+        return
+    world_size = dist.get_world_size()
+    if world_size <= 1:
+        return
+
+    parameters = list(model.parameters())
+    if not parameters:
+        return
+    device = parameters[0].device
+    present = torch.tensor(
+        [parameter.grad is not None for parameter in parameters],
+        device=device,
+        dtype=torch.int32,
+    )
+    dist.all_reduce(present, op=dist.ReduceOp.SUM)
+    counts = present.tolist()
+    inconsistent = [
+        index for index, count in enumerate(counts) if count not in (0, world_size)
+    ]
+    if inconsistent:
+        raise RuntimeError(
+            "Local-gradient presence differs across distributed ranks for "
+            f"parameter indices {inconsistent}"
+        )
+
+    for parameter, rank_count in zip(parameters, counts):
+        if rank_count == 0:
+            continue
+        dist.all_reduce(parameter.grad, op=dist.ReduceOp.SUM)
+        parameter.grad.div_(float(world_size))
 
 
 def _forward_with_local_recorders(

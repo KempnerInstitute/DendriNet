@@ -8,6 +8,8 @@ from torch import nn
 
 from dendritic_modeling.analysis.core.information_parts.information_hooks_mixin import (
     InformationHooksMixin,
+    _branch_population_coordinates,
+    _branch_to_parent_soma_indices,
     _enable_analysis_current_capture,
     _has_analyzable_branch_signals,
     _has_no_branch_synapses,
@@ -336,6 +338,45 @@ def test_network_layer_hook_records_each_layers_soma_and_readout_outputs():
     assert captured["post_gate_soma_outputs"] == soma_outputs
     assert captured["post_gate_readout_output"] is soma_outputs["e"]
     assert captured["capture_reduction"] == "single_forward_call"
+
+
+def test_branch_population_coordinates_and_parent_soma_mapping():
+    assert _branch_population_coordinates(
+        "core_network.layers.2.populations.e2.branch_layers.1"
+    ) == ("core_network.layers.2", "e2")
+    assert _branch_population_coordinates("unrelated.module") is None
+    assert torch.equal(
+        _branch_to_parent_soma_indices(n_branches=12, n_somas=3),
+        torch.tensor([0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2]),
+    )
+    with pytest.raises(ValueError, match="not divisible"):
+        _branch_to_parent_soma_indices(n_branches=10, n_somas=3)
+
+
+def test_information_hook_binds_branches_to_corresponding_parent_somas():
+    hook = InformationHooksMixin()
+    parent_somas = torch.arange(6, dtype=torch.float32).reshape(2, 3)
+    hook.data_dict = {
+        "core_network.layers.0.populations.e0.branch_layers.1": {
+            "output": torch.zeros(2, 12),
+        }
+    }
+    hook.network_layer_data = {
+        "core_network.layers.0": {
+            "post_gate_soma_outputs": {"e0": parent_somas},
+        }
+    }
+
+    hook.attach_parent_soma_outputs_to_branch_records()
+
+    captured = hook.data_dict["core_network.layers.0.populations.e0.branch_layers.1"]
+    assert captured["parent_soma_output"] is parent_somas
+    assert captured["parent_soma_population"] == "e0"
+    assert captured["branches_per_parent_soma"] == 4
+    assert torch.equal(
+        captured["branch_to_parent_soma_index"],
+        torch.tensor([0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2]),
+    )
 
 
 def test_information_hook_preserves_lda_raw_input_capture():

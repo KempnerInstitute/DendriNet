@@ -5,9 +5,11 @@ from __future__ import annotations
 import json
 import os
 import random
+from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
+import pytest
 import torch
 from torch.utils.data import TensorDataset
 
@@ -113,11 +115,15 @@ def test_setup_environment_separates_dataset_and_model_rng(monkeypatch, tmp_path
     monkeypatch.setattr(setup_utils, "initialize_model", fake_initialize_model)
 
     for model_seed in (101, 202):
+        # Training fills core.initialization_seed for cores that consume it.
+        # Feedforward EINet keeps its historical global stream instead (see
+        # test_configuration_consumption), so use a unified E/I core here.
+        model_config = ModelConfig()
+        model_config.core.type = "unified_ei"
         setup_utils.setup_environment(
-            model_config=ModelConfig(),
+            model_config=model_config,
             training_config=TrainingConfig(),
             data_config=DataConfig(dataset_name="dummy", base_dir=""),
-            wandb_config=SimpleNamespace(use_wandb=False),
             outputs_config=SimpleNamespace(
                 results_dir=str(tmp_path),
                 run_name="rng-test",
@@ -146,10 +152,47 @@ def test_setup_environment_separates_dataset_and_model_rng(monkeypatch, tmp_path
     assert propagated_initialization_seeds == [101, 202]
 
 
+def test_standard_setup_propagates_flat_recurrent_core_seed_defaults():
+    for core_type, parameter_name in (
+        ("heterogeneous_leak_ctrnn", "heterogeneous_leak_ctrnn"),
+        ("legendre_memory", "legendre_memory"),
+    ):
+        model_config = ModelConfig()
+        model_config.core.type = core_type
+        setattr(model_config.core, parameter_name, {})
+
+        setup_utils._apply_initialization_seed_defaults(model_config, model_seed=101)
+        setup_utils._apply_topology_seed_defaults(model_config, topology_seed=202)
+
+        parameters = getattr(model_config.core, parameter_name)
+        assert parameters["initialization_seed"] == 101
+        assert parameters["topology_seed"] == 202
+
+
+def test_standard_setup_preserves_explicit_flat_recurrent_core_seeds():
+    for core_type, parameter_name in (
+        ("heterogeneous_ctrnn", "heterogeneous_leak_ctrnn"),
+        ("legendre_memory", "legendre_memory"),
+    ):
+        model_config = ModelConfig()
+        model_config.core.type = core_type
+        setattr(
+            model_config.core,
+            parameter_name,
+            {"initialization_seed": 17, "topology_seed": 19},
+        )
+
+        setup_utils._apply_initialization_seed_defaults(model_config, model_seed=101)
+        setup_utils._apply_topology_seed_defaults(model_config, topology_seed=202)
+
+        parameters = getattr(model_config.core, parameter_name)
+        assert parameters["initialization_seed"] == 17
+        assert parameters["topology_seed"] == 19
+
+
 def test_legacy_seed_config_resolves_all_streams_compatibly(tmp_path):
     config_path = tmp_path / "legacy_seed.yaml"
     config_path.write_text("experiment:\n  seed: 19\n", encoding="utf-8")
-    load_config.cache_clear()
     config = load_config(str(config_path))
 
     assert config.experiment.dataset_seed is None
@@ -187,7 +230,6 @@ experiment:
 """,
         encoding="utf-8",
     )
-    load_config.cache_clear()
     config = load_config(str(config_path))
 
     assert resolve_experiment_seeds(config.experiment).asdict() == {
@@ -232,6 +274,7 @@ def test_strict_deterministic_enables_algorithms_and_cublas(monkeypatch):
         torch.backends.cudnn.allow_tf32 = previous_cudnn_tf32
 
 
+@pytest.mark.requires_git_checkout
 def test_setup_environment_records_resolved_seeds(monkeypatch, tmp_path):
     dataset = TensorDataset(torch.zeros(2, 3), torch.zeros(2, dtype=torch.long))
     monkeypatch.setattr(
@@ -249,6 +292,9 @@ def test_setup_environment_records_resolved_seeds(monkeypatch, tmp_path):
         def setFormatter(self, _formatter):  # noqa: N802 - logging API name
             return None
 
+        def set_name(self, _name):
+            return None
+
     # Avoid depending on logger handler internals while exercising the actual
     # run-directory and seed-manifest write path.
     monkeypatch.setattr(
@@ -261,7 +307,6 @@ def test_setup_environment_records_resolved_seeds(monkeypatch, tmp_path):
         model_config=ModelConfig(),
         training_config=TrainingConfig(),
         data_config=DataConfig(dataset_name="dummy", base_dir=""),
-        wandb_config=SimpleNamespace(use_wandb=False),
         outputs_config=SimpleNamespace(
             results_dir=str(tmp_path),
             run_name="record-seeds",
@@ -276,6 +321,14 @@ def test_setup_environment_records_resolved_seeds(monkeypatch, tmp_path):
     assert recorded["split_seed"] == 29
     assert recorded["model_seed"] == 29
     assert recorded["loader_seed"] == 29
+    with open(f"{run_path}/runtime_environment.json", encoding="utf-8") as handle:
+        environment = json.load(handle)
+    package = Path(setup_utils.__file__).resolve().parents[2]
+    assert environment["library"]["package_path"] == str(package)
+    assert environment["library"]["git"]["available"] is True
+    assert environment["library"]["checkout"] == str(package.parents[1])
+    assert environment["torch"]["version"] == torch.__version__
+    assert environment["dependencies"]["numpy"] == np.__version__
 
 
 def test_setup_environment_uses_exact_preclaimed_run_directory(monkeypatch, tmp_path):
@@ -295,6 +348,9 @@ def test_setup_environment_uses_exact_preclaimed_run_directory(monkeypatch, tmp_
         def setFormatter(self, _formatter):  # noqa: N802 - logging API name
             return None
 
+        def set_name(self, _name):
+            return None
+
     exact_path = tmp_path / "manifest-run"
     exact_path.mkdir()
     monkeypatch.setattr(
@@ -307,7 +363,6 @@ def test_setup_environment_uses_exact_preclaimed_run_directory(monkeypatch, tmp_
         model_config=ModelConfig(),
         training_config=TrainingConfig(),
         data_config=DataConfig(dataset_name="dummy", base_dir=""),
-        wandb_config=SimpleNamespace(use_wandb=False),
         outputs_config=SimpleNamespace(
             results_dir=str(exact_path),
             run_name="exact",
@@ -356,6 +411,32 @@ def test_named_population_topology_seed_preserves_explicit_nested_seed():
     assert definition.population["indexed_seed"] == 17
 
 
+@pytest.mark.parametrize("layer_seed, expected", [(17, 17), (None, 41)])
+def test_layer_population_defaults_seed_reaches_every_population(layer_seed, expected):
+    from types import SimpleNamespace
+
+    defaults = {} if layer_seed is None else {"indexed_seed": layer_seed}
+    layer = {
+        "name": "layer0",
+        "population_defaults": defaults,
+        "populations": [
+            {"name": "pyr", "polarity": "excitatory", "n_neurons": 8},
+            {"name": "pv", "polarity": "inhibitory", "n_neurons": 2},
+        ],
+    }
+    model = SimpleNamespace(
+        core={"type": "population_network", "population_network": {"layers": [layer]}}
+    )
+
+    setup_utils._apply_topology_seed_defaults(model, topology_seed=41)
+
+    assert defaults["indexed_seed"] == expected
+    for population in layer["populations"]:
+        typed = as_population_definition_config(population)
+        config = population_config_from_definition(typed, defaults, layer_idx=0)
+        assert config.indexed_seed == expected
+
+
 def _build_keyed_placement_population(
     ff_excitatory_by_level: list[int],
 ) -> StatefulDendriNet:
@@ -380,6 +461,14 @@ def _build_keyed_placement_population(
         recurrent_excitatory_input_dim=None,
         recurrent_inhibitory_input_dim=5,
     )
+
+
+@pytest.mark.requires_gpu
+def test_keyed_initialization_leaves_the_cuda_generator_untouched():
+    torch.manual_seed(5)
+    before = torch.cuda.get_rng_state()
+    _build_keyed_placement_population([1, 1, 1])
+    assert torch.equal(torch.cuda.get_rng_state(), before)
 
 
 def test_component_keyed_initialization_holds_unchanged_rec_i_weights_fixed():
@@ -435,10 +524,19 @@ def test_evaluation_and_probe_seeds_reach_runtime_consumers(tmp_path):
         probe_seed=91,
     )
 
+    from dendritic_modeling.config.seeds import derive_seed
+
     assert config.runtime.training.seed == 73
     assert config.runtime.final.seed == 73
-    assert config.information_analysis.params.decoder_seed == 91
-    assert config.information_analysis.params.estimator.decoder.seed == 91
+    # Probe-stream consumers get seeds derived from the probe seed and their
+    # config path; the flat decoder_seed mirror stays unset.
+    assert config.information.params.decoder_seed is None
+    assert config.information.params.estimator.decoder.seed == derive_seed(
+        91, "analysis.information.params.estimator.decoder.seed"
+    )
+    assert config.ablation.params.methods.shuffle_seed == derive_seed(
+        91, "analysis.ablation.params.methods.shuffle_seed"
+    )
 
     evaluation_draws = []
     manager._run_ordered_analysis_sequence = lambda **_kwargs: evaluation_draws.append(
@@ -451,6 +549,11 @@ def test_evaluation_and_probe_seeds_reach_runtime_consumers(tmp_path):
     assert evaluation_draws[0] == evaluation_draws[1]
 
     probe_draws = []
+    # This test isolates RNG plumbing, not analyzer construction. Information
+    # analyses now correctly require both an enabled config and an initialized
+    # analyzer, so provide the smallest sentinel satisfying that runtime gate.
+    config.information.enabled = True
+    manager.information_analyzer = SimpleNamespace(analysis_split="test")
     manager._run_logged_test_dataset_analysis = lambda **_kwargs: probe_draws.append(
         (torch.rand(1).item(), np.random.random(), random.random())
     )
@@ -458,6 +561,25 @@ def test_evaluation_and_probe_seeds_reach_runtime_consumers(tmp_path):
     manager._run_information_analysis(filename="probe", training=False, runtime=None)
     assert probe_draws[0] == probe_draws[1]
     assert probe_draws[0] != evaluation_draws[0]
+
+
+def test_written_analysis_seeds_are_kept_and_unset_ones_filled():
+    from dendritic_modeling.config.analysis import fill_analysis_seeds
+
+    config = AnalysisConfig()
+    config.runtime.final.seed = 5
+    config.ablation.params.methods.shuffle_seed = 7
+    filled = fill_analysis_seeds(config, evaluation_seed=73, probe_seed=91)
+
+    assert config.runtime.final.seed == 5
+    assert config.ablation.params.methods.shuffle_seed == 7
+    assert config.runtime.training.seed == 73
+    assert "runtime.final.seed" not in filled
+    assert len(set(filled.values()) - {73}) == len(filled) - 1  # distinct seeds
+
+    unfilled = AnalysisConfig()
+    assert fill_analysis_seeds(unfilled, evaluation_seed=None, probe_seed=None) == {}
+    assert unfilled.runtime.training.seed is None
 
 
 def test_sealed_test_requires_disabled_access_and_bounded_dataset():
@@ -499,8 +621,8 @@ def test_sealed_test_rejects_enabled_analysis():
         ),
         analysis,
     )
-    analysis.performance_analysis.enabled = True
-    with np.testing.assert_raises_regex(ValueError, "performance_analysis"):
+    analysis.performance.enabled = True
+    with np.testing.assert_raises_regex(ValueError, "performance"):
         _validate_sealed_test_analysis(
             ExperimentConfig(
                 sealed_test=True,

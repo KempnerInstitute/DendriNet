@@ -2,7 +2,6 @@
 
 import numpy as np
 
-from dendritic_modeling.analysis.core.information_parts import information_pid_mixin
 from dendritic_modeling.analysis.core.information_parts.information_metrics_mixin import (
     InformationMetricsMixin,
     _metric_variable_for_null_baseline,
@@ -80,7 +79,6 @@ class _MetricOrchestrationHarness(InformationMetricsMixin):
         self.compute_conditional_mi = True
         self.compute_gaussian_fisher = True
         self.compute_pid = True
-        self.pid_available = True
         self.calls = []
 
     def _record_metric_call(
@@ -143,6 +141,7 @@ def _arrays():
         "C": np.array([0, 1, 0]),
         "Vinf": np.array([[10.0], [11.0], [12.0]]),
         "Vb": np.array([[13.0], [14.0], [15.0]]),
+        "S": np.array([[16.0], [17.0], [18.0]]),
     }
 
 
@@ -173,6 +172,7 @@ def test_metric_variable_for_null_baseline_preserves_token_availability_rules():
         "C_col": C_col,
         "Vinf": arrays["Vinf"],
         "Vb": arrays["Vb"],
+        "S": arrays["S"],
         "has_exc_synapses": True,
         "has_inh_synapses": True,
         "has_branch_input": True,
@@ -187,6 +187,7 @@ def test_metric_variable_for_null_baseline_preserves_token_availability_rules():
     )
     assert _metric_variable_for_null_baseline("Vinf", **common_kwargs) is arrays["Vinf"]
     assert _metric_variable_for_null_baseline("Vb_lda", **common_kwargs) is arrays["Vb"]
+    assert _metric_variable_for_null_baseline("S", **common_kwargs) is arrays["S"]
     assert _metric_variable_for_null_baseline("unknown", **common_kwargs) is None
 
     assert (
@@ -289,8 +290,10 @@ def test_add_label_shuffle_null_baselines_uses_extracted_parsing_and_lookup():
 
     assert result["basic_mi"]["I(E;C)_null"] == 15.0
     assert result["basic_mi"]["I(E;C)_null_std"] == 2.0
+    assert result["basic_mi"]["I(E;C)_excess"] == -14.9
     assert result["basic_mi"]["I(I;C)_null"] == 16.0
     assert result["basic_mi"]["I(I;C)_null_std"] == 2.0
+    assert result["basic_mi"]["I(I;C)_excess"] == -15.8
     assert "I(Vb;C)_null" not in result["basic_mi"]
     assert "not_a_metric_null" not in result["basic_mi"]
     assert [call[0] for call in harness.estimator.calls] == [
@@ -317,6 +320,40 @@ def test_estimate_mi_and_cmi_dispatch_to_active_estimator():
     assert [call[0] for call in harness.estimator.calls] == ["mi", "cmi"]
     assert "Computing I(E;C)" in harness.logger.debug_messages[0]
     assert "I(E;I|C) = 2.0000" in harness.logger.debug_messages[-1]
+
+
+def test_soma_coupling_metrics_include_marginal_joint_and_class_conditioned_terms():
+    harness = _MetricHarness()
+    arrays = _arrays()
+
+    metrics = harness._compute_soma_coupling_mi(
+        arrays["E"],
+        arrays["I"],
+        arrays["Vout"],
+        arrays["C"],
+        arrays["S"],
+    )
+
+    assert list(metrics) == [
+        "I(S;C)",
+        "I(E;S)",
+        "I(I;S)",
+        "I(E,I;S)",
+        "I(Vout;S)",
+        "I(E;S|C)",
+        "I(I;S|C)",
+        "I(E,I;S|C)",
+        "I(Vout;S|C)",
+        "I(E;S|I)",
+        "I(I;S|E)",
+    ]
+    assert [call[0] for call in harness.estimator.calls] == ["mi"] * 5 + ["cmi"] * 6
+    np.testing.assert_array_equal(
+        harness.estimator.calls[3][1],
+        np.hstack([arrays["E"], arrays["I"]]),
+    )
+    for call in harness.estimator.calls[5:9]:
+        np.testing.assert_array_equal(call[3], arrays["C"].reshape(-1, 1))
 
 
 def test_estimate_timed_metric_preserves_debug_message_shape():
@@ -405,41 +442,31 @@ def test_add_entropy_normalized_metrics_preserves_order_and_values():
     assert metrics["I(I;C)_normalized"] == 1.5
 
 
-def test_estimate_cmi_or_zero_preserves_failure_fallback():
+def test_estimate_cmi_records_an_estimator_failure_as_nan():
     harness = _MetricHarness()
     harness.estimator = _FailingConditionalEstimator()
     harness.estimators = {"recording": harness.estimator}
     arrays = _arrays()
 
-    value = harness._estimate_cmi_or_zero(
+    value = harness._estimate_cmi_or_nan(
         "I(Vb;C|E,I)",
         arrays["Vb"],
         arrays["C"].reshape(-1, 1),
         np.hstack([arrays["E"], arrays["I"]]),
     )
 
-    assert value == 0.0
+    assert np.isnan(value)
     assert [call[0] for call in harness.estimator.calls] == ["cmi"]
     assert harness.logger.warning_messages == [
         "  Failed to compute I(Vb;C|E,I): synthetic estimator failure"
     ]
-    assert "I(Vb;C|E,I) = 0.0000" in harness.logger.debug_messages[-1]
+    assert "I(Vb;C|E,I) = nan" in harness.logger.debug_messages[-1]
 
 
-def test_add_pid_metric_preserves_key_schema_unique_terms_and_estimator_order(
-    monkeypatch,
-):
+def test_add_pid_metric_decomposes_the_estimated_informations():
     harness = _PidHarness()
     arrays = _arrays()
     pid_results = {}
-
-    def fake_pid(sources, target):
-        assert sources[0] is arrays["E"]
-        assert sources[1] is arrays["I"]
-        assert target is arrays["Vout"]
-        return 0.5, 0.25
-
-    monkeypatch.setattr(information_pid_mixin, "pid_synergy_redundancy", fake_pid)
 
     harness._add_pid_metric(
         pid_results,
@@ -451,33 +478,28 @@ def test_add_pid_metric_preserves_key_schema_unique_terms_and_estimator_order(
         target_name="Vout",
     )
 
+    # The recording estimator returns 1, 2, 3 for I(E;Vout), I(I;Vout), I(E,I;Vout).
     assert pid_results == {
         "PID(E,I->Vout)": {
-            "synergy": 0.5,
-            "redundancy": 0.25,
-            "unique_E": 0.75,
-            "unique_I": 1.75,
+            "redundancy": 1.0,
+            "unique_E": 0.0,
+            "unique_I": 1.0,
+            "synergy": 1.0,
+            "joint": 3.0,
         }
     }
-    assert [call[0] for call in harness.estimator.calls] == ["mi", "mi"]
-    np.testing.assert_array_equal(harness.estimator.calls[0][1], arrays["E"])
-    np.testing.assert_array_equal(harness.estimator.calls[0][2], arrays["Vout"])
-    np.testing.assert_array_equal(harness.estimator.calls[1][1], arrays["I"])
-    np.testing.assert_array_equal(harness.estimator.calls[1][2], arrays["Vout"])
+    calls = harness.estimator.calls
+    assert [call[0] for call in calls] == ["mi", "mi", "mi"]
+    np.testing.assert_array_equal(calls[0][1], arrays["E"])
+    np.testing.assert_array_equal(calls[1][1], arrays["I"])
+    np.testing.assert_array_equal(calls[2][1], np.hstack([arrays["E"], arrays["I"]]))
+    assert all(np.array_equal(call[2], arrays["Vout"]) for call in calls)
     assert harness.logger.info_messages[0] == "  Computing PID(E,I->Vout)..."
-    assert harness.logger.warning_messages == []
 
 
-def test_compute_pid_preserves_metric_order_and_reshaped_class_target(monkeypatch):
+def test_compute_pid_keeps_metric_order_and_the_class_target():
     harness = _PidHarness()
     arrays = _arrays()
-    pid_calls = []
-
-    def fake_pid(sources, target):
-        pid_calls.append((sources[0].copy(), sources[1].copy(), target.copy()))
-        return float(len(pid_calls)), 0.0
-
-    monkeypatch.setattr(information_pid_mixin, "pid_synergy_redundancy", fake_pid)
 
     results = harness._compute_pid(
         arrays["E"],
@@ -492,14 +514,15 @@ def test_compute_pid_preserves_metric_order_and_reshaped_class_target(monkeypatc
         "PID(I,Vout->C)",
         "PID(E,I->Vout)",
     ]
-    np.testing.assert_array_equal(pid_calls[0][2], arrays["C"].reshape(-1, 1))
-    np.testing.assert_array_equal(pid_calls[1][2], arrays["C"].reshape(-1, 1))
-    np.testing.assert_array_equal(pid_calls[2][2], arrays["C"].reshape(-1, 1))
-    np.testing.assert_array_equal(pid_calls[3][2], arrays["Vout"])
-    assert [call[0] for call in harness.estimator.calls] == ["mi"] * 8
+    calls = harness.estimator.calls
+    assert len(calls) == 12
+    for call in calls[:9]:
+        np.testing.assert_array_equal(call[2], arrays["C"].reshape(-1, 1))
+    for call in calls[9:]:
+        np.testing.assert_array_equal(call[2], arrays["Vout"])
 
 
-def test_compute_pid_preserves_binarized_preprocessing_order(monkeypatch):
+def test_binarized_pid_keeps_the_class_labels():
     harness = _PidHarness()
     harness.pid_binarize = True
     harness.pid_binarize_method = "mean"
@@ -509,44 +532,15 @@ def test_compute_pid_preserves_binarized_preprocessing_order(monkeypatch):
         "Vout": np.array([[2.0], [4.0], [6.0]]),
         "C": np.array([0.0, 1.0, 3.0]),
     }
-    pid_calls = []
 
-    def fake_pid(sources, target):
-        pid_calls.append((sources[0].copy(), sources[1].copy(), target.copy()))
-        return float(len(pid_calls)), 0.0
+    harness._compute_pid(arrays["E"], arrays["I"], arrays["Vout"], arrays["C"])
 
-    monkeypatch.setattr(information_pid_mixin, "pid_synergy_redundancy", fake_pid)
-
-    results = harness._compute_pid(
-        arrays["E"],
-        arrays["I"],
-        arrays["Vout"],
-        arrays["C"],
-    )
-
-    E_pid = np.array([[0], [0], [1]])
-    I_pid = np.array([[0], [0], [1]])
-    Vout_pid = np.array([[0], [0], [1]])
-    C_pid = np.array([[0], [0], [1]])
-
-    assert list(results) == [
-        "PID(E,I->C)",
-        "PID(E,Vout->C)",
-        "PID(I,Vout->C)",
-        "PID(E,I->Vout)",
-    ]
-    np.testing.assert_array_equal(pid_calls[0][0], E_pid)
-    np.testing.assert_array_equal(pid_calls[0][1], I_pid)
-    np.testing.assert_array_equal(pid_calls[0][2], C_pid)
-    np.testing.assert_array_equal(pid_calls[1][0], E_pid)
-    np.testing.assert_array_equal(pid_calls[1][1], Vout_pid)
-    np.testing.assert_array_equal(pid_calls[1][2], C_pid)
-    np.testing.assert_array_equal(pid_calls[2][0], I_pid)
-    np.testing.assert_array_equal(pid_calls[2][1], Vout_pid)
-    np.testing.assert_array_equal(pid_calls[2][2], C_pid)
-    np.testing.assert_array_equal(pid_calls[3][0], E_pid)
-    np.testing.assert_array_equal(pid_calls[3][1], I_pid)
-    np.testing.assert_array_equal(pid_calls[3][2], Vout_pid)
+    binary = np.array([[0], [0], [1]])
+    calls = harness.estimator.calls
+    np.testing.assert_array_equal(calls[0][1], binary)  # E
+    np.testing.assert_array_equal(calls[1][1], binary)  # I
+    np.testing.assert_array_equal(calls[0][2], arrays["C"].reshape(-1, 1))
+    np.testing.assert_array_equal(calls[9][2], binary)  # Vout as the target
     assert any(
         message.startswith("  Data binarization completed")
         for message in harness.logger.info_messages

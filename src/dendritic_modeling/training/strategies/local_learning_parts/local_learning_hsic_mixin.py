@@ -9,6 +9,9 @@ import torch
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
     TopKLinear,
 )
+from dendritic_modeling.training.strategies.local_learning_parts.local_learning_gradient_utils import (
+    _factor_synapse_weight_grad,
+)
 from dendritic_modeling.training.strategies.local_learning_parts.local_learning_hsic import (
     compute_hsic_gradient,
     compute_kernel_matrix,
@@ -24,21 +27,6 @@ def _clip_hsic_gradient(
     if clip_value > 0:
         return torch.clamp(grad_z, min=-clip_value, max=clip_value)
     return grad_z
-
-
-def _hsic_topk_param_grad(
-    grad_z: torch.Tensor,
-    x_exc: torch.Tensor,
-    current_weight: torch.Tensor,
-    *,
-    normalize_by_batch: bool,
-    batch_size: int,
-) -> torch.Tensor:
-    """Project an HSIC output gradient onto TopK pre-weights."""
-    grad_g = grad_z.t() @ x_exc
-    if normalize_by_batch:
-        grad_g = grad_g / float(batch_size)
-    return grad_g * current_weight
 
 
 def _resolve_hsic_warmup_scale(
@@ -145,14 +133,16 @@ class LocalLearningHSICMixin:
         if exc_layer is None or rec.get("x_exc") is None:
             return
 
-        grad_param = _hsic_topk_param_grad(
+        # Conductance gradient (compact on indexed banks), then the weight
+        # transform's derivative.
+        grad_g = _factor_synapse_weight_grad(
+            exc_layer,
             grad_z,
             rec["x_exc"],
-            exc_layer.weight().detach(),
             normalize_by_batch=self.local_cfg.normalize_by_batch,
             batch_size=batch_size,
         )
-        self._add_topk_grad(exc_layer, grad_param, rec.get("exc_mask"))
+        self._add_topk_transformed_grad(exc_layer, grad_g, rec.get("exc_mask"))
 
 
 __all__ = ["LocalLearningHSICMixin"]

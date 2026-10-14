@@ -14,6 +14,7 @@ implementation across analyzers and sweep reports.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import math
 from collections.abc import Iterable
@@ -43,6 +44,19 @@ class BootstrapMeanInterval:
         return asdict(self)
 
 
+def _numpy_1_scalar_printing() -> contextlib.AbstractContextManager[Any]:
+    """Print NumPy scalars without their type, as NumPy 1 does.
+
+    NumPy 2 prints ``np.int64(0)`` where NumPy 1 printed ``0``; grouped pandas
+    keys are NumPy scalars, so seeds derived from their ``repr`` would depend
+    on the NumPy version. ``legacy="1.25"`` restores the NumPy 1 form.
+    """
+
+    if np.lib.NumpyVersion(np.__version__) >= "2.0.0":
+        return np.printoptions(legacy="1.25")
+    return np.printoptions(legacy=False)
+
+
 def stable_seed(
     base_seed: int,
     *identity: Any,
@@ -56,16 +70,21 @@ def stable_seed(
     pandas keys. ``pipe`` matches older sweep analyses that joined simple
     scalar identities with ``|``.  The combination rule is explicit so a
     migrated analysis can retain its historical random stream exactly.
+
+    NumPy scalars are printed as NumPy 1 prints them (``0``, not
+    ``np.int64(0)``), so a NumPy scalar and the equal Python value give the
+    same seed under every NumPy version.
     """
 
     if not 1 <= int(digest_bytes) <= 8:
         raise ValueError("digest_bytes must be between 1 and 8")
-    if representation == "repr":
-        payload = repr(identity[0] if len(identity) == 1 else identity).encode()
-    elif representation == "pipe":
-        payload = "|".join(map(str, identity)).encode()
-    else:  # pragma: no cover - guarded by the Literal type for typed callers
-        raise ValueError(f"Unsupported seed representation: {representation}")
+    with _numpy_1_scalar_printing():
+        if representation == "repr":
+            payload = repr(identity[0] if len(identity) == 1 else identity).encode()
+        elif representation == "pipe":
+            payload = "|".join(map(str, identity)).encode()
+        else:  # pragma: no cover - guarded by the Literal type for typed callers
+            raise ValueError(f"Unsupported seed representation: {representation}")
     offset = int.from_bytes(hashlib.sha256(payload).digest()[:digest_bytes], "little")
     if combine == "xor":
         return int(base_seed) ^ offset

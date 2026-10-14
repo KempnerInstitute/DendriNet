@@ -4,7 +4,14 @@ from __future__ import annotations
 
 import torch
 
-from dendritic_modeling.config.conversion import to_plain_dict as _to_plain_mapping
+from dendritic_modeling.config.structured_connectivity import (
+    DENSE_METHODS,
+    DISTANCE_METHODS,
+    GLOBAL_RNG_SEED,
+    distance_base_probability,
+    normalize_pathway_name,
+    resolve_pathway_rule,
+)
 from dendritic_modeling.utils.stable_hash import stable_seed_offset
 
 
@@ -173,42 +180,11 @@ def sample_distance_kernel_mask(
     )
 
 
-_PATHWAY_ALIASES = {
-    "ee": "ee",
-    "e_to_e": "ee",
-    "exc_to_exc": "ee",
-    "excitatory_to_excitatory": "ee",
-    "ie": "ie",
-    "i_to_e": "ie",
-    "inh_to_exc": "ie",
-    "inhibitory_to_excitatory": "ie",
-    "ei": "ei",
-    "e_to_i": "ei",
-    "exc_to_inh": "ei",
-    "excitatory_to_inhibitory": "ei",
-    "ii": "ii",
-    "i_to_i": "ii",
-    "inh_to_inh": "ii",
-    "inhibitory_to_inhibitory": "ii",
-    "rec_ee": "rec_ee",
-    "recurrent_ee": "rec_ee",
-    "rec_e_to_e": "rec_ee",
-    "rec_ie": "rec_ie",
-    "recurrent_ie": "rec_ie",
-    "rec_i_to_e": "rec_ie",
-    "rec_ei": "rec_ei",
-    "recurrent_ei": "rec_ei",
-    "rec_e_to_i": "rec_ei",
-    "rec_ii": "rec_ii",
-    "recurrent_ii": "rec_ii",
-    "rec_i_to_i": "rec_ii",
-}
-
-
-def normalize_pathway_name(pathway: str) -> str:
-    """Normalize public pathway aliases to canonical E/I pathway names."""
-    normalized = str(pathway).lower()
-    return _PATHWAY_ALIASES.get(normalized, normalized)
+# Methods resolved as direct compact indices from an external manifest file
+# (see ``index_manifest.py``).  Declared here — the import-graph root of the
+# synapse package — so both the mask dispatch below and the indices dispatch
+# in ``spatial_morphology.py`` agree on the names without an import cycle.
+INDEX_MANIFEST_METHODS = frozenset({"index_manifest", "manifest"})
 
 
 def _resolve_indexed(value, index: int | None):
@@ -267,6 +243,7 @@ def _inventory_feature_block_mask(
     in_features: int,
     inventory_counts,
     feature_ranges,
+    tier_groups,
     owner_count: int,
     level_idx: int,
     n_levels: int | None,
@@ -304,12 +281,27 @@ def _inventory_feature_block_mask(
             "inventory_feature_blocks is intended for non-somatic levels; "
             "configure somatic_synapses=false."
         )
-    # Partition ordered inventory tiers over active stages. With tier counts
-    # 4/2/2 this yields 8; 6+2; or 4+2+2 branches for one, two, or three
-    # non-somatic stages, respectively.
-    tier_start = round(level_idx * len(counts) / active_levels)
-    tier_stop = round((level_idx + 1) * len(counts) / active_levels)
-    level_tiers = list(range(tier_start, tier_stop))
+    if tier_groups is None:
+        # Partition ordered inventory tiers over active stages. With tier
+        # counts 4/2/2 this yields 8; 6+2; or 4+2+2 branches for one, two, or
+        # three non-somatic stages, respectively.
+        tier_start = round(level_idx * len(counts) / active_levels)
+        tier_stop = round((level_idx + 1) * len(counts) / active_levels)
+        level_tiers = list(range(tier_start, tier_stop))
+    else:
+        groups = [list(map(int, group)) for group in tier_groups]
+        if len(groups) != active_levels:
+            raise ValueError(
+                "inventory_feature_blocks 'tier_groups' must contain one "
+                "group per non-somatic level."
+            )
+        flattened = [tier for group in groups for tier in group]
+        if flattened != list(range(len(counts))) or any(not group for group in groups):
+            raise ValueError(
+                "inventory_feature_blocks 'tier_groups' must be a nonempty, "
+                "ordered partition of all inventory tier indices."
+            )
+        level_tiers = groups[level_idx]
     expected_per_owner = sum(counts[tier] for tier in level_tiers)
     rows_per_owner = out_features // owner_count
     if rows_per_owner != expected_per_owner:
@@ -341,46 +333,24 @@ def _inventory_feature_block_mask(
 
 
 def _resolve_pathway_config(config, pathway: str) -> dict:
-    root = _to_plain_mapping(config)
-    if not bool(root.get("enabled", False)):
-        return {}
+    """The rule of one pathway with canonical key names (``{}``: dense).
 
-    root_defaults = {
-        key: value for key, value in root.items() if key not in {"pathways", "enabled"}
-    }
-    pathways = _to_plain_mapping(root.get("pathways", {}))
-    canonical_pathway = normalize_pathway_name(pathway)
+    See :func:`dendritic_modeling.config.structured_connectivity.resolve_pathway_rule`.
+    """
+    return resolve_pathway_rule(config, pathway)
 
-    pathway_cfg = {}
-    for key, value in pathways.items():
-        if normalize_pathway_name(key) == canonical_pathway:
-            pathway_cfg = _to_plain_mapping(value)
-            break
 
-    # A typed StructuredConnectivityConfig carries default fields such as
-    # method="bernoulli" even when the user only configured selected pathways.
-    # Treat global defaults as a real root-level rule only when they include
-    # the parameters needed to sample a mask.
-    root_has_rule = any(
-        key in root_defaults and root_defaults.get(key) is not None
-        for key in (
-            "probability",
-            "p_connect",
-            "indegree",
-            "in_degree",
-            "pre_positions",
-            "post_positions",
-            "ranges_by_level",
-            "inventory_counts",
-            "feature_ranges",
-        )
-    )
-    if not pathway_cfg and not root_has_rule:
-        return {}
+def layer_seed_parts(layer_idx: int, network_layer_idx: int | None) -> tuple:
+    """Seed components of a layer; a later population-network layer adds its index.
 
-    merged = dict(root_defaults)
-    merged.update(pathway_cfg)
-    return merged
+    Populations of a population network pass their position in the layer as
+    ``layer_idx`` and the layer's index in the network as
+    ``network_layer_idx``. The first network layer keeps the components of
+    ``layer_idx`` alone, so its draws, and those of every EINet, are unchanged.
+    """
+    if not network_layer_idx:
+        return (int(layer_idx),)
+    return (int(layer_idx), "network_layer", int(network_layer_idx))
 
 
 def sample_configured_mask(
@@ -393,21 +363,33 @@ def sample_configured_mask(
     level_idx: int = 0,
     n_levels: int | None = None,
     device: torch.device | str | None = None,
+    network_layer_idx: int | None = None,
 ) -> torch.Tensor | None:
     """Sample a hard connectivity mask from a structured config block.
 
-    Supported methods are ``"bernoulli"``/``"probability"``,
+    Supported mask methods are ``"bernoulli"``/``"probability"``,
     ``"fixed_indegree"``, ``"distance"``, ``"level_feature_blocks"``, and
-    ``"inventory_feature_blocks"``.
-    Scalar or list-valued
-    ``probability``/``indegree`` fields use repeat-last semantics by layer.
+    ``"inventory_feature_blocks"``. ``"spatial_morphology"`` is handled
+    separately as compact sparse indices and therefore returns no dense mask.
+    Scalar or list-valued ``probability``/``indegree`` fields use repeat-last
+    semantics by layer: the network layer ``network_layer_idx`` when given
+    (population networks), otherwise ``layer_idx``.
     """
+    list_idx = layer_idx if network_layer_idx is None else network_layer_idx
     cfg = _resolve_pathway_config(config, pathway)
     if not cfg:
         return None
 
     method = str(cfg.get("method", "bernoulli")).lower()
-    if method in {"none", "dense", "all"}:
+    if method in DENSE_METHODS:
+        return None
+    # Spatial morphology is represented directly as compact [out, K] indices.
+    # Returning None here avoids materializing an ImageNet-scale Boolean mask.
+    if method in {"spatial_morphology", "morphology_spatial"}:
+        return None
+    # External index manifests are likewise compact [out, K] indices, loaded
+    # by ``sample_configured_indices``; they contribute no dense mask.
+    if method in INDEX_MANIFEST_METHODS:
         return None
 
     if method in {"level_feature_blocks", "level_blocks"}:
@@ -424,6 +406,7 @@ def sample_configured_mask(
             in_features=in_features,
             inventory_counts=cfg.get("inventory_counts", None),
             feature_ranges=cfg.get("feature_ranges", None),
+            tier_groups=cfg.get("tier_groups", None),
             owner_count=int(cfg.get("owner_count", 0)),
             level_idx=level_idx,
             n_levels=n_levels,
@@ -432,14 +415,16 @@ def sample_configured_mask(
 
     seed = cfg.get("seed", None)
     generator = None
-    if seed is not None:
+    # Without a seed, or with ``global_rng``, the mask draws from the global
+    # random stream.
+    if seed is not None and seed != GLOBAL_RNG_SEED:
         generator = torch.Generator()
         generator.manual_seed(
             (
                 int(seed)
                 + stable_seed_offset(
                     normalize_pathway_name(pathway),
-                    layer_idx,
+                    *layer_seed_parts(layer_idx, network_layer_idx),
                     level_idx,
                     out_features,
                     in_features,
@@ -449,13 +434,13 @@ def sample_configured_mask(
         )
 
     if method in {"bernoulli", "probability", "probabilistic"}:
-        probability = cfg.get("probability", cfg.get("p_connect", None))
+        probability = cfg.get("probability")
         if probability is None:
             raise ValueError(
                 f"Structured connectivity pathway '{pathway}' requires "
                 "'probability' for method='bernoulli'."
             )
-        probability = _resolve_indexed(probability, layer_idx)
+        probability = _resolve_indexed(probability, list_idx)
         return sample_probability_mask(
             out_features,
             in_features,
@@ -465,13 +450,13 @@ def sample_configured_mask(
         )
 
     if method in {"fixed_indegree", "fixed_in_degree", "indegree"}:
-        indegree = cfg.get("indegree", cfg.get("in_degree", None))
+        indegree = cfg.get("indegree")
         if indegree is None:
             raise ValueError(
                 f"Structured connectivity pathway '{pathway}' requires "
                 "'indegree' for method='fixed_indegree'."
             )
-        indegree = int(_resolve_indexed(indegree, layer_idx))
+        indegree = int(_resolve_indexed(indegree, list_idx))
         return sample_fixed_indegree_mask(
             out_features,
             in_features,
@@ -480,7 +465,7 @@ def sample_configured_mask(
             device=device,
         )
 
-    if method in {"distance", "distance_kernel"}:
+    if method in DISTANCE_METHODS:
         pre_positions = cfg.get("pre_positions", None)
         post_positions = cfg.get("post_positions", None)
         if pre_positions is None or post_positions is None:
@@ -491,10 +476,10 @@ def sample_configured_mask(
         probs = distance_kernel_probabilities(
             torch.as_tensor(pre_positions, dtype=torch.float32),
             torch.as_tensor(post_positions, dtype=torch.float32),
-            kernel=str(cfg.get("distance_kernel", cfg.get("kernel", "gaussian"))),
-            sigma=float(cfg.get("distance_sigma", cfg.get("sigma", 1.0))),
-            base_probability=float(
-                cfg.get("base_probability", cfg.get("probability", 1.0))
+            kernel=str(cfg.get("distance_kernel", "gaussian")),
+            sigma=float(cfg.get("distance_sigma", 1.0)),
+            base_probability=distance_base_probability(
+                cfg, section=f"structured connectivity pathway {pathway!r}"
             ),
         )
         return sample_probability_mask(
@@ -513,6 +498,7 @@ def sample_configured_mask(
 
 
 __all__ = [
+    "INDEX_MANIFEST_METHODS",
     "distance_kernel_probabilities",
     "normalize_pathway_name",
     "sample_configured_mask",

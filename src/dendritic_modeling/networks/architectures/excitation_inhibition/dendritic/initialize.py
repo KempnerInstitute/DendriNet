@@ -24,6 +24,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.i
     _expected_weight_for_transform,
     _mean_for_expected_weight,
     _safe_quantile,
+    _solve_first_crossing_expected_weight_mean,
     _truncated_normal_moments,
     compute_expectation_truncated_inverse_softplus_normal,
     compute_expectation_truncated_log_normal,
@@ -42,6 +43,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.i
     _apply_reactivation_init,
     _current_reactivation_state,
     _reactivation_calibration_safeguards,
+    reactivation_calibration_targets,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize_scaling import (
     _center_preserving_shunting_conductances,
@@ -87,6 +89,7 @@ __all__ = [
     "_mean_for_expected_weight",
     "_reactivation_calibration_safeguards",
     "_safe_quantile",
+    "_solve_first_crossing_expected_weight_mean",
     "_truncated_normal_moments",
     "analytical_expectation_dbl_init",
     "calibrate_reactivation_empirical",
@@ -103,5 +106,6 @@ __all__ = [
     "naive_dbl_init",
     "normalize_adaptive_initialization_policy",
     "normalize_reactivation_init_policy",
+    "reactivation_calibration_targets",
     "reactivation_policy_to_calibration_mode",
 ]

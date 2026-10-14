@@ -28,27 +28,17 @@ import numpy as np
 import torch
 import torch.utils.data
 
+from dendritic_modeling.config.conversion import dataset_specific_params
+from dendritic_modeling.config.seeds import derive_seed
 from dendritic_modeling.datasets.sequence_datasets import VariableDelayDMSDataset
 from dendritic_modeling.scripts.analysis.analyze_routing_by_condition import (
     load_model_and_config,
 )
+from dendritic_modeling.utils import resolve_experiment_seeds
+from dendritic_modeling.utils.logging_config import setup_logging
+from dendritic_modeling.utils.reproducibility import isolated_random_seed
 
 logger = logging.getLogger(__name__)
-
-
-def _to_dict(obj):
-    if obj is None:
-        return {}
-    if isinstance(obj, dict):
-        return obj
-    if hasattr(obj, "items"):
-        try:
-            return dict(obj.items())
-        except Exception:
-            pass
-    if hasattr(obj, "__dict__"):
-        return {k: v for k, v in vars(obj).items() if not k.startswith("_")}
-    return {}
 
 
 def _accuracy_by_delay_bins(preds, labels, delays, n_bins: int = 10):
@@ -107,31 +97,52 @@ def main() -> None:
     parser.add_argument("--batch_size", type=int, default=128)
     parser.add_argument("--n_bins", type=int, default=10)
     parser.add_argument("--device", default="cpu")
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Seed of the OOD trials (default: derived from the run's evaluation seed)",
+    )
     args = parser.parse_args()
 
-    logging.basicConfig(level=logging.INFO)
     os.makedirs(args.output_dir, exist_ok=True)
 
     model, config, _ = load_model_and_config(
         model_path=args.model_path,
         config_path=args.config_path,
         device=args.device,
+        output_dir=args.output_dir,
     )
     model.eval()
 
-    ds_cfg = {}
-    if hasattr(config, "data") and hasattr(config.data, "dataset_params"):
-        section = getattr(config.data.dataset_params, "variable_delay_dms", None)
-        ds_cfg = _to_dict(section)
-
-    dataset = VariableDelayDMSDataset(
-        n_samples=args.n_samples,
-        stimulus_dim=int(ds_cfg.get("stimulus_dim", 16)),
-        stimulus_duration=int(ds_cfg.get("stimulus_duration", 10)),
-        min_delay=int(args.min_delay),
-        max_delay=int(args.max_delay),
-        probe_duration=int(ds_cfg.get("probe_duration", 10)),
+    if config.data.dataset_name != "variable_delay_dms":
+        raise ValueError(
+            "OOD delay evaluation needs a model trained on variable_delay_dms, "
+            f"not {config.data.dataset_name!r}"
+        )
+    # Trial shape as in training (the dataset defaults where the run left
+    # them unset); only the delay range and trial count change.
+    configured = dataset_specific_params(config.data)
+    trial_shape = {
+        key: int(configured[key])
+        for key in ("stimulus_dim", "stimulus_duration", "probe_duration")
+        if key in configured
+    }
+    seed = (
+        int(args.seed)
+        if args.seed is not None
+        else derive_seed(
+            resolve_experiment_seeds(config.experiment).evaluation_seed,
+            "evaluate_ood_delay",
+        )
     )
+    with isolated_random_seed(seed):
+        dataset = VariableDelayDMSDataset(
+            n_samples=args.n_samples,
+            min_delay=int(args.min_delay),
+            max_delay=int(args.max_delay),
+            **trial_shape,
+        )
 
     loader = torch.utils.data.DataLoader(
         dataset,
@@ -160,6 +171,8 @@ def main() -> None:
         "ood_min_delay": args.min_delay,
         "ood_max_delay": args.max_delay,
         "n_samples": args.n_samples,
+        "seed": seed,
+        "trial_shape": trial_shape,
         "overall_accuracy": overall_acc,
         "accuracy_by_delay_bin": by_bin,
     }
@@ -181,4 +194,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    setup_logging()
     main()

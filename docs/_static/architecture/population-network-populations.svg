@@ -32,8 +32,8 @@
   <!-- basal dendrites -->
   <path class="dend" d="M606,338 L580,360 M634,338 L660,360"/>
   <text class="small" x="620" y="372" text-anchor="middle">apical + basal dendrites</text>
-  <text class="body" x="490" y="420">2-layer dendritic tree → richer</text>
-  <text class="body" x="490" y="440">nonlinear E/I integration; the</text>
+  <text class="body" x="490" y="420">branch_factors [2, 2]: a two-level</text>
+  <text class="body" x="490" y="440">dendritic tree. It is the layer&#8217;s</text>
   <text class="body" x="490" y="460">readout population.</text>
 
   <!-- PV (inhibitory, basket, perisomatic) -->
@@ -60,10 +60,10 @@
   <text class="small" x="975" y="354" text-anchor="middle">readout_population: pyr</text>
 
   <!-- connections -->
-  <!-- Pyr -> PV (excitatory drive) -->
-  <path class="exc" d="M598,318 C470,300 360,262 402,262" marker-end="url(#ce)"/>
-  <!-- Pyr -> SST -->
-  <path class="exc" d="M600,330 C460,440 360,472 402,472" marker-end="url(#ce)"/>
+  <!-- Pyr -> PV (excitatory drive, delayed: PV also inhibits Pyr in the same step) -->
+  <path class="rec" d="M598,318 C470,300 360,262 402,262" marker-end="url(#ce)"/>
+  <!-- Pyr -> SST (delayed) -->
+  <path class="rec" d="M600,330 C460,440 360,472 402,472" marker-end="url(#ce)"/>
   <!-- PV -> Pyr soma (perisomatic inhibition) -->
   <path class="inh" d="M226,278 C360,330 520,330 612,326" marker-end="url(#ci)"/>
   <!-- SST -> Pyr dendrites (dendritic inhibition, targets apical) -->
@@ -80,6 +80,6 @@
   <line class="inh" x1="900" y1="498" x2="938" y2="498" marker-end="url(#ci)"/>
   <text class="small" x="948" y="503">inhibitory projection</text>
   <line class="rec" x1="900" y1="526" x2="940" y2="526" marker-end="url(#ce)"/>
-  <text class="small" x="948" y="531">recurrent (delayed)</text>
+  <text class="small" x="948" y="531">delayed (previous step)</text>
   <text class="small" x="900" y="560">Per-population overrides go in each populations[].population block.</text>
 </svg>

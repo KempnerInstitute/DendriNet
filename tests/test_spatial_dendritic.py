@@ -48,17 +48,6 @@ class TestTensorSpec:
 # ---------------------------------------------------------------------------
 # Spatial split path (uses real torchvision AlexNet)
 # ---------------------------------------------------------------------------
-@pytest.fixture()
-def _skip_if_no_torchvision():
-    try:
-        from torchvision.models import get_model
-
-        get_model("alexnet", weights=None)
-    except Exception:
-        pytest.skip("torchvision alexnet not available")
-
-
-@pytest.mark.usefixtures("_skip_if_no_torchvision")
 class TestSpatialSplit:
     def test_spatial_split_alexnet_k2(self):
         """AlexNet K=2: prefix = conv backbone + avgpool → 4D spatial output."""
@@ -170,7 +159,6 @@ class TestSpatialSplit:
 # ---------------------------------------------------------------------------
 # HierarchicalDendriticTensorMap
 # ---------------------------------------------------------------------------
-@pytest.mark.usefixtures("_skip_if_no_torchvision")
 class TestHierarchicalDendriticTensorMap:
     """Test the tensor map core with realistic EINet configs."""
 
@@ -196,7 +184,6 @@ class TestHierarchicalDendriticTensorMap:
                 "ii_synapses_per_branch_per_layer": [0],
             },
             "transfer": {
-                "input_mode": 0,
                 "independent_pathways": False,
                 "excitatory_dim": None,
                 "inhibitory_dim": None,
@@ -427,7 +414,6 @@ class TestHierarchicalDendriticTensorMap:
 # ---------------------------------------------------------------------------
 # Spatial decoder guard
 # ---------------------------------------------------------------------------
-@pytest.mark.usefixtures("_skip_if_no_torchvision")
 class TestSpatialDecoderGuard:
     def test_conv_suffix_split_builds_spatial_decoder(self):
         """Splitting mid-conv (so suffix has conv layers) should build a spatial decoder."""
@@ -472,7 +458,6 @@ class TestSpatialDecoderGuard:
 # ---------------------------------------------------------------------------
 # End-to-end: spatial split + tensor map core
 # ---------------------------------------------------------------------------
-@pytest.mark.usefixtures("_skip_if_no_torchvision")
 class TestSpatialEndToEnd:
     def test_alexnet_k2_spatial_tensor_map_pipeline(self):
         """Full pipeline: spatial encoder → tensor_map core → decoder."""
@@ -507,7 +492,6 @@ class TestSpatialEndToEnd:
                 "ii_synapses_per_branch_per_layer": [0],
             },
             "transfer": {
-                "input_mode": 0,
                 "independent_pathways": False,
                 "excitatory_dim": None,
                 "inhibitory_dim": None,

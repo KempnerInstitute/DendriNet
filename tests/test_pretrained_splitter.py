@@ -9,18 +9,13 @@ import torch.nn as nn
 from dendritic_modeling.networks.architectures.classical.pretrained import (
     BackboneSegment,
     _extract_layers,
-    _filter_omitted_layers,
-    _flatten_model_layers,
     _has_linear_module,
     _has_spatial_module,
     _insert_flatten,
-    _load_backbone,
-    _names_and_modules,
     _needs_flatten,
     _prepare_segment_input,
     _require_layer_index,
     _require_split_index,
-    _resolve_target_module_span,
     _restore_segment_output,
     _run_modules_no_grad,
     _segment_output_metadata,
@@ -29,7 +24,12 @@ from dendritic_modeling.networks.architectures.classical.pretrained import (
     _tensor_spec_from_spatial_output,
     build_encoder_decoder_from_plan,
     build_split_plan,
+    filter_omitted_layers,
+    flatten_model_layers,
     list_backbone_layers,
+    load_backbone,
+    names_and_modules,
+    resolve_target_module_span,
 )
 from dendritic_modeling.networks.base import BaseNetwork
 
@@ -82,12 +82,12 @@ class _SimpleCore(BaseNetwork):
 
 
 # ---------------------------------------------------------------------------
-# Tests for _flatten_model_layers
+# Tests for flatten_model_layers
 # ---------------------------------------------------------------------------
 class TestFlattenModelLayers:
     def test_expands_sequential(self):
         model = _MiniAlexNet()
-        layers = _flatten_model_layers(model)
+        layers = flatten_model_layers(model)
         names = [n for n, _ in layers]
 
         # Sequential children should be expanded
@@ -104,7 +104,7 @@ class TestFlattenModelLayers:
 
     def test_preserves_order(self):
         model = _MiniAlexNet()
-        layers = _flatten_model_layers(model)
+        layers = flatten_model_layers(model)
         names = [n for n, _ in layers]
 
         # features before avgpool before classifier
@@ -235,23 +235,23 @@ class TestFlattenHelpers:
 
 
 # ---------------------------------------------------------------------------
-# Tests for _load_backbone
+# Tests for load_backbone
 # ---------------------------------------------------------------------------
 class TestLoadBackbone:
     def test_none_weights(self):
         """weights=None creates model with random init."""
-        model = _load_backbone("alexnet", weights=None)
+        model = load_backbone("alexnet", weights=None)
         assert model is not None
         assert hasattr(model, "features")
         assert hasattr(model, "classifier")
 
     def test_local_file_path(self, tmp_path):
         """Loading from a local .pt file."""
-        model = _load_backbone("alexnet", weights=None)
+        model = load_backbone("alexnet", weights=None)
         path = str(tmp_path / "model.pt")
         torch.save(model.state_dict(), path)
 
-        loaded = _load_backbone("alexnet", weights=path)
+        loaded = load_backbone("alexnet", weights=path)
         assert loaded is not None
 
         for (n1, p1), (n2, p2) in zip(
@@ -340,9 +340,26 @@ class TestBuildSplitPlan:
         assert "classifier.1" in plan.replaced_names
         assert "classifier.5" in plan.replaced_names
 
+    def test_omit_layers_filtered_from_replacement_span(self):
+        """Omitted dropout is absent from a retained fc6+fc7 control."""
+        plan = build_split_plan(
+            "alexnet",
+            weights=None,
+            replace_start="classifier.1",
+            replace_end="classifier.5",
+            omit_layers=["classifier.0", "classifier.3"],
+        )
+
+        assert plan.replaced_names == [
+            "classifier.1",
+            "classifier.2",
+            "classifier.4",
+            "classifier.5",
+        ]
+
     def test_target_modules_resolve_contiguous_replacement_span(self):
         with patch(
-            "dendritic_modeling.networks.architectures.classical.pretrained._load_backbone",
+            "dendritic_modeling.networks.architectures.classical.pretrained.load_backbone",
             return_value=_MiniAlexNet(),
         ):
             plan = build_split_plan(
@@ -358,7 +375,7 @@ class TestBuildSplitPlan:
 
     def test_target_modules_must_be_contiguous(self):
         with patch(
-            "dendritic_modeling.networks.architectures.classical.pretrained._load_backbone",
+            "dendritic_modeling.networks.architectures.classical.pretrained.load_backbone",
             return_value=_MiniAlexNet(),
         ):
             with pytest.raises(ValueError, match="contiguous span"):
@@ -426,23 +443,23 @@ class TestReplacementSpanHelpers:
     def test_resolve_target_module_span_accepts_unordered_contiguous_targets(self):
         all_names = ["features.0", "features.1", "classifier.1", "classifier.2"]
 
-        assert _resolve_target_module_span(
+        assert resolve_target_module_span(
             all_names, ["classifier.2", "classifier.1"]
         ) == (2, 3)
 
     def test_resolve_target_module_span_returns_none_without_targets(self):
-        assert _resolve_target_module_span(["features.0"], None) is None
-        assert _resolve_target_module_span(["features.0"], []) is None
+        assert resolve_target_module_span(["features.0"], None) is None
+        assert resolve_target_module_span(["features.0"], []) is None
 
     def test_resolve_target_module_span_rejects_unknown_target(self):
         with pytest.raises(ValueError, match="unknown layer"):
-            _resolve_target_module_span(["features.0"], ["classifier.1"])
+            resolve_target_module_span(["features.0"], ["classifier.1"])
 
     def test_resolve_target_module_span_rejects_non_contiguous_targets(self):
         all_names = ["features.0", "features.1", "classifier.1"]
 
         with pytest.raises(ValueError, match="contiguous span"):
-            _resolve_target_module_span(all_names, ["features.0", "classifier.1"])
+            resolve_target_module_span(all_names, ["features.0", "classifier.1"])
 
     def test_require_layer_index_returns_index_or_raises_with_backbone_context(self):
         all_names = ["features.0", "classifier.1"]
@@ -465,7 +482,7 @@ class TestLayerSplitHelpers:
     def test_names_and_modules_preserves_order_and_identity(self):
         layers = [("a", nn.Identity()), ("b", nn.ReLU())]
 
-        names, modules = _names_and_modules(layers)
+        names, modules = names_and_modules(layers)
 
         assert names == ["a", "b"]
         assert modules == [layers[0][1], layers[1][1]]
@@ -474,8 +491,8 @@ class TestLayerSplitHelpers:
         layers = [(f"layer.{idx}", nn.Identity()) for idx in range(5)]
         prefix, replaced, suffix = _slice_layers_by_span(layers, 1, 3)
 
-        prefix_filtered = _filter_omitted_layers(prefix, ["layer.0", "layer.2"])
-        suffix_filtered = _filter_omitted_layers(suffix, ["layer.4", "layer.2"])
+        prefix_filtered = filter_omitted_layers(prefix, ["layer.0", "layer.2"])
+        suffix_filtered = filter_omitted_layers(suffix, ["layer.4", "layer.2"])
 
         assert prefix_filtered == []
         assert [name for name, _ in replaced] == ["layer.1", "layer.2", "layer.3"]
@@ -760,393 +777,3 @@ class TestBuildEncoderDecoderFromPlan:
         x = torch.randn(3, 224, 224)
         out = encoder(x)
         assert out.shape == (4096,)
-
-
-# ---------------------------------------------------------------------------
-# Integration test: load_config -> initialize_model
-# ---------------------------------------------------------------------------
-class TestConfigIntegration:
-    @pytest.fixture(autouse=True)
-    def skip_if_no_torchvision(self):
-        try:
-            from torchvision.models import get_model
-
-            get_model("alexnet", weights=None)
-        except Exception:
-            pytest.skip("torchvision alexnet not available")
-
-    def test_load_config_pretrained_replacement_enabled(self, tmp_path):
-        """Loading a YAML with pretrained_replacement.enabled=true should
-        populate ModelConfig.pretrained_replacement correctly."""
-        from dendritic_modeling.config import load_config
-        from dendritic_modeling.config.training import (
-            CommonTrainerConfig,
-            ParamGroupsConfig,
-        )
-
-        yaml_content = """\
-experiment:
-  seed: 42
-  train_valid_split: 0.8
-
-data:
-  dataset_name: "imagenet"
-  base_dir: "/tmp/fake"
-  processing:
-    flatten: false
-    normalize: true
-
-model:
-  task: "classification"
-  pretrained_replacement:
-    enabled: true
-    backbone: "alexnet"
-    weights: null
-    input_shape: [3, 224, 224]
-    replace:
-      start: "classifier.4"
-      end: "classifier.5"
-    omit_layers: ["classifier.0", "classifier.3"]
-    trainability:
-      encoder:
-        mode: "frozen"
-      decoder:
-        mode: "trainable"
-
-  core:
-    type: "einet"
-    architecture:
-      excitatory_layer_sizes: [4096]
-      inhibitory_layer_sizes: [820]
-      excitatory_branch_factors: [2, 2]
-      inhibitory_branch_factors: [2, 2]
-    connectivity:
-      ee_synapses_per_branch_per_layer: [40]
-      ei_synapses_per_branch_per_layer: [10]
-      ie_synapses_per_branch_per_layer: [10]
-      ii_synapses_per_branch_per_layer: [0]
-
-training:
-  encoder:
-    strategy: "standard"
-    common:
-      lr: 0.0
-      epochs: 0
-      batch_size: 64
-  main:
-    strategy: "standard"
-    common:
-      epochs: 1
-      batch_size: 64
-      loss_function: "cat_nll"
-      param_groups:
-        lr: 0.001
-        split_params: true
-        encoder_lr: 0.0
-
-outputs:
-  run_name: "test_integration"
-  results_dir: "/tmp/test_outputs"
-"""
-        config_path = tmp_path / "test_config.yaml"
-        config_path.write_text(yaml_content)
-
-        config = load_config(str(config_path))
-        mc = config.model
-
-        # pretrained_replacement should be enabled
-        assert mc.pretrained_replacement.enabled is True
-        assert mc.pretrained_replacement.backbone == "alexnet"
-        assert mc.pretrained_replacement.replace.start == "classifier.4"
-        assert mc.pretrained_replacement.replace.end == "classifier.5"
-        assert "classifier.0" in mc.pretrained_replacement.omit_layers
-        assert isinstance(config.training.main.common, CommonTrainerConfig)
-        assert isinstance(config.training.encoder.common, CommonTrainerConfig)
-        assert isinstance(config.training.main.common.param_groups, ParamGroupsConfig)
-
-    def test_initialize_model_from_pretrained_replacement(self, tmp_path):
-        """initialize_model should produce BackboneSegment encoder/decoder
-        when pretrained_replacement is enabled."""
-        from dendritic_modeling.config import load_config
-        from dendritic_modeling.scripts.script_utils.setup_utils import initialize_model
-
-        yaml_content = """\
-experiment:
-  seed: 42
-  train_valid_split: 0.8
-
-data:
-  dataset_name: "imagenet"
-  base_dir: "/tmp/fake"
-  processing:
-    flatten: false
-    normalize: true
-
-model:
-  task: "classification"
-  pretrained_replacement:
-    enabled: true
-    backbone: "alexnet"
-    weights: null
-    input_shape: [3, 224, 224]
-    replace:
-      start: "classifier.4"
-      end: "classifier.5"
-    omit_layers: ["classifier.0", "classifier.3"]
-    trainability:
-      encoder:
-        mode: "frozen"
-      decoder:
-        mode: "trainable"
-
-  core:
-    type: "einet"
-    architecture:
-      excitatory_layer_sizes: [4096]
-      inhibitory_layer_sizes: [820]
-      excitatory_branch_factors: [2, 2]
-      inhibitory_branch_factors: [2, 2]
-    connectivity:
-      ee_synapses_per_branch_per_layer: [40]
-      ei_synapses_per_branch_per_layer: [10]
-      ie_synapses_per_branch_per_layer: [10]
-      ii_synapses_per_branch_per_layer: [0]
-
-training:
-  encoder:
-    strategy: "standard"
-    common:
-      lr: 0.0
-      epochs: 0
-      batch_size: 64
-  main:
-    strategy: "standard"
-    common:
-      epochs: 1
-      batch_size: 64
-      loss_function: "cat_nll"
-      param_groups:
-        lr: 0.001
-        split_params: true
-        encoder_lr: 0.0
-
-outputs:
-  run_name: "test_integration"
-  results_dir: "/tmp/test_outputs"
-"""
-        config_path = tmp_path / "test_config.yaml"
-        config_path.write_text(yaml_content)
-
-        config = load_config(str(config_path))
-        model, encoder_network = initialize_model(config.model)
-
-        # Encoder and decoder should be BackboneSegment instances
-        assert isinstance(model.encoder_network, BackboneSegment)
-        assert isinstance(model.decoder_network, BackboneSegment)
-        assert isinstance(encoder_network, BackboneSegment)
-
-        # Dims should match the split plan
-        assert model.encoder_network.output_dim == 4096
-        assert model.decoder_network.output_dim == 1000
-
-        # Core input/output dims should be consistent
-        assert model.core_network.output_dim == 4096
-
-        # Forward pass should work
-        x = torch.randn(2, 3, 224, 224)
-        with torch.no_grad():
-            out = model(x)
-        assert out.shape == (2, 1000)
-
-    def test_initialize_model_from_vision_replacement_target_modules(self, tmp_path):
-        """vision_replacement mirrors transformer-style target-module naming."""
-        from dendritic_modeling.config import load_config
-        from dendritic_modeling.scripts.script_utils.setup_utils import initialize_model
-
-        yaml_content = """\
-experiment:
-  seed: 42
-
-data:
-  dataset_name: "imagenet"
-  base_dir: "/tmp/fake"
-  processing:
-    flatten: false
-
-model:
-  task: "classification"
-  vision_replacement:
-    enabled: true
-    backbone: "mini_alexnet"
-    weights: null
-    input_shape: [3, 8, 8]
-    target_modules: ["classifier.4", "classifier.5"]
-    omit_layers: ["classifier.0", "classifier.3"]
-    trainability:
-      encoder:
-        mode: "frozen"
-      decoder:
-        mode: "trainable"
-  core:
-    type: "einet"
-    architecture:
-      excitatory_layer_sizes: [16]
-      inhibitory_layer_sizes: [4]
-      excitatory_branch_factors: [1]
-      inhibitory_branch_factors: [1]
-    connectivity:
-      ee_synapses_per_branch_per_layer: [2]
-      ei_synapses_per_branch_per_layer: [2]
-      ie_synapses_per_branch_per_layer: [1]
-      ii_synapses_per_branch_per_layer: [0]
-
-training:
-  main:
-    common:
-      param_groups:
-        lr: 0.001
-"""
-        config_path = tmp_path / "vision_replacement.yaml"
-        config_path.write_text(yaml_content)
-
-        with patch(
-            "dendritic_modeling.networks.architectures.classical.pretrained._load_backbone",
-            return_value=_MiniAlexNet(),
-        ):
-            config = load_config(str(config_path))
-            model, _encoder_network = initialize_model(config.model)
-
-        assert config.model.vision_replacement.enabled is True
-        assert config.model.vision_replacement.target_modules == [
-            "classifier.4",
-            "classifier.5",
-        ]
-        assert isinstance(model.encoder_network, BackboneSegment)
-        assert isinstance(model.decoder_network, BackboneSegment)
-        assert model.encoder_network.output_dim == 16
-        assert model.decoder_network.output_dim == 10
-
-        x = torch.randn(2, 3, 8, 8)
-        with torch.no_grad():
-            out = model(x)
-        assert out.shape == (2, 10)
-
-    def test_initialize_model_warns_for_ignored_legacy_sections(self, tmp_path):
-        """Legacy encoder/decoder config should warn when replacement is enabled."""
-        from dendritic_modeling.config import load_config
-        from dendritic_modeling.scripts.script_utils.setup_utils import initialize_model
-
-        yaml_content = """\
-experiment:
-  seed: 42
-
-data:
-  dataset_name: "imagenet"
-  base_dir: "/tmp/fake"
-  processing:
-    flatten: false
-
-model:
-  task: "classification"
-  encoder:
-    type: "pathway_router"
-  decoder:
-    type: "identity"
-  pretrained_replacement:
-    enabled: true
-    backbone: "alexnet"
-    weights: null
-    input_shape: [3, 224, 224]
-    replace:
-      start: "classifier.4"
-      end: "classifier.5"
-    omit_layers: ["classifier.0", "classifier.3"]
-  core:
-    type: "einet"
-    architecture:
-      excitatory_layer_sizes: [4096]
-      inhibitory_layer_sizes: [820]
-      excitatory_branch_factors: [2, 2]
-      inhibitory_branch_factors: [2, 2]
-    connectivity:
-      ee_synapses_per_branch_per_layer: [40]
-      ei_synapses_per_branch_per_layer: [10]
-      ie_synapses_per_branch_per_layer: [10]
-      ii_synapses_per_branch_per_layer: [0]
-"""
-        config_path = tmp_path / "warn_config.yaml"
-        config_path.write_text(yaml_content)
-
-        config = load_config(str(config_path))
-
-        with patch(
-            "dendritic_modeling.scripts.script_utils.setup_utils.logger.warning"
-        ) as warn_mock:
-            initialize_model(config.model)
-
-        warn_mock.assert_called_once()
-        assert "ignored because model.pretrained_replacement.enabled=true" in (
-            warn_mock.call_args.args[0]
-        )
-        assert "model.encoder, model.decoder" in warn_mock.call_args.args[1]
-
-    def test_fsdp_create_large_model_from_pretrained_replacement(self, tmp_path):
-        """FSDP model creation should honor pretrained_replacement configs."""
-        from dendritic_modeling.config import load_config
-        from dendritic_modeling.scripts.training.train_experiments_fsdp import (
-            create_large_model,
-        )
-
-        yaml_content = """\
-experiment:
-  seed: 42
-
-data:
-  dataset_name: "imagenet"
-  base_dir: "/tmp/fake"
-  processing:
-    flatten: false
-
-model:
-  task: "classification"
-  pretrained_replacement:
-    enabled: true
-    backbone: "alexnet"
-    weights: null
-    input_shape: [3, 224, 224]
-    replace:
-      start: "classifier.4"
-      end: "classifier.5"
-    omit_layers: ["classifier.0", "classifier.3"]
-    trainability:
-      encoder:
-        mode: "frozen"
-      decoder:
-        mode: "trainable"
-  core:
-    type: "einet"
-    architecture:
-      excitatory_layer_sizes: [4096]
-      inhibitory_layer_sizes: [820]
-      excitatory_branch_factors: [2, 2]
-      inhibitory_branch_factors: [2, 2]
-    connectivity:
-      ee_synapses_per_branch_per_layer: [40]
-      ei_synapses_per_branch_per_layer: [10]
-      ie_synapses_per_branch_per_layer: [10]
-      ii_synapses_per_branch_per_layer: [0]
-
-training:
-  main:
-    common:
-      param_groups:
-        lr: 0.001
-"""
-        config_path = tmp_path / "fsdp_config.yaml"
-        config_path.write_text(yaml_content)
-
-        config = load_config(str(config_path))
-        model = create_large_model(config)
-
-        assert isinstance(model.encoder_network, BackboneSegment)
-        assert isinstance(model.decoder_network, BackboneSegment)

@@ -169,11 +169,13 @@ class SpikeTrainAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         handles = self._attach_hooks(model)
         if not handles:
             self.logger.info("Skipping spike-train analysis: no LIFSoma modules found")
+            self.report_skip("the model has no LIFSoma modules")
             return {}
         if data is None:
 
             def _skip_missing_data() -> dict[str, Any]:
                 self.logger.info("Skipping spike-train analysis: no dataset provided")
+                self.report_skip("no dataset was provided")
                 return {}
 
             return self._run_with_attached_hooks(handles, _skip_missing_data)

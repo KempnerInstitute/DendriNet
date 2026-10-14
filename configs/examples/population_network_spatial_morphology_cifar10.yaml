@@ -1,0 +1,137 @@
+# ============================================================================
+# Population Network CIFAR-10 with Morphology-Aligned Spatial Connectivity
+# ============================================================================
+# Every E and I dendritic branch receives a fixed number of unique pixels from
+# its nested image region. The topology is stored as compact [branch, K]
+# indices: it is not a convolution and does not share weights between branches.
+#
+# Run:
+#   dendritic-train configs/examples/population_network_spatial_morphology_cifar10.yaml
+# ============================================================================
+
+config_version: 3
+
+experiment:
+  seed: 42
+  train_valid_split: 0.8
+  checkpointing:
+    enabled: false
+
+data:
+  dataset_name: "cifar10"
+  processing:
+    flatten: true
+    normalize: false  # pixels in [0, 1]: shunting conductances need non-negative input
+
+model:
+  task: "classification"
+  encoder:
+    type: "identity"
+    params:
+      input_dim: 3072
+  core:
+    type: "population_network"
+    population_network:
+      use_transfer: true
+      transfer_params:
+        independent_pathways: false
+        output_activation: "relu"
+      layers:
+        - name: "layer0"
+          readout_population: "e"
+          population_defaults:
+            ff_excitatory_synapses: 40
+            ff_inhibitory_synapses: 10
+            rec_excitatory_synapses: 0
+            rec_inhibitory_synapses: 0
+            somatic_synapses: false
+            use_shunting: true
+            reactivate: true
+            reactivation_type: "param_tanh"
+            reactivation_memory_efficient: true
+            reactivation_init_policy: "occupancy_quantile"
+            dbl_init_method: "analytical_expectation"
+            weight_transform: "softplus"
+            topk_type: "indexed"
+            topk_init_method: "xavier_normal"
+            indexed_index_dtype: "auto"
+            indexed_output_chunk_size: 2048
+            indexed_projection_backend: recompute
+            indexed_persistent_indices: false
+            structured_connectivity:
+              enabled: true
+              method: "spatial_morphology"
+              seed: 42
+              spatial:
+                input_shape: [3, 32, 32]
+                split_axes: ["height", "width", "height", "width"]
+                # High-fan-out morphologies whose disjoint terminal regions
+                # cannot hold K unique contacts may instead use:
+                # region_mode: "overlapping_grid"
+                # minimum_window_shape: [4, 4]
+                # To preserve those window sizes while randomizing each
+                # branch's fixed spatial location, use:
+                # region_mode: "random_windows"
+                # region_seed: 42
+            blocklinear_gradient_scaling: "none"
+            reactivation_gradient_scaling: "none"
+            efficient_blocklinear: true
+          populations:
+            - name: "e"
+              polarity: "excitatory"
+              n_neurons: 64
+              branch_factors: [2, 2, 2, 2]
+          connections:
+            - source: "input_e"
+              target: "e"
+            - source: "input_i"
+              target: "e"
+  decoder:
+    type: "MLP"
+    params:
+      hidden_dims: [64]
+      activation: "relu"
+      output_dim: 10
+
+training:
+  main:
+    strategy: "standard"
+    common:
+      epochs: 200
+      batch_size: 512
+      shuffle: true
+      grad_clip_value: 5.0
+      loss_function: "ce"
+      early_stopping: true
+      patience: 50
+      load_best_state_dict: true
+      synapse_decay_rate: 0.01
+      weight_boosting: true
+      param_groups:
+        lr: 0.001
+        split_params: true
+        topk_lr: 0.001
+        blocklinear_lr: 0.0001
+        reactivation_lr: 0.0001
+        decoder_lr: 0.001
+    optimizer:
+      name: "adam"
+    strategies:
+      standard: {}
+
+analysis:
+  performance:
+    enabled: true
+    training: false
+    params:
+      accuracy: true
+      auc: true
+      categorical_loglikelihood: true
+
+
+outputs:
+  run_name: "population_network_spatial_morphology_cifar10"
+  results_dir: "outputs"
+
+distributed:
+  mode: none

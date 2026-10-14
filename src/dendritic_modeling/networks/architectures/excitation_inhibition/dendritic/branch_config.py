@@ -24,6 +24,8 @@ class DendriticBranchConfig:
     rec_inhibitory_synapses_per_branch: int | None = None
     rec_inhibitory_forbidden_input_index_per_output: Any | None = None
     layer_idx: int = 0
+    excitatory_connection_indices: Any | None = None
+    inhibitory_connection_indices: Any | None = None
     excitatory_connection_mask: Any | None = None
     inhibitory_connection_mask: Any | None = None
     recurrent_connection_mask: Any | None = None
@@ -79,6 +81,12 @@ class DendriticBranchConfig:
                 "rec_inhibitory_forbidden_input_index_per_output", None
             ),
             layer_idx=source.get("layer_idx", 0),
+            excitatory_connection_indices=source.get(
+                "excitatory_connection_indices", None
+            ),
+            inhibitory_connection_indices=source.get(
+                "inhibitory_connection_indices", None
+            ),
             excitatory_connection_mask=source.get("excitatory_connection_mask", None),
             inhibitory_connection_mask=source.get("inhibitory_connection_mask", None),
             recurrent_connection_mask=source.get("recurrent_connection_mask", None),
@@ -109,6 +117,8 @@ class DendriticBranchConfig:
                 self.rec_inhibitory_forbidden_input_index_per_output
             ),
             "layer_idx": self.layer_idx,
+            "excitatory_connection_indices": self.excitatory_connection_indices,
+            "inhibitory_connection_indices": self.inhibitory_connection_indices,
             "excitatory_connection_mask": self.excitatory_connection_mask,
             "inhibitory_connection_mask": self.inhibitory_connection_mask,
             "recurrent_connection_mask": self.recurrent_connection_mask,

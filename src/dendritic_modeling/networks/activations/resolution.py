@@ -8,7 +8,7 @@ def resolve_dendritic_activation(
     reactivate: bool,
     reactivation_type: str | None,
 ) -> tuple[bool, str]:
-    """Resolve paper-facing dendritic activation aliases.
+    """Resolve dendritic activation aliases.
 
     ``dendritic_activation`` is an alias surface for configs.  When it is
     provided, it takes precedence over ``reactivate``/``reactivation_type``.

@@ -7,6 +7,7 @@ from torch import nn
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
     TopKLinear,
 )
+from dendritic_modeling.training.loss.functions import CategoricalNLLLoss
 from dendritic_modeling.training.strategies.local_learning import (
     _accumulate_backprop_gradients,
     _apply_decoder_local_gradients,
@@ -21,7 +22,6 @@ from dendritic_modeling.training.strategies.local_learning import (
     _prepare_hsic_target,
     _resolve_epoch_update_modes,
     _resolve_stdp_error_signals,
-    _supports_local_learning_train,
     _zero_optimizer_gradients,
 )
 from dendritic_modeling.training.strategies.local_learning_parts.local_learning_epoch import (
@@ -30,6 +30,7 @@ from dendritic_modeling.training.strategies.local_learning_parts.local_learning_
     _accumulate_local_logging_loss,
     _apply_local_decoder_update,
     _apply_training_schedule_update_modes,
+    _average_distributed_gradients,
     _average_local_epoch_losses,
     _collect_trainable_parameters,
     _compute_decoder_local_gradients,
@@ -49,9 +50,11 @@ from dendritic_modeling.training.strategies.local_learning_parts.local_learning_
     _accumulate_parameter_grad,
     _apply_optional_alignment,
     _factor_pre_weight_grad,
-    _reactivation_output_slope,
     _resolve_stdp_post_signal,
     _scale_reactivation_error,
+)
+from dendritic_modeling.training.strategies.local_learning_parts.local_learning_signals import (
+    LocalLearningSignalMixin,
 )
 from dendritic_modeling.training.strategies.local_learning_parts.local_learning_state import (
     _LayerModulators,
@@ -144,14 +147,6 @@ def test_scale_reactivation_error_broadcasts_tensor_modulators():
 
     expected = ((error_signal * rho.unsqueeze(0)) * 0.25) * branch_scale.unsqueeze(0)
     torch.testing.assert_close(scaled, expected)
-
-
-def test_reactivation_output_slope_matches_existing_formula():
-    output = torch.tensor([[0.0, 0.25, 0.5, 0.75, 1.0]])
-
-    slope = _reactivation_output_slope(output)
-
-    torch.testing.assert_close(slope, 1 - (2 * output - 1) ** 2)
 
 
 def test_apply_optional_alignment_matches_existing_formula():
@@ -659,26 +654,91 @@ def test_move_batch_to_device_moves_input_and_target_tensors():
     torch.testing.assert_close(moved_y, y_batch.to(device))
 
 
-def test_accumulate_local_logging_loss_updates_total_and_base_only():
-    train_loss, train_loss_base, train_loss_reg = _accumulate_local_logging_loss(
-        train_loss=1.0,
-        train_loss_base=2.0,
-        train_loss_reg=3.0,
-        loss=torch.tensor(0.25),
+def test_local_logging_loss_sum_matches_the_host_sum_of_step_losses():
+    loss_sum = torch.zeros((), dtype=torch.float64)
+    expected = 0.0
+    for value in (0.1, 0.7, 1e-3, 2.5, 1 / 3):
+        loss = torch.tensor(value, requires_grad=True)
+        _accumulate_local_logging_loss(loss_sum, loss * 1.0)
+        expected += loss.item()
+
+    assert loss_sum.item() == expected
+    assert not loss_sum.requires_grad
+
+
+def test_local_logging_loss_reuses_precomputed_predictions():
+    class _Probe(LocalLearningSignalMixin):
+        loss_function = CategoricalNLLLoss()
+
+    class _CountingModel(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.calls = 0
+
+        def forward(self, x):
+            self.calls += 1
+            return x
+
+    model = _CountingModel()
+    logits = torch.tensor([[2.0, -1.0], [-0.5, 1.5]])
+    targets = torch.tensor([0, 1])
+
+    loss = _Probe()._compute_logging_loss(
+        model,
+        logits,
+        targets,
+        predictions=logits,
     )
 
-    assert train_loss == 1.25
-    assert train_loss_base == 2.25
-    assert train_loss_reg == 3.0
+    expected = CategoricalNLLLoss().from_predictions(logits, targets)
+    torch.testing.assert_close(loss, expected)
+    assert model.calls == 0
 
 
-def test_average_local_epoch_losses_preserves_legacy_division():
-    assert _average_local_epoch_losses(
-        train_loss=6.0,
-        train_loss_base=3.0,
-        train_loss_reg=0.0,
-        n_batches=3,
-    ) == (2.0, 1.0, 0.0)
+def test_average_local_epoch_losses_divides_the_sum_by_the_batches():
+    loss_sum = torch.tensor(6.0, dtype=torch.float64)
+    assert _average_local_epoch_losses(loss_sum, 3) == (2.0, 2.0, 0.0)
+
+
+def test_average_local_epoch_losses_reduces_distributed_totals(monkeypatch):
+    monkeypatch.setattr(torch.distributed, "is_available", lambda: True)
+    monkeypatch.setattr(torch.distributed, "is_initialized", lambda: True)
+    monkeypatch.setattr(torch.distributed, "get_world_size", lambda: 4)
+
+    def fake_all_reduce(tensor, op=None):
+        assert op == torch.distributed.ReduceOp.SUM
+        # (total, base, regularization, batches), as before the device sums
+        assert tensor.dtype == torch.float64
+        assert tensor.tolist() == [6.0, 6.0, 0.0, 3.0]
+        tensor.mul_(4)
+
+    monkeypatch.setattr(torch.distributed, "all_reduce", fake_all_reduce)
+
+    loss_sum = torch.tensor(6.0, dtype=torch.float64)
+    assert _average_local_epoch_losses(loss_sum, 3) == (2.0, 2.0, 0.0)
+
+
+def test_average_distributed_gradients_averages_manual_grads(monkeypatch):
+    model = nn.Linear(2, 1)
+    model.weight.grad = torch.tensor([[2.0, -4.0]])
+    model.bias.grad = None
+    calls = []
+
+    monkeypatch.setattr(torch.distributed, "is_available", lambda: True)
+    monkeypatch.setattr(torch.distributed, "is_initialized", lambda: True)
+    monkeypatch.setattr(torch.distributed, "get_world_size", lambda: 4)
+
+    def fake_all_reduce(tensor, op=None):
+        calls.append((tensor.dtype, tuple(tensor.shape), op))
+        tensor.mul_(4)
+
+    monkeypatch.setattr(torch.distributed, "all_reduce", fake_all_reduce)
+
+    _average_distributed_gradients(model)
+
+    torch.testing.assert_close(model.weight.grad, torch.tensor([[2.0, -4.0]]))
+    assert model.bias.grad is None
+    assert len(calls) == 2
 
 
 def test_has_dendritic_branch_layers_returns_false_when_model_iteration_fails():
@@ -687,11 +747,6 @@ def test_has_dendritic_branch_layers_returns_false_when_model_iteration_fails():
             raise RuntimeError("broken module traversal")
 
     assert _has_dendritic_branch_layers(_BrokenModules()) is False
-
-
-@pytest.mark.parametrize("model", [nn.Linear(2, 1), SimpleNamespace(core_network=None)])
-def test_supports_local_learning_train_rejects_plain_models(model):
-    assert _supports_local_learning_train(model) is False
 
 
 def test_collect_topk_modules_finds_nested_topk_modules_in_module_order():
@@ -856,6 +911,25 @@ def test_collect_backprop_param_groups_preserves_encoder_then_decoder_order():
         [p for p in encoder.parameters() if p.requires_grad],
         [p for p in decoder.parameters() if p.requires_grad],
     ]
+
+
+def test_collect_backprop_param_groups_unwraps_ddp_style_model():
+    encoder = nn.Linear(3, 2)
+    decoder = nn.Linear(2, 1)
+    wrapped = SimpleNamespace(
+        module=SimpleNamespace(
+            encoder_network=encoder,
+            decoder_network=decoder,
+        )
+    )
+
+    groups = _collect_backprop_param_groups(
+        wrapped,
+        encoder_update_mode="backprop",
+        decoder_update_mode="backprop",
+    )
+
+    assert groups == [list(encoder.parameters()), list(decoder.parameters())]
 
 
 def test_collect_trainable_parameters_preserves_module_order_and_filtering():
@@ -1059,6 +1133,27 @@ def test_apply_local_decoder_update_preserves_local_mode_gradients():
     torch.testing.assert_close(decoder.bias.grad, torch.tensor([1.0]))
 
 
+def test_apply_local_decoder_update_unwraps_ddp_style_model():
+    decoder = nn.Linear(2, 1, bias=True)
+    wrapped = SimpleNamespace(module=SimpleNamespace(decoder_network=decoder))
+    h_in = torch.tensor([[1.0, 2.0], [3.0, 4.0]])
+    delta_out = torch.tensor([[0.5], [1.5]])
+
+    _apply_local_decoder_update(
+        model=wrapped,
+        decoder_update_mode="local",
+        decoder_cache={"module": decoder, "input": h_in},
+        delta_out=delta_out,
+        normalize_by_batch=True,
+    )
+
+    torch.testing.assert_close(
+        decoder.weight.grad,
+        0.5 * (delta_out.t() @ h_in),
+    )
+    torch.testing.assert_close(decoder.bias.grad, torch.tensor([1.0]))
+
+
 @pytest.mark.parametrize(
     ("model", "decoder_update_mode"),
     [
@@ -1228,7 +1323,7 @@ def test_resolve_stdp_error_signals_keeps_error_for_non_stdp_rules():
     e_n = torch.tensor([[1.0, -2.0]])
 
     resolved_e_n, stdp_error_signal = _resolve_stdp_error_signals(
-        SimpleNamespace(rule_variant="hebbian"),
+        SimpleNamespace(rule_variant="3f"),
         e_n,
     )
 

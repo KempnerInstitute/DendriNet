@@ -1,0 +1,50 @@
+# Indexed-synapse runtime settings for a structured E/I core.
+#
+# Copy `model.core.sparsity` and `model.core.reactivation` into a config whose
+# model.core.type is einet or one of its aliases. Population-network
+# populations and unified E/I layers take the same options under flat names,
+# shown at the end of this file. docs/performance_kernels.rst describes the
+# projection backends.
+
+config_version: 3
+
+model:
+  core:
+    sparsity:
+      type: "indexed"                  # "indexed" | "indexed_dynamic" | "indexed_rewire" | "indexed_release" (default "standard")
+      indexed:
+        seed: 42                        # int | null: Topology seed of the contacts; a written seed pins it (null = filled from experiment.topology_seed)
+        index_dtype: "auto"             # "auto" uses compact int32 whenever valid (default "int64")
+        projection_backend: "auto"      # A Triton kernel on CUDA when available, else "recompute" (default "eager")
+    reactivation:
+      enabled: true
+      type: "param_tanh"
+      memory_efficient: true            # Save fewer tensors for backward in param_tanh gates (default false)
+
+# Other model.core.sparsity.indexed options and their defaults:
+#
+#   candidate_size: null
+#   selection: "standard"
+#   output_chunk_size: 2048
+#   workspace_mb: null
+#   cache_transformed_weights: false
+#   persistent_indices: true
+#   init_mode: "per_rank"
+#   rewire_frequency: 100
+#   rewire_quantile: 0.05
+#   rewire_until_step: null
+#
+# In population_defaults or a population block of a population network, and in
+# the excitatory and inhibitory blocks of a unified E/I layer, the same options
+# have flat names:
+#
+#   indexed_seed: 42
+#   indexed_index_dtype: "auto"
+#   indexed_projection_backend: "auto"
+#   reactivation_memory_efficient: true
+
+# "auto" chooses the backend from the device and the installed kernels. To
+# keep the implementation fixed across machines, replace it with the backend
+# validated on the target hardware (for example "triton_transposed" or
+# "recompute"). "recompute" runs everywhere without compiling kernels.
+# Unknown keys of model.core.sparsity.indexed raise when the config loads.

@@ -92,6 +92,8 @@ class MultiSineForecastDataset(Dataset):
         observation_noise_std: Noise level added to observations.
         seed: RNG seed for sample generation.
         normalize_signal: Whether to z-score signals using dataset statistics.
+        normalization_stats: ``(mean, std)`` of the training split; evaluation
+            splits pass it so all splits share one normalization.
     """
 
     def __init__(
@@ -110,6 +112,7 @@ class MultiSineForecastDataset(Dataset):
         observation_noise_std: float = 0.02,
         seed: int = 42,
         normalize_signal: bool = True,
+        normalization_stats: tuple[torch.Tensor, torch.Tensor] | None = None,
     ):
         super().__init__()
 
@@ -170,7 +173,10 @@ class MultiSineForecastDataset(Dataset):
             signals[sample_idx] = signal.astype(np.float32)
 
         states_raw = torch.from_numpy(signals).unsqueeze(-1)  # [N, T, 1]
-        if normalize_signal:
+        if normalize_signal and normalization_stats is not None:
+            # Evaluation splits use the training split's statistics.
+            mean, std = (value.clone() for value in normalization_stats)
+        elif normalize_signal:
             mean = states_raw.mean(dim=(0, 1), keepdim=True)
             std = states_raw.std(dim=(0, 1), keepdim=True).clamp_min(1e-6)
         else:
@@ -258,6 +264,7 @@ class LorenzSequenceDataset(Dataset):
         normalize_observations: bool = True,
         normalization_steps: int = 10000,
         initial_state_scale: float = 0.1,
+        stats_seed: int | None = None,
     ):
         if prediction_mode not in {"last", "all"}:
             raise ValueError(
@@ -313,6 +320,21 @@ class LorenzSequenceDataset(Dataset):
             burn_in_steps=burn_in_steps,
             generator=generator,
         )
+        if stats_seed is not None and int(stats_seed) != int(self.seed):
+            # Evaluation splits keep their own random stream but normalize with
+            # the statistics of the reference trajectory drawn from stats_seed
+            # (the training split's seed), so all splits share one scale.
+            stats_generator = torch.Generator().manual_seed(int(stats_seed))
+            self.state_mean, self.state_std = self._compute_state_stats(
+                n_steps=normalization_steps,
+                burn_in_steps=burn_in_steps,
+                generator=stats_generator,
+            )
+            self.obs_mean, self.obs_std = self._compute_observation_stats(
+                n_steps=normalization_steps,
+                burn_in_steps=burn_in_steps,
+                generator=stats_generator,
+            )
 
         self.full_states_raw = self._generate_trajectories(
             n_samples=n_samples,

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
 import torch
 
 from dendritic_modeling.training.strategies.local_learning_parts.local_learning_hsic import (
@@ -15,7 +16,6 @@ from dendritic_modeling.training.strategies.local_learning_parts.local_learning_
 )
 from dendritic_modeling.training.strategies.local_learning_parts.local_learning_hsic_mixin import (
     _clip_hsic_gradient,
-    _hsic_topk_param_grad,
     _resolve_hsic_warmup_scale,
 )
 
@@ -39,10 +39,8 @@ def test_kernel_matrix_linear_rbf_poly():
     # poly
     P = compute_kernel_matrix(_hsic_cfg("poly"), X, Y)
     torch.testing.assert_close(P, (1.0 + X @ Y.t()) ** 2)
-    # unknown -> linear fallback
-    torch.testing.assert_close(
-        compute_kernel_matrix(_hsic_cfg("bogus"), X, Y), X @ Y.t()
-    )
+    with pytest.raises(ValueError, match=r"Unknown hsic\.kernel"):
+        compute_kernel_matrix(_hsic_cfg("bogus"), X, Y)
 
 
 def test_hsic_gradient_linear_shapes_and_self_term():
@@ -73,29 +71,44 @@ def test_clip_hsic_gradient_preserves_configured_clamp_rule():
     torch.testing.assert_close(_clip_hsic_gradient(grad_z, clip_value=0.0), grad_z)
 
 
-def test_hsic_topk_param_grad_preserves_projection_and_batch_scaling():
-    grad_z = torch.tensor([[1.0, -2.0], [0.5, 3.0], [-1.5, 2.0]])
-    x_exc = torch.tensor([[0.25, 1.0, -0.5], [2.0, -1.0, 0.5], [1.5, 0.0, 3.0]])
-    current_weight = torch.tensor([[0.5, 2.0, -1.0], [1.25, -0.75, 0.25]])
+@pytest.mark.parametrize("topk_type", ["standard", "indexed"])
+def test_hsic_gradient_is_the_conductance_gradient_through_the_transform(topk_type):
+    """HSIC updates follow softplus weights and compact indexed banks."""
+    from test_local_learning_additive_fairness import _capture_record, _make_trainer
 
-    normalized = _hsic_topk_param_grad(
-        grad_z,
-        x_exc,
-        current_weight,
-        normalize_by_batch=True,
-        batch_size=3,
-    )
-    unnormalized = _hsic_topk_param_grad(
-        grad_z,
-        x_exc,
-        current_weight,
-        normalize_by_batch=False,
-        batch_size=3,
-    )
+    from dendritic_modeling.networks import DendriticBranchLayer
 
-    expected = (grad_z.t() @ x_exc) * current_weight
-    torch.testing.assert_close(normalized, expected / 3.0)
-    torch.testing.assert_close(unnormalized, expected)
+    torch.manual_seed(0)
+    indexed = {}
+    if topk_type == "indexed":
+        indexed = {"excitatory_connection_indices": torch.tensor([[0, 2], [1, 3]])}
+    layer = DendriticBranchLayer(
+        output_dim=2,
+        excitatory_input_dim=4,
+        excitatory_synapses_per_branch=2,
+        use_shunting=True,
+        reactivate=False,
+        topk_type=topk_type,
+        weight_transform="softplus",
+        **indexed,
+    )
+    model = torch.nn.Sequential(layer)
+    trainer = _make_trainer(dynamics_mode="conductance")
+    trainer.local_cfg.update_inactive_weights = False
+    trainer.local_cfg.hsic.grad_clip_value = 0.0
+    x = torch.rand(3, 4)
+    rec = _capture_record(trainer, model, x)
+    grad_z = torch.randn(3, 2)
+    bank = layer.branch_excitation
+
+    bank.pre_w.grad = None
+    trainer._add_hsic_topk_grad(grad_z, rec=rec, exc_layer=bank, batch_size=3)
+    rule = bank.pre_w.grad.clone()
+
+    bank.pre_w.grad = None
+    expected = torch.autograd.grad((bank(x) * grad_z).sum() / 3, bank.pre_w)[0]
+    assert rule.shape == bank.pre_w.shape
+    torch.testing.assert_close(rule, expected)
 
 
 def test_resolve_hsic_warmup_scale_preserves_warmup_and_layer_gate():

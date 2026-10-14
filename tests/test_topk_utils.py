@@ -177,12 +177,12 @@ class TestSparseOps(unittest.TestCase):
         del SPARSE_LAYER_REGISTRY["custom"]
 
     def test_register_duplicate_layer(self):
-        """Test registering duplicate layer type raises error."""
+        """Replacing an existing sparse type needs allow_override=True."""
         from dendritic_modeling.utils.sparse_ops import get_sparse_layer
 
-        # Try to register an existing type - this should not raise an error
-        # as the registry allows overwriting (which might be intended behavior)
-        register_sparse_layer("standard", TopKLinear)
+        with self.assertRaisesRegex(ValueError, "already registered"):
+            register_sparse_layer("standard", TopKLinear)
+        register_sparse_layer("standard", TopKLinear, allow_override=True)
 
         # Verify it still works
         layer = get_sparse_layer("standard", 5, 3, 2)
@@ -219,9 +219,6 @@ class TestAbstractAnalyzer(unittest.TestCase):
         from dendritic_modeling.analysis.metrics.performance import PerformanceAnalyzer
         from dendritic_modeling.analysis.tools.synaptic_activation import (
             SynapticActivationAnalyzer,
-        )
-        from dendritic_modeling.analysis.tools.synaptic_pruning import (
-            SynapticPruningAnalyzer,
         )
         from dendritic_modeling.analysis.tools.synaptic_turnover import (
             SynapticTurnoverAnalyzer,
@@ -276,37 +273,47 @@ class TestAbstractAnalyzer(unittest.TestCase):
             self.assertTrue(hasattr(analyzer, "save_results"))
             self.assertTrue(hasattr(analyzer, "logger"))
 
-        # Test training-state analyzers on unsupported minimal models so no
-        # synaptic snapshot traversal runs during the interface check.
+        # The training-state analyzer snapshots a model with branch layers.
         from types import SimpleNamespace
 
-        unsupported_model = SimpleNamespace(core_network=None)
-        turnover_params = SimpleNamespace(snapshot_interval=1)
+        from dendritic_modeling.config import TransferFunctionConfig
+        from dendritic_modeling.models import Classifier
+        from dendritic_modeling.networks import ExcitationInhibitionNetwork, Identity
+
+        model = Classifier(
+            encoder_network=Identity(input_dim=5),
+            core_network=ExcitationInhibitionNetwork(
+                input_dim=5,
+                transfer_params=TransferFunctionConfig().asdict(),
+                excitatory_layer_sizes=[3],
+                inhibitory_layer_sizes=[0],
+                excitatory_branch_factors=[2],
+                inhibitory_branch_factors=[2],
+                ee_synapses_per_branch_per_layer=[2],
+                ei_synapses_per_branch_per_layer=[0],
+                ie_synapses_per_branch_per_layer=[0],
+                ii_synapses_per_branch_per_layer=[0],
+            ),
+            decoder_network=Identity(input_dim=3),
+        )
         turnover_analyzer = SynapticTurnoverAnalyzer(
-            unsupported_model,
-            turnover_params,
+            model, SimpleNamespace(snapshot_interval=1)
         )
         self.assertIsInstance(turnover_analyzer, AbstractAnalyzer)
         self.assertTrue(hasattr(turnover_analyzer, "save_results"))
         self.assertTrue(hasattr(turnover_analyzer, "logger"))
 
-        pruning_analyzer = SynapticPruningAnalyzer(unsupported_model)
-        self.assertIsInstance(pruning_analyzer, AbstractAnalyzer)
-        self.assertTrue(hasattr(pruning_analyzer, "save_results"))
-        self.assertTrue(hasattr(pruning_analyzer, "logger"))
 
+class TestConfigLoading(unittest.TestCase):
+    """Test that configuration loading always reflects the file on disk."""
 
-class TestConfigCaching(unittest.TestCase):
-    """Test configuration caching functionality."""
-
-    def test_config_load_cache(self):
-        """Test that config loading is cached without sharing mutable objects."""
+    def test_load_config_returns_fresh_independent_configs(self):
+        """Each load parses the file again and returns an independent object."""
         import os
         import tempfile
 
         from dendritic_modeling.config import load_config
 
-        # Create a temporary config file
         config_content = """
 experiment:
   seed: 42
@@ -318,24 +325,19 @@ data:
             temp_config_path = f.name
 
         try:
-            load_config.cache_clear()
-
-            # Load config twice
             config1 = load_config(temp_config_path)
             config2 = load_config(temp_config_path)
-
-            # The parsed source is cached, but callers receive independent
-            # copies so accidental mutation cannot leak across runs.
             self.assertIsNot(config1, config2)
             self.assertEqual(config1.experiment.seed, 42)
             self.assertEqual(config1.data.dataset_name, "mnist")
             config1.experiment.seed = 99
-            config3 = load_config(temp_config_path)
-            self.assertEqual(config3.experiment.seed, 42)
-            self.assertGreaterEqual(load_config.cache_info().hits, 1)
+            self.assertEqual(load_config(temp_config_path).experiment.seed, 42)
 
+            # An edited file is picked up by the next load.
+            with open(temp_config_path, "w") as handle:
+                handle.write(config_content.replace("seed: 42", "seed: 7"))
+            self.assertEqual(load_config(temp_config_path).experiment.seed, 7)
         finally:
-            # Clean up temp file
             os.unlink(temp_config_path)
 
 

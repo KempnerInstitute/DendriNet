@@ -1,0 +1,186 @@
+# Population network with two inhibitory classes that target different
+# dendritic levels (connection target_levels): P cells inhibit E somas and
+# primary branches, T cells inhibit E distal branches, and both are computed
+# before E. Variance Top-K selects contacts by conductance times the relative
+# input variance Var[x] / E[x^2] (topk_variance_score: relative), with
+# active-weight maintenance. Task: context-cued EMNIST (dataset
+# contextual_remapping), strategy presentation_stream.
+#
+# Data generation runs on the GPU; the data root holds the torchvision EMNIST
+# download under raw/:
+#   dendritic-train configs/examples/population_network_target_levels.yaml --data_dir <root>
+
+config_version: 3
+
+experiment:
+  seed: 2
+  train_valid_split: 0.0
+  checkpointing: {enabled: false}
+  allow_tf32: false
+  float32_matmul_precision: highest
+data:
+  dataset_name: contextual_remapping
+  base_dir: data/contextual_remapping
+  dataset_params:
+    contextual_remapping: {generator_device: cuda}
+model:
+  task: classification
+  encoder: {type: identity}
+  core:
+    type: population_network
+    population_network:
+      input_dim: 816
+      input_transform: identity
+      layers:
+      - name: layer0
+        readout_population: e
+        population_defaults:
+          ff_excitatory_synapses: 40
+          ff_excitatory_synapses_by_level: [40, 40, 0]
+          ff_inhibitory_synapses: 4
+          rec_excitatory_synapses: 0
+          rec_inhibitory_synapses: 0
+          topk_type: variance
+          topk_variance_score: relative
+          weight_transform: exp
+          use_shunting: true
+          leak_conductance: 0.03
+          learnable_leak: true
+          reactivate: true
+          reactivation_type: endpoint_tanh
+          reactivation_init_m: 3.0
+          reactivation_init_b: 1.5
+          reactivation_init_policy: fixed
+          dbl_init_method: fan_in_lognormal
+          initial_child_conductance: 0.3
+          efficient_blocklinear: true
+          somatic_synapses: true
+          adaptive_initialization: false
+        populations:
+        - name: p
+          n_neurons: 36
+          polarity: inhibitory
+          branch_factors: [3, 2]
+          population:
+            ff_inhibitory_synapses_by_level: [0, 0, 0]
+        - name: t
+          n_neurons: 36
+          polarity: inhibitory
+          branch_factors: [3, 2]
+          population:
+            ff_inhibitory_synapses_by_level: [0, 0, 0]
+        - name: e
+          n_neurons: 192
+          polarity: excitatory
+          branch_factors: [3, 2]
+          population:
+            ff_inhibitory_synapses_by_level: [4, 4, 6]
+        connections:
+        - {source: input, target: p}
+        - {source: input, target: t}
+        - {source: input, target: e}
+        - source: p
+          target: e
+          target_levels: [soma, primary]
+        - source: t
+          target: e
+          target_levels: [distal]
+      - name: layer1
+        readout_population: e
+        population_defaults:
+          ff_excitatory_synapses: 40
+          ff_excitatory_synapses_by_level: [40, 40, 0]
+          ff_inhibitory_synapses: 4
+          rec_excitatory_synapses: 0
+          rec_inhibitory_synapses: 0
+          topk_type: variance
+          topk_variance_score: relative
+          weight_transform: exp
+          use_shunting: true
+          leak_conductance: 0.03
+          learnable_leak: true
+          reactivate: true
+          reactivation_type: endpoint_tanh
+          reactivation_init_m: 3.0
+          reactivation_init_b: 1.5
+          reactivation_init_policy: fixed
+          dbl_init_method: fan_in_lognormal
+          initial_child_conductance: 0.3
+          efficient_blocklinear: true
+          somatic_synapses: true
+          adaptive_initialization: false
+        populations:
+        - name: p
+          n_neurons: 36
+          polarity: inhibitory
+          branch_factors: [3, 2]
+          population:
+            ff_inhibitory_synapses_by_level: [4, 4, 4]
+        - name: t
+          n_neurons: 36
+          polarity: inhibitory
+          branch_factors: [3, 2]
+          population:
+            ff_inhibitory_synapses_by_level: [4, 4, 4]
+        - name: e
+          n_neurons: 192
+          polarity: excitatory
+          branch_factors: [3, 2]
+          population:
+            ff_inhibitory_synapses_by_level: [4, 4, 4]
+        connections:
+        - {source: layer0.e, target: p}
+        - {source: layer0.e, target: t}
+        - {source: layer0.e, target: e}
+        - {source: layer0.p, target: p}
+        - {source: layer0.t, target: p}
+        - {source: layer0.p, target: t}
+        - {source: layer0.t, target: t}
+        - source: layer0.p
+          target: e
+          target_levels: [soma, primary]
+        - source: layer0.t
+          target: e
+          target_levels: [distal]
+        - source: p
+          target: e
+          target_levels: [soma, primary]
+        - source: t
+          target: e
+          target_levels: [distal]
+  decoder:
+    type: MLP
+    params:
+      hidden_dims: []
+      output_dim: 47
+      output_init: xavier_uniform
+training:
+  main:
+    strategy: presentation_stream
+    common:
+      epochs: 400
+      batch_size: 512
+      loss_function: ce
+      grad_clip_value: 0.0
+      early_stopping: false
+      load_best_state_dict: true
+      plot_losses: false
+      print_every: 10
+      lr_schedule: cosine
+      synapse_decay_rate: 0.01
+      weight_boosting: true
+      param_groups: {lr: 0.01, split_params: false}
+    optimizer:
+      name: adam
+      betas: [0.9, 0.999]
+      eps: 1.0e-08
+      weight_decay: 0.0
+    strategies:
+      presentation_stream: {presentations_per_epoch: 65536, lr_terminal_multiplier: 0.01}
+analysis:
+  performance:
+    enabled: true
+    training: false
+    params: {accuracy: true}
+outputs: {run_name: population_network_target_levels, results_dir: outputs/examples}
+distributed: {mode: none}

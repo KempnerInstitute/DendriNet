@@ -97,30 +97,29 @@ class TestAUCEdgeCases:
     """Test edge cases for AUC computation."""
 
     def test_roc_auc_score_all_same_labels(self):
-        """Test AUC with all same labels."""
+        """One class: the AUC is undefined, so the score refuses it."""
         scores = torch.tensor([0.1, 0.5, 0.9])
-        labels = torch.tensor([1, 1, 1])  # All positive
-
-        # Should handle gracefully - AUC undefined but function should not crash
-        try:
-            auc = roc_auc_score(labels, scores)
-            # If it returns a value, it should be nan or handle appropriately
-            assert torch.isnan(auc) or auc == 0.5
-        except (ValueError, ZeroDivisionError):
-            # It's acceptable to raise an error for this edge case
-            pass
+        labels = torch.tensor([1, 1, 1])
+        with pytest.raises(ValueError, match="at least 2 classes"):
+            roc_auc_score(labels, scores)
 
     def test_roc_auc_score_single_sample(self):
-        """Test AUC with single sample."""
-        scores = torch.tensor([0.5])
-        labels = torch.tensor([1])
+        with pytest.raises(ValueError, match="at least 2 classes"):
+            roc_auc_score(torch.tensor([1]), torch.tensor([0.5]))
 
-        # Should handle gracefully
-        try:
-            roc_auc_score(labels, scores)
-        except (ValueError, IndexError):
-            # Acceptable to raise error for insufficient data
-            pass
+    def test_rows_with_one_class_are_undefined(self):
+        labels = torch.tensor([[0, 1, 1, 0], [1, 1, 1, 1]])
+        scores = torch.tensor([[0.1, 0.9, 0.8, 0.2], [0.3, 0.4, 0.5, 0.6]])
+        auc = roc_auc_score(labels, scores)
+        assert auc[0] == 1.0
+        assert torch.isnan(auc[1])
+
+    @pytest.mark.parametrize("pair", [(1, 2), (-1, 1), (0, 1)])
+    def test_the_greater_binary_label_is_positive(self, pair):
+        negative, positive = pair
+        scores = torch.tensor([0.1, 0.4, 0.35, 0.8])
+        labels = torch.tensor([negative, negative, positive, positive])
+        assert roc_auc_score(labels, scores) == 0.75
 
     def test_roc_auc_score_empty_input(self):
         """Test AUC with empty input."""
@@ -139,18 +138,10 @@ class TestAUCEdgeCases:
             roc_auc_score(labels, scores)
 
     def test_binary_roc_auc_pytorch_edge_case(self):
-        """Test binary ROC AUC with edge cases."""
-        # All same class
+        """All one class: the AUC is undefined (NaN), not chance level."""
         scores = torch.tensor([0.1, 0.5, 0.9])
         labels = torch.tensor([1, 1, 1])
-
-        try:
-            auc = _binary_roc_auc_pytorch(labels, scores)
-            # Should handle gracefully
-            assert torch.isnan(auc) or auc == 0.5
-        except (ValueError, ZeroDivisionError):
-            # Acceptable to raise error
-            pass
+        assert torch.isnan(_binary_roc_auc_pytorch(labels, scores))
 
 
 class TestAUCNumericalStability:
@@ -186,3 +177,30 @@ class TestAUCNumericalStability:
 
         assert 0.0 <= auc <= 1.0
         assert not torch.isnan(auc)
+
+
+@pytest.mark.parametrize("n_classes", [2, 3])
+def test_classifier_auc_ranks_by_probabilities_like_sklearn(n_classes):
+    """A per-sample logit offset leaves the probabilities and the AUC unchanged."""
+    from sklearn.metrics import roc_auc_score as sklearn_roc_auc
+
+    from dendritic_modeling.training.utils._evaluation.classification import (
+        _compute_auc,
+    )
+
+    generator = torch.Generator().manual_seed(0)
+    labels = torch.randint(0, n_classes, (300,), generator=generator)
+    logits = torch.randn(300, n_classes, generator=generator)
+    logits = logits + 1.5 * torch.nn.functional.one_hot(labels, n_classes)
+    logits = logits + 5.0 * torch.randn(300, 1, generator=generator)
+
+    auc = float(_compute_auc(torch.nn.Identity(), logits, labels))
+
+    probabilities = torch.softmax(logits, dim=-1).numpy()
+    if n_classes == 2:
+        expected = sklearn_roc_auc(labels.numpy(), probabilities[:, 1])
+    else:
+        expected = sklearn_roc_auc(
+            labels.numpy(), probabilities, multi_class="ovr", average="macro"
+        )
+    assert auc == pytest.approx(expected, abs=1e-6)

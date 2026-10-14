@@ -7,6 +7,8 @@ import numpy as np
 import torch
 
 from dendritic_modeling.analysis.utils.runtime import get_model_device
+from dendritic_modeling.networks import DendriticBranchLayer
+from dendritic_modeling.networks.structure import readout_tree
 
 
 class InformationLdaComparisonMixin:
@@ -57,7 +59,9 @@ class InformationLdaComparisonMixin:
         trained_preds = self._predict_trained_model_classes(model, inputs, device)
         trained_accuracy = accuracy_score(labels_np, trained_preds)
 
-        final_vout_lin = self._compute_chained_lda_output(labels_np)
+        final_vout_lin = self._compute_chained_lda_output(
+            labels_np, self._readout_layer_names(model)
+        )
         lda_preds = self._predict_lda_model_classes(model, final_vout_lin, device)
         lda_accuracy = (
             accuracy_score(labels_np, lda_preds) if lda_preds is not None else None
@@ -97,20 +101,38 @@ class InformationLdaComparisonMixin:
             trained_outputs = model(inputs.to(device))
             return trained_outputs.argmax(dim=1).cpu().numpy()
 
-    def _ordered_branch_layer_names(self) -> list[str]:
+    def _readout_layer_names(self, model: torch.nn.Module) -> set[str] | None:
+        """Names of the branch layers of the tree whose somas feed the output."""
+        tree = readout_tree(model)
+        if tree is None:
+            return None
+        names = {id(module): name for name, module in model.named_modules()}
+        prefix = names.get(id(tree))
+        return {
+            name
+            for name, module in tree.named_modules(prefix=prefix or "")
+            if isinstance(module, DendriticBranchLayer)
+        }
+
+    def _ordered_branch_layer_names(self, readout: set[str] | None) -> list[str]:
         layers_with_idx = []
         for layer_name in list(self.data_dict.keys()):
+            if readout is not None and layer_name not in readout:
+                continue
             idx = self._parse_branch_layer_index(layer_name)
             if idx is not None:
                 layers_with_idx.append((idx, layer_name))
         layers_with_idx.sort(key=lambda x: x[0])
         return [layer_name for _idx, layer_name in layers_with_idx]
 
-    def _compute_chained_lda_output(self, labels_np: np.ndarray) -> np.ndarray | None:
+    def _compute_chained_lda_output(
+        self, labels_np: np.ndarray, readout: set[str] | None = None
+    ) -> np.ndarray | None:
+        """Chain LDA-aggregated outputs through the readout tree, distal level first."""
         prev_vout_lin = None
         final_vout_lin = None
 
-        for layer_name in self._ordered_branch_layer_names():
+        for layer_name in self._ordered_branch_layer_names(readout):
             layer_data = self.data_dict[layer_name]
             if "excitation" not in layer_data:
                 continue
@@ -140,12 +162,8 @@ class InformationLdaComparisonMixin:
 
         with torch.no_grad():
             vout_tensor = torch.tensor(final_vout_lin, dtype=torch.float32).to(device)
-
-            if hasattr(model, "decoder") and model.decoder is not None:
-                lda_logits = model.decoder(vout_tensor)
-            else:
-                lda_logits = vout_tensor
-
+            # The model's own decoder and output scale map soma outputs to logits.
+            lda_logits = model(vout_tensor, precomputed_core=True)
             return lda_logits.argmax(dim=1).cpu().numpy()
 
 

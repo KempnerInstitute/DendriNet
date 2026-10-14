@@ -6,7 +6,11 @@ including both global statistics and hierarchical per-layer analysis with plotti
 Provides comprehensive weight analysis with both global and hierarchical statistics.
 """
 
+import csv
 import logging
+import math
+import os
+import re
 import time
 from collections.abc import Iterator
 from typing import Any, Optional
@@ -15,17 +19,299 @@ import numpy as np
 import torch
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
+from dendritic_modeling.analysis.utils.effective_synapses import (
+    effective_synapse_snapshot,
+)
 from dendritic_modeling.analysis.utils.einet_core import has_einet_core
 from dendritic_modeling.analysis.utils.recurrent_introspection import (
     iter_recurrent_populations,
 )
-from dendritic_modeling.config import WeightAnalysisParams
+from dendritic_modeling.analysis.utils.runtime import iter_analysis_batches
+from dendritic_modeling.config import EvaluationRuntimeConfig, WeightAnalysisParams
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import DendriticBranchLayer
+from dendritic_modeling.plotting.styles import bar_kwargs, indexed_hatch
 from dendritic_modeling.utils import save_dict
 from dendritic_modeling.utils.hooks import iter_named_modules_of_type
 
 logger = logging.getLogger(__name__)
+
+
+_SOURCE_SUPPORT_PATHS = {
+    "ff_excitatory": ("branch_excitation", "excitatory"),
+    "ff_inhibitory": ("branch_inhibition", "inhibitory"),
+    "rec_excitatory": ("branch_recurrent", "excitatory"),
+    "rec_inhibitory": ("branch_rec_inhibition", "inhibitory"),
+}
+
+
+def _safe_profile_key(*parts: object) -> str:
+    """Return a stable NPZ-compatible key from structural identifiers."""
+    return "__".join(
+        re.sub(r"[^A-Za-z0-9_.-]+", "-", str(part)).strip("-") for part in parts
+    )
+
+
+def _mean_pairwise_jaccard(mask: torch.Tensor) -> float | None:
+    """Mean Jaccard overlap between distinct binary branch supports."""
+    mask = mask.to(dtype=torch.float64)
+    n_rows = int(mask.shape[0])
+    if n_rows < 2:
+        return None
+    intersection = mask @ mask.T
+    row_sizes = mask.sum(dim=1)
+    union = row_sizes[:, None] + row_sizes[None, :] - intersection
+    valid = ~torch.eye(n_rows, dtype=torch.bool, device=mask.device)
+    pairwise = torch.where(
+        union > 0,
+        intersection / union.clamp_min(torch.finfo(mask.dtype).eps),
+        torch.zeros_like(union),
+    )
+    return float(pairwise[valid].mean().item())
+
+
+def _source_support_statistics(
+    active_mask: torch.Tensor,
+    candidate_mask: torch.Tensor,
+) -> dict[str, float | None]:
+    """Compute dimensionless source-support statistics for one soma."""
+    active_mask = active_mask.ne(0)
+    candidate_mask = candidate_mask.ne(0)
+    source_dim = int(active_mask.shape[-1])
+    active_counts = active_mask.sum(dim=0, dtype=torch.float64)
+    candidate_union = candidate_mask.any(dim=0)
+    active_union = active_counts > 0
+    eligible_count = int(candidate_union.sum().item())
+    active_source_count = int(active_union.sum().item())
+    total_contacts = float(active_counts.sum().item())
+
+    if total_contacts > 0:
+        distribution = active_counts / total_contacts
+        nonzero = distribution[distribution > 0]
+        entropy_bits = float((-(nonzero * torch.log2(nonzero))).sum().item())
+    else:
+        entropy_bits = 0.0
+    max_entropy_bits = math.log2(source_dim) if source_dim > 1 else 0.0
+    normalized_entropy = (
+        entropy_bits / max_entropy_bits if max_entropy_bits > 0 else 0.0
+    )
+    effective_source_fraction = (
+        (2.0**entropy_bits) / source_dim if source_dim > 0 else 0.0
+    )
+
+    return {
+        "source_coverage_fraction": active_source_count / max(source_dim, 1),
+        "eligible_source_fraction": eligible_count / max(source_dim, 1),
+        "source_coverage_of_eligible": active_source_count / max(eligible_count, 1),
+        "source_entropy_bits": entropy_bits,
+        "normalized_source_entropy": normalized_entropy,
+        "effective_source_fraction": effective_source_fraction,
+        "mean_pairwise_branch_jaccard": _mean_pairwise_jaccard(active_mask),
+    }
+
+
+def _center_region_mask(
+    image_shape: tuple[int, int],
+    bounds: tuple[int, int, int, int] | None,
+) -> tuple[torch.Tensor, tuple[int, int, int, int]]:
+    """Return a flattened center mask and its half-open image bounds."""
+    height, width = image_shape
+    if bounds is None:
+        center_height = max(1, height // 2)
+        center_width = max(1, width // 2)
+        r0 = (height - center_height) // 2
+        c0 = (width - center_width) // 2
+        bounds = (r0, r0 + center_height, c0, c0 + center_width)
+    r0, r1, c0, c1 = bounds
+    mask = torch.zeros((height, width), dtype=torch.float64)
+    mask[r0:r1, c0:c1] = 1.0
+    return mask.reshape(-1), bounds
+
+
+def _safe_alignment_ratio(numerator: float, denominator: float) -> float | None:
+    """Return a finite enrichment ratio, leaving zero baselines undefined."""
+    if denominator <= 0.0:
+        return None
+    return numerator / denominator
+
+
+def _source_activity_alignment_statistics(
+    profile: torch.Tensor,
+    preferred_on_probability: torch.Tensor,
+    rest_on_probability: torch.Tensor,
+    availability_mask: torch.Tensor | None = None,
+) -> dict[str, float | bool | None]:
+    """Align one source profile with preferred- and rest-class pixel activity.
+
+    The profile is normalized to unit mass before alignment. Consequently the
+    foreground values are the expected fractions of contacts or conductance on
+    pixels satisfying ``x > threshold``. Uniform values are the corresponding
+    occupancies over all available pixels and provide the occupancy control.
+    Supplying an availability mask computes the same estimands within a region.
+    """
+    profile = profile.to(dtype=torch.float64).reshape(-1)
+    preferred = preferred_on_probability.to(dtype=torch.float64).reshape(-1)
+    rest = rest_on_probability.to(dtype=torch.float64).reshape(-1)
+    if profile.shape != preferred.shape or profile.shape != rest.shape:
+        raise ValueError("source profile and activity probabilities must align")
+    if not (
+        torch.isfinite(profile).all()
+        and torch.isfinite(preferred).all()
+        and torch.isfinite(rest).all()
+    ):
+        raise ValueError("source-region alignment inputs must be finite")
+    if bool((profile < 0).any()):
+        raise ValueError("source-region alignment requires non-negative profiles")
+
+    if availability_mask is None:
+        availability = torch.ones_like(profile)
+    else:
+        availability = availability_mask.to(dtype=torch.float64).reshape(-1)
+        if availability.shape != profile.shape:
+            raise ValueError("source profile and availability mask must align")
+        if (
+            not torch.isfinite(availability).all()
+            or bool((availability < 0).any())
+            or float(availability.sum().item()) <= 0.0
+        ):
+            raise ValueError("availability mask must have finite positive mass")
+    profile = profile * availability
+    available_mass = float(availability.sum().item())
+    uniform_preferred_foreground = float(
+        torch.dot(preferred, availability).item() / available_mass
+    )
+    uniform_rest_foreground = float(
+        torch.dot(rest, availability).item() / available_mass
+    )
+    uniform_preferred_background = 1.0 - uniform_preferred_foreground
+    uniform_rest_background = 1.0 - uniform_rest_foreground
+
+    total_mass = float(profile.sum().item())
+    if total_mass <= 0.0:
+        return {
+            "profile_has_mass": False,
+            "profile_total_mass": total_mass,
+            "preferred_foreground_fraction": None,
+            "preferred_background_fraction": None,
+            "rest_foreground_fraction": None,
+            "rest_background_fraction": None,
+            "preferred_rest_foreground_contrast": None,
+            "preferred_rest_background_contrast": None,
+            "uniform_preferred_foreground_occupancy": uniform_preferred_foreground,
+            "uniform_preferred_background_occupancy": uniform_preferred_background,
+            "uniform_rest_foreground_occupancy": uniform_rest_foreground,
+            "uniform_rest_background_occupancy": uniform_rest_background,
+            "preferred_foreground_occupancy_excess": None,
+            "preferred_background_occupancy_excess": None,
+            "rest_foreground_occupancy_excess": None,
+            "rest_background_occupancy_excess": None,
+            "preferred_foreground_occupancy_enrichment": None,
+            "preferred_background_occupancy_enrichment": None,
+            "rest_foreground_occupancy_enrichment": None,
+            "rest_background_occupancy_enrichment": None,
+        }
+
+    normalized = profile / total_mass
+    preferred_foreground = float(torch.dot(normalized, preferred).item())
+    rest_foreground = float(torch.dot(normalized, rest).item())
+    preferred_background = 1.0 - preferred_foreground
+    rest_background = 1.0 - rest_foreground
+    return {
+        "profile_has_mass": True,
+        "profile_total_mass": total_mass,
+        "preferred_foreground_fraction": preferred_foreground,
+        "preferred_background_fraction": preferred_background,
+        "rest_foreground_fraction": rest_foreground,
+        "rest_background_fraction": rest_background,
+        "preferred_rest_foreground_contrast": (preferred_foreground - rest_foreground),
+        "preferred_rest_background_contrast": (preferred_background - rest_background),
+        "uniform_preferred_foreground_occupancy": uniform_preferred_foreground,
+        "uniform_preferred_background_occupancy": uniform_preferred_background,
+        "uniform_rest_foreground_occupancy": uniform_rest_foreground,
+        "uniform_rest_background_occupancy": uniform_rest_background,
+        "preferred_foreground_occupancy_excess": (
+            preferred_foreground - uniform_preferred_foreground
+        ),
+        "preferred_background_occupancy_excess": (
+            preferred_background - uniform_preferred_background
+        ),
+        "rest_foreground_occupancy_excess": (rest_foreground - uniform_rest_foreground),
+        "rest_background_occupancy_excess": (rest_background - uniform_rest_background),
+        "preferred_foreground_occupancy_enrichment": _safe_alignment_ratio(
+            preferred_foreground,
+            uniform_preferred_foreground,
+        ),
+        "preferred_background_occupancy_enrichment": _safe_alignment_ratio(
+            preferred_background,
+            uniform_preferred_background,
+        ),
+        "rest_foreground_occupancy_enrichment": _safe_alignment_ratio(
+            rest_foreground,
+            uniform_rest_foreground,
+        ),
+        "rest_background_occupancy_enrichment": _safe_alignment_ratio(
+            rest_background,
+            uniform_rest_background,
+        ),
+    }
+
+
+def _spatial_region_alignment_statistics(
+    profile: torch.Tensor,
+    center_mask: torch.Tensor,
+) -> dict[str, float | bool | None]:
+    """Return center/surround profile mass normalized by available pixels."""
+    profile = profile.to(dtype=torch.float64).reshape(-1)
+    center = center_mask.to(dtype=torch.float64).reshape(-1)
+    if profile.shape != center.shape:
+        raise ValueError("source profile and center mask must align")
+    if not torch.isfinite(profile).all() or bool((profile < 0).any()):
+        raise ValueError("spatial alignment requires a finite non-negative profile")
+    center_pixel_fraction = float(center.mean().item())
+    surround_pixel_fraction = 1.0 - center_pixel_fraction
+    total_mass = float(profile.sum().item())
+    if total_mass <= 0.0:
+        return {
+            "profile_has_mass": False,
+            "profile_total_mass": total_mass,
+            "center_support_fraction": None,
+            "surround_support_fraction": None,
+            "center_pixel_fraction": center_pixel_fraction,
+            "surround_pixel_fraction": surround_pixel_fraction,
+            "center_support_excess": None,
+            "surround_support_excess": None,
+            "center_support_enrichment": None,
+            "surround_support_enrichment": None,
+            "center_surround_enrichment_contrast": None,
+        }
+    normalized = profile / total_mass
+    center_support = float(torch.dot(normalized, center).item())
+    surround_support = 1.0 - center_support
+    center_enrichment = _safe_alignment_ratio(
+        center_support,
+        center_pixel_fraction,
+    )
+    surround_enrichment = _safe_alignment_ratio(
+        surround_support,
+        surround_pixel_fraction,
+    )
+    return {
+        "profile_has_mass": True,
+        "profile_total_mass": total_mass,
+        "center_support_fraction": center_support,
+        "surround_support_fraction": surround_support,
+        "center_pixel_fraction": center_pixel_fraction,
+        "surround_pixel_fraction": surround_pixel_fraction,
+        "center_support_excess": center_support - center_pixel_fraction,
+        "surround_support_excess": surround_support - surround_pixel_fraction,
+        "center_support_enrichment": center_enrichment,
+        "surround_support_enrichment": surround_enrichment,
+        "center_surround_enrichment_contrast": (
+            None
+            if center_enrichment is None or surround_enrichment is None
+            else center_enrichment - surround_enrichment
+        ),
+    }
 
 
 def _weight_tensor_statistics(
@@ -75,7 +361,10 @@ def _branch_synapse_statistics(
     if compute_mean:
         stats[f"{prefix}_weight_mean"] = active_weights.mean().item()
     if compute_variance:
-        stats[f"{prefix}_weight_var"] = active_weights.var().item()
+        # The sample variance of one weight is undefined (NaN).
+        stats[f"{prefix}_weight_var"] = (
+            float("nan") if len(active_weights) < 2 else active_weights.var().item()
+        )
     if compute_min_max:
         stats[f"{prefix}_weight_min"] = active_weights.min().item()
         stats[f"{prefix}_weight_max"] = active_weights.max().item()
@@ -160,6 +449,71 @@ class WeightAnalyzer(AbstractAnalyzer):
         )
 
         self.weight_threshold = getattr(params, "weight_threshold", 1e-6)
+        self.compute_source_support = bool(
+            getattr(params, "compute_source_support", False)
+        )
+        self.source_support_target_polarities = tuple(
+            str(value).lower()
+            for value in getattr(
+                params,
+                "source_support_target_polarities",
+                ["excitatory"],
+            )
+        )
+        self.source_support_pathways = tuple(
+            str(value).lower()
+            for value in getattr(
+                params,
+                "source_support_pathways",
+                ["ff_excitatory", "ff_inhibitory"],
+            )
+        )
+        image_shape = getattr(params, "source_support_image_shape", None)
+        self.source_support_image_shape = (
+            None if image_shape is None else tuple(int(value) for value in image_shape)
+        )
+        self.source_support_plot_soma_indices = tuple(
+            int(value)
+            for value in getattr(params, "source_support_plot_soma_indices", [])
+        )
+        self.source_support_fig_save_format = str(
+            getattr(params, "source_support_fig_save_format", "pdf")
+        ).lstrip(".")
+        self.compute_source_region_alignment = bool(
+            getattr(params, "compute_source_region_alignment", False)
+        )
+        self.source_region_soma_to_class = tuple(
+            int(value) for value in getattr(params, "source_region_soma_to_class", [])
+        )
+        self.source_region_reference_split = str(
+            getattr(params, "source_region_reference_split", "validation")
+        ).lower()
+        self.source_region_image_network_layers = tuple(
+            int(value)
+            for value in getattr(params, "source_region_image_network_layers", [0])
+        )
+        self.source_region_foreground_thresholds = tuple(
+            float(value)
+            for value in getattr(
+                params,
+                "source_region_foreground_thresholds",
+                [0.0, 0.5],
+            )
+        )
+        center_bounds = getattr(params, "source_region_center_bounds", None)
+        self.source_region_center_bounds = (
+            None
+            if center_bounds is None
+            else tuple(int(value) for value in center_bounds)
+        )
+        max_reference_samples = getattr(
+            params,
+            "source_region_max_reference_samples",
+            None,
+        )
+        self.source_region_max_reference_samples = (
+            None if max_reference_samples is None else int(max_reference_samples)
+        )
 
         self.logger.info(
             f"Initialized unified WeightAnalyzer with computation_level: {self.computation_level}"
@@ -171,6 +525,9 @@ class WeightAnalyzer(AbstractAnalyzer):
         save_path: Optional[str] = None,
         filename: str = "final",
         training: bool = False,
+        reference_dataset: torch.utils.data.Dataset | None = None,
+        reference_split: str | None = None,
+        runtime: EvaluationRuntimeConfig | None = None,
     ):
         """
         Perform comprehensive weight analysis including global and hierarchical statistics.
@@ -180,6 +537,10 @@ class WeightAnalyzer(AbstractAnalyzer):
             save_path: Path to save results (optional)
             filename: Filename for saved results
             training: If True, only save data (no plots). If False, generate plots.
+            reference_dataset: Configured reference split used only for
+                source-region alignment.
+            reference_split: Provenance label for the configured reference split.
+            runtime: Shared deterministic analysis iteration policy.
 
         Returns:
             Dictionary containing all weight analysis results
@@ -254,6 +615,34 @@ class WeightAnalyzer(AbstractAnalyzer):
 
             results["enhanced_layer_statistics"] = enhanced_stats
 
+        source_support_profiles: dict[str, np.ndarray] = {}
+        source_support_profile_metadata: list[dict[str, Any]] = []
+        if self.compute_source_support:
+            (
+                source_support,
+                source_support_profiles,
+                source_support_profile_metadata,
+            ) = self._compute_source_support(model)
+            results["source_support"] = source_support
+            if self.compute_source_region_alignment:
+                if reference_dataset is None:
+                    raise ValueError(
+                        "source-region alignment requires the configured reference "
+                        "dataset"
+                    )
+                source_region_alignment = self._compute_source_region_alignment(
+                    profiles=source_support_profiles,
+                    profile_metadata=source_support_profile_metadata,
+                    reference_dataset=reference_dataset,
+                    reference_split=(
+                        self.source_region_reference_split
+                        if reference_split is None
+                        else str(reference_split)
+                    ),
+                    runtime=runtime,
+                )
+                results["source_region_alignment"] = source_region_alignment
+
         elapsed_time = time.time() - start_time
         self.logger.info(f"Weight analysis completed in {elapsed_time:.2f} seconds")
 
@@ -262,6 +651,21 @@ class WeightAnalyzer(AbstractAnalyzer):
             self.logger.info(
                 f"Saving weight analysis results to {save_path}/{filename}"
             )
+            if self.compute_source_support:
+                self._save_source_support_outputs(
+                    results["source_support"],
+                    source_support_profiles,
+                    source_support_profile_metadata,
+                    save_path=save_path,
+                    filename=filename,
+                    plot=not training,
+                )
+                if self.compute_source_region_alignment:
+                    self._save_source_region_alignment_outputs(
+                        results["source_region_alignment"],
+                        save_path=save_path,
+                        filename=filename,
+                    )
             save_dict(results, save_path, filename)
 
             # Only generate plots during final analysis (not during training)
@@ -273,6 +677,754 @@ class WeightAnalyzer(AbstractAnalyzer):
                 self.logger.info("Training mode: plots skipped, only data saved")
 
         return results
+
+    def _compute_source_support(
+        self,
+        model: BaseModel,
+    ) -> tuple[dict[str, Any], dict[str, np.ndarray], list[dict[str, Any]]]:
+        """Aggregate realized sparse supports without conflating them with weights."""
+        core = getattr(model, "core_network", model)
+        rows: list[dict[str, Any]] = []
+        profiles: dict[str, np.ndarray] = {}
+        profile_metadata: list[dict[str, Any]] = []
+        pooled: dict[
+            tuple[int, str, str, str],
+            dict[str, list[list[torch.Tensor]] | int],
+        ] = {}
+
+        for population_record in iter_recurrent_populations(core):
+            target_polarity = str(population_record.polarity).lower()
+            if target_polarity not in self.source_support_target_polarities:
+                continue
+            population = population_record.population
+            branch_layers = list(getattr(population, "branch_layers", []) or [])
+            n_soma = int(population_record.n_neurons)
+            if n_soma < 1 or not branch_layers:
+                continue
+
+            network_layer_index = (
+                -1
+                if population_record.layer_index is None
+                else int(population_record.layer_index)
+            )
+            population_name = str(
+                population_record.population_name or population_record.key
+            )
+
+            for fallback_depth, branch_layer in enumerate(branch_layers):
+                depth = int(getattr(branch_layer, "layer_idx", fallback_depth))
+                for pathway in self.source_support_pathways:
+                    module_attr, source_polarity = _SOURCE_SUPPORT_PATHS[pathway]
+                    synapse = getattr(branch_layer, module_attr, None)
+                    if synapse is None:
+                        continue
+                    snapshot = effective_synapse_snapshot(synapse)
+                    active = snapshot.active_mask.detach().cpu()
+                    candidate = snapshot.candidate_mask.detach().cpu()
+                    effective = snapshot.effective_weight.detach().cpu()
+                    if active.ndim != 2 or active.shape[0] % n_soma != 0:
+                        raise ValueError(
+                            "Source-support analysis requires branch rows grouped "
+                            f"evenly by soma; got {tuple(active.shape)} for "
+                            f"{population_record.key} with {n_soma} somas"
+                        )
+                    branches_per_soma = int(active.shape[0] // n_soma)
+                    source_dim = int(active.shape[1])
+                    active_by_soma = active.reshape(
+                        n_soma, branches_per_soma, source_dim
+                    )
+                    candidate_by_soma = candidate.reshape(
+                        n_soma, branches_per_soma, source_dim
+                    )
+                    effective_by_soma = effective.reshape(
+                        n_soma, branches_per_soma, source_dim
+                    )
+
+                    metadata = {
+                        "network_layer_index": network_layer_index,
+                        "population_name": population_name,
+                        "target_polarity": target_polarity,
+                        "dendritic_depth": depth,
+                        "depth_label": str(depth),
+                        "pathway": pathway,
+                        "source_polarity": source_polarity,
+                        "n_soma": n_soma,
+                        "branches_per_soma": branches_per_soma,
+                        "source_dim": source_dim,
+                        "selection_policy": snapshot.selection_policy,
+                        "mask_source": snapshot.mask_source,
+                    }
+                    self._record_source_support_block(
+                        metadata=metadata,
+                        active_by_soma=active_by_soma,
+                        candidate_by_soma=candidate_by_soma,
+                        effective_by_soma=effective_by_soma,
+                        rows=rows,
+                        profiles=profiles,
+                        profile_metadata=profile_metadata,
+                    )
+
+                    pool_key = (
+                        network_layer_index,
+                        population_name,
+                        target_polarity,
+                        pathway,
+                    )
+                    pool = pooled.setdefault(
+                        pool_key,
+                        {
+                            "active": [[] for _ in range(n_soma)],
+                            "candidate": [[] for _ in range(n_soma)],
+                            "effective": [[] for _ in range(n_soma)],
+                            "source_dim": source_dim,
+                            "source_polarity": source_polarity,
+                            "selection_policy": snapshot.selection_policy,
+                            "mask_source": snapshot.mask_source,
+                        },
+                    )
+                    if int(pool["source_dim"]) != source_dim:
+                        raise ValueError(
+                            "Cannot aggregate source support across dendritic "
+                            "depths with different source dimensions"
+                        )
+                    for soma_idx in range(n_soma):
+                        pool["active"][soma_idx].append(active_by_soma[soma_idx])
+                        pool["candidate"][soma_idx].append(candidate_by_soma[soma_idx])
+                        pool["effective"][soma_idx].append(effective_by_soma[soma_idx])
+
+        for (
+            network_layer_index,
+            population_name,
+            target_polarity,
+            pathway,
+        ), pool in pooled.items():
+            active_lists = pool["active"]
+            n_soma = len(active_lists)
+            active_by_soma = [
+                torch.cat(active_lists[soma_idx], dim=0) for soma_idx in range(n_soma)
+            ]
+            candidate_by_soma = [
+                torch.cat(pool["candidate"][soma_idx], dim=0)
+                for soma_idx in range(n_soma)
+            ]
+            effective_by_soma = [
+                torch.cat(pool["effective"][soma_idx], dim=0)
+                for soma_idx in range(n_soma)
+            ]
+            branches_per_soma = int(active_by_soma[0].shape[0])
+            metadata = {
+                "network_layer_index": network_layer_index,
+                "population_name": population_name,
+                "target_polarity": target_polarity,
+                "dendritic_depth": -1,
+                "depth_label": "all",
+                "pathway": pathway,
+                "source_polarity": str(pool["source_polarity"]),
+                "n_soma": n_soma,
+                "branches_per_soma": branches_per_soma,
+                "source_dim": int(pool["source_dim"]),
+                "selection_policy": str(pool["selection_policy"]),
+                "mask_source": str(pool["mask_source"]),
+            }
+            self._record_source_support_block(
+                metadata=metadata,
+                active_by_soma=torch.stack(active_by_soma, dim=0),
+                candidate_by_soma=torch.stack(candidate_by_soma, dim=0),
+                effective_by_soma=torch.stack(effective_by_soma, dim=0),
+                rows=rows,
+                profiles=profiles,
+                profile_metadata=profile_metadata,
+            )
+
+        summary: dict[str, Any] = {
+            "quantity_contract": {
+                "contact_frequency": (
+                    "fraction of branches owned by a soma whose exact realized "
+                    "sparse mask selects each source coordinate"
+                ),
+                "mean_effective_conductance": (
+                    "effective positive synaptic conductance averaged over all "
+                    "branches owned by the soma, with unselected contacts equal to zero"
+                ),
+                "dendritic_depth_minus_one": (
+                    "all dendritic depths pooled by concatenating their branch rows"
+                ),
+                "not_activity_or_information": True,
+            },
+            "n_scalar_records": len(rows),
+            "n_profile_arrays": len(profiles),
+            "records": rows,
+            "profile_metadata": profile_metadata,
+            "profiles_file": None,
+            "records_file": None,
+        }
+        return summary, profiles, profile_metadata
+
+    def _compute_source_region_alignment(
+        self,
+        *,
+        profiles: dict[str, np.ndarray],
+        profile_metadata: list[dict[str, Any]],
+        reference_dataset: torch.utils.data.Dataset,
+        reference_split: str,
+        runtime: EvaluationRuntimeConfig | None,
+    ) -> dict[str, Any]:
+        """Align image-space source profiles to reference-set source regions."""
+        image_shape = self.source_support_image_shape
+        if image_shape is None:  # guarded by configuration validation
+            raise ValueError("source-region alignment requires an image shape")
+        image_size = int(np.prod(image_shape))
+        image_metadata: list[dict[str, Any]] = []
+        skipped: list[dict[str, Any]] = []
+        for item in profile_metadata:
+            network_layer_index = int(item["network_layer_index"])
+            skip_reason: str | None = None
+            if network_layer_index not in self.source_region_image_network_layers:
+                skip_reason = "network_layer_not_declared_image_source"
+            elif int(item["source_dim"]) != image_size:
+                skip_reason = "source_dimension_not_image_space"
+            if skip_reason is not None:
+                skipped.append(
+                    {
+                        **{
+                            key: value
+                            for key, value in item.items()
+                            if not key.endswith("_key")
+                        },
+                        "expected_image_source_dim": image_size,
+                        "declared_image_network_layers": list(
+                            self.source_region_image_network_layers
+                        ),
+                        "skip_reason": skip_reason,
+                    }
+                )
+                continue
+            image_metadata.append(item)
+
+        quantity_contract = {
+            "foreground_definition": "reference example pixel x_p > threshold",
+            "input_space": (
+                "x is the model input after configured dataset preprocessing; "
+                "no inverse normalization is applied"
+            ),
+            "preferred_probability": (
+                "q_pref(p) = P_ref[x_p > threshold | Y = soma_class]"
+            ),
+            "rest_probability": (
+                "q_rest(p) = P_ref[x_p > threshold | Y != soma_class]"
+            ),
+            "profile_alignment": (
+                "A = sum_p normalized_source_profile(p) q(p); reported "
+                "separately for exact contact frequency and mean effective "
+                "conductance"
+            ),
+            "preferred_rest_contrast": "T = A_pref - A_rest",
+            "occupancy_control": (
+                "image-wide mean q; enrichment is aligned fraction divided by "
+                "this uniform-source occupancy"
+            ),
+            "center_surround_control": (
+                "source-profile mass in the configured center/surround divided "
+                "by the corresponding fraction of available image pixels"
+            ),
+            "within_region_activity_alignment": (
+                "center and surround repeat A_pref, A_rest, and T after masking "
+                "and renormalizing the source profile within that region"
+            ),
+            "reference_split": reference_split,
+            "declared_image_network_layers": list(
+                self.source_region_image_network_layers
+            ),
+            "structural_not_activity_or_information": True,
+        }
+        if not image_metadata:
+            return {
+                "quantity_contract": quantity_contract,
+                "reference": {
+                    "split": reference_split,
+                    "status": "not_evaluated_no_image_space_sources",
+                    "image_shape": list(image_shape),
+                },
+                "n_source_activity_records": 0,
+                "n_spatial_region_records": 0,
+                "n_skipped_profile_blocks": len(skipped),
+                "source_activity_records": [],
+                "spatial_region_records": [],
+                "skipped_profile_blocks": skipped,
+                "source_activity_records_file": None,
+                "spatial_region_records_file": None,
+                "skipped_profile_blocks_file": None,
+            }
+
+        mapping = self.source_region_soma_to_class
+        for item in image_metadata:
+            n_soma = int(item["n_soma"])
+            if len(mapping) != n_soma:
+                raise ValueError(
+                    "source_region_soma_to_class must contain exactly one class "
+                    f"per soma; got {len(mapping)} entries for {n_soma} somas in "
+                    f"population {item['population_name']!r}"
+                )
+
+        reference = self._estimate_source_activity_reference(
+            reference_dataset=reference_dataset,
+            image_size=image_size,
+            required_classes=sorted(set(mapping)),
+            runtime=runtime,
+        )
+        center_mask, center_bounds = _center_region_mask(
+            image_shape,
+            self.source_region_center_bounds,
+        )
+        source_activity_rows: list[dict[str, Any]] = []
+        spatial_rows: list[dict[str, Any]] = []
+        quantities = (
+            ("contact_frequency", "contact_frequency_key"),
+            ("mean_effective_conductance", "mean_effective_conductance_key"),
+        )
+        for item in image_metadata:
+            structural = {
+                key: value for key, value in item.items() if not key.endswith("_key")
+            }
+            n_soma = int(item["n_soma"])
+            for quantity, key_field in quantities:
+                profile_key = str(item[key_field])
+                values = torch.from_numpy(np.asarray(profiles[profile_key]))
+                if tuple(values.shape) != (n_soma, image_size):
+                    raise ValueError(
+                        f"source profile {profile_key!r} has shape "
+                        f"{tuple(values.shape)}; expected {(n_soma, image_size)}"
+                    )
+                for soma_index, soma_class in enumerate(mapping):
+                    common = {
+                        **structural,
+                        "soma_index": soma_index,
+                        "soma_class": soma_class,
+                        "quantity": quantity,
+                        "source_profile_key": profile_key,
+                        "reference_split": reference_split,
+                        "reference_sample_count": reference["n_samples"],
+                        "preferred_class_sample_count": reference["class_counts"][
+                            soma_class
+                        ],
+                        "rest_class_sample_count": (
+                            reference["n_samples"]
+                            - reference["class_counts"][soma_class]
+                        ),
+                    }
+                    profile = values[soma_index]
+                    spatial_rows.append(
+                        {
+                            **common,
+                            "center_row_start": center_bounds[0],
+                            "center_row_stop": center_bounds[1],
+                            "center_col_start": center_bounds[2],
+                            "center_col_stop": center_bounds[3],
+                            **_spatial_region_alignment_statistics(
+                                profile,
+                                center_mask,
+                            ),
+                        }
+                    )
+                    for threshold in self.source_region_foreground_thresholds:
+                        threshold_reference = reference["thresholds"][threshold]
+                        preferred = threshold_reference["preferred"][soma_class]
+                        rest = threshold_reference["rest"][soma_class]
+                        full_stats = _source_activity_alignment_statistics(
+                            profile,
+                            preferred,
+                            rest,
+                        )
+                        center_stats = {
+                            f"center_{key}": value
+                            for key, value in _source_activity_alignment_statistics(
+                                profile,
+                                preferred,
+                                rest,
+                                center_mask,
+                            ).items()
+                        }
+                        surround_stats = {
+                            f"surround_{key}": value
+                            for key, value in _source_activity_alignment_statistics(
+                                profile,
+                                preferred,
+                                rest,
+                                1.0 - center_mask,
+                            ).items()
+                        }
+                        source_activity_rows.append(
+                            {
+                                **common,
+                                "foreground_threshold": threshold,
+                                **full_stats,
+                                **center_stats,
+                                **surround_stats,
+                            }
+                        )
+
+        return {
+            "quantity_contract": quantity_contract,
+            "reference": {
+                "split": reference_split,
+                "status": "evaluated",
+                "image_shape": list(image_shape),
+                "n_samples": reference["n_samples"],
+                "class_counts": {
+                    str(key): value
+                    for key, value in sorted(reference["class_counts"].items())
+                },
+                "foreground_thresholds": list(self.source_region_foreground_thresholds),
+                "center_bounds": list(center_bounds),
+            },
+            "n_source_activity_records": len(source_activity_rows),
+            "n_spatial_region_records": len(spatial_rows),
+            "n_skipped_profile_blocks": len(skipped),
+            "source_activity_records": source_activity_rows,
+            "spatial_region_records": spatial_rows,
+            "skipped_profile_blocks": skipped,
+            "source_activity_records_file": None,
+            "spatial_region_records_file": None,
+            "skipped_profile_blocks_file": None,
+        }
+
+    def _estimate_source_activity_reference(
+        self,
+        *,
+        reference_dataset: torch.utils.data.Dataset,
+        image_size: int,
+        required_classes: list[int],
+        runtime: EvaluationRuntimeConfig | None,
+    ) -> dict[str, Any]:
+        """Estimate per-class pixel-on probabilities without storing images."""
+        class_counts = dict.fromkeys(required_classes, 0)
+        total_count = 0
+        total_on = {
+            threshold: torch.zeros(image_size, dtype=torch.float64)
+            for threshold in self.source_region_foreground_thresholds
+        }
+        class_on = {
+            threshold: {
+                class_label: torch.zeros(image_size, dtype=torch.float64)
+                for class_label in required_classes
+            }
+            for threshold in self.source_region_foreground_thresholds
+        }
+        for batch in iter_analysis_batches(
+            reference_dataset,
+            runtime,
+            self.source_region_max_reference_samples,
+            device="cpu",
+        ):
+            if len(batch) < 2:
+                raise ValueError(
+                    "source-region alignment requires (input, class label) data"
+                )
+            labels = torch.as_tensor(batch[1]).reshape(-1).cpu()
+            if labels.numel() < 1:
+                continue
+            if labels.is_floating_point() and not torch.equal(
+                labels,
+                labels.round(),
+            ):
+                raise ValueError("source-region class labels must be integral")
+            labels = labels.to(dtype=torch.long)
+            inputs = torch.as_tensor(batch[0]).detach().cpu()
+            if int(inputs.shape[0]) != int(labels.shape[0]):
+                raise ValueError("source-region input and label counts do not match")
+            flattened = inputs.reshape(labels.shape[0], -1).to(dtype=torch.float64)
+            if int(flattened.shape[1]) != image_size:
+                raise ValueError(
+                    "source-region reference inputs do not match "
+                    f"source_support_image_shape: got {flattened.shape[1]} "
+                    f"features, expected {image_size}"
+                )
+            if not torch.isfinite(flattened).all():
+                raise ValueError(
+                    "source-region reference inputs contain non-finite values"
+                )
+            total_count += int(labels.numel())
+            for threshold in self.source_region_foreground_thresholds:
+                is_on = flattened > threshold
+                total_on[threshold] += is_on.sum(dim=0, dtype=torch.float64)
+                for class_label in required_classes:
+                    class_mask = labels == class_label
+                    if bool(class_mask.any()):
+                        class_on[threshold][class_label] += is_on[class_mask].sum(
+                            dim=0,
+                            dtype=torch.float64,
+                        )
+            for class_label in required_classes:
+                class_counts[class_label] += int((labels == class_label).sum().item())
+
+        if total_count < 1:
+            raise ValueError("source-region reference dataset is empty")
+        thresholds: dict[float, dict[str, dict[int, torch.Tensor]]] = {}
+        for threshold in self.source_region_foreground_thresholds:
+            preferred: dict[int, torch.Tensor] = {}
+            rest: dict[int, torch.Tensor] = {}
+            for class_label in required_classes:
+                preferred_count = class_counts[class_label]
+                rest_count = total_count - preferred_count
+                if preferred_count < 1 or rest_count < 1:
+                    raise ValueError(
+                        "source-region reference requires both preferred and rest "
+                        f"examples for class {class_label}; counts are "
+                        f"{preferred_count} and {rest_count}"
+                    )
+                preferred[class_label] = (
+                    class_on[threshold][class_label] / preferred_count
+                )
+                rest[class_label] = (
+                    total_on[threshold] - class_on[threshold][class_label]
+                ) / rest_count
+            thresholds[threshold] = {
+                "preferred": preferred,
+                "rest": rest,
+            }
+        return {
+            "n_samples": total_count,
+            "class_counts": class_counts,
+            "thresholds": thresholds,
+        }
+
+    @staticmethod
+    def _record_source_support_block(
+        *,
+        metadata: dict[str, Any],
+        active_by_soma: torch.Tensor,
+        candidate_by_soma: torch.Tensor,
+        effective_by_soma: torch.Tensor,
+        rows: list[dict[str, Any]],
+        profiles: dict[str, np.ndarray],
+        profile_metadata: list[dict[str, Any]],
+    ) -> None:
+        n_soma = int(metadata["n_soma"])
+        contact_frequency = active_by_soma.ne(0).to(torch.float64).mean(dim=1)
+        mean_effective = effective_by_soma.to(torch.float64).mean(dim=1)
+        prefix = _safe_profile_key(
+            f"network-layer-{metadata['network_layer_index']}",
+            f"population-{metadata['population_name']}",
+            f"target-{metadata['target_polarity']}",
+            f"depth-{metadata['depth_label']}",
+            f"pathway-{metadata['pathway']}",
+        )
+        contact_key = f"{prefix}__contact-frequency"
+        effective_key = f"{prefix}__mean-effective-conductance"
+        profiles[contact_key] = contact_frequency.numpy()
+        profiles[effective_key] = mean_effective.numpy()
+        profile_metadata.append(
+            {
+                **metadata,
+                "contact_frequency_key": contact_key,
+                "mean_effective_conductance_key": effective_key,
+            }
+        )
+
+        for soma_idx in range(n_soma):
+            active = active_by_soma[soma_idx]
+            candidate = candidate_by_soma[soma_idx]
+            effective = effective_by_soma[soma_idx]
+            active_values = effective[active.ne(0)]
+            rows.append(
+                {
+                    **metadata,
+                    "soma_index": soma_idx,
+                    "realized_contacts_per_branch_mean": float(
+                        active.ne(0).sum(dim=1).to(torch.float64).mean().item()
+                    ),
+                    "active_effective_conductance_mean": (
+                        float(active_values.to(torch.float64).mean().item())
+                        if active_values.numel()
+                        else 0.0
+                    ),
+                    **_source_support_statistics(active, candidate),
+                }
+            )
+
+    def _save_source_support_outputs(
+        self,
+        summary: dict[str, Any],
+        profiles: dict[str, np.ndarray],
+        profile_metadata: list[dict[str, Any]],
+        *,
+        save_path: str,
+        filename: str,
+        plot: bool,
+    ) -> None:
+        os.makedirs(save_path, exist_ok=True)
+        profiles_name = f"{filename}_source_support_profiles.npz"
+        records_name = f"{filename}_source_support_records.csv"
+        summary["profiles_file"] = profiles_name
+        summary["records_file"] = records_name
+        np.savez_compressed(os.path.join(save_path, profiles_name), **profiles)
+
+        records = summary["records"]
+        if records:
+            with open(
+                os.path.join(save_path, records_name),
+                "w",
+                newline="",
+                encoding="utf-8",
+            ) as handle:
+                writer = csv.DictWriter(handle, fieldnames=list(records[0]))
+                writer.writeheader()
+                writer.writerows(records)
+
+        if plot and self.source_support_image_shape is not None:
+            figure_files = self._plot_source_support_image_grids(
+                profiles,
+                profile_metadata,
+                save_path=save_path,
+                filename=filename,
+            )
+            if figure_files:
+                summary["figure_files"] = figure_files
+
+    @staticmethod
+    def _save_source_region_alignment_outputs(
+        summary: dict[str, Any],
+        *,
+        save_path: str,
+        filename: str,
+    ) -> None:
+        """Save tidy source-activity, spatial-control, and skip records."""
+        os.makedirs(save_path, exist_ok=True)
+        outputs = (
+            (
+                "source_activity_records",
+                "source_activity_records_file",
+                f"{filename}_source_activity_alignment_records.csv",
+            ),
+            (
+                "spatial_region_records",
+                "spatial_region_records_file",
+                f"{filename}_spatial_region_alignment_records.csv",
+            ),
+            (
+                "skipped_profile_blocks",
+                "skipped_profile_blocks_file",
+                f"{filename}_source_region_skipped_blocks.csv",
+            ),
+        )
+        for records_key, filename_key, output_name in outputs:
+            records = summary[records_key]
+            if not records:
+                continue
+            fields = sorted({str(key) for record in records for key in record})
+            with open(
+                os.path.join(save_path, output_name),
+                "w",
+                newline="",
+                encoding="utf-8",
+            ) as handle:
+                writer = csv.DictWriter(handle, fieldnames=fields)
+                writer.writeheader()
+                writer.writerows(records)
+            summary[filename_key] = output_name
+
+    def _plot_source_support_image_grids(
+        self,
+        profiles: dict[str, np.ndarray],
+        profile_metadata: list[dict[str, Any]],
+        *,
+        save_path: str,
+        filename: str,
+    ) -> list[str]:
+        """Plot all-depth image-space support; scientific figures may restyle it."""
+        import matplotlib.pyplot as plt
+
+        image_shape = self.source_support_image_shape
+        assert image_shape is not None
+        image_size = int(np.prod(image_shape))
+        selected = [
+            item
+            for item in profile_metadata
+            if item["depth_label"] == "all" and int(item["source_dim"]) == image_size
+        ]
+        groups: dict[tuple[int, str], list[dict[str, Any]]] = {}
+        for item in selected:
+            key = (int(item["network_layer_index"]), str(item["population_name"]))
+            groups.setdefault(key, []).append(item)
+
+        figure_files: list[str] = []
+        for (network_layer_index, population_name), items in sorted(groups.items()):
+            by_pathway = {str(item["pathway"]): item for item in items}
+            pathways = [
+                pathway
+                for pathway in self.source_support_pathways
+                if pathway in by_pathway
+            ]
+            if not pathways:
+                continue
+            n_soma = int(items[0]["n_soma"])
+            soma_indices = (
+                list(self.source_support_plot_soma_indices)
+                if self.source_support_plot_soma_indices
+                else list(range(n_soma))
+            )
+            soma_indices = [index for index in soma_indices if index < n_soma]
+            if not soma_indices:
+                continue
+
+            for quantity, key_field, label in (
+                (
+                    "contact_frequency",
+                    "contact_frequency_key",
+                    "Contact frequency",
+                ),
+                (
+                    "mean_effective_conductance",
+                    "mean_effective_conductance_key",
+                    "Mean effective conductance",
+                ),
+            ):
+                fig, axes = plt.subplots(
+                    len(pathways),
+                    len(soma_indices),
+                    figsize=(
+                        max(3.0, 0.75 * len(soma_indices)),
+                        max(1.5, 0.85 * len(pathways)),
+                    ),
+                    squeeze=False,
+                    constrained_layout=True,
+                )
+                for row_idx, pathway in enumerate(pathways):
+                    metadata = by_pathway[pathway]
+                    values = profiles[str(metadata[key_field])]
+                    vmax = float(np.nanmax(values))
+                    for col_idx, soma_idx in enumerate(soma_indices):
+                        ax = axes[row_idx, col_idx]
+                        ax.imshow(
+                            values[soma_idx].reshape(image_shape),
+                            cmap="magma",
+                            vmin=0.0,
+                            vmax=max(vmax, np.finfo(float).eps),
+                            interpolation="nearest",
+                        )
+                        ax.set_xticks([])
+                        ax.set_yticks([])
+                        if row_idx == 0:
+                            ax.set_title(f"soma {soma_idx}", fontsize=7)
+                        if col_idx == 0:
+                            ax.set_ylabel(pathway.replace("_", " "), fontsize=7)
+                fig.suptitle(label, fontsize=9)
+                stem = _safe_profile_key(
+                    filename,
+                    "source-support",
+                    f"network-layer-{network_layer_index}",
+                    f"population-{population_name}",
+                    quantity,
+                )
+                figure_name = f"{stem}.{self.source_support_fig_save_format}"
+                fig.savefig(
+                    os.path.join(save_path, figure_name),
+                    dpi=300,
+                    bbox_inches="tight",
+                )
+                plt.close(fig)
+                figure_files.append(figure_name)
+        return figure_files
 
     def _compute_global_statistics(self, model: BaseModel) -> dict[str, Any]:
         """Compute global weight statistics across the entire network."""
@@ -761,16 +1913,14 @@ class WeightAnalyzer(AbstractAnalyzer):
                     min_weights,
                     width,
                     label="Min Weight",
-                    color=colors["excitatory"],
-                    alpha=0.7,
+                    **bar_kwargs(colors["excitatory"], indexed_hatch(0), alpha=0.7),
                 )
                 ax1.bar(
                     x_pos + width / 2,
                     max_weights,
                     width,
                     label="Max Weight",
-                    color=colors["inhibitory"],
-                    alpha=0.7,
+                    **bar_kwargs(colors["inhibitory"], indexed_hatch(1), alpha=0.7),
                 )
 
                 setup_basic_plot(

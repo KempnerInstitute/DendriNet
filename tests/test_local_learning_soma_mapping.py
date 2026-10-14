@@ -3,6 +3,7 @@
 import logging
 from types import SimpleNamespace
 
+import pytest
 import torch
 import torch.nn as nn
 
@@ -10,18 +11,22 @@ from dendritic_modeling.networks.activations.parametric import (
     ParametricTanh,
     ParametricTanhOnlyM,
 )
+from dendritic_modeling.training.loss.functions import (
+    BCELoss,
+    CategoricalNLLLoss,
+    CrossEntropyLoss,
+    LogMSELoss,
+    MSELoss,
+    TemporalEventCrossEntropyLoss,
+)
 from dendritic_modeling.training.strategies.local_learning import LocalCreditAssignment
 from dendritic_modeling.training.strategies.local_learning_parts.local_learning_signals import (
     _decoder_linear_layers,
-    _dynamics_mode_from_config,
     _dynamics_mode_from_layer,
-    _error_mode_from_loss_name,
     _has_single_linear_decoder,
     _linear_decoder_shapes_compatible,
-    _looks_like_class_index_logits,
     _map_decoder_input_error,
     _parametric_tanh_derivative,
-    _prepare_bce_prediction,
     _prepare_ce_target,
     _resolve_soma_error_mode,
 )
@@ -64,6 +69,27 @@ def test_linear_decoder_maps_output_error_to_core_soma_error():
     expected_delta = delta_out @ decoder.weight.detach()
     torch.testing.assert_close(v0_local, h_in)
     torch.testing.assert_close(delta_local, expected_delta)
+
+
+def test_linear_decoder_mapping_unwraps_ddp_style_model():
+    decoder = nn.Linear(3, 2, bias=False)
+    model = _DummyModel(decoder)
+    wrapped = SimpleNamespace(module=model)
+    trainer = _make_trainer()
+    h_in = torch.randn(5, 3)
+    y_hat = torch.randn(5, 2)
+    delta_out = torch.randn(5, 2)
+    trainer._decoder_cache["module"] = decoder
+    trainer._decoder_cache["input"] = h_in
+
+    v0_local, delta_local = trainer._resolve_local_soma_signals(
+        wrapped,
+        y_hat,
+        delta_out,
+    )
+
+    torch.testing.assert_close(v0_local, h_in)
+    torch.testing.assert_close(delta_local, delta_out @ decoder.weight.detach())
 
 
 def test_nonlinear_decoder_maps_output_error_via_decoder_jacobian():
@@ -244,17 +270,6 @@ def test_linear_decoder_shapes_compatible_matches_mapping_requirements():
     )
 
 
-def test_prepare_bce_prediction_preserves_logits_and_probability_paths():
-    logits = torch.tensor([[-1.0, 2.0], [0.5, 0.0]])
-    probabilities = torch.tensor([[0.0, 1.0], [0.25, 0.75]])
-
-    torch.testing.assert_close(_prepare_bce_prediction(logits), torch.sigmoid(logits))
-    torch.testing.assert_close(
-        _prepare_bce_prediction(probabilities),
-        torch.clamp(probabilities, min=1e-6, max=1.0 - 1e-6),
-    )
-
-
 def test_prepare_ce_target_preserves_class_index_and_soft_label_paths():
     y_hat = torch.zeros(2, 3, dtype=torch.float64)
     class_target = _prepare_ce_target(y_hat, torch.tensor([[2], [0]]))
@@ -292,40 +307,41 @@ def test_parametric_tanh_derivative_matches_legacy_formula_for_both_variants():
         torch.testing.assert_close(through_mixin, expected)
 
 
-def test_error_by_mode_uses_extracted_ce_and_bce_helpers():
-    y_hat = torch.tensor([[2.0, 0.0], [0.0, 2.0]])
-    y_class = torch.tensor([0, 1])
-    y_binary = torch.tensor([[1.0, 0.0], [0.0, 1.0]])
+@pytest.mark.parametrize("mode", ["ce", "bce", "mse"])
+def test_error_by_mode_is_the_gradient_of_the_summed_loss(mode):
+    generator = torch.Generator().manual_seed(0)
+    if mode == "ce":
+        y_hat = torch.randn(4, 3, generator=generator, dtype=torch.float64)
+        y = torch.tensor([0, 2, 1, 2])
+        loss = nn.CrossEntropyLoss(reduction="sum")
+    elif mode == "bce":
+        y_hat = torch.rand(4, 3, generator=generator, dtype=torch.float64) * 0.9 + 0.05
+        y = torch.randint(0, 2, (4, 3), generator=generator).double()
+        loss = nn.BCELoss(reduction="sum")
+    else:
+        y_hat = torch.randn(4, 3, generator=generator, dtype=torch.float64)
+        y = torch.randn(4, 3, generator=generator, dtype=torch.float64)
 
-    ce_error = LocalCreditAssignment._error_by_mode(y_hat, y_class, "ce")
-    bce_error = LocalCreditAssignment._error_by_mode(y_hat, y_binary, "bce")
+        def loss(prediction, target):
+            return 0.5 * (prediction - target).square().sum()
 
-    expected_ce = torch.softmax(y_hat, dim=-1) - _prepare_ce_target(y_hat, y_class)
-    expected_bce = _prepare_bce_prediction(y_hat) - y_binary
-    torch.testing.assert_close(ce_error, expected_ce)
-    torch.testing.assert_close(bce_error, expected_bce)
+    prediction = y_hat.clone().requires_grad_()
+    expected = torch.autograd.grad(loss(prediction, y), prediction)[0]
+    error = LocalCreditAssignment._error_by_mode(y_hat, y, mode)
+    torch.testing.assert_close(error, expected)
 
 
-def test_soma_error_mode_helpers_preserve_legacy_resolution_order():
-    y_hat = torch.zeros(2, 3)
-    class_target = torch.tensor([2, 0])
-    soft_target = torch.tensor([[0.0, 0.0, 1.0], [1.0, 0.0, 0.0]])
-
-    assert _error_mode_from_loss_name("categorical cross entropy") == "ce"
-    assert _error_mode_from_loss_name("negative log likelihood") == "ce"
-    assert _error_mode_from_loss_name("nll") == "ce"
-    assert _error_mode_from_loss_name("binary cross entropy") == "ce"
-    assert _error_mode_from_loss_name("mean squared error") is None
-
-    assert _looks_like_class_index_logits(y_hat, class_target)
-    assert _looks_like_class_index_logits(y_hat, class_target.view(-1, 1))
-    assert not _looks_like_class_index_logits(y_hat, soft_target)
-    assert not _looks_like_class_index_logits(torch.zeros(2), class_target)
-
-    assert _resolve_soma_error_mode("bce", "", y_hat, soft_target) == "bce"
-    assert _resolve_soma_error_mode("auto", "categorical", y_hat, soft_target) == "ce"
-    assert _resolve_soma_error_mode("auto", "", y_hat, class_target) == "ce"
-    assert _resolve_soma_error_mode("auto", "", y_hat, soft_target) == "mse"
+def test_auto_error_mode_follows_the_configured_loss():
+    assert _resolve_soma_error_mode("auto", CrossEntropyLoss()) == "ce"
+    assert _resolve_soma_error_mode("auto", CategoricalNLLLoss()) == "ce"
+    assert _resolve_soma_error_mode("auto", BCELoss()) == "bce"
+    assert _resolve_soma_error_mode("auto", MSELoss()) == "mse"
+    assert _resolve_soma_error_mode("bce", CrossEntropyLoss()) == "bce"
+    for loss in (LogMSELoss(), TemporalEventCrossEntropyLoss()):
+        with pytest.raises(ValueError, match="has no soma error rule"):
+            _resolve_soma_error_mode("auto", loss)
+    with pytest.raises(ValueError, match="Unknown error_mode"):
+        _resolve_soma_error_mode("logits", CrossEntropyLoss())
 
 
 def test_compute_soma_error_uses_resolved_mode():
@@ -333,7 +349,7 @@ def test_compute_soma_error_uses_resolved_mode():
     y = torch.tensor([0, 1])
     trainer = _make_trainer()
     trainer.local_cfg = SimpleNamespace(error_mode="auto")
-    trainer.loss_function = SimpleNamespace(_loss_name="negative log likelihood")
+    trainer.loss_function = CategoricalNLLLoss()
 
     error = trainer._compute_soma_error(y_hat, y)
     expected = torch.softmax(y_hat, dim=-1) - _prepare_ce_target(y_hat, y)
@@ -341,13 +357,7 @@ def test_compute_soma_error_uses_resolved_mode():
     torch.testing.assert_close(error, expected)
 
 
-def test_dynamics_mode_helpers_preserve_config_and_layer_resolution(caplog):
-    assert _dynamics_mode_from_config("conductance") == "conductance"
-    assert _dynamics_mode_from_config("legacy") == "conductance"
-    assert _dynamics_mode_from_config("additive") == "additive"
-    assert _dynamics_mode_from_config("auto") is None
-    assert _dynamics_mode_from_config("unknown") is None
-
+def test_layer_dynamics_mode_follows_the_layer_integration():
     assert (
         _dynamics_mode_from_layer(SimpleNamespace(use_shunting=True)) == "conductance"
     )
@@ -356,16 +366,9 @@ def test_dynamics_mode_helpers_preserve_config_and_layer_resolution(caplog):
 
     trainer = _make_trainer()
     trainer.local_cfg = SimpleNamespace(
-        three_factor=SimpleNamespace(dynamics_mode="unknown")
+        three_factor=SimpleNamespace(dynamics_mode="auto")
     )
-    caplog.set_level(
-        logging.WARNING,
-        logger="dendritic_modeling.training.strategies.local_learning_parts.local_learning_signals",
-    )
-
     mode = trainer._resolve_layer_dynamics_mode(
         {"layer": SimpleNamespace(use_shunting=False)}
     )
-
     assert mode == "additive"
-    assert "Unknown three_factor.dynamics_mode='unknown'" in caplog.text

@@ -45,7 +45,6 @@ class TestEffectiveMatchedParamMLP(unittest.TestCase):
         """Test that EffectiveMatchedParamMLP matches EINet's effective parameters."""
         # Create EINet with default transfer_params
         transfer_params = {
-            "input_mode": 0,
             "independent_pathways": False,
             "excitatory_dim": [],
             "inhibitory_dim": [],
@@ -98,7 +97,6 @@ class TestEffectiveMatchedParamMLP(unittest.TestCase):
         """The matched point control preserves the replaced layer interface."""
         params = dict(self.params)
         params["transfer_params"] = {
-            "input_mode": 0,
             "independent_pathways": False,
             "excitatory_dim": [],
             "inhibitory_dim": [],
@@ -260,7 +258,6 @@ class TestEffectiveMatchedParamMLP(unittest.TestCase):
     def test_comparison_with_einet_total_params(self):
         """Test that EffectiveMatchedParamMLP uses fewer params than dense EINet total."""
         transfer_params = {
-            "input_mode": 0,
             "independent_pathways": False,
             "excitatory_dim": [],
             "inhibitory_dim": [],

@@ -134,7 +134,10 @@ def build_stringer_v1(
     neuron_selection_scope = kwargs.get("neuron_selection_scope", "all_trials")
     n_classes = kwargs.get("n_classes", 8)
     normalize = kwargs.get("normalize", True)
-    seed = kwargs.get("label_noise_seed", 42)
+    # The trial split and gain draws use the dataset seed. The pipeline sets
+    # seed and label_noise_seed to the same dataset seed, and older direct
+    # callers passed only label_noise_seed.
+    seed = kwargs.get("seed", kwargs.get("label_noise_seed", 42))
     session_id = kwargs.get("session_id", None)
     if session_id is not None:
         grating_file, session_idx = _resolve_stringer_session_file(

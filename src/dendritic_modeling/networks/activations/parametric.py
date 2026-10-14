@@ -6,11 +6,38 @@ This module contains various parametric activation functions with learnable para
 
 import logging
 import math
+from typing import ClassVar
 
 import torch
 import torch.nn as nn
 
+from dendritic_modeling.networks.activations.memory_efficient import (
+    positive_tanh_centered,
+)
+from dendritic_modeling.networks.state_versions import (
+    file_predates,
+    record_legacy_state,
+)
 from dendritic_modeling.networks.utils.weight_transforms import safe_exp
+
+_FIXED_B_BUFFER = "fixed_b_buffer"
+_LEGACY_FIXED_B_WARNING = (
+    "Loaded a checkpoint written before fixed_b was persisted (no "
+    "'fixed_b_buffer' entry); keeping the module's constructed fixed_b. A "
+    "fixed_b calibrated from data (data-driven reactivation initialization or "
+    "periodic recalibration) cannot be recovered from such a checkpoint."
+)
+
+
+def _scalar_fixed_b(value) -> float:
+    """Return ``fixed_b`` as a Python float; it is one value per module."""
+    if torch.is_tensor(value):
+        if value.numel() != 1:
+            raise ValueError(
+                f"fixed_b must be a scalar, got a tensor of shape {tuple(value.shape)}"
+            )
+        return float(value.item())
+    return float(value)
 
 
 class ParametricActivation(nn.Module):
@@ -41,14 +68,111 @@ class ParametricActivation(nn.Module):
         raise NotImplementedError("Forward method must be implemented by child class")
 
 
+class _PersistentFixedBActivation(ParametricActivation):
+    """Parametric activation with a calibrated, non-trainable scalar ``fixed_b``.
+
+    The forward pass reads ``fixed_b`` as a Python float, exactly as before, so
+    outputs are unchanged. Reactivation calibration (data-driven
+    initialization or periodic recalibration) rewrites it through
+    ``initialize``, so a 0-dim persistent buffer ``fixed_b_buffer`` records
+    the value: ``state_dict`` carries it and ``load_state_dict`` restores it,
+    for checkpoint reloads and for the trainer's in-process best-state
+    restore. The buffer retains float64 precision across dtype conversions,
+    matching the Python float read by the forward pass. Casting the record to
+    the parameter dtype would change the midpoint on a checkpoint round trip.
+
+    Checkpoints written before the buffer existed load with the module's
+    current (constructed or construction-time initialized) ``fixed_b`` and
+    warn once: a calibrated ``fixed_b`` cannot be recovered from them. The
+    buffer is a record of the float; writing the buffer tensor in place
+    without ``load_state_dict`` does not change the forward pass.
+    """
+
+    # Version 2 adds the persistent ``fixed_b_buffer``.
+    _version = 2
+    _STATE_KEYS_ADDED: ClassVar[dict[int, tuple[str, ...]]] = {2: (_FIXED_B_BUFFER,)}
+
+    def _init_fixed_b(self, value) -> None:
+        value = _scalar_fixed_b(value)
+        self.register_buffer(_FIXED_B_BUFFER, torch.tensor(value, dtype=torch.float64))
+        self._fixed_b = value
+
+    def _apply(self, fn, recurse=True):
+        super()._apply(fn, recurse=recurse)
+        self.fixed_b_buffer = torch.tensor(
+            self._fixed_b, dtype=torch.float64, device=self.fixed_b_buffer.device
+        )
+        return self
+
+    @property
+    def fixed_b(self) -> float:
+        return self._fixed_b
+
+    @fixed_b.setter
+    def fixed_b(self, value) -> None:
+        value = _scalar_fixed_b(value)
+        self._fixed_b = value
+        with torch.no_grad():
+            self.fixed_b_buffer.fill_(value)
+
+    def _load_from_state_dict(
+        self,
+        state_dict,
+        prefix,
+        local_metadata,
+        strict,
+        missing_keys,
+        unexpected_keys,
+        error_msgs,
+    ):
+        key = prefix + _FIXED_B_BUFFER
+        stored = key in state_dict
+        if not stored and file_predates(local_metadata, 2):
+            record_legacy_state(self, key, _LEGACY_FIXED_B_WARNING)
+            state_dict[key] = self.fixed_b_buffer.detach().clone()
+        super()._load_from_state_dict(
+            state_dict,
+            prefix,
+            local_metadata,
+            strict,
+            missing_keys,
+            unexpected_keys,
+            error_msgs,
+        )
+        if stored:
+            self._fixed_b = float(self.fixed_b_buffer)
+
+    def __setstate__(self, state):
+        # Whole-module pickles from before the buffer kept the float in the
+        # instance dictionary under ``fixed_b``.
+        if "_fixed_b" not in state and "fixed_b" in state:
+            state = dict(state)
+            state["_fixed_b"] = _scalar_fixed_b(state.pop("fixed_b"))
+        super().__setstate__(state)
+        if _FIXED_B_BUFFER not in self._buffers:
+            self.register_buffer(
+                _FIXED_B_BUFFER, torch.tensor(self._fixed_b, dtype=torch.float64)
+            )
+
+
 class ParametricTanh(ParametricActivation):
     """
     A parametric tanh reactivation function with learnable parameters m and b.
     Both parameters are trainable.
     """
 
-    def __init__(self, output_dim, init_m=1.5, init_b=1.0):
+    supports_memory_efficient_shunt = True
+
+    def __init__(
+        self,
+        output_dim,
+        init_m=1.5,
+        init_b=1.0,
+        *,
+        memory_efficient=False,
+    ):
         super().__init__()
+        self.memory_efficient = bool(memory_efficient)
         self.log_m = nn.Parameter(torch.empty((output_dim,)), requires_grad=True)
         # self.log_b = nn.Parameter(torch.empty((output_dim,)), requires_grad=True)
         self.b = nn.Parameter(torch.empty((output_dim,)), requires_grad=True)
@@ -59,30 +183,92 @@ class ParametricTanh(ParametricActivation):
     def forward(self, V):
         m = self.log_m.exp()  # slope
         b = self.b  # midpoint
-        return (torch.tanh(m * (V - b)) + 1) / 2
+        return positive_tanh_centered(
+            m,
+            V,
+            b,
+            memory_efficient=self.memory_efficient,
+        )
 
     def initialize(self, slope_val, mid_val):
         self.log_m.data.fill_(math.log(slope_val))
         self.b.data.fill_(mid_val)
 
 
-class ParametricTanhOnlyM(ParametricActivation):
+class ParametricReLU(ParametricActivation):
+    """Threshold-linear reactivation ``m * relu(V - b)`` with learnable m, b.
+
+    The rectified analogue of :class:`ParametricTanh`: exact zeros below the
+    per-unit threshold ``b`` and an unbounded linear response with per-unit
+    gain ``m`` above it. Suitable as a somatic output nonlinearity where a
+    downstream consumer expects a sparse, unbounded code (for example a
+    pretrained post-ReLU boundary); the bounded tanh family remains the
+    default branch gate. ``initialize`` matches the parametric-activation
+    calibration interface, so data-driven policies can place the threshold
+    and gain from observed voltage quantiles.
+    """
+
+    def __init__(
+        self,
+        output_dim,
+        init_m=1.0,
+        init_b=0.0,
+        *,
+        memory_efficient=False,
+    ):
+        super().__init__()
+        del memory_efficient  # accepted for interface parity; no fused path
+        self.memory_efficient = False
+        init_m = float(init_m)
+        if not init_m > 0:
+            raise ValueError(f"init_m must be positive, got {init_m}")
+        self.log_m = nn.Parameter(torch.empty((output_dim,)), requires_grad=True)
+        self.b = nn.Parameter(torch.empty((output_dim,)), requires_grad=True)
+        nn.init.constant_(self.log_m, math.log(init_m))
+        nn.init.constant_(self.b, float(init_b))
+
+    def forward(self, V):
+        return self.log_m.exp() * torch.relu(V - self.b)
+
+    def initialize(self, slope_val, mid_val):
+        safe_slope = max(float(slope_val), 1e-8)
+        self.log_m.data.fill_(math.log(safe_slope))
+        self.b.data.fill_(float(mid_val))
+
+
+class ParametricTanhOnlyM(_PersistentFixedBActivation):
     """
     A parametric tanh activation function where b is fixed and only m is
     trainable. The fixed value of b is provided via the fixed_b argument.
+    Calibration may rewrite it; ``fixed_b_buffer`` persists the value.
     """
 
-    def __init__(self, output_dim, init_m=1.5, fixed_b=0.5):
+    supports_memory_efficient_shunt = True
+
+    def __init__(
+        self,
+        output_dim,
+        init_m=1.5,
+        fixed_b=0.5,
+        *,
+        memory_efficient=False,
+    ):
         super().__init__()
+        self.memory_efficient = bool(memory_efficient)
         self.log_m = nn.Parameter(torch.empty((output_dim,)), requires_grad=True)
-        self.fixed_b = fixed_b  # fixed midpoint value
+        self._init_fixed_b(fixed_b)  # fixed midpoint value
         with torch.no_grad():
             self.log_m.data.fill_(math.log(init_m))
 
     def forward(self, V):
         m = self.log_m.exp()  # slope
         b = self.fixed_b  # fixed midpoint
-        return (torch.tanh(m * (V - b)) + 1) / 2
+        return positive_tanh_centered(
+            m,
+            V,
+            b,
+            memory_efficient=self.memory_efficient,
+        )
 
     def initialize(self, slope_val, mid_val):
         safe_slope = max(float(slope_val), 1e-8)
@@ -90,7 +276,7 @@ class ParametricTanhOnlyM(ParametricActivation):
         self.fixed_b = float(mid_val)
 
 
-class ParametricLinearSigmoid(ParametricActivation):
+class ParametricLinearSigmoid(_PersistentFixedBActivation):
     """
     A parametric activation function that interpolates between linear and sigmoid functions.
     The function is: h(x)*g(x) + f(x)*(1-g(x)) where:
@@ -120,10 +306,7 @@ class ParametricLinearSigmoid(ParametricActivation):
         nn.init.constant_(self.log_m, math.log(init_m))
 
         # Fixed parameters for sigmoid
-        if init_b is None:
-            self.fixed_b = -2.0
-        else:
-            self.fixed_b = init_b
+        self._init_fixed_b(-2.0 if init_b is None else init_b)
 
     def forward(self, x):
         m = self.log_m.exp()  # slope
@@ -142,7 +325,7 @@ class ParametricLinearSigmoid(ParametricActivation):
         self.fixed_b = float(mid_val)
 
 
-class ParametricLinearTanh(ParametricActivation):
+class ParametricLinearTanh(_PersistentFixedBActivation):
     """
     A parametric activation function that interpolates between linear and tanh functions.
     The function is: h(x)*g(x) + f(x)*(1-g(x)) where:
@@ -172,10 +355,7 @@ class ParametricLinearTanh(ParametricActivation):
         nn.init.constant_(self.log_m, math.log(init_m))
 
         # Fixed parameters for sigmoid
-        if init_b is None:
-            self.fixed_b = -2.0
-        else:
-            self.fixed_b = init_b
+        self._init_fixed_b(-2.0 if init_b is None else init_b)
 
     def forward(self, x):
         m = self.log_m.exp()  # slope
@@ -334,10 +514,47 @@ class ParametricLinearTanhTransition(ParametricActivation):
         self.transition_slope.data.fill_(safe_slope)
 
 
+class ResidualSiLU(ParametricActivation):
+    """Identity plus a learnable SiLU departure: ``f(v) = v + a * (silu(v) - v)``.
+
+    ``a`` is a per-unit parameter initialized at ``init_mix`` (default 0), so a
+    compartment built with it starts exactly linear -- so a branched cell can
+    reproduce a linear layer at initialization -- and can learn dendritic
+    nonlinearity during fitting; ``a = 1`` recovers SiLU.  The parameter has a
+    nonzero gradient at ``a = 0`` whenever ``silu(v) != v``.
+    """
+
+    # Default dendritic initialization skips slope/midpoint writes for this
+    # activation; explicit (m, b) calibration raises instead of being ignored.
+    supports_slope_midpoint_init = False
+
+    def __init__(self, output_dim, init_mix=0.0):
+        super().__init__()
+        self.output_dim = int(output_dim)
+        self.mix = nn.Parameter(
+            torch.full((self.output_dim,), float(init_mix)), requires_grad=True
+        )
+
+    def forward(self, V):
+        return V + self.mix * (torch.nn.functional.silu(V) - V)
+
+    def initialize(self, *args, mix=None, **kwargs):
+        if mix is None:
+            raise ValueError(
+                "residual_silu has no slope/midpoint calibration; "
+                "initialize it with mix=<value> only"
+            )
+        self.mix.data.fill_(float(mix))
+
+    def extra_repr(self):
+        return f"output_dim={self.output_dim}"
+
+
 __all__ = [
     "ParametricLinearSigmoid",
     "ParametricLinearTanh",
     "ParametricLinearTanhTransition",
     "ParametricTanh",
     "ParametricTanhOnlyM",
+    "ResidualSiLU",
 ]

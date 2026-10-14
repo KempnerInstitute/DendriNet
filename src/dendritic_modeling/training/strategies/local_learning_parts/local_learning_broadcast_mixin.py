@@ -7,10 +7,12 @@ from typing import Any
 import torch
 
 from dendritic_modeling.models import BaseModel
+from dendritic_modeling.networks.structure import dendritic_tree_of, readout_tree
 from dendritic_modeling.training.strategies.local_learning_parts.local_learning_broadcast import (
     apply_broadcast_bandwidth,
     compute_layer_total_conductance,
     compute_local_mismatch_broadcast,
+    expand_soma_error_to_compartments,
     reduce_error_to_scalar,
 )
 from dendritic_modeling.training.strategies.local_learning_parts.local_learning_broadcast_low_rank_mixin import (
@@ -25,6 +27,46 @@ from dendritic_modeling.training.strategies.local_learning_parts.local_learning_
 from dendritic_modeling.training.strategies.local_learning_parts.local_learning_state import (
     _BroadcastState,
 )
+
+# Modes that route the readout's per-soma error into its own tree.
+_READOUT_TREE_MODES = frozenset(
+    {
+        "per_soma",
+        "per_soma_shared",
+        "per_soma_tree",
+        "per_soma_shuffled",
+        "path_transport",
+        "pathway_vector",
+    }
+)
+
+
+def _records_by_tree(
+    model: Any, layer_records: list[dict[str, Any]]
+) -> tuple[dict[Any, list[int]], int | None]:
+    """Group record indices by owning dendritic tree, distal level first.
+
+    Returns the groups and the key of the tree whose somas feed the output:
+    the readout tree of an EINet, population network or DendriNet core, or the
+    only tree of a model that has one. A branch layer outside any tree forms
+    its own group.
+    """
+    tree_of = dendritic_tree_of(model)
+    groups: dict[Any, list[int]] = {}
+    for index, rec in enumerate(layer_records):
+        key = tree_of.get(id(rec.get("layer")), ("layer", index))
+        groups.setdefault(key, []).append(index)
+    readout = readout_tree(model)
+    if readout is not None:
+        return groups, id(readout)
+    return groups, next(iter(groups)) if len(groups) == 1 else None
+
+
+def _scatter(values: list[Any], indices: list[int], size: int) -> list[Any]:
+    out: list[Any] = [None] * size
+    for value, index in zip(values, indices):
+        out[index] = value
+    return out
 
 
 class LocalLearningBroadcastMixin(
@@ -75,6 +117,38 @@ class LocalLearningBroadcastMixin(
         """Apply bandwidth reduction to the broadcast error signal."""
         return apply_broadcast_bandwidth(self.local_cfg, e_n, bandwidth)
 
+    def _shuffle_soma_error(self, delta: torch.Tensor) -> torch.Tensor:
+        """Reassign soma errors through one fixed, seed-controlled derangement.
+
+        This preserves the number and marginal distribution of feedback values
+        while sending each neuron's value to the wrong anatomical subtree.
+        """
+        if delta.dim() == 1:
+            delta = delta.unsqueeze(-1)
+        elif delta.dim() != 2:
+            delta = delta.reshape(delta.size(0), -1)
+
+        n_soma = int(delta.size(1))
+        if n_soma <= 1:
+            return delta
+
+        seed = self._broadcast_seed()
+        cache = getattr(self, "_broadcast_cache", None)
+        if cache is None:
+            cache = {}
+            self._broadcast_cache = cache
+        cache_key = ("per_soma_shuffled", seed, n_soma)
+        permutation = cache.get(cache_key)
+        if permutation is None:
+            generator = torch.Generator()
+            generator.manual_seed(seed)
+            order = torch.randperm(n_soma, generator=generator)
+            permutation = torch.empty_like(order)
+            permutation[order] = order.roll(-1)
+            cache[cache_key] = permutation
+
+        return delta.index_select(1, permutation.to(device=delta.device))
+
     @staticmethod
     def _compute_layer_total_conductance(
         rec: dict[str, Any], v_n: torch.Tensor
@@ -90,8 +164,24 @@ class LocalLearningBroadcastMixin(
         delta: torch.Tensor,
         delta_scalar: torch.Tensor,
     ) -> _BroadcastState:
-        """Prepare per-batch broadcast state shared across local-rule layers."""
+        """Prepare per-batch broadcast state shared across local-rule layers.
+
+        Per-soma and path modes route the readout's error only into the
+        dendritic tree whose somas feed the output; every other tree (hidden
+        layers, inhibitory populations) receives the scalar error. Path
+        quantities pair levels within one tree.
+        """
         bmode = (self.local_cfg.error_broadcast_mode or "scalar").lower()
+        component = self._unwrap_model(model)
+        groups, readout_key = _records_by_tree(component, layer_records)
+        readout_indices = groups.get(readout_key, []) if readout_key is not None else []
+        if bmode in _READOUT_TREE_MODES and not readout_indices:
+            raise ValueError(
+                f"error_broadcast_mode={bmode!r} routes the readout error into "
+                "the dendritic tree whose somas feed the output, but no such "
+                "tree was found in this model; use 'scalar'"
+            )
+        readout_records = [layer_records[index] for index in readout_indices]
 
         if (
             bmode == "pathway_vector"
@@ -105,33 +195,43 @@ class LocalLearningBroadcastMixin(
             self._initialize_branch_morphology(model, layer_records)
 
         if self.local_cfg.morphology_aware.use_path_propagation:
-            path_factors = self._precompute_path_propagation_factors(
-                layer_records,
-                include_parent_activation_derivative=True,
-            )
-            for rec, path_factor in zip(layer_records, path_factors):
-                rec["path_factor"] = path_factor
+            for indices in groups.values():
+                path_factors = self._precompute_path_propagation_factors(
+                    [layer_records[index] for index in indices],
+                    include_parent_activation_derivative=True,
+                )
+                for index, path_factor in zip(indices, path_factors):
+                    layer_records[index]["path_factor"] = path_factor
 
         transported_errors: list[torch.Tensor | None] = []
         if bmode == "path_transport":
-            transported_errors = self._precompute_path_transport_errors(
-                layer_records=layer_records,
-                delta=delta,
-                delta_scalar=delta_scalar,
+            transported_errors = _scatter(
+                self._precompute_path_transport_errors(
+                    layer_records=readout_records,
+                    delta=delta,
+                    delta_scalar=delta_scalar,
+                ),
+                readout_indices,
+                len(layer_records),
             )
 
         feedback_seeds: list[torch.Tensor | None] = []
         if bmode == "pathway_vector":
-            feedback_seeds = self._precompute_feedback_seeds(
-                layer_records=layer_records,
-                delta=delta,
-                delta_scalar=delta_scalar,
+            feedback_seeds = _scatter(
+                self._precompute_feedback_seeds(
+                    layer_records=readout_records,
+                    delta=delta,
+                    delta_scalar=delta_scalar,
+                ),
+                readout_indices,
+                len(layer_records),
             )
 
         return _BroadcastState(
             mode=bmode,
             transported_errors=transported_errors,
             feedback_seeds=feedback_seeds,
+            readout_records=frozenset(readout_indices),
         )
 
     def _compute_local_broadcast_error(
@@ -147,8 +247,33 @@ class LocalLearningBroadcastMixin(
     ) -> torch.Tensor:
         """Compute the compartment-level local broadcast error for one layer."""
         bmode = broadcast_state.mode
-        if bmode == "per_soma" and delta.dim() == 2 and delta.size(1) == out_features:
-            e_n = delta
+        if bmode in _READOUT_TREE_MODES and (
+            layer_idx not in broadcast_state.readout_records
+        ):
+            # Trees that do not feed the output have no per-soma error.
+            bmode = "scalar"
+        if bmode == "scalar":
+            e_n = delta_scalar.expand(-1, out_features)
+        elif bmode == "per_soma":
+            # Legacy per-soma routing reaches only layers as wide as the soma
+            # error; other layers receive the scalar broadcast.
+            if delta.dim() == 2 and delta.size(1) == out_features:
+                e_n = delta
+            else:
+                e_n = delta_scalar.expand(-1, out_features)
+        elif bmode in {"per_soma_shared", "per_soma_tree"}:
+            expanded = expand_soma_error_to_compartments(delta, out_features)
+            if isinstance(expanded, torch.Tensor):
+                e_n = expanded.to(device=v_n.device, dtype=v_n.dtype)
+            else:
+                e_n = delta_scalar.expand(-1, out_features)
+        elif bmode == "per_soma_shuffled":
+            shuffled = self._shuffle_soma_error(delta)
+            expanded = expand_soma_error_to_compartments(shuffled, out_features)
+            if isinstance(expanded, torch.Tensor):
+                e_n = expanded.to(device=v_n.device, dtype=v_n.dtype)
+            else:
+                e_n = delta_scalar.expand(-1, out_features)
         elif bmode == "low_rank":
             e_n = self._compute_low_rank_broadcast(
                 delta=delta,
@@ -191,7 +316,7 @@ class LocalLearningBroadcastMixin(
                 parent=parent,
             )
         else:
-            e_n = delta_scalar.expand(-1, out_features)
+            raise ValueError(f"Unknown error_broadcast_mode {bmode!r}")
 
         noise_sigma = getattr(self.local_cfg, "error_noise_sigma", 0.0)
         if noise_sigma > 0.0:

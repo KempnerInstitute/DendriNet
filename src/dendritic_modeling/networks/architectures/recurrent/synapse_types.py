@@ -3,11 +3,17 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from dendritic_modeling.config.base import BaseConfig
-from dendritic_modeling.config.conversion import to_plain_dict as _to_plain_mapping
+from dendritic_modeling.config.conversion import (
+    has_enabled_synapse_types,
+    to_plain_dict as _to_plain_mapping,
+)
+
+#: Presynaptic-activity proxies of short-term plasticity.
+STP_ACTIVITY_PROXIES = ("saturating", "clamped")
 
 
 @dataclass
@@ -43,6 +49,11 @@ class SynapseTypeConfig(BaseConfig):
     stp_facilitation: float = 0.0
     stp_depression: float = 1.0
     stp_differentiable_state: bool = False
+    # Presynaptic-activity proxy of the STP update, zero at zero drive:
+    # "saturating" r / (stp_activity_scale + r), "clamped" min(r, 1), with r
+    # the rectified synaptic drive of the type.
+    stp_activity: str = "saturating"
+    stp_activity_scale: float = 1.0
     enabled: bool = True
 
     def __post_init__(self) -> None:
@@ -139,6 +150,17 @@ class SynapseTypeConfig(BaseConfig):
             raise ValueError(f"stp_tau_u must be > 0, got {self.stp_tau_u}")
         if self.stp_tau_x <= 0.0:
             raise ValueError(f"stp_tau_x must be > 0, got {self.stp_tau_x}")
+        self.stp_activity = str(self.stp_activity).lower()
+        if self.stp_activity not in STP_ACTIVITY_PROXIES:
+            raise ValueError(
+                f"stp activity must be one of {STP_ACTIVITY_PROXIES}, got "
+                f"{self.stp_activity!r}"
+            )
+        self.stp_activity_scale = float(self.stp_activity_scale)
+        if self.stp_activity_scale <= 0.0:
+            raise ValueError(
+                f"stp activity_scale must be > 0, got {self.stp_activity_scale}"
+            )
 
 
 @dataclass
@@ -164,30 +186,10 @@ class SynapseTypeGroup:
         if total <= 0.0:
             raise ValueError(f"{self.polarity} synapse fractions must sum to > 0")
         self.types = [
-            SynapseTypeConfig(
-                name=syn.name,
+            replace(
+                syn,
                 polarity=self.polarity,
                 fraction=syn.fraction / total,
-                tau=syn.tau,
-                tau_rise=syn.tau_rise,
-                tau_decay=syn.tau_decay,
-                reversal_potential=syn.reversal_potential,
-                nonlinearity=syn.nonlinearity,
-                conductance_power=syn.conductance_power,
-                magnesium_block=syn.magnesium_block,
-                voltage_gate=syn.voltage_gate,
-                mg_concentration=syn.mg_concentration,
-                mg_scale=syn.mg_scale,
-                mg_slope=syn.mg_slope,
-                mg_v_offset=syn.mg_v_offset,
-                voltage_scale_mv=syn.voltage_scale_mv,
-                stp_enabled=syn.stp_enabled,
-                stp_u0=syn.stp_u0,
-                stp_tau_u=syn.stp_tau_u,
-                stp_tau_x=syn.stp_tau_x,
-                stp_facilitation=syn.stp_facilitation,
-                stp_depression=syn.stp_depression,
-                stp_differentiable_state=syn.stp_differentiable_state,
                 enabled=True,
             )
             for syn in enabled
@@ -272,10 +274,7 @@ def _resolve_type_list(
         raw_types = root.get("types", None)
         if raw_types is not None:
             raw_items = [
-                item
-                for item in raw_types
-                if str(_to_plain_mapping(item).get("polarity", polarity)).lower()
-                == polarity
+                item for item in raw_types if _listed_polarity(item) == polarity
             ]
 
     if raw_items is None:
@@ -305,10 +304,19 @@ def _has_configured_type_list(root: dict[str, Any], *, polarity: str) -> bool:
     raw_types = root.get("types", None)
     if raw_types is None:
         return False
-    return any(
-        str(_to_plain_mapping(item).get("polarity", polarity)).lower() == polarity
-        for item in raw_types
-    )
+    return any(_listed_polarity(item) == polarity for item in raw_types)
+
+
+def _listed_polarity(item: Any) -> str:
+    """Return the polarity of an entry of the ``types`` list, which must state it."""
+    payload = _to_plain_mapping(item)
+    polarity = str(payload.get("polarity", "")).lower()
+    if polarity not in ("excitatory", "inhibitory"):
+        raise ValueError(
+            "each synapse_types.types entry needs polarity: excitatory or "
+            f"inhibitory; {payload.get('name', item)!r} has {payload.get('polarity')!r}"
+        )
+    return polarity
 
 
 def build_synapse_type_set(config: Any) -> SynapseTypeSet:
@@ -319,7 +327,7 @@ def build_synapse_type_set(config: Any) -> SynapseTypeSet:
     payload cannot silently fall back to legacy traces.
     """
     root = _to_plain_mapping(config)
-    if not bool(root.get("enabled", False)):
+    if not has_enabled_synapse_types(root):
         return SynapseTypeSet(enabled=False)
     missing = [
         polarity

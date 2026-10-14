@@ -57,6 +57,23 @@ class TestConfigExtractor(unittest.TestCase):
         self.assertEqual(params["router_mode"], "learned")
         self.assertEqual(params["pathway_dim"], 10)
 
+    def test_extracts_explicit_sparse_point_budget(self):
+        """Sparse point budget sweeps retain their declared scalar coordinate."""
+        config = OmegaConf.create(
+            {
+                "model": {
+                    "core": {
+                        "type": "sparse_active_matched_point",
+                        "target_active_parameters": 1_376_320,
+                    }
+                }
+            }
+        )
+
+        params = self.extractor._extract_model_params(config)
+
+        self.assertEqual(params["target_active_parameters"], 1_376_320)
+
     def test_extract_training_params(self):
         """Test extraction of training parameters."""
         config = OmegaConf.create(
@@ -85,6 +102,7 @@ class TestConfigExtractor(unittest.TestCase):
             {
                 "training": {
                     "main": {
+                        "strategy": "local_ca",
                         "learning_strategy_config": {
                             "rule_variant": "5f",
                             "error_broadcast_mode": "pathway_vector",
@@ -111,7 +129,7 @@ class TestConfigExtractor(unittest.TestCase):
                                 "mode": "r_tot",
                                 "weight": 0.05,
                             },
-                        }
+                        },
                     }
                 }
             }
@@ -162,16 +180,62 @@ class TestConfigExtractor(unittest.TestCase):
         self.assertNotIn("rule_variant", params)
         self.assertNotIn("rho_mode", params)
 
+    def test_local_rule_params_are_not_recorded_for_backprop_runs(self):
+        """A rule block beside strategy: standard did not shape the run."""
+        config = OmegaConf.create(
+            {
+                "training": {
+                    "main": {
+                        "strategy": "standard",
+                        "learning_strategy_config": {"rule_variant": "3f"},
+                    }
+                }
+            }
+        )
+
+        params = self.extractor._extract_training_params(config)
+
+        self.assertEqual(params["strategy"], "standard")
+        self.assertNotIn("rule_variant", params)
+
     def test_extract_experiment_params(self):
         """Test extraction of experiment parameters."""
         config = OmegaConf.create(
-            {"experiment": {"seed": 42}, "data": {"dataset_name": "cifar10"}}
+            {
+                "_sweep_variant": "spatial_aligned",
+                "experiment": {"seed": 42},
+                "data": {"dataset_name": "cifar10"},
+            }
         )
 
         params = self.extractor._extract_experiment_params(config)
 
         self.assertEqual(params["seed"], 42)
         self.assertEqual(params["dataset"], "cifar10")
+        self.assertEqual(params["sweep_variant"], "spatial_aligned")
+
+    def test_extracts_uniform_population_widths(self):
+        """Uniform legacy E/I layer sizes expose scalar sweep coordinates."""
+        config = OmegaConf.create(
+            {
+                "model": {
+                    "core": {
+                        "type": "einet",
+                        "architecture": {
+                            "excitatory_layer_sizes": [256, 256],
+                            "inhibitory_layer_sizes": [64, 64],
+                        },
+                    }
+                }
+            }
+        )
+
+        params = self.extractor._extract_model_params(config)
+
+        self.assertEqual(params["excitatory_layers"], [256, 256])
+        self.assertEqual(params["excitatory_width"], 256)
+        self.assertEqual(params["inhibitory_layers"], [64, 64])
+        self.assertEqual(params["inhibitory_width"], 64)
 
     def test_extract_model_params_normalizes_deprecated_network_type(self):
         """Deprecated network type aliases should extract as canonical names."""
@@ -246,7 +310,9 @@ class TestConfigExtractor(unittest.TestCase):
                                         "ff_inhibitory_synapses": 5,
                                         "use_shunting": False,
                                         "use_additive_normalization": True,
+                                        "additive_mode": "conductance_normalized",
                                         "blocklinear_strategy": "conductance_dynamic",
+                                        "topk_type": "indexed",
                                         "topk_strategy": "none",
                                         "reactivation_strategy": "none",
                                         "reactivation_init_policy": "occupancy_quantile",
@@ -283,6 +349,8 @@ class TestConfigExtractor(unittest.TestCase):
         self.assertEqual(params["ie_value"], 5)
         self.assertEqual(params["use_shunting"], False)
         self.assertEqual(params["use_additive_normalization"], True)
+        self.assertEqual(params["additive_mode"], "conductance_normalized")
+        self.assertEqual(params["integration_rule"], "normalized_additive")
         self.assertEqual(params["branch_factors"], "3-3-3")
         self.assertEqual(params["readout_n_neurons"], 20)
         self.assertEqual(params["excitatory_layers"], [20])
@@ -294,12 +362,131 @@ class TestConfigExtractor(unittest.TestCase):
         self.assertEqual(params["independent_pathways"], False)
         self.assertEqual(params["network_layer_count"], 1)
         self.assertEqual(params["blocklinear_strategy"], "conductance_dynamic")
+        self.assertEqual(params["topk_type"], "indexed")
         self.assertEqual(params["topk_strategy"], "none")
         self.assertEqual(params["reactivation_strategy"], "none")
         self.assertEqual(params["reactivation_init_policy"], "occupancy_quantile")
         self.assertEqual(params["reactivate"], True)
         self.assertEqual(params["dbl_init_method"], "analytical_expectation")
         self.assertEqual(params["init_method"], "xavier_normal")
+        self.assertEqual(params["structured_connectivity_enabled"], False)
+        self.assertEqual(params["structured_connectivity_method"], "none")
+        self.assertEqual(params["synaptic_routing"], "global_fixed_index")
+
+    def test_extract_legacy_additive_mode(self):
+        """Legacy morphology configs should expose the additive rule explicitly."""
+        config = OmegaConf.create(
+            {
+                "model": {
+                    "core": {
+                        "type": "einet",
+                        "morphology": {
+                            "use_shunting": False,
+                            "use_additive_normalization": False,
+                            "additive_mode": "tangent_matched",
+                        },
+                    }
+                }
+            }
+        )
+
+        params = self.extractor._extract_model_params(config)
+
+        self.assertEqual(params["use_shunting"], False)
+        self.assertEqual(params["use_additive_normalization"], False)
+        self.assertEqual(params["additive_mode"], "tangent_matched")
+        self.assertEqual(params["integration_rule"], "tangent_matched")
+
+    def test_extract_population_network_spatial_routing(self):
+        """Spatial routing must be an explicit standard sweep axis."""
+        config = OmegaConf.create(
+            {
+                "model": {
+                    "core": {
+                        "type": "population_network",
+                        "population_network": {
+                            "layers": [
+                                {
+                                    "readout_population": "e0",
+                                    "population_defaults": {
+                                        "topk_type": "indexed",
+                                        "structured_connectivity": {
+                                            "enabled": True,
+                                            "method": "spatial_morphology",
+                                            "seed": 42,
+                                            "spatial": {"input_shape": [3, 32, 32]},
+                                        },
+                                    },
+                                    "populations": [
+                                        {
+                                            "name": "e0",
+                                            "polarity": "excitatory",
+                                            "n_neurons": 64,
+                                            "branch_factors": [2, 2, 2, 2],
+                                        }
+                                    ],
+                                }
+                            ]
+                        },
+                    }
+                }
+            }
+        )
+
+        params = self.extractor._extract_model_params(config)
+
+        self.assertEqual(params["structured_connectivity_enabled"], True)
+        self.assertEqual(params["structured_connectivity_method"], "spatial_morphology")
+        self.assertEqual(params["spatial_region_mode"], "partition")
+        self.assertEqual(params["synaptic_routing"], "spatial_morphology")
+
+    def test_extract_population_network_overlapping_spatial_routing(self):
+        """Overlapping spatial windows must remain a distinct sweep axis."""
+        config = OmegaConf.create(
+            {
+                "model": {
+                    "core": {
+                        "type": "population_network",
+                        "population_network": {
+                            "layers": [
+                                {
+                                    "readout_population": "e0",
+                                    "population_defaults": {
+                                        "topk_type": "indexed",
+                                        "structured_connectivity": {
+                                            "enabled": True,
+                                            "method": "spatial_morphology",
+                                            "seed": 42,
+                                            "spatial": {
+                                                "input_shape": [3, 32, 32],
+                                                "region_mode": "overlapping_grid",
+                                                "minimum_window_shape": [4, 4],
+                                            },
+                                        },
+                                    },
+                                    "populations": [
+                                        {
+                                            "name": "e0",
+                                            "polarity": "excitatory",
+                                            "n_neurons": 64,
+                                            "branch_factors": [120],
+                                        }
+                                    ],
+                                }
+                            ]
+                        },
+                    }
+                }
+            }
+        )
+
+        params = self.extractor._extract_model_params(config)
+
+        self.assertEqual(params["spatial_region_mode"], "overlapping_grid")
+        self.assertEqual(
+            params["synaptic_routing"],
+            "spatial_morphology_overlapping_grid",
+        )
 
     def test_extract_population_network_distinguishes_inhibitory_routes(self):
         def _config(source, populations):
@@ -417,7 +604,7 @@ class TestConfigExtractor(unittest.TestCase):
                             "early_stopping": True,
                             "patience": 80,
                             "grad_clip_value": 5.0,
-                            "weight_decay_rate": 0.01,
+                            "synapse_decay_rate": 0.01,
                             "weight_boosting": True,
                             "param_groups": {"lr": 0.001},
                         },

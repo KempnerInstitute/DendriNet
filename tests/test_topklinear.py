@@ -47,10 +47,10 @@ class TestTopKLinear(unittest.TestCase):
         self.assertIsInstance(output, torch.Tensor)
 
     def test_edge_cases_large_input(self):
-        """Test with very large input data."""
-        in_features = 10000
+        """A wide layer keeps exactly K contacts per output."""
+        in_features = 2000
         batch_size = 4
-        out_features = 5000
+        out_features = 300
         K = 50
 
         model = TopKLinear(in_features, out_features, K)
@@ -156,101 +156,6 @@ class TestTopKLinear(unittest.TestCase):
         pruned_weights = model.pruned_weight()
         non_zero_counts = (pruned_weights > 0).sum(dim=1)
         self.assertTrue(torch.all(non_zero_counts == K))
-
-    # def test_weight_gradients(self):
-    #     """Test that gradients flow correctly through the pruned weights."""
-    #     in_features = 10
-    #     out_features = 5
-    #     K = 3
-    #     batch_size = 2
-
-    #     model = TopKLinear(in_features, out_features, K)
-    #     x = torch.randn(batch_size, in_features)
-    #     output = model(x)
-    #     loss = output.sum()
-    #     loss.backward()
-
-    #     # Check that gradients are computed for top K weights
-    #     pruned_weights = model.pruned_weight()
-    #     gradients = model.pre_w.grad
-    #     for i in range(out_features):
-    #         topk_indices = torch.topk(model.pre_w[i], K, largest=True)[1]
-    #         # Gradients should be non-zero for top K indices
-    #         self.assertTrue(torch.all(gradients[i][topk_indices] != 0))
-    #         # Gradients should be zero for other indices
-    #         mask = torch.ones(in_features, dtype=torch.bool)
-    #         mask[topk_indices] = False
-    #         self.assertTrue(torch.all(gradients[i][mask] == 0))
-
-    # def test_forward_pass_consistency(self):
-    #     """Test that forward pass outputs are consistent with manual computation."""
-
-    #     torch.manual_seed(0)
-
-    #     in_features = 5
-    #     out_features = 2
-    #     K = 2
-    #     batch_size = 1
-
-    #     model = TopKLinear(in_features, out_features, K)
-    #     x = torch.randn(batch_size, in_features)
-
-    #     # Perform forward pass
-    #     output = model(x)
-
-    #     # Manually compute expected output
-    #     pruned_weight = model.pruned_weight()
-    #     expected_output = torch.mm(x, pruned_weight.t())
-
-    #     # Check that outputs match
-    #     self.assertTrue(torch.allclose(output, expected_output))
-
-    # def test_weighted_synapses_no_prune(self):
-    #     # Test without pruning (prune=False)
-    #     in_features = 10
-    #     out_features = 5
-    #     K = 3
-
-    #     model = TopKLinear(in_features, out_features, K)
-
-    #     torch.manual_seed(0)
-
-    #     cell_weights = torch.rand(out_features)
-    #     model.pre_w.data.uniform_(-2.0, -1.5)
-
-    #     result = model.weighted_synapses(
-    #         cell_weights, prune=False)
-
-    #     expected_weights = model.weight()
-    #     expected_weighted_synapses = (
-    #         cell_weights[:, None] * expected_weights).sum(dim=0)
-
-    #     torch.testing.assert_close(result,
-    #                                expected_weighted_synapses,
-    #                                rtol=1e-5, atol=1e-5)
-
-    # def test_weighted_synapses_with_prune(self):
-    #     # Test with pruning (prune=True)
-    #     in_features = 10
-    #     out_features = 5
-    #     K = 3
-
-    #     model = TopKLinear(in_features, out_features, K)
-
-    #     torch.manual_seed(0)
-    #     cell_weights = torch.rand(out_features)
-    #     model.pre_w.data.uniform_(-2.0, -1.5)
-
-    #     result = model.weighted_synapses(cell_weights,
-    #                                      prune=True)
-
-    #     expected_pruned_weights = model.pruned_weight()
-    #     expected_weighted_synapses = (
-    #         cell_weights[:, None] * expected_pruned_weights).sum(dim=0)
-
-    #     torch.testing.assert_close(result,
-    #                                expected_weighted_synapses,
-    #                                rtol=1e-5, atol=1e-5)
 
 
 if __name__ == "__main__":

@@ -13,19 +13,35 @@ from dataclasses import dataclass
 from typing import Any
 
 from dendritic_modeling.config.conversion import to_plain_dict
+from dendritic_modeling.config.core_sections import (
+    SPATIAL_DENDRITIC_CONV_TYPES,
+    SPATIAL_DENDRITIC_TYPES,
+    SPATIAL_PATCH_POINT_TYPES,
+)
+from dendritic_modeling.config.recurrence import _STRUCTURED_EI_TYPES
 
-_LEGACY_EI_TYPES = {
-    "einet",
-    "ei_net",
-    "unified_einet",
-    "dendritic_shunting",
-    "dendritic_additive",
-    "dendritic_normalized_additive",
-    "flat_shunting",
-    "flat_additive",
-    "flat_normalized_additive",
-    "dendritic_mlp",
+# Controls whose matched E/I reference network the structured sections describe.
+_STRUCTURED_REFERENCE_CONTROLS = {
+    "point_mlp",
+    "direct_active_matched_point",
+    "sparse_active_matched_point",
+    "total_param_mlp",
+    "active_param_mlp",
+    "ss_mlp",
+    "ss_mlp_flat",
 }
+# Core types built from the structured ``architecture`` and ``connectivity``
+# sections: the structured E/I types, the spatial cores that run one on a
+# flattened map or on every patch, and the matched controls. ``ei_net`` and
+# ``unified_einet`` are retired aliases checked here since before.
+_LEGACY_EI_TYPES = (
+    set(_STRUCTURED_EI_TYPES)
+    | {"ei_net", "unified_einet"}
+    | SPATIAL_DENDRITIC_TYPES
+    | SPATIAL_DENDRITIC_CONV_TYPES
+    | SPATIAL_PATCH_POINT_TYPES
+    | _STRUCTURED_REFERENCE_CONTROLS
+)
 _POPULATION_NETWORK_TYPES = {"population_network"}
 _REMOVED_STRUCTURED_TYPES = {
     "population_graph": "Use core.type: population_network with population_network.layers[].populations.",
@@ -108,6 +124,7 @@ def _validate_positive_ints(
     name: str,
     errors: list[str],
     allow_empty: bool = False,
+    allow_zero: bool = False,
 ) -> None:
     if not values:
         if not allow_empty:
@@ -119,8 +136,9 @@ def _validate_positive_ints(
         except (TypeError, ValueError):
             errors.append(f"{name}[{idx}] must be an integer, got {value!r}")
             continue
-        if intval <= 0:
-            errors.append(f"{name}[{idx}] must be > 0, got {intval}")
+        if intval < 0 or (intval == 0 and not allow_zero):
+            bound = ">= 0" if allow_zero else "> 0"
+            errors.append(f"{name}[{idx}] must be {bound}, got {intval}")
 
 
 def _validate_nonnegative_ints(
@@ -178,11 +196,13 @@ def _validate_legacy_ei_core(core: Any, errors: list[str]) -> None:
         name="architecture.excitatory_layer_sizes",
         errors=errors,
     )
+    # 0 is a layer without inhibitory cells.
     _validate_positive_ints(
         inhibitory_sizes,
         name="architecture.inhibitory_layer_sizes",
         errors=errors,
         allow_empty=True,
+        allow_zero=True,
     )
     _validate_positive_ints(
         input_projection_dims,
@@ -236,22 +256,6 @@ def _validate_legacy_ei_core(core: Any, errors: list[str]) -> None:
             allow_empty=True,
         )
 
-    try:
-        input_mode = int(_get(transfer, "input_mode", 1))
-    except (TypeError, ValueError):
-        errors.append(
-            f"transfer.input_mode must be 0 or 1, got "
-            f"{_get(transfer, 'input_mode')!r}"
-        )
-    else:
-        if input_mode not in {0, 1}:
-            errors.append(f"transfer.input_mode must be 0 or 1, got {input_mode}")
-    inhibitory_mode = str(_get(transfer, "inhibitory_mode", "first")).lower()
-    if inhibitory_mode not in {"none", "first", "all"}:
-        errors.append(
-            "transfer.inhibitory_mode must be one of 'none', 'first', or 'all', "
-            f"got {inhibitory_mode!r}"
-        )
     for field_name in ("excitatory_dim", "inhibitory_dim"):
         value = _get(transfer, field_name, None)
         if value is None:
@@ -626,11 +630,27 @@ def _validate_population_network_connections(
 def validate_loaded_config(config: Any) -> None:
     """Raise ``ConfigValidationError`` if a loaded config is structurally invalid."""
 
-    core = _get(_get(config, "model", {}), "core", {})
+    model = _get(config, "model", {})
+    core = _get(model, "core", {})
     core_type = _core_type(core)
     errors: list[str] = []
 
-    if core_type in _LEGACY_EI_TYPES:
+    # An enabled extension section with its own selection step builds the
+    # executable core later, so model.core is then a placeholder and is not
+    # validated here.
+    selector_compiles_core = any(
+        bool(_get(_get(section, "selection", {}), "enabled", False))
+        for section in (
+            _get(model, "transformer_replacement", {}),
+            _get(model, "vision_replacement", {}),
+            _get(model, "pretrained_replacement", {}),
+        )
+        if bool(_get(section, "enabled", False))
+    )
+
+    if selector_compiles_core:
+        pass
+    elif core_type in _LEGACY_EI_TYPES:
         _validate_legacy_ei_core(core, errors)
     elif core_type in _POPULATION_NETWORK_TYPES:
         _validate_population_network_core(core, errors)

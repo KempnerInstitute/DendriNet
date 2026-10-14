@@ -43,22 +43,21 @@ def compute_mi_cc(x: np.ndarray, y: np.ndarray, n_neighbors: int) -> float:
     k = int(n_neighbors)
     if n_samples <= 1 or k < 1:
         return 0.0
-    # Cap k so that k+1 (including self) < n_samples, as required by sklearn.
-    k = min(k, n_samples - 2)
+    # With ``X=None``, sklearn queries the fitted samples while excluding each
+    # sample from its own neighbour list. Therefore the requested neighbour
+    # count is exactly k (not k+1), and k may be at most n_samples - 1.
+    k = min(k, n_samples - 1)
     if k < 1:
         return 0.0
 
     xy = np.hstack((x, y))
 
     # Here we rely on NearestNeighbors to select the fastest algorithm.
-    # NOTE: when querying the training set itself, sklearn includes each point as its
-    # own nearest neighbor at distance 0. Use k+1 neighbors and take the k-th
-    # entry to get the k-th neighbor *excluding* self (KSG convention).
-    nn = NearestNeighbors(metric="chebyshev", n_neighbors=k + 1)
+    nn = NearestNeighbors(metric="chebyshev", n_neighbors=k)
 
     nn.fit(xy)
     distances = nn.kneighbors(return_distance=True)[0]
-    radius = np.nextafter(distances[:, k], 0)
+    radius = np.nextafter(distances[:, -1], 0)
 
     # KDTree is explicitly fit to allow for the querying of number of
     # neighbors within a specified radius
@@ -105,19 +104,17 @@ def compute_cmi_ccc(
     k = int(n_neighbors)
     if k < 1:
         return 0.0
-    # Querying the training set itself includes each point as neighbor 0.
-    # Therefore we need k+1 < n_samples -> k <= n_samples-2.
-    k = min(k, n_samples - 2)
+    # ``kneighbors(X=None)`` excludes each fitted sample from its own query.
+    k = min(k, n_samples - 1)
     if k < 1:
         return 0.0
 
     xyz = np.hstack((x, y, z))
-    # See note in compute_mi_cc: include self as neighbor 0.
-    nn = NearestNeighbors(metric="chebyshev", n_neighbors=k + 1)
+    nn = NearestNeighbors(metric="chebyshev", n_neighbors=k)
     nn.fit(xyz)
     distances = nn.kneighbors(return_distance=True)[0]
     # Radius to the k-th neighbor in joint space, made strictly smaller.
-    eps = np.nextafter(distances[:, k], 0)
+    eps = np.nextafter(distances[:, -1], 0)
 
     xz = np.hstack((x, z))
     yz = np.hstack((y, z))
@@ -198,18 +195,18 @@ def compute_mi_cd(c: np.ndarray, d: np.ndarray, n_neighbors: int) -> float:
     for label in np.unique(d):
         mask = d == label
         count = np.sum(mask)
-        if count > 2:
-            k = min(k_global, count - 2)
-            # Include self as neighbor 0 when querying training points.
-            nn.set_params(n_neighbors=k + 1)
+        if count > 1:
+            k = min(k_global, count - 1)
+            # ``kneighbors(X=None)`` excludes each fitted sample itself.
+            nn.set_params(n_neighbors=k)
             nn.fit(c[mask])
             r = nn.kneighbors(return_distance=True)[0]
-            radius[mask] = np.nextafter(r[:, k], 0)
+            radius[mask] = np.nextafter(r[:, -1], 0)
             k_all[mask] = k
         label_counts[mask] = count
 
-    # Ignore points from labels with too few samples for kNN (need >= 3).
-    mask = label_counts > 2
+    # Ignore singleton labels, which have no within-class neighbour.
+    mask = label_counts > 1
     n_samples = int(np.sum(mask))
     if n_samples < 1:
         return 0.0

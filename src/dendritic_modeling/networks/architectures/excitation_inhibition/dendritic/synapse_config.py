@@ -6,6 +6,12 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from typing import Any
 
+from dendritic_modeling.config.keys import field_default
+from dendritic_modeling.config.sparse_backends import (
+    normalize_indexed_projection_backend,
+)
+from dendritic_modeling.config.synapse_payloads import DeepSTConfig, DenseToSparseConfig
+
 
 @dataclass(frozen=True)
 class TopKConfig:
@@ -21,27 +27,20 @@ class TopKConfig:
         True  # ultrafast stochastic-topk default (set False for rank-probabilistic)
     )
     strategy: str = "none"
-
-
-@dataclass(frozen=True)
-class DenseToSparseConfig:
-    """Annealed dense-to-sparse schedule options."""
-
-    initial_density: float = 1.0
-    initial_k: int | None = None
-    start_step: int = 0
-    end_step: int = 1000
-    update_interval: int = 1
-    schedule: str = "cubic"
-    freeze_on_end: bool = False
-    advance_on_forward: bool = True
-    prune_metric: str = "weight"
+    variance_score: str = "absolute"
 
 
 @dataclass(frozen=True)
 class IndexedSynapseConfig:
     """Indexed sparse-synapse and indexed-rewire options."""
 
+    release_p_min: float = 0.5
+    release_p_max: float = 1.0
+    release_weight_scale: float | None = None
+    release_impact_decay: float = 0.99
+    release_impact_metric: str = "drive"
+    release_max_conductance: float | None = None
+    release_track_source_activity: bool = False
     seed: int | None = None
     output_chunk_size: int = 2048
     candidate_size: int | None = None
@@ -49,6 +48,26 @@ class IndexedSynapseConfig:
     rewire_frequency: int = 100
     rewire_quantile: float = 0.05
     rewire_until_step: int | None = None
+    index_dtype: str = "int64"
+    workspace_mb: float | None = None
+    cache_transformed_weights: bool = False
+    recompute_backward: bool = False
+    persistent_indices: bool = True
+    init_mode: str = "per_rank"
+    projection_backend: str = "eager"
+    # Hardware-structured support (see sample_structured_indices): defaults
+    # of 1 preserve unstructured sampling exactly.
+    support_group_rows: int = 1
+    support_col_block: int = 1
+
+    def __post_init__(self) -> None:
+        normalized = normalize_indexed_projection_backend(self.projection_backend)
+        if self.recompute_backward and normalized not in {"eager", "recompute"}:
+            raise ValueError(
+                "indexed_recompute_backward cannot be combined with "
+                f"indexed_projection_backend={normalized!r}"
+            )
+        object.__setattr__(self, "projection_backend", normalized)
 
 
 @dataclass(frozen=True)
@@ -61,6 +80,15 @@ class ReactivationConfig:
     init_m: float = 1
     init_b: float = 0.5
     init_policy: str = "analytical"
+    # Optional override for the propagated soma output stage only: when set,
+    # the FINAL branch layer of an excitatory DendriNet uses this activation
+    # type (with soma_init_m / soma_init_b as its fixed-policy parameters)
+    # while every other branch level keeps ``type``. ``None`` preserves the
+    # historical uniform gate exactly. Inhibitory populations always keep the
+    # base gate; the override targets the emitted excitatory code.
+    soma_type: str | None = None
+    soma_init_m: float = 1.0
+    soma_init_b: float = 0.0
     occupancy_quantile_low: float | None = None
     occupancy_quantile_high: float | None = None
     occupancy_target_low: float | None = None
@@ -70,6 +98,7 @@ class ReactivationConfig:
     calibration_revert_on_invalid: bool = True
     sigma_aware_k: float = 0.25
     strategy: str = "none"
+    memory_efficient: bool = False
 
 
 @dataclass(frozen=True)
@@ -78,9 +107,15 @@ class MorphologyConfig:
 
     use_shunting: bool = True
     use_additive_normalization: bool = False
+    leak_conductance: float = 1.0
+    learnable_leak: bool = False
+    signal_rounding: str = "none"
     additive_mode: str = "raw"
     additive_tangent_n0: float | None = None
     additive_tangent_t0: float | None = None
+    # Options of a plugin additive rule (see branch_dynamics.AdditiveRule);
+    # left out of the hash so the frozen config stays hashable.
+    additive_options: dict[str, Any] = field(default_factory=dict, hash=False)
     epsilon: float = 1e-8
     weight_transform: str = "exp"
     efficient_blocklinear: bool = False
@@ -96,26 +131,11 @@ class AdaptiveInitConfig:
     adaptive_initialization_policy: str = "preserve_shunting_center"
     adaptive_target_conductance: float = 5.0
     initial_child_conductance: float = 1.0
+    initial_conductance_scale: float = 1.0
+    initial_child_conductance_log_sd: float = 0.0
     branch_factors: tuple[int, ...] | None = None
     initialization_seed: int | None = None
     initialization_namespace: str = ""
-
-
-@dataclass(frozen=True)
-class DeepSTConfig:
-    """DeepST sparse-synapse options retained for compatibility."""
-
-    use_noise: bool = True
-    rewiring_mode: str = "global"
-    rewire_frequency: int = 1
-    synapses_per_branch: int | None = None
-    sigma: float = 0.05
-    excitatory_target_density: float = 0.1
-    inhibitory_target_density: float = 0.1
-    freeze_excitatory_connectivity: bool = False
-    freeze_inhibitory_connectivity: bool = False
-    init_method: str | None = None
-    weight_threshold: float = 1e-6
 
 
 def _topk_config_from_kwargs(source: Mapping[str, Any]) -> TopKConfig:
@@ -129,6 +149,7 @@ def _topk_config_from_kwargs(source: Mapping[str, Any]) -> TopKConfig:
         temperature=source.get("topk_temperature", 0.5),
         ultrafast=source.get("topk_ultrafast", True),
         strategy=source.get("topk_strategy", "none"),
+        variance_score=source.get("topk_variance_score", "absolute"),
     )
 
 
@@ -152,6 +173,15 @@ def _dense_to_sparse_config_from_kwargs(
 def _indexed_config_from_kwargs(source: Mapping[str, Any]) -> IndexedSynapseConfig:
     """Build indexed sparse-synapse options from legacy kwargs."""
     return IndexedSynapseConfig(
+        release_p_min=source.get("release_p_min", 0.5),
+        release_p_max=source.get("release_p_max", 1.0),
+        release_weight_scale=source.get("release_weight_scale", None),
+        release_impact_decay=source.get("release_impact_decay", 0.99),
+        release_impact_metric=source.get("release_impact_metric", "drive"),
+        release_max_conductance=source.get("release_max_conductance", None),
+        release_track_source_activity=source.get(
+            "release_track_source_activity", False
+        ),
         seed=source.get("indexed_seed", None),
         output_chunk_size=source.get("indexed_output_chunk_size", 2048),
         candidate_size=source.get("indexed_candidate_size", None),
@@ -159,6 +189,17 @@ def _indexed_config_from_kwargs(source: Mapping[str, Any]) -> IndexedSynapseConf
         rewire_frequency=source.get("indexed_rewire_frequency", 100),
         rewire_quantile=source.get("indexed_rewire_quantile", 0.05),
         rewire_until_step=source.get("indexed_rewire_until_step", None),
+        index_dtype=source.get("indexed_index_dtype", "int64"),
+        workspace_mb=source.get("indexed_workspace_mb", None),
+        cache_transformed_weights=source.get(
+            "indexed_cache_transformed_weights", False
+        ),
+        recompute_backward=source.get("indexed_recompute_backward", False),
+        projection_backend=source.get("indexed_projection_backend", "eager"),
+        persistent_indices=source.get("indexed_persistent_indices", True),
+        init_mode=source.get("indexed_init_mode", "per_rank"),
+        support_group_rows=source.get("indexed_support_group_rows", 1),
+        support_col_block=source.get("indexed_support_col_block", 1),
     )
 
 
@@ -171,6 +212,9 @@ def _reactivation_config_from_kwargs(source: Mapping[str, Any]) -> ReactivationC
         init_m=source.get("reactivation_init_m", 1),
         init_b=source.get("reactivation_init_b", 0.5),
         init_policy=source.get("reactivation_init_policy", "analytical"),
+        soma_type=source.get("reactivation_soma_type", None),
+        soma_init_m=source.get("reactivation_soma_init_m", 1.0),
+        soma_init_b=source.get("reactivation_soma_init_b", 0.0),
         occupancy_quantile_low=source.get("reactivation_occupancy_quantile_low", None),
         occupancy_quantile_high=source.get(
             "reactivation_occupancy_quantile_high", None
@@ -186,6 +230,7 @@ def _reactivation_config_from_kwargs(source: Mapping[str, Any]) -> ReactivationC
         ),
         sigma_aware_k=source.get("reactivation_sigma_aware_k", 0.25),
         strategy=source.get("reactivation_strategy", "none"),
+        memory_efficient=source.get("reactivation_memory_efficient", False),
     )
 
 
@@ -194,9 +239,13 @@ def _morphology_config_from_kwargs(source: Mapping[str, Any]) -> MorphologyConfi
     return MorphologyConfig(
         use_shunting=source.get("use_shunting", True),
         use_additive_normalization=source.get("use_additive_normalization", False),
+        leak_conductance=source.get("leak_conductance", 1.0),
+        learnable_leak=source.get("learnable_leak", False),
+        signal_rounding=source.get("signal_rounding", "none"),
         additive_mode=source.get("additive_mode", "raw"),
         additive_tangent_n0=source.get("additive_tangent_n0", None),
         additive_tangent_t0=source.get("additive_tangent_t0", None),
+        additive_options=dict(source.get("additive_options") or {}),
         epsilon=source.get("epsilon", 1e-8),
         weight_transform=source.get("weight_transform", "exp"),
         efficient_blocklinear=source.get("efficient_blocklinear", False),
@@ -218,6 +267,10 @@ def _initialization_config_from_kwargs(source: Mapping[str, Any]) -> AdaptiveIni
         ),
         adaptive_target_conductance=source.get("adaptive_target_conductance", 5.0),
         initial_child_conductance=source.get("initial_child_conductance", 1.0),
+        initial_conductance_scale=source.get("initial_conductance_scale", 1.0),
+        initial_child_conductance_log_sd=source.get(
+            "initial_child_conductance_log_sd", 0.0
+        ),
         branch_factors=branch_factors,
         initialization_seed=source.get("initialization_seed", None),
         initialization_namespace=str(source.get("initialization_namespace", "") or ""),
@@ -240,8 +293,21 @@ def _deepst_config_from_kwargs(source: Mapping[str, Any]) -> DeepSTConfig:
         freeze_inhibitory_connectivity=source.get(
             "freeze_inhibitory_connectivity", False
         ),
-        init_method=source.get("init_method", None),
+        init_method=source.get(
+            "init_method", field_default(DeepSTConfig, "init_method")
+        ),
         weight_threshold=source.get("weight_threshold", 1e-6),
+        credit_trace_decay=source.get("credit_trace_decay", 0.95),
+        credit_candidate_pool_size=source.get("credit_candidate_pool_size", 8),
+        credit_turnover_fraction=source.get("credit_turnover_fraction", 0.1),
+        credit_weak_active_pool_fraction=source.get(
+            "credit_weak_active_pool_fraction", 0.5
+        ),
+        credit_min_observations=source.get("credit_min_observations", 5),
+        credit_swap_margin=source.get("credit_swap_margin", 0.0),
+        credit_force_turnover=source.get("credit_force_turnover", False),
+        credit_selection=source.get("credit_selection", "credit"),
+        credit_warmup_steps=source.get("credit_warmup_steps", 5),
     )
 
 
@@ -256,6 +322,7 @@ def _topk_kwargs(config: TopKConfig) -> dict[str, Any]:
         "topk_temperature": config.temperature,
         "topk_ultrafast": config.ultrafast,
         "topk_strategy": config.strategy,
+        "topk_variance_score": config.variance_score,
     }
 
 
@@ -277,6 +344,13 @@ def _dense_to_sparse_kwargs(config: DenseToSparseConfig) -> dict[str, Any]:
 def _indexed_kwargs(config: IndexedSynapseConfig) -> dict[str, Any]:
     """Convert indexed sparse-synapse options to legacy kwargs."""
     return {
+        "release_p_min": config.release_p_min,
+        "release_p_max": config.release_p_max,
+        "release_weight_scale": config.release_weight_scale,
+        "release_impact_decay": config.release_impact_decay,
+        "release_impact_metric": config.release_impact_metric,
+        "release_max_conductance": config.release_max_conductance,
+        "release_track_source_activity": config.release_track_source_activity,
         "indexed_seed": config.seed,
         "indexed_output_chunk_size": config.output_chunk_size,
         "indexed_candidate_size": config.candidate_size,
@@ -284,6 +358,15 @@ def _indexed_kwargs(config: IndexedSynapseConfig) -> dict[str, Any]:
         "indexed_rewire_frequency": config.rewire_frequency,
         "indexed_rewire_quantile": config.rewire_quantile,
         "indexed_rewire_until_step": config.rewire_until_step,
+        "indexed_index_dtype": config.index_dtype,
+        "indexed_workspace_mb": config.workspace_mb,
+        "indexed_cache_transformed_weights": config.cache_transformed_weights,
+        "indexed_recompute_backward": config.recompute_backward,
+        "indexed_projection_backend": config.projection_backend,
+        "indexed_persistent_indices": config.persistent_indices,
+        "indexed_init_mode": config.init_mode,
+        "indexed_support_group_rows": config.support_group_rows,
+        "indexed_support_col_block": config.support_col_block,
     }
 
 
@@ -296,6 +379,9 @@ def _reactivation_kwargs(config: ReactivationConfig) -> dict[str, Any]:
         "reactivation_init_m": config.init_m,
         "reactivation_init_b": config.init_b,
         "reactivation_init_policy": config.init_policy,
+        "reactivation_soma_type": config.soma_type,
+        "reactivation_soma_init_m": config.soma_init_m,
+        "reactivation_soma_init_b": config.soma_init_b,
         "reactivation_occupancy_quantile_low": config.occupancy_quantile_low,
         "reactivation_occupancy_quantile_high": config.occupancy_quantile_high,
         "reactivation_occupancy_target_low": config.occupancy_target_low,
@@ -309,6 +395,7 @@ def _reactivation_kwargs(config: ReactivationConfig) -> dict[str, Any]:
         ),
         "reactivation_sigma_aware_k": config.sigma_aware_k,
         "reactivation_strategy": config.strategy,
+        "reactivation_memory_efficient": config.memory_efficient,
     }
 
 
@@ -317,9 +404,13 @@ def _morphology_kwargs(config: MorphologyConfig) -> dict[str, Any]:
     return {
         "use_shunting": config.use_shunting,
         "use_additive_normalization": config.use_additive_normalization,
+        "leak_conductance": config.leak_conductance,
+        "learnable_leak": config.learnable_leak,
+        "signal_rounding": config.signal_rounding,
         "additive_mode": config.additive_mode,
         "additive_tangent_n0": config.additive_tangent_n0,
         "additive_tangent_t0": config.additive_tangent_t0,
+        "additive_options": dict(config.additive_options),
         "epsilon": config.epsilon,
         "weight_transform": config.weight_transform,
         "efficient_blocklinear": config.efficient_blocklinear,
@@ -335,6 +426,8 @@ def _initialization_kwargs(config: AdaptiveInitConfig) -> dict[str, Any]:
         "adaptive_initialization_policy": config.adaptive_initialization_policy,
         "adaptive_target_conductance": config.adaptive_target_conductance,
         "initial_child_conductance": config.initial_child_conductance,
+        "initial_conductance_scale": config.initial_conductance_scale,
+        "initial_child_conductance_log_sd": config.initial_child_conductance_log_sd,
         "branch_factors": (
             None if config.branch_factors is None else list(config.branch_factors)
         ),
@@ -357,6 +450,15 @@ def _deepst_kwargs(config: DeepSTConfig) -> dict[str, Any]:
         "freeze_inhibitory_connectivity": config.freeze_inhibitory_connectivity,
         "init_method": config.init_method,
         "weight_threshold": config.weight_threshold,
+        "credit_trace_decay": config.credit_trace_decay,
+        "credit_candidate_pool_size": config.credit_candidate_pool_size,
+        "credit_turnover_fraction": config.credit_turnover_fraction,
+        "credit_weak_active_pool_fraction": config.credit_weak_active_pool_fraction,
+        "credit_min_observations": config.credit_min_observations,
+        "credit_swap_margin": config.credit_swap_margin,
+        "credit_force_turnover": config.credit_force_turnover,
+        "credit_selection": config.credit_selection,
+        "credit_warmup_steps": config.credit_warmup_steps,
     }
 
 
@@ -445,13 +547,15 @@ class DendriticSynapseConfig:
         need to duplicate the long legacy keyword mapping.
         """
 
-        return cls.from_kwargs(
-            {
-                key: getattr(population_config, key)
-                for key in POPULATION_SYNAPSE_KEYS
-                if hasattr(population_config, key)
-            }
-        )
+        kwargs = {
+            key: getattr(population_config, key)
+            for key in POPULATION_SYNAPSE_KEYS
+            if hasattr(population_config, key)
+        }
+        for field_name, kwarg in _POPULATION_FIELD_KWARGS.items():
+            if hasattr(population_config, field_name):
+                kwargs[kwarg] = getattr(population_config, field_name)
+        return cls.from_kwargs(kwargs)
 
     @classmethod
     def from_sections(
@@ -524,6 +628,12 @@ class DendriticSynapseConfig:
 LEGACY_KEY_ORDER = tuple(DendriticSynapseConfig().to_kwargs())
 LEGACY_KEYS = frozenset(LEGACY_KEY_ORDER)
 POPULATION_SYNAPSE_KEYS = tuple(sorted(LEGACY_KEYS - {"dendritic_activation"}))
+# PopulationConfig fields whose branch-layer keyword has another name.
+_POPULATION_FIELD_KWARGS = {
+    "topk_gradient_scaling": "topk_strategy",
+    "reactivation_gradient_scaling": "reactivation_strategy",
+    "blocklinear_gradient_scaling": "blocklinear_strategy",
+}
 SECTION_CONFIG_TYPES = {
     "topk": TopKConfig,
     "dense_to_sparse": DenseToSparseConfig,

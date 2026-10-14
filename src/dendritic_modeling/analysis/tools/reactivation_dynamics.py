@@ -2,9 +2,12 @@
 Reactivation dynamics analyzer.
 
 Tracks per-epoch trajectories of every parametric reactivation's gate
-parameters ``(log_m, b)`` alongside statistics of the pre-reactivation
-voltage distribution ``V`` and the post-reactivation output distribution
-``r = (tanh(m*(V-b)) + 1) / 2``.
+parameters (``log_m`` and the midpoint ``b`` or ``fixed_b``, and any other
+gate parameter) alongside statistics of the pre-reactivation voltage
+distribution ``V`` over every call in the forward pass (each timestep of a
+recurrent unroll) and of the gate output ``r``. Rail occupancy (``r < 0.05``,
+``r > 0.95``) is reported for the positive-tanh gates, whose outputs lie in
+``(0, 1)``.
 
 Purpose
 -------
@@ -29,19 +32,27 @@ import torch
 from torch.utils.data import DataLoader
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
+from dendritic_modeling.analysis.utils.dendritic_depth import (
+    soma_relative_dendritic_depth,
+)
 from dendritic_modeling.analysis.utils.runtime import analysis_device_context
 from dendritic_modeling.config.analysis import (
     EvaluationRuntimeConfig,
     ReactivationDynamicsAnalysisParams,
 )
 from dendritic_modeling.models import BaseModel
-from dendritic_modeling.networks.activations.parametric import ParametricTanh
-from dendritic_modeling.utils import save_dict
-from dendritic_modeling.utils.hooks import (
-    ForwardHookRemovalMixin,
-    iter_named_modules_of_type,
-    register_hook_groups,
+from dendritic_modeling.networks.activations.endpoint_tanh import EndpointNormalizedTanh
+from dendritic_modeling.networks.activations.parametric import (
+    ParametricActivation,
+    ParametricTanh,
+    ParametricTanhOnlyM,
 )
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer import (
+    DendriticBranchLayer,
+)
+from dendritic_modeling.networks.structure import inhibitory_branch_layer_ids
+from dendritic_modeling.utils import save_dict
+from dendritic_modeling.utils.hooks import ForwardHookRemovalMixin, register_hook_groups
 
 
 def _quantile_stats(v: torch.Tensor) -> dict[str, float]:
@@ -94,74 +105,89 @@ def _quantile_stats(v: torch.Tensor) -> dict[str, float]:
     }
 
 
+# Gates whose outputs lie in (0, 1), so rail occupancy is defined.
+UNIT_RANGE_GATES = (ParametricTanh, ParametricTanhOnlyM)
+
+
+def _is_tracked_gate(module: torch.nn.Module) -> bool:
+    return isinstance(module, (ParametricActivation, EndpointNormalizedTanh))
+
+
 def _reactivation_output_stats(
-    reactivation: ParametricTanh, v: torch.Tensor
+    reactivation: torch.nn.Module, v: torch.Tensor
 ) -> dict[str, float]:
     """Return summary stats of ``r = reactivation(v)`` for the given voltage.
 
-    Captures the fraction of outputs piled at the rails (``< 0.05`` or
-    ``> 0.95``) as a direct saturation indicator, plus simple moments
-    for sanity-checking against ``r ∈ [0, 1]``.
+    For positive-tanh gates (outputs in ``(0, 1)``) this includes the
+    fraction of outputs piled at the rails (``< 0.05`` or ``> 0.95``) as a
+    direct saturation indicator; other gates report the output moments.
     """
     with torch.no_grad():
         r = reactivation(v)
     r_flat = r.reshape(-1).float()
     r_flat = r_flat[torch.isfinite(r_flat)]
+    unit_range = isinstance(reactivation, UNIT_RANGE_GATES)
     if r_flat.numel() == 0:
-        return {
-            "mean": 0.0,
-            "std": 0.0,
-            "sat_lo": 0.0,
-            "sat_hi": 0.0,
-            "active_frac": 0.0,
-        }
-    sat_lo = float((r_flat < 0.05).float().mean().item())
-    sat_hi = float((r_flat > 0.95).float().mean().item())
-    return {
+        stats = {"mean": 0.0, "std": 0.0}
+        if unit_range:
+            stats.update(sat_lo=0.0, sat_hi=0.0, active_frac=0.0)
+        return stats
+    stats = {
         "mean": float(r_flat.mean().item()),
         "std": float(r_flat.std(unbiased=False).item()),
-        "sat_lo": sat_lo,
-        "sat_hi": sat_hi,
-        "active_frac": 1.0 - sat_lo - sat_hi,
     }
-
-
-def _param_tanh_params(reactivation: ParametricTanh) -> dict[str, float]:
-    """Snapshot the learnable ``(log_m, b)`` parameters of a ParametricTanh.
-
-    ``log_m`` is stored as a per-unit vector; we report mean and std across
-    units so the trajectory compresses to two scalars per layer. ``m`` is
-    derived from ``exp(log_m)`` for easier reading in plots.
-    """
-    with torch.no_grad():
-        log_m = reactivation.log_m.detach()
-        b = reactivation.b.detach() if torch.is_tensor(reactivation.b) else None
-    m = torch.exp(log_m)
-    out = {
-        "log_m_mean": float(log_m.mean().item()),
-        "log_m_std": float(log_m.std(unbiased=False).item()),
-        "m_mean": float(m.mean().item()),
-        "m_std": float(m.std(unbiased=False).item()),
-        "m_min": float(m.min().item()),
-        "m_max": float(m.max().item()),
-    }
-    if b is not None:
-        out["b_mean"] = float(b.mean().item())
-        out["b_std"] = float(b.std(unbiased=False).item())
-        out["b_min"] = float(b.min().item())
-        out["b_max"] = float(b.max().item())
+    if unit_range:
+        sat_lo = float((r_flat < 0.05).float().mean().item())
+        sat_hi = float((r_flat > 0.95).float().mean().item())
+        stats.update(sat_lo=sat_lo, sat_hi=sat_hi, active_frac=1.0 - sat_lo - sat_hi)
     else:
-        out["b_mean"] = 0.0
-        out["b_std"] = 0.0
-        out["b_min"] = 0.0
-        out["b_max"] = 0.0
+        stats.update(min=float(r_flat.min().item()), max=float(r_flat.max().item()))
+    return stats
+
+
+def _summary(prefix: str, values: torch.Tensor) -> dict[str, float]:
+    values = values.detach().reshape(-1).float()
+    return {
+        f"{prefix}_mean": float(values.mean().item()),
+        f"{prefix}_std": float(values.std(unbiased=False).item()),
+        f"{prefix}_min": float(values.min().item()),
+        f"{prefix}_max": float(values.max().item()),
+    }
+
+
+def _gate_params(reactivation: torch.nn.Module) -> dict[str, float]:
+    """Snapshot a gate's parameters as per-layer summaries across units.
+
+    ``log_m`` is also reported as the slope ``m = exp(log_m)``; the midpoint
+    is the learnable ``b`` or the calibrated ``fixed_b``. Every other gate
+    parameter is summarized under its own name.
+    """
+    out: dict[str, float] = {}
+    with torch.no_grad():
+        log_m = getattr(reactivation, "log_m", None)
+        if torch.is_tensor(log_m):
+            out["log_m_mean"] = float(log_m.mean().item())
+            out["log_m_std"] = float(log_m.std(unbiased=False).item())
+            m = torch.exp(log_m)
+            out["m_mean"] = float(m.mean().item())
+            out["m_std"] = float(m.std(unbiased=False).item())
+            out["m_min"] = float(m.min().item())
+            out["m_max"] = float(m.max().item())
+        midpoint = getattr(reactivation, "b", None)
+        if midpoint is None:
+            midpoint = getattr(reactivation, "fixed_b", None)
+        if midpoint is not None:
+            out.update(_summary("b", torch.as_tensor(midpoint)))
+        for name, parameter in reactivation.named_parameters(recurse=False):
+            if name not in {"log_m", "b"}:
+                out.update(_summary(name, parameter))
     return out
 
 
 class ReactivationDynamicsAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
     """Per-epoch trajectory tracker for parametric reactivation gates.
 
-    For every ``ParametricTanh`` in the model, on each ``analyze()`` call
+    For every parametric gate in the model, on each ``analyze()`` call
     the analyzer:
 
     1. Runs a fixed-size sample batch through the model with forward
@@ -188,11 +214,15 @@ class ReactivationDynamicsAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         self.params = params
         self.max_samples = int(getattr(params, "max_samples", 1024))
 
-    def _list_parametric_tanh_layers(
+    def _list_gate_layers(
         self, model: torch.nn.Module
-    ) -> list[tuple[str, ParametricTanh]]:
-        """Return ``(dotted_name, module)`` pairs for every ParametricTanh in the model."""
-        return list(iter_named_modules_of_type(model, ParametricTanh))
+    ) -> list[tuple[str, torch.nn.Module]]:
+        """Return ``(dotted_name, module)`` pairs for every parametric gate."""
+        return [
+            (name, module)
+            for name, module in model.named_modules()
+            if _is_tracked_gate(module)
+        ]
 
     def _sample_inputs(
         self,
@@ -202,18 +232,12 @@ class ReactivationDynamicsAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         """Pull up to ``self.max_samples`` inputs from the dataset as a single tensor."""
         if data is None:
             return None
-        try:
-            loader = DataLoader(
-                data,
-                batch_size=min(self.max_samples, max(1, len(data))),
-                shuffle=False,
-            )
-            batch = next(iter(loader))
-        except Exception as e:
-            self.logger.warning(
-                "ReactivationDynamicsAnalyzer could not draw a sample batch: %s", e
-            )
-            return None
+        loader = DataLoader(
+            data,
+            batch_size=min(self.max_samples, max(1, len(data))),
+            shuffle=False,
+        )
+        batch = next(iter(loader))
         x = batch[0] if isinstance(batch, (list, tuple)) else batch
         if x is None or not torch.is_tensor(x):
             return None
@@ -240,14 +264,16 @@ class ReactivationDynamicsAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         (``training=False``), we use the test split so the last snapshot
         reflects held-out voltages.
         """
-        layers = self._list_parametric_tanh_layers(model)
+        layers = self._list_gate_layers(model)
         if not layers:
-            self.logger.debug("No ParametricTanh reactivations found; skipping")
+            self.logger.debug("No parametric reactivations found; skipping")
+            self.report_skip("the model has no parametric reactivation gates")
             return {}
 
         dataset = self._select_dataset(training, train_ds, valid_ds, test_ds)
         if dataset is None:
             self.logger.debug("No dataset available; skipping dynamics snapshot")
+            self.report_skip("no dataset was available")
             return {}
 
         with analysis_device_context(model, device) as current_device:
@@ -257,10 +283,14 @@ class ReactivationDynamicsAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
 
             x = self._prepare_inputs(model, x)
             captured = self._capture_reactivation_inputs(model, layers, x)
-            if captured is None:
-                return {}
 
-            snapshot = self._build_snapshot(layers, captured, filename, training)
+            snapshot = self._build_snapshot(
+                layers,
+                captured,
+                filename,
+                training,
+                coordinates=self._gate_coordinates(model, layers),
+            )
 
         if save_path is not None:
             self._save_snapshot(snapshot, save_path, filename)
@@ -291,22 +321,17 @@ class ReactivationDynamicsAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
     def _capture_reactivation_inputs(
         self,
         model: BaseModel,
-        layers: list[tuple[str, ParametricTanh]],
+        layers: list[tuple[str, torch.nn.Module]],
         x: torch.Tensor,
-    ) -> dict[str, torch.Tensor] | None:
-        captured: dict[str, torch.Tensor] = {}
+    ) -> dict[str, list[torch.Tensor]]:
+        """Inputs of every gate call in one forward pass (each timestep)."""
+        captured: dict[str, list[torch.Tensor]] = {}
         handles = self._attach_capture_hooks(layers, captured)
         was_training = model.training
         model.eval()
         try:
             with torch.no_grad():
-                try:
-                    _ = model(x)
-                except Exception as e:
-                    self.logger.warning(
-                        "ReactivationDynamicsAnalyzer forward pass failed: %s", e
-                    )
-                    return None
+                _ = model(x)
         finally:
             self.remove_forward_hooks(handles)
             if was_training:
@@ -315,8 +340,8 @@ class ReactivationDynamicsAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
 
     def _attach_capture_hooks(
         self,
-        layers: list[tuple[str, ParametricTanh]],
-        captured: dict[str, torch.Tensor],
+        layers: list[tuple[str, torch.nn.Module]],
+        captured: dict[str, list[torch.Tensor]],
     ) -> list[torch.utils.hooks.RemovableHandle]:
         return register_hook_groups(
             layers,
@@ -325,37 +350,60 @@ class ReactivationDynamicsAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
 
     def _register_capture_hook(
         self,
-        layer_entry: tuple[str, ParametricTanh],
-        captured: dict[str, torch.Tensor],
+        layer_entry: tuple[str, torch.nn.Module],
+        captured: dict[str, list[torch.Tensor]],
     ) -> torch.utils.hooks.RemovableHandle:
         name, layer = layer_entry
         return layer.register_forward_pre_hook(self._make_hook(name, captured))
 
     @staticmethod
-    def _make_hook(layer_name: str, captured: dict[str, torch.Tensor]):
+    def _make_hook(layer_name: str, captured: dict[str, list[torch.Tensor]]):
         def hook(_mod, inputs):
-            if layer_name in captured:
-                return
-            captured[layer_name] = inputs[0].detach()
+            captured.setdefault(layer_name, []).append(inputs[0].detach())
 
         return hook
 
+    @staticmethod
+    def _gate_coordinates(
+        model: torch.nn.Module, layers: list[tuple[str, torch.nn.Module]]
+    ) -> dict[str, dict[str, Any]]:
+        """Soma-relative depth and population polarity of each gate's branch layer."""
+        inhibitory = inhibitory_branch_layer_ids(model)
+        coordinates: dict[str, dict[str, Any]] = {}
+        for name, _gate in layers:
+            parent_name, _, _ = name.rpartition(".")
+            parent = model.get_submodule(parent_name) if parent_name else None
+            if not isinstance(parent, DendriticBranchLayer):
+                continue
+            coordinates[name] = {
+                "soma_relative_dendritic_depth": soma_relative_dendritic_depth(parent),
+                "population_polarity": (
+                    "inhibitory" if id(parent) in inhibitory else "excitatory"
+                ),
+            }
+        return coordinates
+
     def _build_snapshot(
         self,
-        layers: list[tuple[str, ParametricTanh]],
-        captured: dict[str, torch.Tensor],
+        layers: list[tuple[str, torch.nn.Module]],
+        captured: dict[str, list[torch.Tensor]],
         filename: str,
         training: bool,
+        coordinates: dict[str, dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         per_layer: dict[str, dict[str, Any]] = {}
         for name, layer in layers:
-            v = captured.get(name)
-            if v is None:
+            calls = captured.get(name)
+            if not calls:
                 per_layer[name] = {"skipped": True}
                 continue
+            v = torch.cat([call.reshape(-1, call.shape[-1]) for call in calls])
             per_layer[name] = {
+                **(coordinates or {}).get(name, {}),
+                "gate": type(layer).__name__,
+                "n_calls": len(calls),
                 "V": _quantile_stats(v),
-                "params": _param_tanh_params(layer),
+                "params": _gate_params(layer),
                 "reactivation_output": _reactivation_output_stats(layer, v),
             }
 

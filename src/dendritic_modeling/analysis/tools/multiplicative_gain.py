@@ -1,3 +1,4 @@
+import contextlib
 import logging
 import os
 from collections.abc import Callable
@@ -33,6 +34,7 @@ from dendritic_modeling.training.utils.evaluation import (
     evaluate_mse,
 )
 from dendritic_modeling.utils import save_dict
+from dendritic_modeling.utils.reproducibility import isolated_random_seed
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +68,13 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
         )
         self.mse = getattr(params, "mse", False)
         self.cosine_similarity = getattr(params, "cosine_similarity", False)
+        self.noise_seed = getattr(params, "noise_seed", None)
+
+    def _random_draws(self):
+        """Draw every gain level's random gains and noise from one seed."""
+        if self.noise_seed is None:
+            return contextlib.nullcontext()
+        return isolated_random_seed(int(self.noise_seed))
 
     def _apply_gain_to_inputs(
         self,
@@ -103,12 +112,10 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
 
         if isinstance(dataset, PoissonGeneratorDataset):
             if self.uniform_gain:
-                dataset._set_gain_factor(gain_factor)
+                view = dataset.with_gain_override(fixed=gain_factor)
             else:
-                dataset._set_max_gain_factor(gain_factor)
-
-            inputs = materialize_dataset(dataset, runtime, device=device)[0]
-            return inputs
+                view = dataset.with_gain_override(max_gain=gain_factor)
+            return materialize_dataset(view, runtime, device=device)[0]
 
         else:
             inputs = (
@@ -139,12 +146,14 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
         training: bool = False,
         runtime: Optional[EvaluationRuntimeConfig] = None,
     ):
-        self._disable_incompatible_metrics(model)
+        self._check_dataset_options(test_dataset)
         gain_factors = self._gain_factors()
         gain_factor_values = gain_factors.tolist()
-        data_dict = {"gain_factors": gain_factor_values}
-        metric_funcs = self._metric_functions(data_dict)
+        data_dict = {"gain_factors": gain_factor_values, "noise_seed": self.noise_seed}
+        metric_funcs = self._metric_functions(model, data_dict)
         train_g_min, train_g_max = self._training_gain_bounds(test_dataset)
+        # The bounds come from the gain configuration of the evaluated dataset.
+        data_dict["in_distribution_gain_range"] = [train_g_min, train_g_max]
 
         id_dict, ood_lower_dict, ood_upper_dict = self._evaluate_gain_metrics(
             model,
@@ -172,15 +181,24 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
 
         return data_dict
 
-    def _disable_incompatible_metrics(self, model: BaseModel) -> None:
-        if not isinstance(model, Classifier):
-            self.accuracy = False
-            self.auc = False
-            self.categorical_loglikelihood = False
-
-        if not isinstance(model, Regressor):
-            self.mse = False
-            self.cosine_similarity = False
+    def _check_dataset_options(self, dataset: torch.utils.data.Dataset) -> None:
+        if not isinstance(dataset, PoissonGeneratorDataset):
+            return
+        ignored = [
+            name
+            for name, value, default in (
+                ("input_preprocess", self.input_preprocess, "none"),
+                ("noise_model", self.noise_model, "none"),
+                ("poisson_eps", self.poisson_eps, 1e-6),
+            )
+            if value != default
+        ]
+        if ignored:
+            raise ValueError(
+                "Poisson-generator datasets apply the gain to their rates and "
+                f"draw their own noise, so {', '.join(ignored)} would be ignored; "
+                "leave them at their defaults"
+            )
 
     def _gain_factors(self) -> torch.Tensor:
         if not self.logspace:
@@ -190,25 +208,58 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
         if self.gain_min > 0:
             log_gain_min = log(self.gain_min)
         else:
+            # Documented: a log sweep from gain_min <= 0 is symmetric in log space.
             log_gain_min = -log_gain_max
         return torch.linspace(log_gain_min, log_gain_max, self.n_steps).exp()
 
-    def _metric_functions(self, data_dict: dict) -> list[tuple[str, Callable]]:
-        metric_funcs: list[tuple[str, Callable]] = []
-        for enabled, key, func in [
-            (self.accuracy, "accuracy", evaluate_accuracy),
-            (self.auc, "auc", evaluate_auc),
-            (
-                self.categorical_loglikelihood,
-                "categorical_loglikelihood",
-                evaluate_categorical_loglikelihood,
-            ),
-            (self.mse, "mse", evaluate_mse),
-            (self.cosine_similarity, "cosine_similarity", evaluate_cosine_similarity),
-        ]:
-            if enabled:
-                data_dict[key] = []
-                metric_funcs.append((key, func))
+    def _metric_functions(
+        self, model: BaseModel, data_dict: dict
+    ) -> list[tuple[str, Callable]]:
+        classifier = isinstance(model, Classifier)
+        regressor = isinstance(model, Regressor)
+        requested = [
+            (enabled, key, func, compatible)
+            for enabled, key, func, compatible in [
+                (self.accuracy, "accuracy", evaluate_accuracy, classifier),
+                (self.auc, "auc", evaluate_auc, classifier),
+                (
+                    self.categorical_loglikelihood,
+                    "categorical_loglikelihood",
+                    evaluate_categorical_loglikelihood,
+                    classifier,
+                ),
+                (self.mse, "mse", evaluate_mse, regressor),
+                (
+                    self.cosine_similarity,
+                    "cosine_similarity",
+                    evaluate_cosine_similarity,
+                    regressor,
+                ),
+            ]
+            if enabled
+        ]
+        dropped = [key for _, key, _, compatible in requested if not compatible]
+        metric_funcs = [
+            (key, func) for _, key, func, compatible in requested if compatible
+        ]
+        if not metric_funcs:
+            raise ValueError(
+                "multiplicative_gain has no score to compute for a "
+                f"{type(model).__name__}: "
+                + (
+                    f"{', '.join(dropped)} do not apply to it"
+                    if dropped
+                    else "no score is selected"
+                )
+            )
+        if dropped:
+            logger.warning(
+                "multiplicative_gain skips %s, which do not apply to a %s",
+                ", ".join(dropped),
+                type(model).__name__,
+            )
+        for key, _func in metric_funcs:
+            data_dict[key] = []
         return metric_funcs
 
     @staticmethod
@@ -266,13 +317,14 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
                 )
 
             def _scaled_dataset_for_gain(gain_factor: float):
-                scaled_test_inputs = self._apply_gain_to_inputs(
-                    test_dataset,
-                    gain_factor,
-                    runtime,
-                    base_inputs,
-                    device=analysis_device,
-                )
+                with self._random_draws():
+                    scaled_test_inputs = self._apply_gain_to_inputs(
+                        test_dataset,
+                        gain_factor,
+                        runtime,
+                        base_inputs,
+                        device=analysis_device,
+                    )
                 scaled_test_inputs = scaled_test_inputs.to(analysis_device)
                 return TensorDataset(scaled_test_inputs, test_labels)
 

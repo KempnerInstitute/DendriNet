@@ -3,9 +3,10 @@
 This module provides a unified interface for computing mutual information
 and related metrics using different estimation methods:
 - Kraskov (k-nearest neighbors)
-- Scikit-learn (kernel density or histogram-based)
-- Copula-based (via DVC)
-- PID (Partial Information Decomposition)
+- Decoder (cross-validated classifier log-loss)
+- Binned (histogram plug-in)
+- Scikit-learn (k-nearest-neighbour MI for discrete targets)
+- Copula (Gaussian copula, or a kernel copula density for scalars)
 """
 
 import logging
@@ -15,7 +16,7 @@ from enum import Enum
 from typing import Any, ClassVar, Optional, Union
 
 import numpy as np
-from scipy import stats
+from scipy import special, stats
 from sklearn.feature_selection import mutual_info_classif
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import log_loss, mutual_info_score
@@ -23,11 +24,14 @@ from sklearn.model_selection import StratifiedKFold
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
+from dendritic_modeling.config.choices import normalize_choice
 from dendritic_modeling.utils.information.nearest_neighbors import (
     compute_cmi_ccc,
     compute_mi_cc,
     compute_mi_cd,
 )
+
+COPULA_TYPES = ("gaussian", "kernel")
 
 
 class EstimationMethod(Enum):
@@ -60,6 +64,9 @@ class EstimatorConfig:
             self.method = EstimationMethod(self.method.lower())
         if self.method_params is None:
             self.method_params = {}
+        self.copula_type = normalize_choice(
+            self.copula_type, COPULA_TYPES, field="copula_type"
+        )
 
 
 class BaseInformationEstimator(ABC):
@@ -67,7 +74,8 @@ class BaseInformationEstimator(ABC):
 
     def __init__(self, config: EstimatorConfig):
         self.config = config
-        self.logger = logging.getLogger(self.__class__.__name__)
+        # Inside the package's logger tree, so the records reach the run log.
+        self.logger = logging.getLogger(f"{__name__}.{type(self).__name__}")
         if config.verbose:
             self.logger.setLevel(logging.DEBUG)
 
@@ -272,12 +280,11 @@ class KraskovEstimator(BaseInformationEstimator):
             for val in np.unique(z_labels):
                 mask = z_labels == val
                 n = int(np.sum(mask))
-                # kNN MI/CMI estimators query the training set itself, so they require
-                # n_neighbors < n_samples_fit. For a subgroup of size n, this implies
-                # k+1 < n => k <= n-2.
-                if n <= 2:
+                # ``kneighbors(X=None)`` excludes each fitted sample itself, so
+                # a subgroup only needs one other sample and k <= n - 1.
+                if n <= 1:
                     continue
-                k_sub = min(k, n - 2)
+                k_sub = min(k, n - 1)
                 if k_sub < 1:
                     continue
                 try:
@@ -375,6 +382,26 @@ class BinnedEstimator(BaseInformationEstimator):
         kxy = int(np.unique(inv_xy).size)
         return float((kx + ky - kxy - 1) / (2.0 * n))
 
+    @staticmethod
+    def _miller_madow_cmi_correction(
+        n_samples: int,
+        x_states: np.ndarray,
+        y_states: np.ndarray,
+        z_states: np.ndarray,
+    ) -> float:
+        """Return the entropy-expansion correction for ``I(X;Y|Z)``."""
+        n = float(max(1, int(n_samples)))
+
+        def state_count(*columns: np.ndarray) -> int:
+            states = np.column_stack(columns)
+            return int(np.unique(states, axis=0).shape[0])
+
+        kxz = state_count(x_states, z_states)
+        kyz = state_count(y_states, z_states)
+        kz = int(np.unique(z_states).size)
+        kxyz = state_count(x_states, y_states, z_states)
+        return float((kxz + kyz - kz - kxyz) / (2.0 * n))
+
     def mutual_information(self, x: np.ndarray, y: np.ndarray) -> float:
         x = self._ensure_2d(x)
         y = self._ensure_2d(y)
@@ -406,7 +433,10 @@ class BinnedEstimator(BaseInformationEstimator):
 
         mi_x_yz = float(mutual_info_score(xs, yz_states))
         mi_x_z = float(mutual_info_score(xs, zs))
-        return float(max(0.0, mi_x_yz - mi_x_z))
+        cmi = mi_x_yz - mi_x_z
+        if self.bias_correction in {"miller_madow", "mm"}:
+            cmi += self._miller_madow_cmi_correction(xs.size, xs, ys, zs)
+        return float(max(0.0, cmi))
 
 
 class DecoderEstimator(BaseInformationEstimator):
@@ -763,207 +793,216 @@ class SklearnEstimator(BaseInformationEstimator):
         return max(0.0, mi)
 
 
+def copula_normal_scores(x: np.ndarray) -> np.ndarray:
+    """Standard normal scores of each column's ranks (ties take average ranks)."""
+    x = np.asarray(x, dtype=float)
+    return special.ndtri(stats.rankdata(x, axis=0) / (x.shape[0] + 1))
+
+
+def _half_log_det(samples: np.ndarray) -> float:
+    """Bias-corrected half log-determinant of the covariance of ``samples``.
+
+    This is the Gaussian entropy without its ``0.5 * d * log(2 pi e)`` constant,
+    which cancels in every information difference. The correction removes the
+    expected bias of the sample log-determinant (Misra et al., 2005).
+    """
+    n, d = samples.shape
+    if d == 0:
+        return 0.0
+    if n <= d:
+        raise ValueError(
+            f"{n} samples cannot estimate a {d}-dimensional covariance; the "
+            "Gaussian copula needs more samples than dimensions (per class when "
+            "conditioning on labels)"
+        )
+    centered = samples - samples.mean(axis=0)
+    covariance = centered.T @ centered / (n - 1)
+    try:
+        cholesky = np.linalg.cholesky(covariance)
+    except np.linalg.LinAlgError as error:
+        raise ValueError(
+            "the covariance of the copula normal scores is singular: one "
+            "variable is a function of the others"
+        ) from error
+    half = float(np.sum(np.log(np.diagonal(cholesky))))
+    digamma = float(np.sum(special.digamma((n - np.arange(1, d + 1)) / 2.0))) / 2.0
+    return half - d * (np.log(2.0) - np.log(n - 1.0)) / 2.0 - digamma
+
+
+def _varying_columns(x: np.ndarray) -> np.ndarray:
+    """Drop constant columns, which carry no information."""
+    return x[:, np.ptp(x, axis=0) > 0] if x.shape[1] else x
+
+
+def gaussian_copula_mi(x: np.ndarray, y: np.ndarray) -> float:
+    """Gaussian-copula mutual information of two continuous variables (nats)."""
+    zx = copula_normal_scores(_varying_columns(x))
+    zy = copula_normal_scores(_varying_columns(y))
+    if zx.shape[1] == 0 or zy.shape[1] == 0:
+        return 0.0
+    return _half_log_det(zx) + _half_log_det(zy) - _half_log_det(np.hstack([zx, zy]))
+
+
+def gaussian_copula_mi_discrete(x: np.ndarray, labels: np.ndarray) -> float:
+    """Information of continuous ``x`` about discrete ``labels`` (nats).
+
+    ``H(X) - sum_c p(c) H(X | c)`` with Gaussian entropies of the copula normal
+    scores, so the labels' numeric order plays no role.
+    """
+    zx = copula_normal_scores(_varying_columns(x))
+    if zx.shape[1] == 0:
+        return 0.0
+    labels = np.asarray(labels).ravel()
+    conditional = sum(
+        np.mean(labels == value) * _half_log_det(zx[labels == value])
+        for value in np.unique(labels)
+    )
+    return _half_log_det(zx) - float(conditional)
+
+
+def gaussian_copula_cmi(x: np.ndarray, y: np.ndarray, z: np.ndarray) -> float:
+    """Gaussian-copula ``I(X;Y|Z)`` of continuous variables (nats)."""
+    zx = copula_normal_scores(_varying_columns(x))
+    zy = copula_normal_scores(_varying_columns(y))
+    zz = copula_normal_scores(_varying_columns(z))
+    if zx.shape[1] == 0 or zy.shape[1] == 0:
+        return 0.0
+    return (
+        _half_log_det(np.hstack([zx, zz]))
+        + _half_log_det(np.hstack([zy, zz]))
+        - _half_log_det(np.hstack([zx, zy, zz]))
+        - _half_log_det(zz)
+    )
+
+
 class CopulaEstimator(BaseInformationEstimator):
-    """Copula-based mutual information estimator."""
+    """Copula mutual information: Gaussian copula, or a kernel copula density.
+
+    ``copula_type="gaussian"`` is the Gaussian-copula estimator of Ince et al.
+    (Hum. Brain Mapp. 38:1541, 2017). Each variable's columns become standard
+    normal scores of their ranks, and the information is that of a Gaussian
+    with the scores' covariance, with the analytic bias correction of the
+    sample log-determinants. It is exact for Gaussian dependence and otherwise
+    a lower bound. A discrete variable (one integer-valued column, such as
+    class labels) enters through class-conditional entropies, never through
+    its numeric order; two discrete variables use the plug-in estimate, and a
+    discrete condition averages the within-class information.
+
+    ``copula_type="kernel"`` estimates the density of the rank-uniform copula
+    of two continuous scalars with Gaussian kernels.
+
+    Values are in nats and are not clipped at zero.
+    """
 
     def __init__(self, config: EstimatorConfig):
         super().__init__(config)
         self.copula_type = config.copula_type
-        self._check_dvc_available()
 
-    def _check_dvc_available(self):
-        """Check if DVC tensorflow is available."""
-        try:
-            # import tensorflow as tf  # Available for import check
-            # Check if DVC modules can be imported
-            import os
-            import sys
-
-            # Add external directory to path if needed
-            external_dir = os.path.join(
-                os.path.dirname(__file__), "../../../../external"
-            )
-            if external_dir not in sys.path:
-                sys.path.insert(0, external_dir)
-
-            self.dvc_available = True
-            self.logger.debug("DVC tensorflow available for copula estimation")
-        except ImportError:
-            self.dvc_available = False
-            self.logger.warning(
-                "DVC tensorflow not available, falling back to simple copula estimation"
-            )
+    @staticmethod
+    def _discrete(values: np.ndarray) -> bool:
+        return values.shape[1] == 1 and KraskovEstimator._is_discrete_1d(values[:, 0])
 
     def mutual_information(self, x: np.ndarray, y: np.ndarray) -> float:
-        """Compute MI using copula-based estimation."""
-        x = self._ensure_2d(x)
-        y = self._ensure_2d(y)
+        """Copula mutual information of ``x`` and ``y`` (nats)."""
+        x = self._ensure_2d(np.asarray(x))
+        y = self._ensure_2d(np.asarray(y))
         self._validate_inputs(x, y)
-
-        if self.dvc_available and self.copula_type == "dvc":
-            return self._dvc_copula_mi(x, y)
-        else:
-            return self._simple_copula_mi(x, y)
+        x_discrete, y_discrete = self._discrete(x), self._discrete(y)
+        if x_discrete and y_discrete:
+            return float(mutual_info_score(x.ravel(), y.ravel()))
+        if self.copula_type == "kernel":
+            return self._kernel_copula_mi(x, y, x_discrete or y_discrete)
+        if y_discrete:
+            return gaussian_copula_mi_discrete(x, y.ravel())
+        if x_discrete:
+            return gaussian_copula_mi_discrete(y, x.ravel())
+        return gaussian_copula_mi(x, y)
 
     def conditional_mutual_information(
         self, x: np.ndarray, y: np.ndarray, z: np.ndarray
     ) -> float:
-        """Compute CMI using copula-based estimation."""
-        # Use chain rule as with other estimators
-        x = self._ensure_2d(x)
-        y = self._ensure_2d(y)
-        z = self._ensure_2d(z)
-        self._validate_inputs(x, y, z)
+        """Copula ``I(X;Y|Z)`` (nats).
 
-        return self._chain_rule_cmi(x, y, z)
-
-    def _simple_copula_mi(self, x: np.ndarray, y: np.ndarray) -> float:
-        """Enhanced copula-based MI estimation with discrete variable handling."""
-
-        # Handle discrete variables (like class labels) by adding non-informative noise
-        x_processed = self._add_noise_to_discrete(x)
-        y_processed = self._add_noise_to_discrete(y)
-
-        # Transform to uniform margins using empirical CDF
-        n_samples = len(x_processed)
-        u = np.zeros_like(x_processed)
-        v = np.zeros_like(y_processed)
-
-        for i in range(x_processed.shape[1]):
-            ranks = stats.rankdata(x_processed[:, i])
-            u[:, i] = ranks / (n_samples + 1)
-
-        for i in range(y_processed.shape[1]):
-            ranks = stats.rankdata(y_processed[:, i])
-            v[:, i] = ranks / (n_samples + 1)
-
-        # Choose estimation method based on copula_type
-        if self.copula_type == "gaussian":
-            return self._gaussian_copula_mi(u, v)
-        elif self.copula_type == "kernel":
-            return self._kernel_copula_mi(u, v)
-        else:
-            # Default to Gaussian copula
-            return self._gaussian_copula_mi(u, v)
-
-    def _add_noise_to_discrete(
-        self, data: np.ndarray, noise_scale: float = 0.1
-    ) -> np.ndarray:
-        """Add non-informative noise to discrete variables.
-
-        For discrete variables like class labels, adds uniform noise in [0, 1)
-        to each integer value, transforming c to a random number in [c, c+1).
+        A discrete ``Z`` averages the within-class information; a discrete ``Y``
+        (or ``X``) with continuous ``Z`` uses ``I([X,Z];Y) - I(Z;Y)``.
         """
-        data_processed = data.copy()
+        x = self._ensure_2d(np.asarray(x))
+        y = self._ensure_2d(np.asarray(y))
+        z = self._ensure_2d(np.asarray(z))
+        self._validate_inputs(x, y, z)
+        if self._discrete(z):
+            labels = z.ravel()
+            return float(
+                sum(
+                    np.mean(labels == value)
+                    * self.mutual_information(x[labels == value], y[labels == value])
+                    for value in np.unique(labels)
+                )
+            )
+        if self.copula_type == "kernel":
+            raise ValueError(
+                "the kernel copula estimates the information of two continuous "
+                "scalars only; use copula type 'gaussian' for conditional terms"
+            )
+        x_discrete, y_discrete = self._discrete(x), self._discrete(y)
+        if x_discrete and y_discrete:
+            raise ValueError(
+                "the copula estimator has no conditional information of two "
+                "discrete variables given a continuous one"
+            )
+        if y_discrete:
+            return gaussian_copula_mi_discrete(
+                np.hstack([x, z]), y.ravel()
+            ) - gaussian_copula_mi_discrete(z, y.ravel())
+        if x_discrete:
+            return gaussian_copula_mi_discrete(
+                np.hstack([y, z]), x.ravel()
+            ) - gaussian_copula_mi_discrete(z, x.ravel())
+        return gaussian_copula_cmi(x, y, z)
 
-        # Detect if data appears to be discrete (integer-like values)
-        for i in range(data.shape[1]):
-            col = data[:, i]
-            # Check if all values are close to integers
-            if np.allclose(col, np.round(col), atol=1e-6):
-                # This appears to be discrete - add uniform noise
-                noise = np.random.uniform(0, noise_scale, size=col.shape)
-                data_processed[:, i] = col + noise
-                self.logger.debug(f"Added noise to discrete variable in column {i}")
+    def entropy(self, x: np.ndarray) -> float:
+        """Plug-in entropy of discrete ``x`` (nats).
 
-        return data_processed
+        The copula transform discards the marginal distributions that carry a
+        continuous variable's entropy, so continuous inputs raise.
+        """
+        x = self._ensure_2d(np.asarray(x))
+        if not all(
+            KraskovEstimator._is_discrete_1d(x[:, i]) for i in range(x.shape[1])
+        ):
+            raise ValueError(
+                "the copula estimator defines no entropy for continuous variables"
+            )
+        _, counts = np.unique(x, axis=0, return_counts=True)
+        probabilities = counts / counts.sum()
+        return float(-np.sum(probabilities * np.log(probabilities)))
 
-    def _gaussian_copula_mi(self, u: np.ndarray, v: np.ndarray) -> float:
-        """Gaussian copula MI estimation."""
-        if u.shape[1] == 1 and v.shape[1] == 1:
-            # Univariate case - check for constant inputs first
-            u_flat = u.ravel()
-            v_flat = v.ravel()
-
-            # Check if either input is constant (all same values)
-            if np.var(u_flat) < 1e-10 or np.var(v_flat) < 1e-10:
-                # If either input is constant, MI = 0
-                return 0.0
-
-            # Suppress the correlation warning for constant inputs
-            import warnings
-
-            with warnings.catch_warnings():
-                warnings.filterwarnings("ignore", category=stats.ConstantInputWarning)
-                corr, _ = stats.pearsonr(u_flat, v_flat)
-
-            # Handle NaN correlation (when inputs are constant)
-            if np.isnan(corr) or np.isinf(corr):
-                return 0.0
-
-            # MI for Gaussian copula: -0.5 * log(1 - rho^2)
-            if abs(corr) < 0.999:
-                mi = -0.5 * np.log(1 - corr**2)
-                return max(0.0, mi)
-            else:
-                return 0.0
-
-        # For multivariate, fall back to Kraskov on uniform margins
-        return KraskovEstimator(self.config).mutual_information(u, v)
-
-    def _kernel_copula_mi(self, u: np.ndarray, v: np.ndarray) -> float:
-        """Non-parametric kernel-based copula MI estimation."""
+    def _kernel_copula_mi(self, x: np.ndarray, y: np.ndarray, discrete: bool) -> float:
+        """Kernel density estimate of the information of two continuous scalars."""
         from sklearn.neighbors import KernelDensity
 
-        if u.shape[1] == 1 and v.shape[1] == 1:
-            # Univariate case with kernel density estimation
-            u_flat = u.ravel()
-            v_flat = v.ravel()
-
-            # Check for constant inputs
-            if np.var(u_flat) < 1e-10 or np.var(v_flat) < 1e-10:
-                return 0.0
-
-            # Choose bandwidth automatically using Scott's rule
-            n_samples = len(u_flat)
-            bandwidth_u = n_samples ** (-1 / 5) * np.std(u_flat)
-            bandwidth_v = n_samples ** (-1 / 5) * np.std(v_flat)
-            bandwidth_joint = min(bandwidth_u, bandwidth_v)
-
-            # Ensure minimum bandwidth
-            bandwidth_joint = max(bandwidth_joint, 0.01)
-
-            try:
-                # Estimate marginal densities
-                kde_u = KernelDensity(bandwidth=bandwidth_u, kernel="gaussian")
-                kde_v = KernelDensity(bandwidth=bandwidth_v, kernel="gaussian")
-                kde_joint = KernelDensity(bandwidth=bandwidth_joint, kernel="gaussian")
-
-                kde_u.fit(u_flat.reshape(-1, 1))
-                kde_v.fit(v_flat.reshape(-1, 1))
-
-                # Joint density on uniform margins
-                uv_joint = np.column_stack([u_flat, v_flat])
-                kde_joint.fit(uv_joint)
-
-                # Compute MI using kernel density estimates
-                # MI = ∫∫ p(u,v) log(p(u,v) / (p(u)p(v))) du dv
-                # Approximate using sample-based estimation
-
-                log_pu = kde_u.score_samples(u_flat.reshape(-1, 1))
-                log_pv = kde_v.score_samples(v_flat.reshape(-1, 1))
-                log_puv = kde_joint.score_samples(uv_joint)
-
-                # MI estimate: mean of log(p(u,v)) - log(p(u)) - log(p(v))
-                mi_samples = log_puv - log_pu - log_pv
-                mi = np.mean(mi_samples)
-
-                return max(0.0, mi)
-
-            except Exception as e:
-                self.logger.warning(
-                    f"Kernel copula estimation failed: {e}, falling back to Gaussian"
-                )
-                return self._gaussian_copula_mi(u, v)
-
-        # For multivariate, fall back to Kraskov
-        return KraskovEstimator(self.config).mutual_information(u, v)
-
-    def _dvc_copula_mi(self, x: np.ndarray, y: np.ndarray) -> float:
-        """Use DVC tensorflow for copula-based MI estimation."""
-        # This would implement the full DVC copula estimation
-        # For now, fall back to simple copula
-        return self._simple_copula_mi(x, y)
+        if discrete or x.shape[1] != 1 or y.shape[1] != 1:
+            raise ValueError(
+                "the kernel copula estimates the information of two continuous "
+                "scalars only; use copula type 'gaussian' for labels or vectors"
+            )
+        n = x.shape[0]
+        u = stats.rankdata(x[:, 0]) / (n + 1)
+        v = stats.rankdata(y[:, 0]) / (n + 1)
+        if np.ptp(u) == 0 or np.ptp(v) == 0:
+            return 0.0
+        # Scott's rule per margin; the joint kernel takes the smaller width.
+        bandwidth_u = n ** (-1 / 5) * np.std(u)
+        bandwidth_v = n ** (-1 / 5) * np.std(v)
+        bandwidth_joint = max(min(bandwidth_u, bandwidth_v), 0.01)
+        kde_u = KernelDensity(bandwidth=bandwidth_u, kernel="gaussian")
+        kde_v = KernelDensity(bandwidth=bandwidth_v, kernel="gaussian")
+        kde_joint = KernelDensity(bandwidth=bandwidth_joint, kernel="gaussian")
+        uv = np.column_stack([u, v])
+        log_pu = kde_u.fit(u[:, None]).score_samples(u[:, None])
+        log_pv = kde_v.fit(v[:, None]).score_samples(v[:, None])
+        log_puv = kde_joint.fit(uv).score_samples(uv)
+        return float(np.mean(log_puv - log_pu - log_pv))
 
 
 class InformationEstimatorFactory:

@@ -50,10 +50,7 @@ from dendritic_modeling.datasets.standard_datasets import (
     _class_subset_indices,
     _copy_dataset_with_transform,
     _dataset_mapping_to_triplet,
-    _ensure_experimental_dataset_import_paths,
-    _experimental_dataset_import_path_candidates,
     _is_official_imagenet_root,
-    _load_experimental_dataset_triplet,
     _load_imagenet_dataset_triplet,
     _load_mnist_style_as_datasets,
     _load_paired_arithmetic_from_options,
@@ -67,7 +64,6 @@ from dendritic_modeling.datasets.standard_datasets import (
     _normalized_imagenet_loader_backend,
     _normalized_imagenet_preset_name,
     _paired_arithmetic_option_kwargs,
-    _resolve_experimental_dataset_loader,
     _resolve_imagefolder_roots,
     _resolve_imagenet_data_location,
     _split_imagenet_train_valid_or_use_test,
@@ -77,267 +73,6 @@ from dendritic_modeling.datasets.standard_datasets import (
     _subset_by_indices,
     _wrap_poisson_generator_triplet,
 )
-
-# Import synthetic datasets from experiments folder
-try:
-    import os
-    import sys
-
-    experiments_path = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "experiments"
-    )
-    if experiments_path not in sys.path:
-        sys.path.insert(0, experiments_path)
-
-    from data_generation.synthetic_datasets import (
-        CenterSurroundDataset,
-        CompositionalMNIST,
-        CueIntegrationDataset,
-        InfoShuntingDataset,
-        LineDataset,
-        MultiXORDataset,
-        NoisyLineDataset,
-        OrientationBarsDataset,
-        OrthoNetDataset,
-        PoissonGeneratorDataset,
-        RandomFlipMNISTDataset,
-    )
-except ImportError:
-    # If synthetic datasets are not available, create dummy classes for testing
-    class DummyDataset:
-        def __init__(self, *args, **kwargs):
-            # Handle different calling patterns
-            if args and isinstance(args[0], int):
-                # Called as DummyDataset(n_samples, ...)
-                self.n_samples = args[0]
-            elif "base_inputs" in kwargs and hasattr(kwargs["base_inputs"], "__len__"):
-                # Called as DummyDataset(base_inputs=data, ...) - use data length
-                self.n_samples = len(kwargs["base_inputs"])
-                self.base_inputs = kwargs["base_inputs"]
-                self.base_labels = kwargs.get("base_labels", None)
-            elif args and hasattr(args[0], "__len__") and len(args[0]) > 0:
-                # Called as DummyDataset(mnist_data, n_samples=10) - for CompositionalMNIST
-                self.mnist_data = args[0]
-                self.n_samples = kwargs.get("n_samples", len(args[0]))
-            elif "n_samples" in kwargs:
-                # Called as DummyDataset(..., n_samples=10)
-                self.n_samples = kwargs.get("n_samples", 10)
-            elif args:
-                # Called as DummyDataset(data, n_samples=10) - ignore data, use n_samples
-                self.n_samples = kwargs.get("n_samples", 10)
-            else:
-                # Default case
-                self.n_samples = 10
-            # Store additional parameters for specific dataset behaviors - only set if explicitly provided
-            if "image_size" in kwargs:
-                self.image_size = kwargs["image_size"]
-            if "input_dim" in kwargs:
-                self.input_dim = kwargs["input_dim"]
-            if "cue_dim" in kwargs:
-                self.cue_dim = kwargs["cue_dim"]
-                self.input_dim = 2 + 2 * kwargs["cue_dim"]
-            if "n_bits" in kwargs:
-                self.n_bits = kwargs["n_bits"]
-            # Additional attributes for specific dataset types
-            if "noise_level" in kwargs:
-                self.noise_level = kwargs["noise_level"]
-            if "n_orient_classes" in kwargs:
-                self.n_orient_classes = kwargs["n_orient_classes"]
-            if "n_layers" in kwargs:
-                self.n_layers = kwargs["n_layers"]
-            if "nonlinearity" in kwargs:
-                self.nonlinearity = kwargs["nonlinearity"]
-            if "seed" in kwargs:
-                self.seed = kwargs["seed"]
-            if "rate_multiplier" in kwargs:
-                self.rate_multiplier = kwargs["rate_multiplier"]
-
-        def __len__(self):
-            return self.n_samples
-
-        def __getitem__(self, idx):
-            # Set seed for deterministic behavior if provided
-            if hasattr(self, "seed") and self.seed is not None:
-                torch.manual_seed(
-                    self.seed + idx
-                )  # Use seed + idx for different samples
-
-            # Handle datasets with base_inputs (e.g., PoissonGeneratorDataset)
-            if hasattr(self, "base_inputs") and self.base_inputs is not None:
-                sample = self.base_inputs[idx].clone()
-                # Add small noise to simulate Poisson behavior
-                if hasattr(self, "rate_multiplier"):
-                    sample = sample + torch.randn_like(sample) * 0.1
-                if hasattr(self, "base_labels") and self.base_labels is not None:
-                    label = self.base_labels[idx]
-                else:
-                    label = torch.randint(0, 2, (1,))
-                return sample, label
-
-            # Handle CompositionalMNIST datasets
-            if hasattr(self, "mnist_data") and self.mnist_data is not None:
-                # Simulate concatenated MNIST images (28*28*2 = 1568)
-                sample = torch.randn(
-                    28 * 28 * 2
-                )  # Two 28x28 images flattened and concatenated
-                # Label should be in range 0-99 (digit1*10 + digit2)
-                label = torch.randint(0, 100, (1,))
-                return sample, label
-
-            # Return tensor size and appropriate data based on dataset type
-            if hasattr(self, "image_size"):
-                # Image datasets use image_size squared with continuous data and 3 classes
-                data_size = self.image_size**2
-                sample = torch.randn(data_size)
-                label = torch.randint(0, 3, (1,))
-            elif hasattr(self, "input_dim"):
-                # InfoShuntingDataset: continuous input, binary labels
-                data_size = self.input_dim
-                sample = torch.randn(data_size)
-                label = torch.randint(0, 2, (1,))
-            elif hasattr(self, "n_bits"):
-                # MultiXORDataset: binary input, binary labels
-                data_size = self.n_bits
-                sample = torch.randint(
-                    0, 2, (data_size,)
-                ).float()  # Binary data as float
-                label = torch.randint(0, 2, (1,))
-            else:
-                # Default fallback
-                data_size = 10
-                sample = torch.randn(data_size)
-                label = torch.randint(0, 3, (1,))
-            return sample, label
-
-    CenterSurroundDataset = DummyDataset
-    CueIntegrationDataset = DummyDataset
-    InfoShuntingDataset = DummyDataset
-    LineDataset = DummyDataset
-    MultiXORDataset = DummyDataset
-    NoisyLineDataset = DummyDataset
-    OrientationBarsDataset = DummyDataset
-    OrthoNetDataset = DummyDataset
-    PoissonGeneratorDataset = DummyDataset
-    RandomFlipMNISTDataset = DummyDataset
-    CompositionalMNIST = DummyDataset
-
-
-class TestSyntheticDatasets(unittest.TestCase):
-    """Test synthetic dataset classes."""
-
-    def test_line_dataset(self):
-        """Test LineDataset creation and properties."""
-        dataset = LineDataset(n_samples=100, image_size=10)
-
-        self.assertEqual(len(dataset), 100)
-        self.assertEqual(dataset.image_size, 10)
-
-        # Test data access
-        sample, label = dataset[0]
-        self.assertEqual(sample.shape, (100,))  # 10x10 flattened
-        self.assertIn(label.item(), [0, 1, 2])
-
-        # Test that data types are correct
-        self.assertIsInstance(sample, torch.Tensor)
-        self.assertIsInstance(label, torch.Tensor)
-
-    def test_center_surround_dataset(self):
-        """Test CenterSurroundDataset creation and properties."""
-        dataset = CenterSurroundDataset(n_samples=50, image_size=15)
-
-        self.assertEqual(len(dataset), 50)
-        self.assertEqual(dataset.image_size, 15)
-
-        sample, label = dataset[0]
-        self.assertEqual(sample.shape, (225,))  # 15x15 flattened
-        self.assertIn(label.item(), [0, 1, 2])
-
-    def test_orientation_bars_dataset(self):
-        """Test OrientationBarsDataset creation and properties."""
-        n_classes = 4
-        dataset = OrientationBarsDataset(
-            n_samples=40, image_size=16, n_orient_classes=n_classes
-        )
-
-        self.assertEqual(len(dataset), 40)
-        self.assertEqual(dataset.n_orient_classes, n_classes)
-
-        sample, label = dataset[0]
-        self.assertEqual(sample.shape, (256,))  # 16x16 flattened
-        self.assertGreaterEqual(label.item(), 0)
-        self.assertLess(label.item(), n_classes)
-
-    def test_multi_xor_dataset(self):
-        """Test MultiXORDataset creation and properties."""
-        n_bits = 6
-        dataset = MultiXORDataset(n_samples=30, n_bits=n_bits)
-
-        self.assertEqual(len(dataset), 30)
-        self.assertEqual(dataset.n_bits, n_bits)
-
-        sample, label = dataset[0]
-        self.assertEqual(sample.shape, (n_bits,))
-
-        # Check that all bits are binary
-        self.assertTrue(torch.all((sample == 0) | (sample == 1)))
-
-        # Check label range (should be 0-3 for standard XOR)
-        self.assertGreaterEqual(label.item(), 0)
-        self.assertLess(label.item(), 4)
-
-    def test_info_shunting_dataset(self):
-        """Test InfoShuntingDataset creation and properties."""
-        dataset = InfoShuntingDataset(n_samples=100, input_dim=8)
-
-        self.assertEqual(len(dataset), 100)
-        self.assertEqual(dataset.input_dim, 8)
-
-        sample, label = dataset[0]
-        self.assertEqual(sample.shape, (8,))
-        self.assertIn(label.item(), [0, 1])
-
-    def test_cue_integration_dataset(self):
-        """Test CueIntegrationDataset creation and properties."""
-        dataset = CueIntegrationDataset(n_samples=120, cue_dim=5)
-
-        self.assertEqual(len(dataset), 120)
-        self.assertEqual(dataset.cue_dim, 5)
-
-        sample, label = dataset[0]
-        self.assertEqual(sample.shape, (12,))  # 2 context dims + 2 * cue_dim
-        self.assertIn(label.item(), [0, 1])
-
-    def test_noisy_line_dataset(self):
-        """Test NoisyLineDataset creation and properties."""
-        dataset = NoisyLineDataset(n_samples=50, image_size=8, noise_level=0.1)
-
-        self.assertEqual(len(dataset), 50)
-        self.assertEqual(dataset.image_size, 8)
-        self.assertEqual(dataset.noise_level, 0.1)
-
-        sample, label = dataset[0]
-        self.assertEqual(sample.shape, (64,))  # 8x8 flattened
-        self.assertIn(label.item(), [0, 1, 2])
-
-    def test_orthonet_dataset(self):
-        """Test OrthoNetDataset creation and properties."""
-        dataset = OrthoNetDataset(
-            n_samples=50, input_dim=10, n_layers=3, nonlinearity="sigmoid", seed=42
-        )
-
-        self.assertEqual(len(dataset), 50)
-        self.assertEqual(dataset.input_dim, 10)
-        self.assertEqual(dataset.n_layers, 3)
-
-        # Test deterministic behavior with seed
-        sample1, label1 = dataset[0]
-        dataset2 = OrthoNetDataset(
-            n_samples=50, input_dim=10, n_layers=3, nonlinearity="sigmoid", seed=42
-        )
-        sample2, label2 = dataset2[0]
-
-        self.assertTrue(torch.allclose(sample1, sample2))
-        self.assertTrue(torch.allclose(label1, label2))
 
 
 class TestRealDatasets(unittest.TestCase):
@@ -550,7 +285,7 @@ class TestRealDatasets(unittest.TestCase):
         self.assertGreater(len(train_ds), 0)
         self.assertGreater(len(test_ds), 0)
 
-    def test_materialize_cifar10_tensor_triplet_clones_train_as_valid_at_full_split(
+    def test_materialize_cifar10_tensor_triplet_holds_out_nothing_at_full_split(
         self,
     ):
         train_dataset = self._TinyVisionDataset(5, (3, 4, 4))
@@ -565,18 +300,8 @@ class TestRealDatasets(unittest.TestCase):
         )
 
         self.assertEqual(tuple(train_ds.tensors[0].shape), (5, 48))
-        self.assertEqual(tuple(valid_ds.tensors[0].shape), (5, 48))
+        self.assertEqual(tuple(valid_ds.tensors[0].shape), (0, 48))
         self.assertEqual(tuple(test_ds.tensors[0].shape), (3, 48))
-        self.assertTrue(torch.equal(valid_ds.tensors[0], train_ds.tensors[0]))
-        self.assertTrue(torch.equal(valid_ds.tensors[1], train_ds.tensors[1]))
-        self.assertNotEqual(
-            valid_ds.tensors[0].data_ptr(),
-            train_ds.tensors[0].data_ptr(),
-        )
-        self.assertNotEqual(
-            valid_ds.tensors[1].data_ptr(),
-            train_ds.tensors[1].data_ptr(),
-        )
 
     def test_mnist_avoids_redownload_when_cache_is_good(self):
         """MNIST cache helper should use the local cache when it is already valid."""
@@ -623,6 +348,33 @@ class TestRealDatasets(unittest.TestCase):
         self.assertEqual(dataset_cls.call_args_list[2].kwargs["download"], True)
         self.assertEqual(len(train_ds), 2)
         self.assertEqual(len(test_ds), 2)
+
+    def test_cache_repair_removes_only_the_failing_datasets_files(self):
+        """Repairing CIFAR-100 keeps CIFAR-10 and MNIST files in the same root."""
+        from torchvision import datasets as tv_datasets
+
+        from dendritic_modeling.datasets.standard_datasets import _clear_dataset_cache
+
+        names = (
+            "cifar-10-batches-py",
+            "cifar-10-python.tar.gz",
+            "cifar-100-python",
+            "cifar-100-python.tar.gz",
+            "MNIST",
+        )
+        for name in names:
+            path = os.path.join(self.temp_dir, name)
+            if name.endswith(".gz"):
+                open(path, "w").close()
+            else:
+                os.makedirs(os.path.join(path, "raw"))
+        _clear_dataset_cache(tv_datasets.CIFAR100, self.temp_dir)
+        self.assertEqual(
+            sorted(os.listdir(self.temp_dir)),
+            ["MNIST", "cifar-10-batches-py", "cifar-10-python.tar.gz"],
+        )
+        _clear_dataset_cache(tv_datasets.MNIST, self.temp_dir)
+        self.assertNotIn("MNIST", os.listdir(self.temp_dir))
 
     def test_load_mnist_modulo10(self):
         """Test MNIST modulo 10 dataset loading."""
@@ -1354,16 +1106,17 @@ class TestDatasetUtilities(unittest.TestCase):
         test_ds = TensorDataset(torch.ones(1, 2), torch.ones(1, dtype=torch.long))
         calls = []
 
+        valid_ds = TensorDataset(torch.zeros(0, 2), torch.zeros(0, dtype=torch.long))
+
         def fake_loader(**kwargs):
             calls.append(kwargs)
-            return {"train": train_ds, "test": test_ds}
+            return {"train": train_ds, "valid": valid_ds, "test": test_ds}
 
         out_train, out_valid, out_test = _load_paired_arithmetic_from_options(
             options,
             fake_loader,
             default_shuffle_iterations=2,
             include_context=False,
-            valid_fallback_to_test=True,
         )
 
         self.assertEqual(
@@ -1381,7 +1134,7 @@ class TestDatasetUtilities(unittest.TestCase):
             ],
         )
         self.assertIs(out_train, train_ds)
-        self.assertIs(out_valid, test_ds)
+        self.assertIs(out_valid, valid_ds)
         self.assertIs(out_test, test_ds)
 
     def test_standard_vision_loader_registry_preserves_dispatch_and_noise_hook(self):
@@ -1449,20 +1202,6 @@ class TestDatasetUtilities(unittest.TestCase):
         self.assertTrue(torch.equal(noisy_train.tensors[0], train_ds.tensors[0]))
         self.assertFalse(torch.equal(noisy_train.tensors[1], train_ds.tensors[1]))
 
-    def test_dataset_mapping_to_triplet_uses_missing_valid_fallback(self):
-        """Mapping conversion should preserve the modulo-MNIST valid fallback."""
-        train_ds = TensorDataset(torch.zeros(1, 2), torch.zeros(1, dtype=torch.long))
-        test_ds = TensorDataset(torch.ones(1, 2), torch.ones(1, dtype=torch.long))
-
-        out_train, out_valid, out_test = _dataset_mapping_to_triplet(
-            {"train": train_ds, "test": test_ds},
-            valid_fallback_to_test=True,
-        )
-
-        self.assertIs(out_train, train_ds)
-        self.assertIs(out_valid, test_ds)
-        self.assertIs(out_test, test_ds)
-
     def test_dataset_mapping_to_triplet_uses_explicit_valid_when_required(self):
         """Mapping conversion should require and return the explicit valid split."""
         train_ds = TensorDataset(torch.zeros(1, 2), torch.zeros(1, dtype=torch.long))
@@ -1487,11 +1226,24 @@ class TestDatasetUtilities(unittest.TestCase):
         self.assertEqual(data_dir, expected_path)
         self.assertTrue(os.path.exists(data_dir))
 
-        # Test with default fallback path
+        # Without a path, the shared data root (DENDRITIC_DATA_DIR in tests).
         data_dir2 = get_data_directory("cifar", task_data_path=None)
-        expected_path2 = os.path.join("./data", "cifar")
+        expected_path2 = os.path.join(
+            os.environ["DENDRITIC_DATA_DIR"], "datasets", "cifar"
+        )
         self.assertEqual(data_dir2, expected_path2)
         self.assertTrue(os.path.exists(data_dir2))
+
+
+def test_the_data_root_is_base_dir_then_environment_then_cache(monkeypatch, tmp_path):
+    from dendritic_modeling.datasets.paths import resolve_data_root
+
+    monkeypatch.setenv("DENDRITIC_DATA_DIR", str(tmp_path / "env"))
+    assert resolve_data_root("/explicit") == "/explicit"
+    assert resolve_data_root("") == str(tmp_path / "env")
+    monkeypatch.delenv("DENDRITIC_DATA_DIR")
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
+    assert resolve_data_root(None) == str(tmp_path / "cache" / "dendritic_modeling")
 
 
 class TestGetUnifiedDatasets(unittest.TestCase):
@@ -1510,22 +1262,6 @@ class TestGetUnifiedDatasets(unittest.TestCase):
         import shutil
 
         shutil.rmtree(self.temp_dir, ignore_errors=True)
-
-    @unittest.skip(
-        "Synthetic datasets require experiments folder - integration test needed"
-    )
-    def test_synthetic_datasets(self):
-        """Test loading of synthetic datasets - currently skipped due to missing data_generation module."""
-        # This test requires the experiments/data_generation module which is not available in CI
-        # The synthetic dataset functionality should be tested in integration tests
-
-    @unittest.skip(
-        "Synthetic datasets require experiments folder - integration test needed"
-    )
-    def test_custom_parameters(self):
-        """Test loading with custom parameters - currently skipped due to missing data_generation module."""
-        # This test requires the experiments/data_generation module which is not available in CI
-        # The synthetic dataset functionality should be tested in integration tests
 
     @patch("dendritic_modeling.datasets.standard_datasets.load_mnist_as_datasets")
     def test_mnist_dataset(self, mock_load_mnist):
@@ -1652,108 +1388,33 @@ class TestGetUnifiedDatasets(unittest.TestCase):
         )
         self.assertNotIn("type", parameters)
 
-    def test_experimental_dataset_import_path_candidates_preserve_layouts(self):
-        candidates = _experimental_dataset_import_path_candidates()
-
-        self.assertEqual(len(candidates), 2)
-        self.assertTrue(candidates[0].endswith("experiments"))
-        self.assertEqual(candidates[1], os.path.join(candidates[0], "experiments"))
-
-    def test_ensure_experimental_dataset_import_paths_adds_existing_roots_once(self):
-        import sys
-
-        first = os.path.join(self.temp_dir, "experiments")
-        second = os.path.join(first, "experiments")
-        os.makedirs(second)
-        original_path = list(sys.path)
-        try:
-            _ensure_experimental_dataset_import_paths([first, second, first])
-
-            self.assertEqual(sys.path.count(first), 1)
-            self.assertEqual(sys.path.count(second), 1)
-            self.assertLess(sys.path.index(second), sys.path.index(first))
-        finally:
-            sys.path[:] = original_path
-
-    @patch("dendritic_modeling.datasets.standard_datasets.importlib.import_module")
-    def test_resolve_experimental_dataset_loader_preserves_last_import_error(
-        self,
-        mock_import_module,
-    ):
-        first_error = ImportError("missing canonical layout")
-        second_error = RuntimeError("missing fallback layout")
-        mock_import_module.side_effect = [first_error, second_error]
-
-        loader, last_error = _resolve_experimental_dataset_loader()
-
-        self.assertIsNone(loader)
-        self.assertIs(last_error, second_error)
-        self.assertEqual(
-            [call_args.args[0] for call_args in mock_import_module.call_args_list],
-            [
-                "experiments.data_generation.synthetic_datasets",
-                "data_generation.synthetic_datasets",
-            ],
-        )
-
-    @patch("dendritic_modeling.datasets.standard_datasets.os.path.isdir")
-    @patch("dendritic_modeling.datasets.standard_datasets.importlib.import_module")
-    def test_experimental_dataset_fallback_dispatch(
-        self,
-        mock_import_module,
-        mock_isdir,
-    ):
-        """Experimental fallback should try both historical import layouts."""
-        mock_isdir.return_value = False
-        mock_train = torch.utils.data.TensorDataset(
-            torch.randn(5, 2), torch.randint(0, 2, (5,))
-        )
-        mock_valid = torch.utils.data.TensorDataset(
-            torch.randn(2, 2), torch.randint(0, 2, (2,))
-        )
-        mock_test = torch.utils.data.TensorDataset(
-            torch.randn(3, 2), torch.randint(0, 2, (3,))
-        )
-        mock_module = Mock()
-        mock_module.get_unified_datasets.return_value = (
-            mock_train,
-            mock_valid,
-            mock_test,
-        )
-        mock_import_module.side_effect = [
-            ImportError("missing canonical layout"),
-            mock_module,
-        ]
-        mock_import_module.reset_mock()
-
-        train_ds, valid_ds, test_ds = _load_experimental_dataset_triplet(
-            dataset_name="custom_experiment",
-            task_cfg=self.task_cfg,
-        )
-
-        self.assertIs(train_ds, mock_train)
-        self.assertIs(valid_ds, mock_valid)
-        self.assertIs(test_ds, mock_test)
-        self.assertEqual(
-            [call_args.args[0] for call_args in mock_import_module.call_args_list],
-            [
-                "experiments.data_generation.synthetic_datasets",
-                "data_generation.synthetic_datasets",
-            ],
-        )
-        mock_module.get_unified_datasets.assert_called_once_with(
-            self.task_cfg,
-            self.task_cfg,
-        )
-
     def test_invalid_dataset(self):
-        """Test handling of invalid dataset names."""
-        self.task_cfg.dataset = "invalid_dataset_name"
+        """An unknown name raises with the known names and the registry hint."""
+        self.task_cfg.dataset = "linear_seperable"
         self.task_cfg.data_path = None
         self.task_cfg.parameters = {}
 
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(ValueError, "did you mean 'linear_separable'"):
             get_unified_datasets(self.task_cfg)
+        with self.assertRaisesRegex(ValueError, "register_dataset"):
+            get_unified_datasets(self.task_cfg)
+
+    def test_every_library_synthetic_dataset_is_selectable(self):
+        """Each synthetic spec builds through get_unified_datasets by name."""
+        from dendritic_modeling.datasets.synthetic_datasets import (
+            synthetic_dataset_names,
+        )
+
+        for name in synthetic_dataset_names():
+            with self.subTest(dataset=name):
+                self.task_cfg.dataset = name
+                self.task_cfg.data_path = None
+                self.task_cfg.parameters = {"n_samples": 40, "seed": 2}
+                train_ds, valid_ds, test_ds = get_unified_datasets(self.task_cfg)
+                x, y = train_ds[0]
+                self.assertEqual(x.dim(), 1)
+                self.assertTrue(len(valid_ds) > 0 and len(test_ds) > 0)
+                self.assertGreaterEqual(int(y), 0)
 
 
 class TestSpecializedDatasets(unittest.TestCase):
@@ -1801,8 +1462,8 @@ class TestSpecializedDatasets(unittest.TestCase):
         base_inputs = torch.rand(50, 10) * 2  # Scale for better Poisson behavior
         base_labels = torch.randint(0, 2, (50,))
 
-        dataset = PoissonGeneratorDataset(
-            base_inputs=base_inputs, base_labels=base_labels, rate_multiplier=1.5
+        dataset = StandardPoissonGeneratorDataset(
+            base_inputs=base_inputs, base_labels=base_labels, max_gain_factor=1.5
         )
 
         self.assertEqual(len(dataset), 50)
@@ -1823,28 +1484,6 @@ class TestSpecializedDatasets(unittest.TestCase):
         # At least some samples should be different
         self.assertTrue(any(diff > 0 for diff in differences))
 
-    def test_compositional_mnist(self):
-        """Test CompositionalMNIST dataset."""
-        # Create mock MNIST data
-        mock_mnist_data = [(torch.randn(28, 28), i % 10) for i in range(20)]
-
-        dataset = CompositionalMNIST(mock_mnist_data, n_samples=10)
-
-        self.assertEqual(len(dataset), 10)
-
-        sample, label = dataset[0]
-        # Should be horizontally concatenated images
-        self.assertEqual(sample.shape, (28 * 28 * 2,))  # Two 28x28 images flattened
-
-        # Label should be in range 0-99 (digit1*10 + digit2)
-        self.assertGreaterEqual(label.item(), 0)
-        self.assertLessEqual(label.item(), 99)
-
-    @unittest.skip(
-        "RandomFlipMNISTDataset requires complex MNIST mocking - integration test needed"
-    )
-    def test_random_flip_mnist_dataset(self):
-        """Test RandomFlipMNISTDataset functionality - currently skipped due to complex mocking requirements."""
         # This test requires complex mocking of MNIST dataset loading
         # The functionality should be tested in integration tests
 

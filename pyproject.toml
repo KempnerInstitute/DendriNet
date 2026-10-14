@@ -1,15 +1,16 @@
 [build-system]
-requires = ["setuptools", "wheel"]
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "dendritic_modeling"
-version = "0.1.0"
-description = "package containing artificial neural networks emulating dendritic computation"
+version = "0.2.0"
+description = "DendriNet: PyTorch library for neural networks of dendritic neurons"
 readme = "README.md"
-license = {text = "MIT"}
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [
-    {name = "Dendritic Modeling Team", email = "hsafaai@fas.harvard.edu"}
+    {name = "Kempner Institute for the Study of Natural and Artificial Intelligence"},
 ]
 requires-python = ">=3.10,<4.0"
 keywords = ["dendritic", "neural-networks", "pytorch", "machine-learning", "neuroscience"]
@@ -17,68 +18,80 @@ classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Operating System :: OS Independent"
 ]
+# Every hard dependency is imported by the library (tests/test_packaging.py).
+# torch 2.8 is the floor: compact checkpoints use the unsigned integer dtypes
+# added in 2.3, weights_only loading is a safe boundary only from 2.6, and the
+# advisories against 2.6 and 2.7 are fixed in 2.8.
 dependencies = [
-    "torch>=2.0.0,!=2.6.0,<3.0.0",
-    "torchvision>=0.15.0,<1.0.0",
+    "torch>=2.8.0,<3.0.0",
+    "torchvision>=0.23.0,<1.0.0",
     "torchinfo>=1.7.0",
     "omegaconf>=2.1.0,<3.0.0",
     "PyYAML>=6.0",
-    "numpy>=1.21.0,<2.0.0",
+    "numpy>=1.21.0,<3.0.0",
     "scipy>=1.7.0",
     "scikit-learn>=1.0.0",
     "pandas>=1.3.0,<3.0.0",
-    "h5py>=3.0.0",
     "matplotlib>=3.5.0,<4.0.0",
     "seaborn>=0.11.0,<1.0.0",
-    "plotly>=5.0.0",
-    "wandb>=0.12.0",
-    "tensorboard>=2.10.0",
-    "psutil>=5.8.0",
     "tqdm>=4.60.0",
-    "python-dateutil",
 ]
 
 [project.urls]
-"Bug Reports" = "https://github.com/kempner-institute/dendritic-modeling/issues"
-"Source" = "https://github.com/kempner-institute/dendritic-modeling"
-"Documentation" = "https://github.com/kempner-institute/dendritic-modeling/blob/main/README.md"
+Homepage = "https://github.com/KempnerInstitute/DendriNet"
+Documentation = "https://kempnerinstitute.github.io/DendriNet/"
+Source = "https://github.com/KempnerInstitute/DendriNet"
+Issues = "https://github.com/KempnerInstitute/DendriNet/issues"
+Changelog = "https://github.com/KempnerInstitute/DendriNet/blob/develop/CHANGELOG.md"
 
 [project.scripts]
 dendritic-train = "dendritic_modeling.scripts.training.train_experiments:cli_main"
-dendritic-train-transformer-replacement = "dendritic_modeling.scripts.training.train_transformer_replacement:main"
-dendritic-benchmark-transformer-replacement = "dendritic_modeling.scripts.training.benchmark_transformer_replacement:main"
-dendritic-profile-transformer-scaling = "dendritic_modeling.scripts.transformer_replacement.profile_scaling:main"
-dendritic-benchmark-transformer-operator = "dendritic_modeling.scripts.transformer_replacement.benchmark_operator:main"
-dendritic-assemble-transformer-replacements = "dendritic_modeling.scripts.transformer_replacement.assemble_layer_checkpoints:main"
-dendritic-compact-transformer-checkpoint = "dendritic_modeling.scripts.transformer_replacement.compact_checkpoint:main"
+dendritic-compact-checkpoint = "dendritic_modeling.scripts.deployment.compact_checkpoint:main"
 dendritic-sweep = "dendritic_modeling.scripts.sweeps.sweep_manager:main"
 dendritic-analyze = "dendritic_modeling.scripts.sweeps.result_analyzer:main"
-dendritic-analyze-checkpoint = "dendritic_modeling.scripts.analysis.run_checkpoint_analysis:main"
-dendritic-collect-representations = "dendritic_modeling.scripts.analysis.collect_representation_accessibility:main"
+dendritic-analyze-checkpoint = "dendritic_modeling.scripts.analysis.run_checkpoint_analysis:cli_main"
+dendritic-submit-checkpoint-analysis = "dendritic_modeling.scripts.analysis.submit_checkpoint_analysis:main"
+dendritic-collect-representations = "dendritic_modeling.scripts.analysis.collect_representation_accessibility:cli_main"
+dendritic-collect-path-interventions = "dendritic_modeling.scripts.analysis.collect_path_matched_intervention:cli_main"
+dendritic-collect-path-information = "dendritic_modeling.scripts.analysis.collect_path_matched_information:cli_main"
+dendritic-collect-branch-sensitivities = "dendritic_modeling.scripts.analysis.collect_branch_local_sensitivity:main"
+dendritic-collect-local-i-interventions = "dendritic_modeling.scripts.analysis.collect_layer_population_interventions:main"
+dendritic-collect-checkpoint-analysis = "dendritic_modeling.scripts.analysis.collect_checkpoint_analysis:cli_main"
+dendritic-collect-perturbation-response = "dendritic_modeling.scripts.analysis.collect_perturbation_response:cli_main"
+dendritic-collect-gain-load-response = "dendritic_modeling.scripts.analysis.collect_gain_load_response:cli_main"
+dendritic-collect-reactivation = "dendritic_modeling.scripts.analysis.collect_reactivation_dynamics:cli_main"
+dendritic-collect-synaptic-support = "dendritic_modeling.scripts.analysis.collect_synaptic_support:cli_main"
+dendritic-collect-source-tuning = "dendritic_modeling.scripts.analysis.collect_source_tuning_support:cli_main"
+dendritic-collect-input-region-interventions = "dendritic_modeling.scripts.analysis.collect_input_region_intervention:cli_main"
+dendritic-summarize-checkpoint-metrics = "dendritic_modeling.scripts.analysis.summarize_checkpoint_metrics:main"
+dendritic-select-validation-epochs = "dendritic_modeling.scripts.analysis.select_validation_epochs:cli_main"
+dendritic-poisson-exposure-transfer = "dendritic_modeling.scripts.analysis.run_poisson_exposure_transfer:cli_main"
+dendritic-collect-poisson-transfer = "dendritic_modeling.scripts.analysis.collect_poisson_exposure_transfer:cli_main"
+dendritic-collect-sweep-metrics = "dendritic_modeling.scripts.sweeps.collect_sweep_metrics:main"
+dendritic-upgrade-config = "dendritic_modeling.scripts.tools.upgrade_config:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
+include = ["dendritic_modeling*"]
+namespaces = false
 
 [project.optional-dependencies]
 test = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
-    "pytest-mock>=3.10.0",
     "pytest-timeout>=2.1.0",
     "pytest-xdist>=3.0.0",
     "coverage[toml]>=6.5.0",
-    "networkx",
-    "mock",
+    "tomli>=2.0; python_version < '3.11'",
 ]
 
 lint = [
@@ -97,10 +110,23 @@ dev = [
     "build",
 ]
 
-tf = [
-    "tensorflow>=2.16.0",
-    "tensorflow_probability",
-    "tf-keras",
+compression = [
+    "torchao>=0.18,<0.19",
+]
+
+# Triton kernels (indexed synapse backends); Linux CUDA torch wheels ship it.
+gpu = [
+    "triton>=3.0",
+]
+
+# Graph drawing in plotting.core.utils.
+plotting = [
+    "networkx>=2.6",
+]
+
+# Hugging Face causal LMs for networks.architectures.transformer replacements.
+transformers = [
+    "transformers>=4.30",
 ]
 
 train = [
@@ -109,27 +135,14 @@ train = [
     "ipython>=8.0.0",
 ]
 
-transformer = [
-    "transformers>=4.52,<5",
-    "datasets>=2.19",
-    "accelerate>=0.30",
-    "safetensors>=0.4",
-    "sentencepiece>=0.2",
-]
-
+# Sphinx with the extensions docs/conf.py uses (all bundled with Sphinx).
 docs = [
-    "sphinx",
-    "sphinx-rtd-theme",
-    "sphinxcontrib-napoleon",
-    "myst-parser",
-    "nbsphinx",
-    "recommonmark",
-    "sphinx-copybutton",
-    "sphinxcontrib-bibtex",
+    "sphinx>=7",
+    "sphinx-rtd-theme>=2",
 ]
 
 all = [
-    "dendritic_modeling[dev,train,docs,tf,transformer]",
+    "dendritic_modeling[dev,train,docs,gpu,plotting]",
 ]
 
 # Configuration for coverage
@@ -156,56 +169,14 @@ exclude_lines = [
     "@(abc\\.)?abstractmethod",
 ]
 
-# Ruff configuration
-[tool.ruff]
-line-length = 88
-target-version = "py310"
-exclude = [
-    "external/**/*",
-    "external/",
-    ".git/",
-    "__pycache__/",
-    ".venv/",
-    ".pytest_cache/",
-    "build/",
-    "dist/",
-]
-
-[tool.ruff.lint]
-select = [
-    "E",    # pycodestyle errors
-    "W",    # pycodestyle warnings
-    "F",    # pyflakes
-    "I",    # isort
-    "N",    # pep8-naming
-    "UP",   # pyupgrade
-    "B",    # flake8-bugbear
-]
-ignore = [
-    "E501",  # line too long (handled by formatter)
-    "B008",  # do not perform function calls in argument defaults
-    "B009",  # do not call getattr with a constant attribute value
-    "B010",  # do not call setattr with a constant attribute value
-    "B905",  # zip(strict=...) migration deferred for current style
-    "UP007",  # keep Optional[...] annotations for consistency
-    "UP045",  # keep Optional[...] annotations for consistency with current codebase
-]
-
-[tool.ruff.format]
-quote-style = "double"
-indent-style = "space"
-skip-magic-trailing-comma = false
-line-ending = "auto"
-
-# Black configuration (keeping for compatibility)
+# Black formats the code (pre-commit and CI); ruff.toml configures linting
 [tool.black]
 line-length = 88
 target-version = ['py310']
 include = '\.pyi?$'
 exclude = '''
 /(
-    external
-    | \.git
+    \.git
     | __pycache__
     | \.venv
     | \.pytest_cache
@@ -225,4 +196,3 @@ use_parentheses = true
 ensure_newline_before_comments = true
 force_single_line = false
 combine_as_imports = true
-skip = ["external"]

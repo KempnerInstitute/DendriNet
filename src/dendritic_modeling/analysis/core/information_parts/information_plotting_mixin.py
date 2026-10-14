@@ -94,6 +94,9 @@ class InformationPlottingMixin:
                     save_path=save_path,
                     logger=self.logger,
                     somatic_synapses=somatic_synapses,
+                    layer_soma_relative_depths=results.get(
+                        "layer_soma_relative_depths"
+                    ),
                 )
             else:
                 self.logger.warning(

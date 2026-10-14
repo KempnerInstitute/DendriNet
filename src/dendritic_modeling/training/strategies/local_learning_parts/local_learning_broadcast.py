@@ -36,8 +36,11 @@ def apply_broadcast_bandwidth(
     """Apply bandwidth reduction to the broadcast error signal.
 
     Simulates biologically plausible low-bandwidth feedback channels.
-    ``bandwidth`` is one of "sign_only", "quantized", "sparse_topk".
+    ``bandwidth`` is one of "full", "sign_only", "quantized", "sparse_topk".
     """
+    if bandwidth == "full":
+        return e_n
+
     if bandwidth == "sign_only":
         magnitude = e_n.abs().mean()
         return torch.sign(e_n) * magnitude
@@ -59,8 +62,7 @@ def apply_broadcast_bandwidth(
         mask.scatter_(-1, topk_idx, 1.0)
         return e_n * mask
 
-    else:
-        return e_n
+    raise ValueError(f"Unknown broadcast_bandwidth {bandwidth!r}")
 
 
 def reduce_error_to_scalar(delta: torch.Tensor, eps: float = 1e-6) -> torch.Tensor:
@@ -72,13 +74,38 @@ def reduce_error_to_scalar(delta: torch.Tensor, eps: float = 1e-6) -> torch.Tens
         delta = delta.view(delta.size(0), -1)
 
     delta_scalar = delta.mean(dim=1, keepdim=True)
+    if delta.size(1) == 0:
+        return delta_scalar
+    # A sample whose mean error cancels broadcasts its largest-magnitude
+    # error instead. Selecting on the device avoids a host read per step.
     near_zero = delta_scalar.abs() <= eps
-    if near_zero.any():
-        max_idx = delta.abs().argmax(dim=1, keepdim=True)
-        fallback = delta.gather(dim=1, index=max_idx)
-        delta_scalar = torch.where(near_zero, fallback, delta_scalar)
+    max_idx = delta.abs().argmax(dim=1, keepdim=True)
+    fallback = delta.gather(dim=1, index=max_idx)
+    return torch.where(near_zero, fallback, delta_scalar)
 
-    return delta_scalar
+
+def expand_soma_error_to_compartments(
+    delta: torch.Tensor,
+    out_features: int,
+) -> torch.Tensor | None:
+    """Repeat each soma error over the compartments owned by that soma.
+
+    Dendritic branch tensors are ordered soma-major: all descendants of soma
+    ``u`` occupy one contiguous block. When the compartment width is an integer
+    multiple of the soma-error width, repeating each coordinate preserves that
+    ancestry. A non-divisible width is ambiguous and returns ``None`` so callers
+    can use an explicit fallback rather than silently tile unrelated neurons.
+    """
+    if delta.dim() == 1:
+        delta = delta.unsqueeze(-1)
+    elif delta.dim() != 2:
+        delta = delta.reshape(delta.size(0), -1)
+
+    n_soma = int(delta.size(1))
+    if n_soma <= 0 or out_features <= 0 or out_features % n_soma != 0:
+        return None
+    compartments_per_soma = out_features // n_soma
+    return delta.repeat_interleave(compartments_per_soma, dim=1)
 
 
 def compute_local_mismatch_broadcast(
@@ -117,21 +144,26 @@ def compute_local_mismatch_broadcast(
 def compute_layer_total_conductance(
     rec: dict[str, Any], v_n: torch.Tensor
 ) -> torch.Tensor:
-    """Compute total conductance used by conductance-aware local rules."""
-    g_tot = torch.ones_like(v_n)
+    """Total conductance of a shunting compartment: its forward denominator.
 
-    exc_out = rec.get("exc_out")
-    if exc_out is not None:
-        g_tot = g_tot + functional.relu(exc_out)
+    The layer's leak plus every recorded synaptic conductance (feedforward and
+    recurrent, excitatory and inhibitory) and the child-branch coupling, as the
+    forward pass sums them (signed presynaptic activity can make a conductance
+    term negative, and the forward does not rectify it).
+    """
+    layer = rec.get("layer")
+    leak = 1.0 if layer is None else layer.effective_leak
+    g_tot = torch.ones_like(v_n) * leak
 
-    inh_out = rec.get("inh_out")
-    if inh_out is not None:
-        g_tot = g_tot + functional.relu(inh_out)
+    for key in ("exc_out", "rec_exc_out", "inh_out", "rec_inh_out"):
+        conductance = rec.get(key)
+        if conductance is not None:
+            g_tot = g_tot + conductance
 
     blk_module = rec.get("blk_module")
     if blk_module is not None and hasattr(blk_module, "sum_conductances"):
         g_blk = blk_module.sum_conductances().detach()[None, :].expand_as(v_n)
-        g_tot = g_tot + functional.relu(g_blk)
+        g_tot = g_tot + g_blk
 
     return g_tot
 
@@ -221,11 +253,7 @@ def resolve_router_output_roles(local_cfg, model: BaseModel) -> torch.Tensor | N
         getattr(local_cfg.morphology_aware, "branch_role_source", "router_pathways")
     ).lower()
     if source != "router_pathways":
-        logger.warning(
-            "Unknown branch_role_source='%s'; disabling pathway-role inference.",
-            source,
-        )
-        return None
+        raise ValueError(f"Unknown morphology_aware.branch_role_source {source!r}")
 
     encoder = getattr(model, "encoder_network", None)
     if not isinstance(encoder, PathwayRouter):

@@ -62,13 +62,13 @@ class TestPerformanceAnalyzer(unittest.TestCase):
                 input_dim=10,
                 transfer_params=transfer_params,
                 excitatory_layer_sizes=[4],
-                inhibitory_layer_sizes=[4],
+                inhibitory_layer_sizes=[0],
                 excitatory_branch_factors=[2],
                 inhibitory_branch_factors=[2],
                 ee_synapses_per_branch_per_layer=[1],
-                ei_synapses_per_branch_per_layer=[1],
+                ei_synapses_per_branch_per_layer=[0],
                 ie_synapses_per_branch_per_layer=[1],
-                ii_synapses_per_branch_per_layer=[1],
+                ii_synapses_per_branch_per_layer=[0],
             ),
             decoder_network=Identity(input_dim=4),
         )
@@ -156,13 +156,13 @@ class TestAblationAnalyzer(unittest.TestCase):
                 input_dim=10,
                 transfer_params=transfer_params,
                 excitatory_layer_sizes=[4, 4],
-                inhibitory_layer_sizes=[4, 4],
+                inhibitory_layer_sizes=[0, 0],
                 excitatory_branch_factors=[2, 2],
                 inhibitory_branch_factors=[2, 2],
                 ee_synapses_per_branch_per_layer=[1, 1],
-                ei_synapses_per_branch_per_layer=[1, 1],
-                ie_synapses_per_branch_per_layer=[1, 1],
-                ii_synapses_per_branch_per_layer=[1],
+                ei_synapses_per_branch_per_layer=[0, 0],
+                ie_synapses_per_branch_per_layer=[1, 0],
+                ii_synapses_per_branch_per_layer=[0],
             ),
             decoder_network=Identity(input_dim=4),
         )
@@ -339,8 +339,7 @@ class TestAblationAnalyzer(unittest.TestCase):
             key: value.detach().clone()
             for key, value in self.model.state_dict().items()
         }
-        self.model.core_network.weight_transform = "identity"
-        self.analyzer.lesion_value = self.analyzer._resolve_lesion_value(self.model)
+        module.branch_excitation.weight_transform = "identity"
 
         self.analyzer.accuracy = True
         self.analyzer.auc = False
@@ -371,7 +370,6 @@ class TestAblationAnalyzer(unittest.TestCase):
                 device="cpu",
             )
 
-        self.assertEqual(self.analyzer.lesion_value, 0.0)
         self.assertEqual(results["excitation"][module_name]["accuracy_drop"], 0.25)
         for key, value in self.model.state_dict().items():
             torch.testing.assert_close(value, state_dict[key])
@@ -393,13 +391,13 @@ class TestInformationAnalyzer(unittest.TestCase):
                 input_dim=8,
                 transfer_params=transfer_params,
                 excitatory_layer_sizes=[4],
-                inhibitory_layer_sizes=[4],
+                inhibitory_layer_sizes=[0],
                 excitatory_branch_factors=[2],
                 inhibitory_branch_factors=[2],
                 ee_synapses_per_branch_per_layer=[1],
-                ei_synapses_per_branch_per_layer=[1],
+                ei_synapses_per_branch_per_layer=[0],
                 ie_synapses_per_branch_per_layer=[1],
-                ii_synapses_per_branch_per_layer=[1],
+                ii_synapses_per_branch_per_layer=[0],
             ),
             decoder_network=Identity(input_dim=4),
         )
@@ -868,7 +866,7 @@ class TestInformationAnalyzer(unittest.TestCase):
             )
 
         self.assertEqual(results, {"basic_mi": {"I(E;C)": 1.0}})
-        mock_metrics.assert_called_once_with(E, I_var, Vout, C, None, None)
+        mock_metrics.assert_called_once_with(E, I_var, Vout, C, None, None, None)
         mock_null.assert_called_once()
         self.assertTrue(mock_null.call_args.kwargs["has_exc_synapses"])
         self.assertFalse(mock_null.call_args.kwargs["has_inh_synapses"])
@@ -883,6 +881,8 @@ class TestInformationAnalyzer(unittest.TestCase):
             "inhibition": torch.tensor([[5.0, 6.0], [7.0, 8.0]]),
             "branch_input": torch.tensor([[9.0, 10.0], [11.0, 12.0]]),
             "output": torch.tensor([[13.0, 14.0], [15.0, 16.0]]),
+            "parent_soma_output": torch.tensor([[17.0], [18.0]]),
+            "branch_to_parent_soma_index": torch.tensor([0, 0]),
             "has_exc_synapses": False,
             "has_inh_synapses": True,
             "has_branch_input": False,
@@ -906,6 +906,14 @@ class TestInformationAnalyzer(unittest.TestCase):
             prepared.output,
             np.array([[13.0, 14.0], [15.0, 16.0]], dtype=np.float32),
         )
+        np.testing.assert_array_equal(
+            prepared.parent_soma_output,
+            np.array([[17.0], [18.0]], dtype=np.float32),
+        )
+        np.testing.assert_array_equal(
+            prepared.branch_to_parent_soma_index,
+            np.array([0, 0]),
+        )
         self.assertFalse(prepared.has_exc_synapses)
         self.assertTrue(prepared.has_inh_synapses)
         self.assertFalse(prepared.has_branch_input)
@@ -921,6 +929,8 @@ class TestInformationAnalyzer(unittest.TestCase):
         prepared = self.analyzer._prepare_single_branch_layer_data(layer_data)
 
         self.assertIsNone(prepared.branch_input)
+        self.assertIsNone(prepared.parent_soma_output)
+        self.assertIsNone(prepared.branch_to_parent_soma_index)
         self.assertTrue(prepared.has_exc_synapses)
         self.assertTrue(prepared.has_inh_synapses)
         self.assertFalse(prepared.has_branch_input)
@@ -999,11 +1009,16 @@ class TestInformationAnalyzer(unittest.TestCase):
             "inhibition": torch.tensor([[4.0, 40.0], [5.0, 50.0], [6.0, 60.0]]),
             "branch_input": torch.tensor([[7.0, 70.0], [8.0, 80.0], [9.0, 90.0]]),
             "output": torch.tensor([[11.0, 110.0], [12.0, 120.0], [13.0, 130.0]]),
+            "parent_soma_output": torch.tensor(
+                [[14.0, 140.0], [15.0, 150.0], [16.0, 160.0]]
+            ),
+            "branch_to_parent_soma_index": torch.tensor([0, 1]),
             "has_exc_synapses": False,
             "has_inh_synapses": True,
             "has_branch_input": True,
         }
         prepared = self.analyzer._prepare_single_branch_layer_data(layer_data)
+        self.analyzer.compute_soma_coupling_mi = True
         lda_signals = Mock()
         lda_signals.excitation = np.array([[101.0, 201.0]])
         lda_signals.inhibition = np.array([[102.0, 202.0]])
@@ -1055,6 +1070,10 @@ class TestInformationAnalyzer(unittest.TestCase):
             mock_base.call_args.kwargs["Vb"],
             np.array([[70.0], [80.0], [90.0]], dtype=np.float32),
         )
+        np.testing.assert_array_equal(
+            mock_base.call_args.kwargs["S"],
+            np.array([[140.0], [150.0], [160.0]], dtype=np.float32),
+        )
         np.testing.assert_array_equal(mock_base.call_args.kwargs["C"], C)
         self.assertFalse(mock_base.call_args.kwargs["has_exc_synapses"])
         self.assertTrue(mock_base.call_args.kwargs["has_inh_synapses"])
@@ -1095,6 +1114,64 @@ class TestInformationAnalyzer(unittest.TestCase):
 
         self.assertIsNone(results)
         mock_warning.assert_called_once_with("No branch results to average")
+
+    def test_single_branch_subsampling_is_reproducible_and_layer_specific(self):
+        """Branch subsampling should be fixed before seeing activations or labels."""
+        self.analyzer.branch_sample_count_per_layer = 4
+        self.analyzer.branch_sample_seed = 17
+        self.analyzer.branch_sample_strategy = "uniform"
+
+        first = self.analyzer._select_single_branch_indices(
+            layer_name="core.layers.0.branch_layers.2",
+            n_branches=30,
+        )
+        repeated = self.analyzer._select_single_branch_indices(
+            layer_name="core.layers.0.branch_layers.2",
+            n_branches=30,
+        )
+        other_layer = self.analyzer._select_single_branch_indices(
+            layer_name="core.layers.0.branch_layers.3",
+            n_branches=30,
+        )
+
+        np.testing.assert_array_equal(first, repeated)
+        self.assertEqual(first.shape, (4,))
+        self.assertEqual(len(np.unique(first)), 4)
+        self.assertTrue(np.all(np.diff(first) > 0))
+        self.assertFalse(np.array_equal(first, other_layer))
+
+        self.analyzer.branch_sample_count_per_layer = None
+        np.testing.assert_array_equal(
+            self.analyzer._select_single_branch_indices(
+                layer_name="core.layers.0.branch_layers.2",
+                n_branches=5,
+            ),
+            np.arange(5),
+        )
+
+    def test_single_branch_subsampling_balances_parent_somas(self):
+        """Balanced sampling should visit every parent before repeating one."""
+        self.analyzer.branch_sample_count_per_layer = 8
+        self.analyzer.branch_sample_seed = 17
+        self.analyzer.branch_sample_strategy = "parent_soma_balanced"
+        parent_indices = np.repeat(np.arange(4), 5)
+
+        selected = self.analyzer._select_single_branch_indices(
+            layer_name="core.layers.0.branch_layers.2",
+            n_branches=20,
+            branch_to_parent_soma_index=parent_indices,
+        )
+        counts = np.bincount(parent_indices[selected], minlength=4)
+
+        np.testing.assert_array_equal(counts, np.full(4, 2))
+        np.testing.assert_array_equal(
+            selected,
+            self.analyzer._select_single_branch_indices(
+                layer_name="core.layers.0.branch_layers.2",
+                n_branches=20,
+                branch_to_parent_soma_index=parent_indices,
+            ),
+        )
 
     def test_finalize_single_branch_results_averages_and_attaches_metadata(self):
         """Single-branch finalization should preserve averaged results metadata."""
@@ -1163,12 +1240,15 @@ class TestInformationAnalyzer(unittest.TestCase):
                 has_branch_input=True,
             )
 
-        E_arg, I_arg, Vout_arg, C_arg, Vinf_arg, Vb_arg = mock_metrics.call_args.args
+        E_arg, I_arg, Vout_arg, C_arg, Vinf_arg, Vb_arg, S_arg = (
+            mock_metrics.call_args.args
+        )
         np.testing.assert_array_equal(E_arg, E_lin[:, 1:2])
         np.testing.assert_array_equal(I_arg, I_lin[:, 1:2])
         np.testing.assert_array_equal(Vout_arg, Vout_lin[:, 1:2])
         np.testing.assert_array_equal(C_arg, C)
         self.assertIsNone(Vinf_arg)
+        self.assertIsNone(S_arg)
         np.testing.assert_array_equal(Vb_arg, Vb_lin[:, 1:2])
         self.assertEqual(
             target,
@@ -1460,12 +1540,18 @@ class TestInformationAnalyzer(unittest.TestCase):
         }
 
         self.assertEqual(
-            self.analyzer._ordered_branch_layer_names(),
+            self.analyzer._ordered_branch_layer_names(None),
             [
                 "core.branch_layers.0",
                 "core.branch_layers.1.output",
                 "core.branch_layers.2",
             ],
+        )
+        self.assertEqual(
+            self.analyzer._ordered_branch_layer_names(
+                {"core.branch_layers.0", "core.branch_layers.2"}
+            ),
+            ["core.branch_layers.0", "core.branch_layers.2"],
         )
 
     def test_lda_chained_output_preserves_order_and_fallback(self):
@@ -1502,42 +1588,31 @@ class TestInformationAnalyzer(unittest.TestCase):
         )
         np.testing.assert_array_equal(final_output, fallback_output.numpy())
 
-    def test_lda_prediction_helper_uses_optional_decoder(self):
-        """LDA class prediction should preserve direct-logit and decoder paths."""
-        final_vout = np.array([[0.2, 0.8], [0.9, 0.1]], dtype=np.float32)
-        model_without_decoder = torch.nn.Module()
+    def test_lda_prediction_decodes_through_the_model(self):
+        """LDA soma outputs pass through the decoder and the output scale."""
+        from dendritic_modeling.models import Classifier
+        from dendritic_modeling.networks import Identity
 
-        np.testing.assert_array_equal(
-            self.analyzer._predict_lda_model_classes(
-                model_without_decoder,
-                final_vout,
-                torch.device("cpu"),
-            ),
-            np.array([1, 0]),
-        )
-
-        model_with_decoder = torch.nn.Module()
-        model_with_decoder.decoder = torch.nn.Linear(2, 2, bias=False)
+        decoder = torch.nn.Linear(2, 2, bias=False)
         with torch.no_grad():
-            model_with_decoder.decoder.weight.copy_(
-                torch.tensor([[0.0, 1.0], [1.0, 0.0]])
-            )
+            decoder.weight.copy_(torch.tensor([[0.0, 1.0], [1.0, 0.0]]))
+        model = Classifier(
+            Identity(2),
+            torch.nn.Identity(),
+            decoder,
+            output_scale_mode="fixed",
+            fixed_output_scale=2.0,
+        )
+        final_vout = np.array([[0.2, 0.8], [0.9, 0.1]], dtype=np.float32)
 
         np.testing.assert_array_equal(
             self.analyzer._predict_lda_model_classes(
-                model_with_decoder,
-                final_vout,
-                torch.device("cpu"),
+                model, final_vout, torch.device("cpu")
             ),
             np.array([0, 1]),
         )
-
         self.assertIsNone(
-            self.analyzer._predict_lda_model_classes(
-                model_with_decoder,
-                None,
-                torch.device("cpu"),
-            )
+            self.analyzer._predict_lda_model_classes(model, None, torch.device("cpu"))
         )
 
     def test_analysis_summary_file_helper_writes_summary_text(self):
@@ -1709,7 +1784,8 @@ class TestInformationAnalyzer(unittest.TestCase):
         self.assertEqual(Vout.shape, (9, 1))
         self.assertEqual(Vb.shape, (9, 1))
         self.assertIsNone(Vinf)
-        np.testing.assert_array_equal(C_for_metrics, np.repeat(C, 3, axis=0))
+        # Rows follow layer 0 sample by sample (two branches), then layer 1.
+        np.testing.assert_array_equal(C_for_metrics, [0, 0, 1, 1, 2, 2, 0, 1, 2])
 
     def test_all_branch_helper_multivariate_preserves_feature_axis(self):
         """All-branch multivariate aggregation should concatenate branch features."""
@@ -1920,7 +1996,7 @@ class TestInformationAnalyzer(unittest.TestCase):
         self.assertTrue(missing_vb)
 
     def test_all_branch_concatenation_helper_sample_expands_labels_and_drops_vb(self):
-        """All-branch sample concatenation should repeat labels and drop partial Vb."""
+        """All-branch sample concatenation should repeat labels per layer and drop partial Vb."""
         self.analyzer.branch_aggregation = "sample"
         C = np.array([0, 1, 2])
 
@@ -1956,7 +2032,7 @@ class TestInformationAnalyzer(unittest.TestCase):
             Vout,
             np.array([[100.0], [200.0], [300.0], [400.0], [500.0], [600.0]]),
         )
-        np.testing.assert_array_equal(C_for_metrics, np.repeat(C, 2, axis=0))
+        np.testing.assert_array_equal(C_for_metrics, np.concatenate([C, C]))
         self.assertIsNone(Vb)
 
     def test_all_branch_concatenation_helper_non_sample_preserves_labels_and_vb(self):
@@ -2610,6 +2686,14 @@ class TestInformationAnalyzer(unittest.TestCase):
         self.assertEqual(results["num_branches"], 2)
         self.assertEqual(results["computation_level"], "single_branch")
         self.assertEqual(results["layer_statistics"]["layer0"]["stat"], 1.0)
+        self.assertEqual(results["branch_sampling"]["mode"], "all")
+        self.assertFalse(
+            results["branch_sampling"]["selection_depends_on_data_or_labels"]
+        )
+        self.assertEqual(
+            results["branch_sampling"]["layers"]["layer0"]["selected_indices"],
+            [0, 1],
+        )
         mock_average.assert_called_once_with(branch_metric_results)
         mock_stats.assert_called_once_with(
             branch_metric_results,
@@ -2745,13 +2829,13 @@ class TestActivationAnalyzers(unittest.TestCase):
                 input_dim=8,
                 transfer_params=transfer_params,
                 excitatory_layer_sizes=[4],
-                inhibitory_layer_sizes=[4],
+                inhibitory_layer_sizes=[0],
                 excitatory_branch_factors=[2],
                 inhibitory_branch_factors=[2],
                 ee_synapses_per_branch_per_layer=[1],
-                ei_synapses_per_branch_per_layer=[1],
+                ei_synapses_per_branch_per_layer=[0],
                 ie_synapses_per_branch_per_layer=[1],
-                ii_synapses_per_branch_per_layer=[1],
+                ii_synapses_per_branch_per_layer=[0],
             ),
             decoder_network=Identity(input_dim=4),
         )
@@ -2805,13 +2889,13 @@ class TestAnalysisManager(unittest.TestCase):
                 input_dim=8,
                 transfer_params=transfer_params,
                 excitatory_layer_sizes=[4],
-                inhibitory_layer_sizes=[4],
+                inhibitory_layer_sizes=[0],
                 excitatory_branch_factors=[2],
                 inhibitory_branch_factors=[2],
                 ee_synapses_per_branch_per_layer=[1],
-                ei_synapses_per_branch_per_layer=[1],
+                ei_synapses_per_branch_per_layer=[0],
                 ie_synapses_per_branch_per_layer=[1],
-                ii_synapses_per_branch_per_layer=[1],
+                ii_synapses_per_branch_per_layer=[0],
             ),
             decoder_network=Identity(input_dim=4),
         )
@@ -2849,7 +2933,7 @@ class TestAnalysisManager(unittest.TestCase):
     def test_manager_initializer_uses_registered_attribute_names(self):
         """Enabled analyzers should be exposed at registry-declared attributes."""
         config = AnalysisConfig()
-        config.performance_analysis.enabled = True
+        config.performance.enabled = True
         manager = AnalysisManager(
             model=self.model,
             data=self.data,
@@ -2870,7 +2954,7 @@ class TestAnalysisManager(unittest.TestCase):
     def test_manager_registry_accessors_resolve_registered_metadata(self):
         """Manager helper methods should resolve through registry metadata."""
         config = AnalysisConfig()
-        config.performance_analysis.enabled = True
+        config.performance.enabled = True
         manager = AnalysisManager(
             model=self.model,
             data=self.data,
@@ -2897,7 +2981,7 @@ class TestAnalysisManager(unittest.TestCase):
     def test_manager_call_analysis_analyzer_resolves_registry_metadata(self):
         """Analyzer invocation helper should preserve registry lookup and kwargs."""
         config = AnalysisConfig()
-        config.performance_analysis.enabled = True
+        config.performance.enabled = True
         manager = AnalysisManager(
             model=self.model,
             data=self.data,
@@ -2919,8 +3003,8 @@ class TestAnalysisManager(unittest.TestCase):
     def test_manager_performance_phase_helpers_preserve_paths_and_splits(self):
         """Performance helper methods should preserve phase-specific routing."""
         config = AnalysisConfig()
-        config.performance_analysis.training_splits = ["valid"]
-        config.performance_analysis.final_splits = ["test"]
+        config.performance.training_splits = ["valid"]
+        config.performance.final_splits = ["test"]
 
         with tempfile.TemporaryDirectory() as tmpdir:
             manager = AnalysisManager(
@@ -2939,14 +3023,14 @@ class TestAnalysisManager(unittest.TestCase):
             self.assertTrue(training_path.is_dir())
             self.assertEqual(
                 manager._performance_splits(
-                    config.performance_analysis,
+                    config.performance,
                     training=False,
                 ),
                 ["test"],
             )
             self.assertEqual(
                 manager._performance_splits(
-                    config.performance_analysis,
+                    config.performance,
                     training=True,
                 ),
                 ["valid"],
@@ -2955,9 +3039,9 @@ class TestAnalysisManager(unittest.TestCase):
     def test_manager_initializes_optional_analyzer_constructor_styles(self):
         """Registry-backed initialization supports params, model+params, and no params."""
         config = AnalysisConfig()
-        config.synapse_turnover_analysis.enabled = True
-        config.correlation_analysis.enabled = True
-        config.routing_analysis.enabled = True
+        config.synapse_turnover.enabled = True
+        config.correlation.enabled = True
+        config.routing.enabled = True
 
         synapse_turnover_spec = get_analyzer_spec("synapse_turnover")
         routing_spec = get_analyzer_spec("routing")
@@ -2981,7 +3065,7 @@ class TestAnalysisManager(unittest.TestCase):
 
     def test_correlation_analysis_skips_when_analyzer_not_initialized(self):
         """Correlation analysis should use the shared missing-analyzer guard."""
-        self.analysis_config.correlation_analysis.enabled = True
+        self.analysis_config.correlation.enabled = True
 
         self.manager._run_correlation_analysis(
             filename="missing_correlation",
@@ -2993,7 +3077,7 @@ class TestAnalysisManager(unittest.TestCase):
 
     def test_correlation_analysis_runs_initialized_analyzer(self):
         """Correlation analysis should use the shared test-dataset call path."""
-        self.analysis_config.correlation_analysis.enabled = True
+        self.analysis_config.correlation.enabled = True
         self.manager.correlation_analyzer = Mock()
 
         self.manager._run_correlation_analysis(
@@ -3017,7 +3101,7 @@ class TestAnalysisManager(unittest.TestCase):
             _AnalyzerInitializer,
         )
 
-        params = self.analysis_config.performance_analysis.params
+        params = self.analysis_config.performance.params
         analyzer = _AnalyzerInitializer("performance").build(
             model=self.model,
             params=params,
@@ -3041,7 +3125,7 @@ class TestAnalysisManager(unittest.TestCase):
 
     def test_should_run_config_matches_training_phase_rules(self):
         """Shared analysis gate should preserve final/training behavior."""
-        cfg = self.analysis_config.performance_analysis
+        cfg = self.analysis_config.performance
         cfg.enabled = True
         cfg.training = False
 
@@ -3058,9 +3142,9 @@ class TestAnalysisManager(unittest.TestCase):
     def test_should_run_registered_analysis_applies_phase_and_analyzer_gates(self):
         """Registered analysis gate should combine config phase and analyzer presence."""
         config = AnalysisConfig()
-        config.performance_analysis.enabled = False
-        config.routing_analysis.enabled = True
-        config.routing_analysis.training = False
+        config.performance.enabled = False
+        config.routing.enabled = True
+        config.routing.training = False
 
         with tempfile.TemporaryDirectory() as tmpdir:
             manager = AnalysisManager(
@@ -3104,8 +3188,8 @@ class TestAnalysisManager(unittest.TestCase):
     def test_training_performance_analysis_uses_epoch_path_and_gate(self):
         """Training analysis should remain opt-in and keep the epoch save path."""
         config = AnalysisConfig()
-        config.performance_analysis.enabled = True
-        config.performance_analysis.training = False
+        config.performance.enabled = True
+        config.performance.training = False
 
         with tempfile.TemporaryDirectory() as tmpdir:
             manager = AnalysisManager(
@@ -3119,7 +3203,7 @@ class TestAnalysisManager(unittest.TestCase):
                 manager.run_analysis(filename="epoch_0", training=True)
                 mock_analyzer.analyze.assert_not_called()
 
-            config.performance_analysis.training = True
+            config.performance.training = True
             manager = AnalysisManager(
                 model=self.model,
                 data=self.data,
@@ -3140,7 +3224,7 @@ class TestAnalysisManager(unittest.TestCase):
     def test_run_performance_analysis(self):
         """Test running performance analysis through manager."""
         config = AnalysisConfig()
-        config.performance_analysis.enabled = True
+        config.performance.enabled = True
 
         with tempfile.TemporaryDirectory() as tmpdir:
             manager = AnalysisManager(
@@ -3159,14 +3243,17 @@ class TestAnalysisManager(unittest.TestCase):
 
                 results = manager.run_analysis()
 
-                # The method doesn't return results, so just check it doesn't crash
-                self.assertIsNone(results)
+                # The pass returns its status record; the mock wrote no file.
+                mock_analyzer.analyze.assert_called_once()
+                self.assertEqual(results["requested"], ["performance"])
+                self.assertEqual(results["analyses"]["performance"]["status"], "empty")
+                self.assertFalse(results["complete"])
 
     def test_common_test_dataset_analysis_path_preserves_call_kwargs(self):
         """Common test-dataset runner should preserve analyzer call arguments."""
         config = AnalysisConfig()
-        config.performance_analysis.enabled = False
-        config.noise_perturbation_analysis.enabled = True
+        config.performance.enabled = False
+        config.noise_perturbation.enabled = True
 
         with tempfile.TemporaryDirectory() as tmpdir:
             manager = AnalysisManager(
@@ -3198,8 +3285,8 @@ class TestAnalysisManager(unittest.TestCase):
     def test_common_test_dataset_analysis_resolves_registry_metadata(self):
         """Common test-dataset helper should resolve config, analyzer, and path by name."""
         config = AnalysisConfig()
-        config.performance_analysis.enabled = False
-        config.noise_perturbation_analysis.enabled = True
+        config.performance.enabled = False
+        config.noise_perturbation.enabled = True
 
         with tempfile.TemporaryDirectory() as tmpdir:
             manager = AnalysisManager(
@@ -3233,8 +3320,8 @@ class TestAnalysisManager(unittest.TestCase):
     def test_common_test_dataset_analysis_skips_missing_required_analyzer(self):
         """Required optional analyzers should still skip when no instance exists."""
         config = AnalysisConfig()
-        config.performance_analysis.enabled = False
-        config.adversarial_robustness_analysis.enabled = True
+        config.performance.enabled = False
+        config.adversarial_robustness.enabled = True
 
         with tempfile.TemporaryDirectory() as tmpdir:
             manager = AnalysisManager(
@@ -3257,11 +3344,36 @@ class TestAnalysisManager(unittest.TestCase):
 
             mock_analyzer.assert_not_called()
 
+    def test_information_analysis_can_use_validation_split(self):
+        """Generic information analysis should honor its declared dataset split."""
+        config = AnalysisConfig()
+        config.performance.enabled = False
+        config.information.enabled = True
+        config.information.params.compute.analysis_split = "validation"
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manager = AnalysisManager(
+                model=self.model,
+                data=self.data,
+                analysis_config=config,
+                save_root=tmpdir,
+            )
+            with patch.object(manager, "information_analyzer") as mock_analyzer:
+                mock_analyzer.analysis_split = "validation"
+                manager._run_information_analysis(
+                    filename="validation_information",
+                    training=False,
+                    runtime=manager.config.runtime.final,
+                )
+
+            call_kwargs = mock_analyzer.analyze.call_args.kwargs
+            self.assertIs(call_kwargs["test_dataset"], self.data["valid"])
+
     def test_logged_test_dataset_analysis_preserves_call_and_logs(self):
         """Logged test-dataset helper should preserve kwargs and message order."""
         config = AnalysisConfig()
-        config.performance_analysis.enabled = False
-        config.noise_perturbation_analysis.enabled = True
+        config.performance.enabled = False
+        config.noise_perturbation.enabled = True
 
         with tempfile.TemporaryDirectory() as tmpdir:
             manager = AnalysisManager(
@@ -3333,8 +3445,8 @@ class TestAnalysisManager(unittest.TestCase):
     def test_logged_test_dataset_analysis_skips_missing_required_analyzer(self):
         """Logged helper should not emit messages when required analyzer is absent."""
         config = AnalysisConfig()
-        config.performance_analysis.enabled = False
-        config.adversarial_robustness_analysis.enabled = True
+        config.performance.enabled = False
+        config.adversarial_robustness.enabled = True
 
         with tempfile.TemporaryDirectory() as tmpdir:
             manager = AnalysisManager(
@@ -3366,8 +3478,8 @@ class TestAnalysisManager(unittest.TestCase):
     def test_logged_data_analysis_preserves_call_and_logs_without_runtime(self):
         """Logged data helper should preserve routing call kwargs and logs."""
         config = AnalysisConfig()
-        config.performance_analysis.enabled = False
-        config.routing_analysis.enabled = True
+        config.performance.enabled = False
+        config.routing.enabled = True
 
         with tempfile.TemporaryDirectory() as tmpdir:
             manager = AnalysisManager(
@@ -3410,8 +3522,8 @@ class TestAnalysisManager(unittest.TestCase):
     def test_logged_data_analysis_preserves_runtime_when_requested(self):
         """Logged data helper should preserve runtime-aware analyzer calls."""
         config = AnalysisConfig()
-        config.performance_analysis.enabled = False
-        config.spike_train_analysis.enabled = True
+        config.performance.enabled = False
+        config.spike_train.enabled = True
 
         with tempfile.TemporaryDirectory() as tmpdir:
             manager = AnalysisManager(
@@ -3456,8 +3568,8 @@ class TestAnalysisManager(unittest.TestCase):
     def test_logged_data_analysis_skips_missing_required_analyzer(self):
         """Logged data helper should not emit messages without required analyzer."""
         config = AnalysisConfig()
-        config.performance_analysis.enabled = False
-        config.routing_analysis.enabled = True
+        config.performance.enabled = False
+        config.routing.enabled = True
 
         with tempfile.TemporaryDirectory() as tmpdir:
             manager = AnalysisManager(
@@ -3487,9 +3599,9 @@ class TestAnalysisManager(unittest.TestCase):
     def test_training_flag_model_analysis_preserves_call_kwargs(self):
         """Shared model/training helper should preserve weight-style analyzer calls."""
         config = AnalysisConfig()
-        config.performance_analysis.enabled = False
-        config.weight_analysis.enabled = True
-        config.weight_analysis.training = True
+        config.performance.enabled = False
+        config.weight.enabled = True
+        config.weight.training = True
 
         with tempfile.TemporaryDirectory() as tmpdir:
             manager = AnalysisManager(
@@ -3518,12 +3630,66 @@ class TestAnalysisManager(unittest.TestCase):
             self.assertEqual(call_kwargs["filename"], "epoch_weight")
             self.assertTrue(call_kwargs["training"])
 
+    def test_weight_analysis_receives_configured_reference_and_runtime(self):
+        """Weight region alignment must use its configured reference split."""
+        config = AnalysisConfig()
+        config.performance.enabled = False
+        config.weight.enabled = True
+        config.weight.params.compute_source_region_alignment = True
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manager = AnalysisManager(
+                model=self.model,
+                data=self.data,
+                analysis_config=config,
+                save_root=tmpdir,
+            )
+            runtime = manager.config.runtime.final
+
+            with patch.object(manager, "weight_analyzer") as mock_analyzer:
+                manager._run_weight_analysis(
+                    filename="final",
+                    training=False,
+                    runtime=runtime,
+                )
+
+            call_kwargs = mock_analyzer.analyze.call_args.kwargs
+            self.assertIs(call_kwargs["reference_dataset"], self.data["valid"])
+            self.assertEqual(call_kwargs["reference_split"], "validation")
+            self.assertIs(call_kwargs["runtime"], runtime)
+
+    def test_weight_analysis_without_region_alignment_needs_no_validation_split(self):
+        """Ordinary structural weight analysis must retain its model-only contract."""
+        config = AnalysisConfig()
+        config.performance.enabled = False
+        config.weight.enabled = True
+        data = {key: value for key, value in self.data.items() if key != "valid"}
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manager = AnalysisManager(
+                model=self.model,
+                data=data,
+                analysis_config=config,
+                save_root=tmpdir,
+            )
+
+            with patch.object(manager, "weight_analyzer") as mock_analyzer:
+                manager._run_weight_analysis(
+                    filename="final",
+                    training=False,
+                    runtime=manager.config.runtime.final,
+                )
+
+            call_kwargs = mock_analyzer.analyze.call_args.kwargs
+            self.assertNotIn("reference_dataset", call_kwargs)
+            self.assertNotIn("reference_split", call_kwargs)
+
     def test_split_dataset_analysis_preserves_custom_test_kwarg(self):
         """Shared split-dataset helper should preserve analyzer-specific kwargs."""
         config = AnalysisConfig()
-        config.performance_analysis.enabled = False
-        config.local_rule_component_analysis.enabled = True
-        config.local_rule_component_analysis.training = True
+        config.performance.enabled = False
+        config.local_rule_components.enabled = True
+        config.local_rule_components.training = True
 
         with tempfile.TemporaryDirectory() as tmpdir:
             manager = AnalysisManager(
@@ -3641,8 +3807,8 @@ class TestAnalysisManager(unittest.TestCase):
     def test_model_only_analysis_path_preserves_call_kwargs(self):
         """Shared model-only runner should preserve analyzer call arguments."""
         config = AnalysisConfig()
-        config.performance_analysis.enabled = False
-        config.jacobian_spectrum_analysis.enabled = True
+        config.performance.enabled = False
+        config.jacobian_spectrum.enabled = True
 
         with tempfile.TemporaryDirectory() as tmpdir:
             manager = AnalysisManager(
@@ -3712,7 +3878,7 @@ class TestAnalysisManager(unittest.TestCase):
             ("_run_performance_analysis", "performance", True),
             ("_run_information_analysis", "information", True),
             ("_run_synaptic_turnover_analysis", "synapse_turnover", False),
-            ("_run_weight_analysis", "weight", False),
+            ("_run_weight_analysis", "weight", True),
             ("_run_reactivation_dynamics_analysis", "reactivation_dynamics", True),
             ("_run_local_rule_component_analysis", "local_rule_components", True),
             ("_run_correlation_analysis", "correlation", True),
@@ -3780,9 +3946,9 @@ class TestAnalysisManager(unittest.TestCase):
     def test_common_test_dataset_analysis_path_preserves_training_kwarg(self):
         """Shared runner should preserve training-aware analyzer calls."""
         config = AnalysisConfig()
-        config.performance_analysis.enabled = False
-        config.ablation_analysis.enabled = True
-        config.ablation_analysis.training = True
+        config.performance.enabled = False
+        config.ablation.enabled = True
+        config.ablation.training = True
 
         with tempfile.TemporaryDirectory() as tmpdir:
             manager = AnalysisManager(
@@ -3836,15 +4002,6 @@ def test_ablation_analyzer_ignores_removed_flat_aliases():
     assert not analyzer.accuracy
 
 
-@pytest.mark.skip(
-    reason="AblationAnalyzer requires complex ExcitationInhibitionNetwork setup - integration test needed"
-)
-def test_ablation_analyze():
-    """Test ablation analyzer - currently skipped due to complex model requirements."""
-    # This test requires a properly configured ExcitationInhibitionNetwork with DendriticBranchLayers
-    # The full setup is complex and should be handled in integration tests
-
-
 def test_information_analyzer():
     from dendritic_modeling.config.analysis import InformationAnalysisParams
 
@@ -3867,30 +4024,31 @@ def sample_data():
     return torch.utils.data.TensorDataset(data, labels)
 
 
-def test_compute_class_mi(sample_analyzer, sample_data):
-    mock_model = Mock()
-    # Mock the model to have the required structure for InformationAnalyzer
-    mock_model.get_branch_activations.return_value = np.random.rand(100, 1)
-
-    # Mock the network structure that InformationAnalyzer expects
-    mock_network = Mock()
-    mock_network.__class__.__name__ = "ExcitationInhibitionNetwork"
-    mock_model.network = mock_network
-
-    results = sample_analyzer.analyze(mock_model, sample_data)
-
-    # Handle case where analysis might return None for incompatible models
-    if results is not None:
-        assert "mi_class" in results["branch_0"]
-        assert isinstance(results["branch_0"]["mi_class"], float)
-    else:
-        # If the analyzer skips this model type, that's acceptable
-        pytest.skip("Model type not compatible with InformationAnalyzer")
+def test_information_analysis_failures_propagate(sample_analyzer, sample_data):
+    """A failed information analysis raises instead of being logged as done."""
+    model = torch.nn.Linear(2, 2)
+    with (
+        patch.object(
+            sample_analyzer, "_model_supports_information_analysis", return_value=True
+        ),
+        patch.object(
+            sample_analyzer,
+            "_run_analysis_pipeline",
+            side_effect=RuntimeError("estimator failed"),
+        ),
+    ):
+        with pytest.raises(RuntimeError, match="estimator failed"):
+            sample_analyzer.analyze(model, sample_data, device="cpu")
 
 
 def test_compute_conditional_mi(sample_analyzer, sample_data):
-    params = InformationAnalysisParams(method="binned")
+    from dendritic_modeling.config.analysis import InformationEstimatorParams
+
+    params = InformationAnalysisParams(
+        estimator=InformationEstimatorParams(method="binned")
+    )
     analyzer = InformationAnalyzer(params)
+    assert analyzer.method == "binned"
 
     rng = np.random.default_rng(0)
     n = 64
@@ -3912,9 +4070,31 @@ def test_compute_conditional_mi(sample_analyzer, sample_data):
         assert np.isfinite(results["I(Vout;C|E,I)"])
 
 
-def test_compute_pid_per_branch(sample_analyzer, sample_data):
-    # Test PID
-    pass
+def test_pid_component_decomposes_branch_information():
+    """Selecting "pid" adds MMI decompositions whose terms sum to the joint MI."""
+    params = InformationAnalysisParams()
+    params.selection.components = ["pid"]
+    analyzer = InformationAnalyzer(params)
+    assert analyzer.compute_pid is True
+    rng = np.random.default_rng(0)
+    E = rng.normal(size=(400, 1))
+    I_var = rng.normal(size=(400, 1))
+    C = (E[:, 0] + I_var[:, 0] > 0).astype(int)
+    Vout = E - 0.5 * I_var + 0.1 * rng.normal(size=(400, 1))
+
+    pid = analyzer.compute_metrics(E, I_var, Vout, C)["pid"]
+
+    assert list(pid) == [
+        "PID(E,I->C)",
+        "PID(E,Vout->C)",
+        "PID(I,Vout->C)",
+        "PID(E,I->Vout)",
+    ]
+    for terms in pid.values():
+        parts = [value for key, value in terms.items() if key != "joint"]
+        assert np.all(np.isfinite(parts))
+        assert sum(parts) == pytest.approx(terms["joint"])
+        assert min(terms[key] for key in terms if key.startswith("unique_")) == 0
 
 
 if __name__ == "__main__":

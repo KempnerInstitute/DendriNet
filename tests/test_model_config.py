@@ -1,5 +1,8 @@
 """Tests for config/model.py dataclasses."""
 
+import pytest
+
+from dendritic_modeling.config.extensions import DisabledExtensionConfig
 from dendritic_modeling.config.model import (
     ArchitectureConfig,
     BlockLinearConfig,
@@ -12,7 +15,6 @@ from dendritic_modeling.config.model import (
     ImplementationConfig,
     ModelConfig,
     MorphologyConfig,
-    PretrainedReplacementConfig,
     ReactivationConfig,
     SparsityConfig,
     StructuredConnectivityConfig,
@@ -28,15 +30,17 @@ from dendritic_modeling.config.model import (
 def test_model_config_defaults():
     cfg = ModelConfig()
     assert cfg.task == "classification"
-    assert cfg.learned_output_scale is True
     assert cfg.fixed_output_scale == 1.0
     assert cfg.output_scale_mode is None
     assert isinstance(cfg.encoder, EncoderConfig)
     assert isinstance(cfg.core, CoreConfig)
     assert isinstance(cfg.decoder, DecoderConfig)
-    assert isinstance(cfg.vision_replacement, PretrainedReplacementConfig)
-    assert isinstance(cfg.pretrained_replacement, PretrainedReplacementConfig)
+    assert isinstance(cfg.vision_replacement, DisabledExtensionConfig)
+    assert isinstance(cfg.pretrained_replacement, DisabledExtensionConfig)
+    assert cfg.vision_replacement.enabled is False
+    assert cfg.pretrained_replacement.enabled is False
     assert isinstance(cfg.transformer_replacement, TransformerReplacementConfig)
+    assert cfg.core.vision == {}
 
 
 def test_architecture_config_defaults():
@@ -71,8 +75,9 @@ def test_sparsity_config_defaults():
     assert cfg.init_method == "xavier_normal"
     assert cfg.noise_level == 0.0
     assert cfg.type == "standard"
-    assert cfg.temperature == 0.0
-    assert cfg.ultrafast is True  # ultrafast stochastic-topk is the default
+    # The stochastic defaults match StochasticTopKLinear and PopulationConfig.
+    assert cfg.temperature == 0.5
+    assert cfg.ultrafast is True
     assert isinstance(cfg.deepst, dict)
     assert isinstance(cfg.indexed, dict)
     assert "excitatory_target_density" in cfg.deepst
@@ -103,9 +108,9 @@ def test_reactivation_config_defaults():
 
 def test_transfer_function_config_defaults():
     cfg = TransferFunctionConfig()
-    assert cfg.input_mode == 1
     assert cfg.input_transform is None
     assert cfg.independent_pathways is False
+    assert cfg.output_activation is None
 
 
 def test_implementation_config_defaults():
@@ -169,6 +174,9 @@ def test_core_config_asdict_keys():
     d = cfg.asdict()
     expected_keys = {
         "type",
+        "target_active_parameters",
+        "biological_neuron",
+        "affine_mlp",
         "initialization_seed",
         "architecture",
         "connectivity",
@@ -183,11 +191,13 @@ def test_core_config_asdict_keys():
         "dynamics",
         "dendritic_spikes",
         "soma_feedback",
-        "recurrent",
         "unified_ei",
         "recurrent_ei",
         "baseline_rnn",
+        "heterogeneous_leak_ctrnn",
+        "legendre_memory",
         "population_network",
+        "vision",
     }
     assert expected_keys == set(d.keys())
 
@@ -230,3 +240,111 @@ def test_sparsity_indexed_dict():
     assert indexed["rewire_frequency"] == 100
     assert indexed["rewire_quantile"] == 0.05
     assert indexed["rewire_until_step"] is None
+
+
+@pytest.mark.parametrize(
+    "learned, mode, expected",
+    [
+        (False, "global", None),
+        (False, "per_class", None),
+        (True, "fixed", None),
+        (False, "fixed", "fixed"),
+        (True, "global", "global"),
+        (None, "global", "global"),
+        (False, None, "fixed"),
+        (True, None, None),
+    ],
+)
+def test_retired_learned_output_scale_folds_into_the_mode(learned, mode, expected):
+    from dendritic_modeling.config.model import fold_learned_output_scale
+
+    if expected is None and mode is not None:
+        with pytest.raises(ValueError, match=r"contradicts model\.output_scale_mode"):
+            fold_learned_output_scale(learned, mode)
+    else:
+        assert fold_learned_output_scale(learned, mode) == expected
+
+
+def test_output_scale_mode_is_validated_when_the_config_is_built():
+    with pytest.raises(ValueError, match=r"output_scale_mode must be one of"):
+        ModelConfig(output_scale_mode="learned")
+
+
+@pytest.mark.parametrize(
+    "mode, expected",
+    [
+        (None, "per_class"),
+        ("Global", "global"),
+        ("per_class", "per_class"),
+        ("fixed", "fixed"),
+    ],
+)
+def test_resolve_output_scale_mode(mode, expected):
+    from dendritic_modeling.config.model import resolve_output_scale_mode
+
+    assert resolve_output_scale_mode(mode) == expected
+
+
+def test_loader_folds_the_retired_learned_output_scale(tmp_path, caplog):
+    import logging
+
+    import yaml
+
+    from dendritic_modeling.config import load_config
+
+    path = tmp_path / "config.yaml"
+    path.write_text(yaml.safe_dump({"model": {"learned_output_scale": False}}))
+    with caplog.at_level(logging.WARNING):
+        config = load_config(str(path))
+    assert config.model.output_scale_mode == "fixed"
+    assert "learned_output_scale was retired" in caplog.text
+
+
+def test_alexnet_rejects_written_block_sizes(tmp_path):
+    import yaml
+
+    from dendritic_modeling.config import load_config
+
+    path = tmp_path / "config.yaml"
+    path.write_text(
+        yaml.safe_dump(
+            {
+                "data": {"dataset_name": "imagenet"},
+                "model": {
+                    "core": {
+                        "type": "dendritic_alexnet",
+                        "architecture": {"excitatory_layer_sizes": [64]},
+                    }
+                },
+            }
+        )
+    )
+    with pytest.raises(ValueError, match="sets each block's population sizes"):
+        load_config(str(path))
+
+
+def test_stochastic_defaults_agree_across_entry_points_and_never_sample_nothing():
+    import pytest
+
+    from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.stochastic import (
+        StochasticTopKLinear,
+    )
+    from dendritic_modeling.networks.architectures.recurrent import PopulationConfig
+    from dendritic_modeling.networks.architectures.recurrent.structured_population_kwargs import (
+        _structured_population_sparsity_kwargs,
+    )
+
+    typed = SparsityConfig()
+    population = PopulationConfig(n_neurons=2, branch_factors=[1])
+    translated = _structured_population_sparsity_kwargs(
+        sparsity={}, dense_to_sparse={}, indexed={}
+    )
+    layer = StochasticTopKLinear(4, 2, 2)
+    for temperature, ultrafast in (
+        (typed.temperature, typed.ultrafast),
+        (population.topk_temperature, population.topk_ultrafast),
+        (translated["topk_temperature"], translated["topk_ultrafast"]),
+    ):
+        assert (temperature, ultrafast) == (layer.temperature, layer.ultrafast)
+    with pytest.raises(ValueError, match="selects exactly the standard Top-K"):
+        StochasticTopKLinear(4, 2, 2, temperature=0.0, ultrafast=False)

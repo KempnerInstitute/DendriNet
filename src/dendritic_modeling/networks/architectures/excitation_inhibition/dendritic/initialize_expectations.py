@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from math import erf, exp, log, sqrt
+from math import erf, exp, isfinite, log, sqrt
 
 import torch
 from scipy.stats import norm
 
 MAX_CALIBRATION_QUANTILE_SAMPLES = 1_000_000
+ANALYTICAL_INITIALIZATION_GRID_STEP = 0.01
+MAX_ANALYTICAL_INITIALIZATION_GRID_STEPS = 1_000_000
 
 
 ADAPTIVE_INITIALIZATION_POLICY_ALIASES = {
@@ -69,6 +71,7 @@ def _aggregate_quantiles_from_chunks(
     probs: torch.Tensor,
     *,
     aggregation: str = "global",
+    pooled: torch.Tensor | None = None,
 ) -> tuple[torch.Tensor, int]:
     """Aggregate quantiles from voltage chunks.
 
@@ -78,20 +81,28 @@ def _aggregate_quantiles_from_chunks(
     latter is useful for recurrent models where each hook invocation typically
     corresponds to a different timestep and we want a calibration that reflects
     typical temporal slices rather than the pooled multimodal distribution.
+
+    Chunks already flattened to their finite float64 values may be passed with
+    their concatenation ``pooled``; they are then used as they are, without
+    filtering and concatenating them again.
     """
 
-    valid_chunks = []
-    for chunk in chunks:
-        flat = chunk.reshape(-1).double()
-        flat = flat[torch.isfinite(flat)]
-        if flat.numel() > 0:
-            valid_chunks.append(flat)
+    if pooled is not None:
+        valid_chunks = list(chunks)
+    else:
+        valid_chunks = []
+        for chunk in chunks:
+            flat = chunk.reshape(-1).double()
+            flat = flat[torch.isfinite(flat)]
+            if flat.numel() > 0:
+                valid_chunks.append(flat)
 
     if not valid_chunks:
         raise ValueError("Cannot compute quantiles from empty calibration chunks")
 
     if aggregation == "global":
-        pooled = torch.cat(valid_chunks)
+        if pooled is None:
+            pooled = torch.cat(valid_chunks)
         return _safe_quantile(pooled, probs)
 
     if aggregation == "chunk_median":
@@ -196,23 +207,25 @@ def _compute_expectation_truncated_softplus(
     g'(x) = sigmoid(x), g''(x) = sigmoid(x) * (1 - sigmoid(x)).
     """
     _, mu_c, var_c = _truncated_normal_moments(mean, std, upper_quantile)
-    # softplus at conditional mean
-    from math import exp as mexp, log as mlog
 
-    # Clip mu_c to prevent overflow
-    mu_c = max(-50.0, min(50.0, mu_c))
+    # The lower clamp avoids underflow in the small-value branch.  Do not cap
+    # the upper tail: for ``mu_c > 20`` the implementation below already uses
+    # the overflow-safe asymptote ``softplus(mu_c) ~= mu_c``.  The former
+    # upper cap at 50 made some valid E/I balance targets mathematically
+    # unreachable and left constructor-time grid searches in an infinite loop.
+    mu_c = max(-50.0, mu_c)
 
     # Safe computation of softplus to avoid overflow
     if mu_c > 20:
         sp = mu_c  # For large x, softplus(x) ≈ x
     else:
-        sp = mlog(1 + mexp(mu_c))
+        sp = log(1 + exp(mu_c))
 
     # Safe computation of sigmoid to avoid overflow
     if mu_c > 0:
-        sig = 1.0 / (1.0 + mexp(-mu_c))
+        sig = 1.0 / (1.0 + exp(-mu_c))
     else:
-        exp_mu = mexp(mu_c)
+        exp_mu = exp(mu_c)
         sig = exp_mu / (1.0 + exp_mu)
 
     sp_corr = sp + 0.5 * sig * (1 - sig) * var_c
@@ -222,13 +235,19 @@ def _compute_expectation_truncated_softplus(
 def _compute_expectation_truncated_relu(
     mean: float, std: float, upper_quantile: float
 ) -> float:
+    """Return E[ReLU(X) | X > alpha] for X ~ Normal(mean, std^2).
+
+    For ``alpha >= 0`` this is E[X | X > alpha]. For ``alpha < 0`` (banks that
+    keep more than the positive half, such as dense banks) the kept negative
+    weights contribute zero: E[X 1{X > 0}] / P(X > alpha).
     """
-    Approximate E[ReLU(X) | X > alpha]. Since conditioning ensures X > alpha,
-    and for typical TopK alpha is positive, we use E[X | X > alpha] as a good approximation.
-    """
-    _, mu_c, _ = _truncated_normal_moments(mean, std, upper_quantile)
-    # If alpha <= 0 but mu_c still small, ensure non-negativity
-    return max(0.0, mu_c)
+    alpha, mu_c, _ = _truncated_normal_moments(mean, std, upper_quantile)
+    if alpha >= 0.0:
+        return mu_c
+    z = mean / std
+    positive_part = mean * norm.cdf(z) + std * norm.pdf(z)
+    kept = max(1e-12, 1 - norm.cdf((alpha - mean) / std))
+    return max(0.0, positive_part / kept)
 
 
 def _expected_weight_for_transform(
@@ -293,8 +312,121 @@ def _mean_for_expected_weight(
     return 0.5 * (low + high)
 
 
+def _solve_first_crossing_expected_weight_mean(
+    transform: str,
+    std: float,
+    upper_quantile: float,
+    target_weight: float,
+    *,
+    direction: int,
+    reference_mean: float = 0.0,
+    step: float = ANALYTICAL_INITIALIZATION_GRID_STEP,
+    max_steps: int = MAX_ANALYTICAL_INITIALIZATION_GRID_STEPS,
+) -> float:
+    """Return the first monotone mean-grid point that crosses ``target_weight``.
+
+    Historical analytical initialization moved the raw-weight mean by 0.01 in
+    an unbounded Python loop.  This solver preserves that first-crossing grid
+    rule while using exponential bracketing plus integer binary search.  It
+    validates both the crossing and its immediate predecessor before returning,
+    and fails closed for non-finite or unreachable targets.
+
+    ``direction=1`` searches upward for the first expectation greater than or
+    equal to the target.  ``direction=-1`` searches downward for the first
+    expectation less than or equal to the target.
+    """
+
+    if direction not in {-1, 1}:
+        raise ValueError("analytical initialization direction must be -1 or 1")
+    if isinstance(max_steps, bool) or not isinstance(max_steps, int) or max_steps < 1:
+        raise ValueError("analytical initialization max_steps must be a positive int")
+    numeric = {
+        "std": float(std),
+        "upper_quantile": float(upper_quantile),
+        "target_weight": float(target_weight),
+        "reference_mean": float(reference_mean),
+        "step": float(step),
+    }
+    if any(not isfinite(value) for value in numeric.values()):
+        raise ValueError("analytical initialization grid inputs must be finite")
+    if numeric["std"] <= 0.0:
+        raise ValueError("analytical initialization std must be positive")
+    if not 0.0 < numeric["upper_quantile"] <= 1.0:
+        raise ValueError("analytical initialization upper_quantile must be in (0, 1]")
+    if numeric["target_weight"] < 0.0:
+        raise ValueError("analytical initialization target weight must be non-negative")
+    if numeric["step"] <= 0.0:
+        raise ValueError("analytical initialization grid step must be positive")
+
+    def mean_at(tick: int) -> float:
+        return numeric["reference_mean"] + direction * numeric["step"] * tick
+
+    def expectation_at(tick: int) -> float:
+        mean = mean_at(tick)
+        try:
+            value = float(
+                _expected_weight_for_transform(
+                    transform=transform,
+                    mean=mean,
+                    std=numeric["std"],
+                    upper_quantile=numeric["upper_quantile"],
+                )
+            )
+        except (ArithmeticError, OverflowError, ValueError) as exc:
+            raise RuntimeError(
+                "analytical initialization expectation failed at "
+                f"mean={mean}, tick={tick}"
+            ) from exc
+        if not isfinite(value):
+            raise RuntimeError(
+                "analytical initialization expectation became non-finite at "
+                f"mean={mean}, tick={tick}"
+            )
+        return value
+
+    def crossed(value: float) -> bool:
+        if direction > 0:
+            return value >= numeric["target_weight"]
+        return value <= numeric["target_weight"]
+
+    initial = expectation_at(0)
+    if crossed(initial):
+        return numeric["reference_mean"]
+
+    lower_tick = 0
+    upper_tick = 1
+    upper_value = expectation_at(upper_tick)
+    while not crossed(upper_value):
+        lower_tick = upper_tick
+        if upper_tick == max_steps:
+            raise RuntimeError(
+                "analytical initialization target is unreachable on the bounded "
+                f"{numeric['step']}-spaced grid after {max_steps} steps"
+            )
+        upper_tick = min(max_steps, upper_tick * 2)
+        upper_value = expectation_at(upper_tick)
+
+    while upper_tick - lower_tick > 1:
+        middle_tick = (lower_tick + upper_tick) // 2
+        if crossed(expectation_at(middle_tick)):
+            upper_tick = middle_tick
+        else:
+            lower_tick = middle_tick
+
+    solution_value = expectation_at(upper_tick)
+    predecessor_value = expectation_at(upper_tick - 1)
+    if not crossed(solution_value) or crossed(predecessor_value):
+        raise RuntimeError(
+            "analytical initialization grid solver did not isolate the exact "
+            "first crossing"
+        )
+    return mean_at(upper_tick)
+
+
 __all__ = [
     "ADAPTIVE_INITIALIZATION_POLICY_ALIASES",
+    "ANALYTICAL_INITIALIZATION_GRID_STEP",
+    "MAX_ANALYTICAL_INITIALIZATION_GRID_STEPS",
     "MAX_CALIBRATION_QUANTILE_SAMPLES",
     "_aggregate_quantiles_from_chunks",
     "_compute_expectation_truncated_relu",
@@ -302,6 +434,7 @@ __all__ = [
     "_expected_weight_for_transform",
     "_mean_for_expected_weight",
     "_safe_quantile",
+    "_solve_first_crossing_expected_weight_mean",
     "_truncated_normal_moments",
     "compute_expectation_truncated_inverse_softplus_normal",
     "compute_expectation_truncated_log_normal",

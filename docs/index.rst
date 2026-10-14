@@ -1,93 +1,136 @@
-Dendritic Modeling Framework
-============================
+DendriNet
+=========
 
-A framework for excitation-inhibition networks, dendritic architectures,
-baseline MLPs, recurrent models, training strategies, and analysis tools.
+DendriNet is a PyTorch library for networks of dendritic neurons. Its Python
+package is ``dendritic_modeling``. A DendriNet neuron is a tree of dendritic
+branches: each branch reads a sparse set of excitatory and inhibitory inputs,
+integrates them by shunting (divisive) or additive inhibition, and passes its
+output toward the soma. Neurons are grouped into named excitatory and
+inhibitory populations that can be feedforward or recurrent, rate-based or
+spiking. Experiments are described in YAML files that the library loads,
+validates, trains, analyzes and sweeps.
 
 .. figure:: _static/architecture/system-overview.svg
-   :alt: System overview showing configs, canonicalization, registries, model factory, training, analysis, and artifacts.
+   :alt: Overview: YAML configuration is loaded into typed settings, the factory builds an encoder, a dendritic core and a decoder, and trainers, sweeps and the analysis manager produce run artifacts.
    :width: 100%
 
-   The framework is configured from YAML, canonicalized into typed model
-   settings, built through architecture registries and factories, trained with
-   standard or local learning rules, and analyzed into reusable artifacts.
+   From a YAML file to trained models and analysis results.
+
+Install the package from a clone of the repository and train the feedforward
+population-network example on MNIST for one epoch:
 
 .. code-block:: bash
 
    pip install -e .
-   python src/dendritic_modeling/scripts/training/train_experiments.py configs/config_exp.yaml
+   dendritic-train configs/examples/population_network_feedforward.yaml --epochs 1
 
-Every model follows the same three-part layout: **encoder** (Identity, MLP,
-CNN), **core network** (E-I core, dendritic MLP, MLP, or recurrent core), and
-**decoder** (Identity or MLP). All experiments are configured through YAML
-files.
+Every model has three parts: an **encoder** that prepares the input, a
+**core** that holds the dendritic network (or a baseline), and a **decoder**
+that maps the core output to the task. :doc:`network_architectures` describes
+this structure and the families of cores.
 
-Start here:
+Where to start
+--------------
 
 .. list-table::
    :header-rows: 1
-   :widths: 24 36 40
+   :widths: 40 60
 
    * - Goal
      - Page
-     - First config to open
-   * - Run an E/I MNIST model
-     - :doc:`quickstart`
-     - ``configs/examples/population_network_feedforward.yaml``
-   * - Configure feedforward or recurrent population models
-     - :doc:`network_architectures`
-     - ``configs/examples/population_network_feedforward.yaml``
-   * - Browse config examples
+   * - Install DendriNet and train a first model
+     - :doc:`installation`, :doc:`quickstart`
+   * - Find a configuration to start from
      - :doc:`examples`
-     - ``configs/examples/population_network_feedforward.yaml``
-   * - Add heterogeneous morphologies, synapse types, spiking soma, or feedback
-     - :doc:`available_components`
-     - ``configs/examples/population_network_heterogeneous_feedforward.yaml``
-   * - Sweep E/I balance, morphology, taus, or connection probabilities
+   * - Build populations of dendritic neurons
+     - :doc:`population_networks`
+   * - Choose integration rules, gates and synapse types
+     - :doc:`dendritic_neurons`, :doc:`synapses`, :doc:`temporal_dynamics`
+   * - Write and validate a configuration file
+     - :doc:`configuration_guide`
+   * - Choose a learning rule or train on several GPUs
+     - :doc:`training_strategies`, :doc:`distributed_training`
+   * - Find the files a run writes
+     - :doc:`runs_and_outputs`
+   * - Analyze trained models and saved checkpoints
+     - :doc:`analysis`, :doc:`analyzers`, :doc:`checkpoint_analysis`
+   * - Run parameter sweeps
      - :doc:`sweeps`
-     - ``configs/sweep_config.yaml``
-   * - Inspect metrics, routing, gates, spikes, and branch analyses
-     - :doc:`analysis`
-     - ``analysis:`` in ``configs/config_exp.yaml``
-
-``model.core.type: population_network`` is the main notation for feedforward
-stacks, recurrent microcircuits, named E/I populations, per-population
-morphologies, typed synapses, spiking soma, and soma-to-dendrite feedback. E/I
-alias configs are supported for saved experiments and comparison runs.
+   * - Pin a project's code to an exact library commit
+     - :doc:`project_provenance`
+   * - Look up a component, an option or a command
+     - :doc:`available_components`, :doc:`options_reference`,
+       :doc:`cli_reference`
+   * - Add components from your own package
+     - :doc:`extending`
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Getting Started
+   :maxdepth: 1
+   :caption: Getting started
 
    installation
    quickstart
    examples
 
 .. toctree::
-   :maxdepth: 2
-   :caption: User Guide
+   :maxdepth: 1
+   :caption: Building models
 
    network_architectures
-   training_strategies
-   datasets
-   analysis
-   engineering_architecture
-   configuration_guide
-   transformer_llm_scaling
-   initialization_comparison_policy
-   sweeps
-   fsdp_troubleshooting
+   dendritic_neurons
+   synapses
+   population_networks
+   temporal_dynamics
+   structured_ei_cores
+   conductance_options
+   comparison_models
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
+   :caption: Configuration
+
+   configuration_guide
+   config_reference
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Training
+
+   training_strategies
+   distributed_training
+   performance_kernels
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Data and analysis
+
+   datasets
+   analysis
+   analyzers
+   checkpoint_analysis
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Running experiments
+
+   runs_and_outputs
+   sweeps
+   model_compression
+   project_provenance
+
+.. toctree::
+   :maxdepth: 1
    :caption: Reference
 
-   config_reference
    available_components
+   options_reference
+   cli_reference
+   api_reference
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Development
+
+   extending
+   engineering_architecture
    contributing
-
-Indices and Tables
-==================
-
-* :ref:`genindex`
-* :ref:`search`

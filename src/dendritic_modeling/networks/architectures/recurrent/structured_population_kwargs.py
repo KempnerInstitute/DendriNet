@@ -23,9 +23,10 @@ def _structured_population_sparsity_kwargs(
         "topk_type": normalize_sparsity_type(sparsity.get("type", "standard")),
         "topk_weight_norm_order": sparsity.get("weight_norm_order"),
         "topk_gamma": float(sparsity.get("gamma", 1.0)),
-        "topk_temperature": float(sparsity.get("temperature", 0.0)),
-        "topk_ultrafast": bool(sparsity.get("ultrafast", False)),
-        "topk_strategy": str(sparsity.get("gradient_scaling", "none")),
+        "topk_temperature": float(sparsity.get("temperature", 0.5)),
+        "topk_ultrafast": bool(sparsity.get("ultrafast", True)),
+        "topk_variance_score": str(sparsity.get("variance_score", "absolute")),
+        "topk_gradient_scaling": str(sparsity.get("gradient_scaling", "none")),
         "dense_to_sparse_initial_density": float(
             dense_to_sparse.get("initial_density", 1.0)
         ),
@@ -45,6 +46,15 @@ def _structured_population_sparsity_kwargs(
         "dense_to_sparse_prune_metric": str(
             dense_to_sparse.get("prune_metric", "weight")
         ),
+        "release_p_min": float(indexed.get("release_p_min", 0.5)),
+        "release_p_max": float(indexed.get("release_p_max", 1.0)),
+        "release_weight_scale": indexed.get("release_weight_scale"),
+        "release_impact_decay": float(indexed.get("release_impact_decay", 0.99)),
+        "release_impact_metric": str(indexed.get("release_impact_metric", "drive")),
+        "release_max_conductance": indexed.get("release_max_conductance"),
+        "release_track_source_activity": bool(
+            indexed.get("release_track_source_activity", False)
+        ),
         "indexed_seed": indexed.get("seed", sparsity.get("seed")),
         "indexed_candidate_size": indexed.get("candidate_size"),
         "indexed_selection": str(indexed.get("selection", "standard")),
@@ -52,6 +62,15 @@ def _structured_population_sparsity_kwargs(
         "indexed_rewire_frequency": int(indexed.get("rewire_frequency", 100)),
         "indexed_rewire_quantile": float(indexed.get("rewire_quantile", 0.05)),
         "indexed_rewire_until_step": indexed.get("rewire_until_step"),
+        "indexed_index_dtype": str(indexed.get("index_dtype", "int64")),
+        "indexed_workspace_mb": indexed.get("workspace_mb"),
+        "indexed_cache_transformed_weights": bool(
+            indexed.get("cache_transformed_weights", False)
+        ),
+        "indexed_recompute_backward": bool(indexed.get("recompute_backward", False)),
+        "indexed_projection_backend": str(indexed.get("projection_backend", "eager")),
+        "indexed_persistent_indices": bool(indexed.get("persistent_indices", True)),
+        "indexed_init_mode": str(indexed.get("init_mode", "per_rank")),
     }
 
 
@@ -77,6 +96,17 @@ def _structured_population_deepst_kwargs(deepst: dict[str, Any]) -> dict[str, An
         ),
         "init_method": str(deepst.get("init_method", "xavier_normal")),
         "weight_threshold": float(deepst.get("weight_threshold", 1e-6)),
+        "credit_trace_decay": float(deepst.get("credit_trace_decay", 0.95)),
+        "credit_candidate_pool_size": int(deepst.get("credit_candidate_pool_size", 8)),
+        "credit_turnover_fraction": float(deepst.get("credit_turnover_fraction", 0.1)),
+        "credit_weak_active_pool_fraction": float(
+            deepst.get("credit_weak_active_pool_fraction", 0.5)
+        ),
+        "credit_min_observations": int(deepst.get("credit_min_observations", 5)),
+        "credit_swap_margin": float(deepst.get("credit_swap_margin", 0.0)),
+        "credit_force_turnover": bool(deepst.get("credit_force_turnover", False)),
+        "credit_selection": str(deepst.get("credit_selection", "credit")),
+        "credit_warmup_steps": int(deepst.get("credit_warmup_steps", 5)),
     }
 
 
@@ -99,6 +129,12 @@ def _structured_population_adaptive_init_kwargs(
         ),
         "initial_child_conductance": float(
             implementation.get("initial_child_conductance", 1.0)
+        ),
+        "initial_conductance_scale": float(
+            implementation.get("initial_conductance_scale", 1.0)
+        ),
+        "initial_child_conductance_log_sd": float(
+            implementation.get("initial_child_conductance_log_sd", 0.0)
         ),
     }
 
@@ -266,9 +302,19 @@ def _structured_population_morphology_kwargs(
         "weight_transform": str(morphology.get("weight_transform", "softplus")),
         "use_shunting": use_shunting,
         "use_additive_normalization": use_additive_normalization,
+        "leak_conductance": float(morphology.get("leak_conductance", 1.0)),
+        "learnable_leak": bool(morphology.get("learnable_leak", False)),
+        "signal_rounding": str(morphology.get("signal_rounding", "none")),
         "additive_mode": str(morphology.get("additive_mode", "raw")),
         "additive_tangent_n0": morphology.get("additive_tangent_n0"),
         "additive_tangent_t0": morphology.get("additive_tangent_t0"),
+        "additive_options": dict(morphology.get("additive_options") or {}),
+        "additive_tangent_n0_by_depth": list(
+            morphology.get("additive_tangent_n0_by_depth", [])
+        ),
+        "additive_tangent_t0_by_depth": list(
+            morphology.get("additive_tangent_t0_by_depth", [])
+        ),
         "allow_self_recurrence": bool(morphology.get("allow_self_recurrence", True)),
         "somatic_synapses": bool(morphology.get("somatic_synapses", False)),
         "dbl_init_method": str(
@@ -307,7 +353,12 @@ def _structured_population_reactivation_kwargs(
             reactivation.get("calibration_revert_on_invalid", True)
         ),
         "reactivation_sigma_aware_k": float(reactivation.get("sigma_aware_k", 0.25)),
-        "reactivation_strategy": str(reactivation.get("gradient_scaling", "none")),
+        "reactivation_gradient_scaling": str(
+            reactivation.get("gradient_scaling", "none")
+        ),
+        "reactivation_memory_efficient": bool(
+            reactivation.get("memory_efficient", False)
+        ),
     }
 
 
@@ -318,7 +369,9 @@ def _structured_population_blocklinear_kwargs(
 ) -> dict[str, Any]:
     """Translate BlockLinear implementation settings into PopulationConfig kwargs."""
     return {
-        "blocklinear_strategy": str(blocklinear.get("gradient_scaling", "none")),
+        "blocklinear_gradient_scaling": str(
+            blocklinear.get("gradient_scaling", "none")
+        ),
         "efficient_blocklinear": bool(blocklinear.get("efficient", False)),
         "print_hooks": bool(implementation.get("print_hooks", False)),
     }

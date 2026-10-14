@@ -58,6 +58,7 @@ class InformationFinalizationMixin:
         results["per_neuron_analysis_enabled"] = self.per_neuron_analysis
         results["per_einet_analysis_enabled"] = self.per_einet_analysis
         results["per_layer_analysis_enabled"] = self.per_layer_analysis
+        results["analysis_split"] = self.analysis_split
         results["has_inhibitory_data"] = self.has_inhibitory_data(self.data_dict)
         results["dendritic_depth_reference"] = SOMA_RELATIVE_DEPTH_REFERENCE
         results["signal_semantics"] = {
@@ -66,6 +67,7 @@ class InformationFinalizationMixin:
             "Vb": "pre_gate_upstream_current",
             "V": "pre_gate_voltage",
             "Vout": "post_gate_output",
+            "S": "post_gate_parent_soma_output",
         }
         results["layer_information_proxy_semantics"] = dict(
             LAYER_INFORMATION_PROXY_SEMANTICS

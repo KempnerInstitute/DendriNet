@@ -7,7 +7,7 @@ with selective application based on layer, branch, and weight type.
 """
 
 import json
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 from pathlib import Path
 from typing import Any, Optional
 
@@ -15,7 +15,59 @@ import torch
 import torch.nn as nn
 
 from dendritic_modeling.config.training import PruningConfig, RegularizationConfig
+from dendritic_modeling.networks import (
+    BlockLinear,
+    DeepstLinear,
+    IndexedDynamicTopKLinear,
+    IndexedSparseLinear,
+    TopKLinear,
+)
 from dendritic_modeling.training.loss.functions import EIWeightRatioLoss
+
+# Synapse modules (and their subclasses: dense-to-sparse, stochastic, variance,
+# rewiring, release and credit-gated variants) store their weights in pre_w.
+_SYNAPSE_WEIGHT_MODULES = (
+    TopKLinear,
+    IndexedSparseLinear,
+    IndexedDynamicTopKLinear,
+    DeepstLinear,
+)
+_DENSE_WEIGHT_MODULES = (nn.Linear, nn.Conv1d, nn.Conv2d, nn.Conv3d)
+# Transforms for which a stored zero is an effective zero weight.
+_ZERO_PRESERVING_WEIGHT_TRANSFORMS = frozenset({"identity", "relu"})
+
+
+def iter_regularized_weights(
+    model: nn.Module,
+) -> Iterator[tuple[str, nn.Module, nn.Parameter]]:
+    """Yield ``(name, module, parameter)`` for weight tensors L1/L2 acts on.
+
+    The selection is explicit: ``pre_w`` of synapse modules (``TopKLinear``,
+    ``IndexedSparseLinear``, ``IndexedDynamicTopKLinear``, ``DeepstLinear`` and
+    subclasses), ``log_weight`` of ``BlockLinear`` branch-coupling layers and
+    ``weight`` of dense layers (``nn.Linear``, ``nn.Conv1d/2d/3d``). Biases,
+    leaks, reactivation parameters, output scales and every other tensor are
+    never selected. The stored tensor is used, i.e. the pre-transform value
+    for ``exp``/``softplus`` synapses. Shared tensors are yielded once.
+    """
+    seen: set[int] = set()
+    for module_name, module in model.named_modules():
+        if isinstance(module, _SYNAPSE_WEIGHT_MODULES):
+            attribute = "pre_w"
+        elif isinstance(module, BlockLinear):
+            attribute = "log_weight"
+        elif isinstance(module, _DENSE_WEIGHT_MODULES):
+            attribute = "weight"
+        else:
+            continue
+        param = module._parameters.get(attribute)
+        if param is None or id(param) in seen:
+            continue
+        seen.add(id(param))
+        yield (
+            f"{module_name}.{attribute}" if module_name else attribute
+        ), module, param
+
 
 _PARAM_GROUP_FALLBACK_NAMES = (
     "topk",
@@ -236,8 +288,10 @@ class RegularizationManager:
         l1_reg = torch.tensor(0.0, device=device)
         l2_reg = torch.tensor(0.0, device=device)
 
-        for name, param in model.named_parameters():
-            if not param.requires_grad or "weight" not in name:
+        # Explicit weight selection (see iter_regularized_weights); matching
+        # "weight" in parameter names skipped synapse pre_w tensors.
+        for name, _module, param in iter_regularized_weights(model):
+            if not param.requires_grad:
                 continue
 
             if self._should_regularize(name, model):
@@ -339,14 +393,70 @@ class PruningManager:
     """Manages weight pruning with selective application and reporting."""
 
     def __init__(self, config: PruningConfig):
+        if config.enabled and config.redo_analysis_after_pruning:
+            raise ValueError(
+                "pruning.redo_analysis_after_pruning is not implemented; use "
+                "the configured final analysis on the saved pruned model"
+            )
         self.config = config
         self.threshold = config.threshold
         self.selective = config.selective
         self.pruning_stats = {}
 
+    def _selected_weights(self, model: nn.Module) -> list[tuple[str, nn.Module]]:
+        """Weight tensors that pruning would modify (explicit selection)."""
+        return [
+            (name, module)
+            for name, module, _param in iter_regularized_weights(model)
+            if self._should_prune(name, model)
+        ]
+
+    def _reject_transformed_weights(self, selected) -> None:
+        transformed = sorted(
+            {
+                f"{name} ({module.weight_transform})"
+                for name, module in selected
+                if str(getattr(module, "weight_transform", "identity"))
+                not in _ZERO_PRESERVING_WEIGHT_TRANSFORMS
+            }
+        )
+        if transformed:
+            shown = ", ".join(transformed[:4])
+            more = f" and {len(transformed) - 4} more" if len(transformed) > 4 else ""
+            raise ValueError(
+                "Pruning zeroes stored weight values, but these weights pass "
+                f"through a positive transform: {shown}{more}. A zero stored "
+                "value is a conductance of transform(0) (exp: 1.0, softplus: "
+                "0.693), not a removed contact. Restrict pruning.selective to "
+                "identity-transformed or dense weights, or disable pruning."
+            )
+
+    def validate_model(self, model: nn.Module) -> None:
+        """Fail before training when enabled pruning would not prune as asked.
+
+        Raises when the selection (explicit weight tensors filtered by
+        ``selective``) is empty or contains positively transformed weights.
+        """
+        if not self.config.enabled:
+            return
+        selected = self._selected_weights(model)
+        if not selected:
+            raise ValueError(
+                "pruning is enabled but selects no weight tensor: "
+                f"selective={self.selective} matches none of the synapse pre_w, "
+                "BlockLinear log_weight or dense weight tensors by name (the "
+                "default weight_types ['excitatory', 'inhibitory'] match "
+                "DendriNet cell names, not PopulationNetwork populations)."
+            )
+        self._reject_transformed_weights(selected)
+
     def prune_model(self, model: nn.Module) -> dict[str, Any]:
         """
         Prune model weights based on configuration.
+
+        Only the explicit weight tensors of ``iter_regularized_weights`` are
+        considered, filtered by ``selective``. Positively transformed weights
+        raise ``ValueError`` (zeroing them does not remove a contact).
 
         Args:
             model: The model to prune
@@ -356,6 +466,7 @@ class PruningManager:
         """
         if not self.config.enabled:
             return {}
+        self._reject_transformed_weights(self._selected_weights(model))
 
         pruning_stats = {
             "total_params_before": 0,
@@ -366,9 +477,7 @@ class PruningManager:
             "weight_type_stats": {},
         }
 
-        for name, param in model.named_parameters():
-            if "weight" not in name:
-                continue
+        for name, _module, param in iter_regularized_weights(model):
 
             original_count = param.numel()
             pruning_stats["total_params_before"] += original_count
@@ -515,7 +624,10 @@ class PruningManager:
             print("No pruning statistics available.")
             return
 
-        print(_format_pruning_report_text(self.pruning_stats))
+        stats = self.pruning_stats
+        if not self.config.detailed_branch_report:
+            stats = {**stats, "branch_stats": {}}
+        print(_format_pruning_report_text(stats))
 
     def save_pruning_stats(self, save_path: str) -> None:
         """Save pruning statistics to file."""

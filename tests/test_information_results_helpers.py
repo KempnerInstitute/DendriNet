@@ -84,6 +84,7 @@ def test_average_mi_results_covers_metric_categories_and_skips_nonfinite_values(
             "n_samples": 8,
             "pairwise_mi": {"I(E;I)": 0.2, "I(E;bad)": "skip"},
             "conditional_mi": {"I(E;I|C)": np.inf},
+            "soma_coupling_mi": {"I(I;S)": 0.5},
             "gaussian_fisher": {"F(E;C)": 0.7},
         },
         {
@@ -91,6 +92,7 @@ def test_average_mi_results_covers_metric_categories_and_skips_nonfinite_values(
             "n_samples": 8,
             "pairwise_mi": {"I(E;I)": 0.4},
             "conditional_mi": {"I(E;I|C)": 1.2},
+            "soma_coupling_mi": {"I(I;S)": 0.9},
             "gaussian_fisher": {"F(E;C)": 0.9},
         },
     ]
@@ -101,6 +103,7 @@ def test_average_mi_results_covers_metric_categories_and_skips_nonfinite_values(
     assert averaged["pairwise_mi"]["I(E;I)_std"] == pytest.approx(0.1)
     assert "I(E;bad)" not in averaged["pairwise_mi"]
     assert averaged["conditional_mi"]["I(E;I|C)"] == pytest.approx(1.2)
+    assert averaged["soma_coupling_mi"]["I(I;S)"] == pytest.approx(0.7)
     assert averaged["gaussian_fisher"]["F(E;C)"] == pytest.approx(0.8)
 
 

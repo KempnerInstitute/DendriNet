@@ -22,12 +22,24 @@ from scipy.stats import pearsonr
 from tqdm import tqdm
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
+from dendritic_modeling.analysis.utils.effective_synapses import (
+    effective_synapse_snapshot,
+)
 from dendritic_modeling.analysis.utils.runtime import (
     analysis_device_context,
     materialize_dataset,
 )
 from dendritic_modeling.config import CorrelationAnalysisParams
-from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
+from dendritic_modeling.config.analysis import (
+    CORRELATION_COMPONENT_ALIASES,
+    CORRELATION_PAIR_ALIASES,
+    CORRELATION_SCOPE_ALIASES,
+    EvaluationRuntimeConfig,
+    canonical_selectors,
+    correlation_computation_level,
+    correlation_sampling_strategy,
+    correlation_stratified_categories,
+)
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import (
     DendriticBranchLayer,
@@ -47,7 +59,6 @@ logger = logging.getLogger(__name__)
 _CORRELATION_COMPUTE_DEFAULTS = {
     "computation_level": "layer_branch",
     "max_samples": 5000,
-    "batch_process": True,
     "per_layer_analysis": True,
     "per_einet_analysis": True,
     "per_neuron_analysis": False,
@@ -55,7 +66,7 @@ _CORRELATION_COMPUTE_DEFAULTS = {
 _CORRELATION_SAMPLING_DEFAULTS = {
     "n_synapse_pairs": 10000,
     "sampling_strategy": "stratified",
-    "stratified_categories": ["within_branch", "within_layer", "across_layer"],
+    "stratified_categories": ["within_branch", "within_layer"],
     "max_pairs_per_category": 1000,
 }
 
@@ -83,20 +94,19 @@ class CorrelationAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         self.logger = logger
         self.params = params
 
-        def _norm(x: str) -> str:
-            return str(x).strip().lower().replace("-", "_").replace(" ", "_")
-
         # New (preferred) grouped config blocks (optional; keep backward compatibility)
         selection_cfg = getattr(params, "selection", None)
         compute_cfg = getattr(params, "compute", None)
         sampling_cfg = getattr(params, "sampling", None)
 
         # Core parameters
-        self.computation_level = _prefer_nested_config_value(
-            compute_cfg,
-            params,
-            "computation_level",
-            _CORRELATION_COMPUTE_DEFAULTS["computation_level"],
+        self.computation_level = correlation_computation_level(
+            _prefer_nested_config_value(
+                compute_cfg,
+                params,
+                "computation_level",
+                _CORRELATION_COMPUTE_DEFAULTS["computation_level"],
+            )
         )
 
         # ------------------------------------------------------------------
@@ -151,48 +161,48 @@ class CorrelationAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
 
         # ------------------------------------------------------------------
         # Preferred list-based selectors (override booleans if non-empty).
+        # Unknown entries raise: they would switch every option off.
         # ------------------------------------------------------------------
+        section = "analysis.correlation.params.selection"
         components_raw = list(
             getattr(selection_cfg, "components", getattr(params, "components", []))
             or []
         )
+        comps = canonical_selectors(
+            components_raw,
+            CORRELATION_COMPONENT_ALIASES,
+            field=f"{section}.components",
+        )
         if components_raw:
-            comps = {_norm(x) for x in components_raw if str(x).strip()}
-            self.compute_total_correlations = bool({"total", "all"}.intersection(comps))
-            self.compute_noise_correlations = bool({"noise"}.intersection(comps))
-            self.compute_signal_correlations = bool({"signal"}.intersection(comps))
-            self.compute_tuning_curves = bool(
-                {"tuning", "tuning_curves"}.intersection(comps)
-            )
+            self.compute_total_correlations = "total" in comps
+            self.compute_noise_correlations = "noise" in comps
+            self.compute_signal_correlations = "signal" in comps
+            self.compute_tuning_curves = "tuning" in comps
 
         pairs_raw = list(
             getattr(selection_cfg, "pairs", getattr(params, "pairs", [])) or []
         )
+        pairs = canonical_selectors(
+            pairs_raw, CORRELATION_PAIR_ALIASES, field=f"{section}.pairs"
+        )
         if pairs_raw:
-            pairs = {_norm(x) for x in pairs_raw if str(x).strip()}
-            self.analyze_EE = bool({"ee"}.intersection(pairs))
-            self.analyze_II = bool({"ii"}.intersection(pairs))
-            self.analyze_EI = bool({"ei"}.intersection(pairs))
-            self.analyze_E_output = bool(
-                {"e_output", "e_vout", "exc_output", "exc_vout"}.intersection(pairs)
-            )
-            self.analyze_I_output = bool(
-                {"i_output", "i_vout", "inh_output", "inh_vout"}.intersection(pairs)
-            )
-            self.analyze_output_output = bool(
-                {"output_output", "vout_vout", "out_out"}.intersection(pairs)
-            )
+            self.analyze_EE = "EE" in pairs
+            self.analyze_II = "II" in pairs
+            self.analyze_EI = "EI" in pairs
+            self.analyze_E_output = "E_output" in pairs
+            self.analyze_I_output = "I_output" in pairs
+            self.analyze_output_output = "output_output" in pairs
 
         scopes_raw = list(
             getattr(selection_cfg, "scopes", getattr(params, "scopes", [])) or []
         )
+        scopes = canonical_selectors(
+            scopes_raw, CORRELATION_SCOPE_ALIASES, field=f"{section}.scopes"
+        )
         if scopes_raw:
-            scopes = {_norm(x) for x in scopes_raw if str(x).strip()}
-            self.per_layer_analysis = bool({"layer", "per_layer"}.intersection(scopes))
-            self.per_einet_analysis = bool({"einet", "per_einet"}.intersection(scopes))
-            self.per_neuron_analysis = bool(
-                {"neuron", "per_neuron"}.intersection(scopes)
-            )
+            self.per_layer_analysis = "layer" in scopes
+            self.per_einet_analysis = "einet" in scopes
+            self.per_neuron_analysis = "neuron" in scopes
 
         # Sampling parameters (for synaptic level) (with defaults)
         self.n_synapse_pairs = _prefer_nested_config_value(
@@ -201,17 +211,22 @@ class CorrelationAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
             "n_synapse_pairs",
             _CORRELATION_SAMPLING_DEFAULTS["n_synapse_pairs"],
         )
-        self.sampling_strategy = _prefer_nested_config_value(
-            sampling_cfg,
-            params,
-            "sampling_strategy",
-            _CORRELATION_SAMPLING_DEFAULTS["sampling_strategy"],
+        self.sampling_strategy = correlation_sampling_strategy(
+            _prefer_nested_config_value(
+                sampling_cfg,
+                params,
+                "sampling_strategy",
+                _CORRELATION_SAMPLING_DEFAULTS["sampling_strategy"],
+            )
         )
-        self.stratified_categories = _prefer_nested_config_value(
-            sampling_cfg,
-            params,
-            "stratified_categories",
-            _CORRELATION_SAMPLING_DEFAULTS["stratified_categories"],
+        self.stratified_categories = correlation_stratified_categories(
+            _prefer_nested_config_value(
+                sampling_cfg,
+                params,
+                "stratified_categories",
+                _CORRELATION_SAMPLING_DEFAULTS["stratified_categories"],
+            ),
+            section="analysis.correlation.params.sampling",
         )
         self.max_pairs_per_category = _prefer_nested_config_value(
             sampling_cfg,
@@ -226,12 +241,6 @@ class CorrelationAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
             params,
             "max_samples",
             _CORRELATION_COMPUTE_DEFAULTS["max_samples"],
-        )
-        self.batch_process = _prefer_nested_config_value(
-            compute_cfg,
-            params,
-            "batch_process",
-            _CORRELATION_COMPUTE_DEFAULTS["batch_process"],
         )
 
         self.logger.info(
@@ -294,14 +303,24 @@ class CorrelationAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         def hook(module, input, output):
             x = input[0] if isinstance(input, tuple) else input
             with torch.no_grad():
-                weights = module.weight()
-                active_indices = torch.topk(
-                    module.pre_w,
-                    module.K,
-                    dim=-1,
-                    largest=True,
-                    sorted=False,
-                )[1]
+                # The synapses the forward realized, whatever the selection
+                # rule, masks or storage layout of the synapse type.
+                snapshot = effective_synapse_snapshot(module)
+                active = snapshot.active_mask > 0
+                counts = active.sum(dim=1)
+                if counts.numel() and int(counts.min()) != int(counts.max()):
+                    raise ValueError(
+                        "synaptic correlation needs the same number of realized "
+                        f"synapses on every branch; {layer_name} {synapse_type} "
+                        f"realizes between {int(counts.min())} and "
+                        f"{int(counts.max())}"
+                    )
+                k = int(counts.max()) if counts.numel() else 0
+                # Realized inputs of each branch in ascending input order.
+                active_indices = torch.argsort(
+                    (~active).to(torch.int8), dim=1, stable=True
+                )[:, :k]
+                weights = snapshot.effective_weight
 
                 batch_size = x.shape[0]
                 n_branches = active_indices.shape[0]
@@ -1004,6 +1023,7 @@ class CorrelationAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
                 self.logger.warning(
                     "Model does not have ExcitationInhibitionNetwork. Skipping analysis."
                 )
+                self.report_skip("the model has no ExcitationInhibitionNetwork core")
                 return
 
             with analysis_device_context(model, device) as analysis_device:

@@ -1,0 +1,32 @@
+# Final-only matched-support information profile with fixed support
+# selection, without using test examples or labels. Adapt module_name_prefix to
+# the tree being analyzed.
+analysis:
+  runtime:
+    final:
+      mode: stream
+      batch_size: 512
+      num_workers: 4
+      pin_memory: true
+      max_samples: null
+
+  path_matched_information:
+    enabled: true
+    training: false
+    params:
+      signals:
+        - excitation_current
+        - inhibition_current
+        - joint_EI_currents
+        - upstream_child_current
+        - post_gate_output
+      depths: [0, 1, 2, 3, 4]
+      support_draws: 5
+      support_seed: 271828
+      support_namespace: path-matched-example
+      n_neighbors: 10
+      n_label_shuffles: 20
+      module_name_prefix: core_network.layers.0.populations.e0.branch_layers
+      expected_n_somas: 20
+      expected_branch_factors: [3, 3, 3, 3]
+      max_samples: null

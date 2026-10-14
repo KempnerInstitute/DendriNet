@@ -6,35 +6,82 @@ and other advanced training techniques for dendritic networks.
 """
 
 import logging
+from dataclasses import fields
 from functools import partial
 
 import torch
 
+from dendritic_modeling.config.training import (
+    EIEquilibriumStrategyConfig,
+    HomeostaticControlStrategyConfig,
+    VoltageStabilizationStrategyConfig,
+)
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks.activations import ParametricActivation
+from dendritic_modeling.networks.activations.endpoint_tanh import EndpointNormalizedTanh
 from dendritic_modeling.training.loss.functions import (
     ExcitationInhibitionBalanceLoss,
     HomeostaticControlLoss,
     VoltageStabilizationLoss,
 )
+from dendritic_modeling.training.strategies.phases import merge_phase_results
 from dendritic_modeling.training.strategies.standard import Trainer
+from dendritic_modeling.training.strategies.trainability import (
+    restore_requires_grad,
+    snapshot_requires_grad,
+)
 from dendritic_modeling.utils.hooks import iter_modules_of_type, run_with_forward_hooks
 
 logger = logging.getLogger(__name__)
+_TRAINABLE_REACTIVATIONS = (ParametricActivation, EndpointNormalizedTanh)
 
 
 def _set_parametric_activation_trainability(model, requires_grad: bool) -> None:
-    for module in iter_modules_of_type(model, ParametricActivation):
+    for module in iter_modules_of_type(model, _TRAINABLE_REACTIVATIONS):
         for param in module.parameters():
             param.requires_grad = requires_grad
 
 
+def _freeze_parametric_activations(model) -> list[tuple[torch.nn.Parameter, bool]]:
+    """Freeze reactivation parameters and return their prior trainability."""
+    states = [
+        (param, bool(param.requires_grad))
+        for module in iter_modules_of_type(model, _TRAINABLE_REACTIVATIONS)
+        for param in module.parameters()
+    ]
+    _set_parametric_activation_trainability(model, False)
+    return states
+
+
+def _restore_parametric_activations(trainer, states) -> None:
+    """Restore pre-warm-up trainability for the main phase.
+
+    The warm-up phase's ``Trainer.train()`` caches the reactivation
+    trainability it observes (frozen) as the original state, and every later
+    ``train()`` call restores that cache. Dropping the cache after restoring
+    the parameters makes the main phase recapture the pre-warm-up state.
+    """
+    for param, requires_grad in states:
+        param.requires_grad = requires_grad
+    if hasattr(trainer, "_reactivation_state_model_id"):
+        trainer._reactivation_state_model_id = None
+
+
+def _check_warmup_epochs(trainer) -> None:
+    if int(trainer.pretrain_epochs) < 1:
+        raise ValueError(
+            f"pretrain_epochs={trainer.pretrain_epochs}: the warm-up runs at least "
+            "one epoch; use strategy 'standard' to train without it"
+        )
+
+
 def _start_warmup_phase(trainer, warmup_loss, filename_prefix, logger_info_prefix):
+    _check_warmup_epochs(trainer)
     default_loss_fn = trainer.loss_function
     default_epochs = trainer.epochs
 
     trainer.loss_function = warmup_loss
-    trainer.epochs = max(trainer.pretrain_epochs, 1)
+    trainer.epochs = int(trainer.pretrain_epochs)
     trainer.filename_prefix = filename_prefix
     trainer.logger_info_prefix = logger_info_prefix
 
@@ -49,14 +96,19 @@ def _start_standard_phase(trainer, default_loss_fn, default_epochs):
     trainer.best_loss = float("inf")
 
 
-def _merge_warmup_results(pretrain_results, final_results):
-    final_results["train_losses"] = (
-        pretrain_results["train_losses"] + final_results["train_losses"]
+def _merge_warmup_results(pretrain_results, final_results, *, warmup_loss=None):
+    """Prepend the warm-up histories and record each phase's epochs.
+
+    Warm-up entries are values of the warm-up loss; ``phases`` says how many
+    leading epochs they cover.
+    """
+    return merge_phase_results(
+        pretrain_results,
+        final_results,
+        first_phase="warmup",
+        final_phase="main",
+        first_loss=getattr(warmup_loss, "_loss_name", None),
     )
-    final_results["valid_losses"] = (
-        pretrain_results["valid_losses"] + final_results["valid_losses"]
-    )
-    return final_results
 
 
 def _run_warmup_then_standard_training(
@@ -72,40 +124,54 @@ def _run_warmup_then_standard_training(
     warmup_label,
     standard_label,
 ):
-    handles = warmup_loss.attach_forward_hooks(model)
-
-    default_loss_fn, default_epochs = _start_warmup_phase(
-        trainer,
-        warmup_loss,
-        filename_prefix,
-        logger_info_prefix,
+    trainer._reject_trainability_change_under_ddp(
+        model,
+        f"the {warmup_label} warm-up loss reaches only some parameters (the "
+        "decoder gets no gradient)",
     )
+    _check_warmup_epochs(trainer)
+    with trainer._run_epoch_count(int(trainer.pretrain_epochs) + int(trainer.epochs)):
+        handles = warmup_loss.attach_forward_hooks(model)
 
-    if trainer.freeze_reactivation:
-        _set_parametric_activation_trainability(model, False)
-
-    logger.info(
-        f"=== {warmup_label}: "
-        f"Starting pretraining phase for {trainer.pretrain_epochs} epochs ==="
-    )
-    try:
-        pretrain_results = run_with_forward_hooks(
-            attach=lambda: handles,
-            remove=warmup_loss.remove_forward_hooks,
-            body=partial(train_fn, model, train_data, valid_data),
+        default_loss_fn, default_epochs = _start_warmup_phase(
+            trainer,
+            warmup_loss,
+            filename_prefix,
+            logger_info_prefix,
         )
-    finally:
-        if trainer.freeze_reactivation:
-            _set_parametric_activation_trainability(model, True)
 
-        _start_standard_phase(trainer, default_loss_fn, default_epochs)
+        frozen_states = (
+            _freeze_parametric_activations(model) if trainer.freeze_reactivation else []
+        )
 
-    logger.info(
-        f"=== {standard_label}: "
-        f"Starting normal training for {trainer.epochs} epochs ==="
-    )
-    final_results = train_fn(model, train_data, valid_data)
-    return _merge_warmup_results(pretrain_results, final_results)
+        logger.info(
+            f"=== {warmup_label}: "
+            f"Starting pretraining phase for {trainer.pretrain_epochs} epochs ==="
+        )
+        try:
+            pretrain_results = run_with_forward_hooks(
+                attach=lambda: handles,
+                remove=warmup_loss.remove_forward_hooks,
+                body=partial(train_fn, model, train_data, valid_data),
+            )
+        finally:
+            if trainer.freeze_reactivation:
+                # freeze_reactivation applies to the warm-up phase only.
+                _restore_parametric_activations(trainer, frozen_states)
+
+            _start_standard_phase(trainer, default_loss_fn, default_epochs)
+
+        logger.info(
+            f"=== {standard_label}: "
+            f"Starting normal training for {trainer.epochs} epochs ==="
+        )
+        # The warm-up chose its best state by the warm-up loss; the result is
+        # selected among main-phase epochs only.
+        trainer._restart_best_state_selection(model)
+        final_results = train_fn(model, train_data, valid_data)
+        return _merge_warmup_results(
+            pretrain_results, final_results, warmup_loss=warmup_loss
+        )
 
 
 class VoltageStabilizationTrainer(Trainer):
@@ -117,6 +183,11 @@ class VoltageStabilizationTrainer(Trainer):
     with training stability in dendritic networks.
     """
 
+    # Two phases (warm-up, then standard) each call Trainer.train().
+    supports_lr_schedule = False
+    strategy_options = frozenset(
+        item.name for item in fields(VoltageStabilizationStrategyConfig)
+    )
     pretrain_epochs: int = 1
     stabilize_mode: str = "vinf"
     freeze_reactivation: bool = False
@@ -165,13 +236,18 @@ class VoltageStabilizationTrainer(Trainer):
 
 class ExcitationInhibitionEquilibriumTrainer(Trainer):
     """
-    Excitation-Inhibition Equilibrium Training Strategy.
+    Excitation-Inhibition Equilibrium Training Strategy (``ei_equilibrium``).
 
-    This trainer includes a warm-up phase that stabilizes dendritic voltages
-    to target values before proceeding with normal training. This can help
-    with training stability in dendritic networks.
+    A warm-up phase drives each dendritic branch's excitatory conductance
+    output toward its inhibitory one (``ExcitationInhibitionBalanceLoss``),
+    then training proceeds with the task loss. The model needs branches with
+    inhibitory synapses.
     """
 
+    supports_lr_schedule = False
+    strategy_options = frozenset(
+        item.name for item in fields(EIEquilibriumStrategyConfig)
+    )
     pretrain_epochs: int = 1
     freeze_reactivation: bool = False
     loss_metric: str = "mse"
@@ -220,6 +296,10 @@ class HomeostaticControlTrainer(Trainer):
     This can help with training stability in dendritic networks.
     """
 
+    supports_lr_schedule = False
+    strategy_options = frozenset(
+        item.name for item in fields(HomeostaticControlStrategyConfig)
+    )
     pretrain_epochs: int = 1
     stabilize_mode: str = "vinf"
     freeze_reactivation: bool = False
@@ -266,12 +346,24 @@ class HomeostaticControlTrainer(Trainer):
         )
 
 
+def _reactivation_midpoints(model) -> list[torch.nn.Parameter]:
+    """Trainable midpoints ``b`` of the model's reactivation gates."""
+    return [
+        module.b
+        for module in iter_modules_of_type(model, _TRAINABLE_REACTIVATIONS)
+        if isinstance(getattr(module, "b", None), torch.nn.Parameter)
+        and module.b.requires_grad
+    ]
+
+
 class TrainOnlyMReactivation(Trainer):
     """
-    Training strategy that focuses only on M-reactivation parameters.
+    Standard training with the reactivation gate midpoints held fixed.
 
-    This trainer freezes log_b parameters and trains all other parameters,
-    which can be useful for specific dendritic network configurations.
+    The midpoint ``b`` of every trainable reactivation gate
+    (``ParametricTanh``, ``ParametricReLU``, ``EndpointNormalizedTanh``) is
+    frozen for the run, so the slopes ``m`` and all other parameters train.
+    Every parameter's trainability is restored afterwards.
     """
 
     def train(
@@ -281,7 +373,7 @@ class TrainOnlyMReactivation(Trainer):
         valid_data: torch.utils.data.Dataset,
     ):
         """
-        Train the model with M-reactivation focus.
+        Train with the reactivation midpoints held fixed.
 
         Args:
             model: The model to train
@@ -292,18 +384,29 @@ class TrainOnlyMReactivation(Trainer):
             Dictionary containing training results and metrics
         """
 
+        midpoints = _reactivation_midpoints(model)
+        if not midpoints:
+            raise ValueError(
+                "TrainOnlyMReactivation holds reactivation midpoints b fixed, but "
+                "the model has no reactivation gate with a trainable midpoint."
+            )
+        self._reject_trainability_change_under_ddp(
+            model, "TrainOnlyMReactivation freezes the reactivation midpoints"
+        )
         logger.info(
-            "TrainOnlyMReactivation: "
-            "Freezing log_b and training all other parameters."
+            "TrainOnlyMReactivation: holding %d reactivation midpoints fixed.",
+            len(midpoints),
         )
 
-        # Freeze log_b parameters, unfreeze all others
-        for name, param in model.named_parameters():
-            if "log_b" in name:
-                param.requires_grad = False
-            else:
-                param.requires_grad = True
-
+        trainability = snapshot_requires_grad(model)
+        for param in midpoints:
+            param.requires_grad = False
+        # Trainer.train() records the reactivation flags it finds as their
+        # original state; record the frozen midpoints, not an earlier run's.
+        self._reactivation_state_model_id = None
         self.filename_prefix = "train_only_m_reactivation_"
-        results = super().train(model, train_data, valid_data)
-        return results
+        try:
+            return super().train(model, train_data, valid_data)
+        finally:
+            restore_requires_grad(trainability)
+            self._reactivation_state_model_id = None

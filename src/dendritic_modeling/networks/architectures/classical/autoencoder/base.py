@@ -11,7 +11,30 @@ from dendritic_modeling.networks.architectures.classical.mlp.mlp import MLP
 from dendritic_modeling.networks.base import BaseNetwork
 
 
-class Encoder(BaseNetwork):
+class FreezableEncoder:
+    """Encoder behaviour of a pretrained autoencoder used as a fixed feature map.
+
+    ``freeze()`` stops the encoder's gradients and keeps it in evaluation mode
+    whatever mode its model is switched to, so a variational encoder returns
+    its latent mean. The flag is not part of the state dict.
+    """
+
+    _frozen = False
+
+    def freeze(self):
+        self.requires_grad_(False)
+        self._frozen = True
+        return self.train(False)
+
+    @property
+    def frozen(self) -> bool:
+        return self._frozen
+
+    def train(self, mode: bool = True):
+        return super().train(bool(mode) and not self._frozen)
+
+
+class Encoder(FreezableEncoder, BaseNetwork):
     def __init__(self, net: BaseNetwork):
         super().__init__()
         self.net = net

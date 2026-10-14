@@ -147,14 +147,6 @@ def test_additive_dendritic_block_factor_preserves_modes():
         additive_mode="input_dependent",
         pseudo_R=pseudo_R,
     )
-    learned = _additive_dendritic_block_factor(
-        e_v=e_v,
-        v_n=v_n,
-        post_factor_raw=post_factor_raw,
-        x_blk=x_blk,
-        additive_mode="learned_gain",
-        pseudo_R=None,
-    )
     running = _additive_dendritic_block_factor(
         e_v=e_v,
         v_n=v_n,
@@ -176,7 +168,6 @@ def test_additive_dendritic_block_factor_preserves_modes():
         input_dependent,
         e_v.unsqueeze(-1) * pseudo_R.unsqueeze(-1) * (x_blk - v_n.unsqueeze(-1)),
     )
-    torch.testing.assert_close(learned, post_factor_raw.unsqueeze(-1) * x_blk)
     torch.testing.assert_close(running, post_factor_raw.unsqueeze(-1) * x_blk)
     torch.testing.assert_close(neutral, e_v.unsqueeze(-1) * x_blk)
 
@@ -224,18 +215,6 @@ def test_base_dendritic_block_factor_preserves_additive_modes():
         input_factor,
         e_v.unsqueeze(-1) * pseudo_R.unsqueeze(-1) * (x_blk - v_n.unsqueeze(-1)),
     )
-
-    learned = _DendriticBlockFactorProbe(additive_mode="learned_gain")
-    learned_factor = learned._compute_base_dendritic_block_factor(
-        rec={},
-        e_v=e_v,
-        post_factor_raw=post_factor_raw,
-        v_n=v_n,
-        r_tot=1.0,
-        x_blk=x_blk,
-        layer_dynamics_mode="additive",
-    )
-    torch.testing.assert_close(learned_factor, post_factor_raw.unsqueeze(-1) * x_blk)
 
     running = _DendriticBlockFactorProbe(additive_mode="running_stats")
     running_factor = running._compute_base_dendritic_block_factor(

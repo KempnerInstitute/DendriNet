@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Generate a simple repo-hosted SVG coverage badge.
+"""Generate a repository-hosted SVG coverage badge from a coverage XML report.
 
-This avoids external badge/token issues for private repositories while still
-keeping the README coverage number current.
+The badge shows the coverage percentage as text, so it needs no external
+badge service.
 """
 
 from __future__ import annotations

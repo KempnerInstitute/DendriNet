@@ -9,6 +9,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 
+from dendritic_modeling.plotting.styles import depth_style, indexed_style
+
 from .base_plotter import BasePlotter
 
 logger = logging.getLogger(__name__)
@@ -412,8 +414,7 @@ class AblationPlotter(BasePlotter):
             fontsize=16,
         )
 
-        cmap = plt.get_cmap("tab10")
-        depth_colors = {d: cmap(d / 9.0) for d in depths}
+        depth_colors = {d: depth_style(d) for d in depths}
 
         for idx, category in enumerate(categories):
             ax = axes[idx // ncols, idx % ncols]
@@ -456,9 +457,8 @@ class AblationPlotter(BasePlotter):
                         ax.plot(
                             x_vals,
                             y_vals,
-                            marker="o",
                             label=f"Depth {depth}",
-                            color=depth_colors[depth],
+                            **depth_colors[depth].kwargs(),
                             alpha=0.8,
                             linewidth=2,
                         )
@@ -778,7 +778,7 @@ class AblationPlotter(BasePlotter):
                 ax.set_title(f"{category.replace('_', ' ').title()}")
                 continue
 
-            for module_name, depth in modules:
+            for index, (module_name, depth) in enumerate(modules):
                 col = module_cols[(module_name, depth)]
                 if col not in category_data.columns:
                     continue
@@ -792,7 +792,7 @@ class AblationPlotter(BasePlotter):
                 ax.plot(
                     x_vals,
                     y_vals,
-                    marker="o",
+                    **indexed_style(index).kwargs(),
                     alpha=0.8,
                     linewidth=2,
                     label=f"{module_name.replace('_', ' ')} (d{depth})",

@@ -21,7 +21,11 @@ from dendritic_modeling.analysis.tools.reactivation_dynamics import (
     ReactivationDynamicsAnalyzer,
 )
 from dendritic_modeling.config.analysis import ReactivationDynamicsAnalysisParams
-from dendritic_modeling.networks.activations.parametric import ParametricTanh
+from dendritic_modeling.networks.activations.parametric import (
+    ParametricReLU,
+    ParametricTanh,
+    ParametricTanhOnlyM,
+)
 
 
 class _StackedReactivationModel(nn.Module):
@@ -49,13 +53,13 @@ def _make_dataset(n: int = 64, dim: int = 16, n_classes: int = 4) -> TensorDatas
     return TensorDataset(x, y)
 
 
-def test_analyzer_lists_parametric_tanh_layers_in_module_order():
+def test_analyzer_lists_parametric_gates_in_module_order():
     model = _StackedReactivationModel()
     analyzer = ReactivationDynamicsAnalyzer(
         ReactivationDynamicsAnalysisParams(max_samples=8)
     )
 
-    layers = analyzer._list_parametric_tanh_layers(model)
+    layers = analyzer._list_gate_layers(model)
 
     assert layers == [("r1", model.r1), ("r2", model.r2)]
 
@@ -156,8 +160,8 @@ def test_analyzer_saturation_fractions_are_exclusive():
         assert total == pytest.approx(1.0, abs=1e-5)
 
 
-def test_analyzer_no_op_without_parametric_tanh():
-    """A model with no ParametricTanh modules returns an empty snapshot."""
+def test_analyzer_no_op_without_parametric_gates():
+    """A model with no parametric gates returns an empty snapshot."""
 
     class NoReactModel(nn.Module):
         def __init__(self):
@@ -242,3 +246,102 @@ def test_analyzer_tracks_drift_after_parameter_modification():
     import math
 
     assert m_after == pytest.approx(m_before * math.e, rel=1e-4)
+
+
+def test_snapshot_records_soma_relative_depth_and_polarity():
+    """branch_layers runs distal to soma, so depth is not the list index."""
+    from test_biological_constraints import _population
+    from test_trainer_configuration import IN_DIM, _wrap
+
+    from dendritic_modeling.analysis.utils.dendritic_depth import (
+        soma_relative_dendritic_depth,
+    )
+    from dendritic_modeling.networks.architectures.factory import get_architecture
+
+    core = _population()
+    for population in core["population_network"]["layers"][0]["populations"]:
+        population["branch_factors"] = [2, 2]
+    torch.manual_seed(0)
+    model = _wrap(get_architecture("population_network", core, input_dim=IN_DIM))
+    analyzer = ReactivationDynamicsAnalyzer(ReactivationDynamicsAnalysisParams())
+    layers = analyzer._list_gate_layers(model)
+
+    coordinates = analyzer._gate_coordinates(model, layers)
+
+    e_distal = "core_network.layers.0.populations.e.branch_layers.0.reactivation"
+    e_soma = "core_network.layers.0.populations.e.branch_layers.2.reactivation"
+    i_soma = "core_network.layers.0.populations.i.branch_layers.2.reactivation"
+    assert coordinates[e_distal]["soma_relative_dendritic_depth"] == 2
+    assert coordinates[e_soma]["soma_relative_dendritic_depth"] == 0
+    assert coordinates[e_soma]["population_polarity"] == "excitatory"
+    assert coordinates[i_soma]["population_polarity"] == "inhibitory"
+    parent = model.get_submodule(e_distal.rpartition(".")[0])
+    assert soma_relative_dendritic_depth(parent) == 2
+
+
+class _RecurrentGateModel(nn.Module):
+    """Calls each gate once per step, as a stateful core's unroll does."""
+
+    def __init__(self, gate: nn.Module, dim: int = 6):
+        super().__init__()
+        self.inp = nn.Linear(dim, dim)
+        self.gate = gate
+
+    def forward(self, x):
+        h = torch.zeros(x.shape[0], x.shape[-1])
+        for t in range(x.shape[1]):
+            h = self.gate(0.5 * h + self.inp(x[:, t]))
+        return h
+
+
+def _snapshot(model, shape=(8, 3, 6)):
+    ds = TensorDataset(torch.rand(*shape), torch.zeros(shape[0], dtype=torch.long))
+    analyzer = ReactivationDynamicsAnalyzer(
+        ReactivationDynamicsAnalysisParams(max_samples=8)
+    )
+    return analyzer.analyze(model=model, test_ds=ds, device="cpu", training=False)
+
+
+def test_every_call_of_a_gate_is_recorded():
+    torch.manual_seed(0)
+    snapshot = _snapshot(_RecurrentGateModel(ParametricTanh(6, init_m=1.5, init_b=0.5)))
+    entry = snapshot["layers"]["gate"]
+
+    assert entry["gate"] == "ParametricTanh"
+    assert entry["n_calls"] == 3
+    assert entry["V"]["n"] == 3 * 8 * 6  # every timestep, not only the first
+
+
+@pytest.mark.parametrize(
+    "gate, unit_range",
+    [
+        (ParametricTanhOnlyM(6, init_m=1.5, fixed_b=0.25), True),
+        (ParametricReLU(6), False),
+    ],
+)
+def test_other_parametric_gates_are_tracked(gate, unit_range):
+    entry = _snapshot(_RecurrentGateModel(gate))["layers"]["gate"]
+
+    assert entry["params"]["m_mean"] == pytest.approx(gate.log_m.exp().mean().item())
+    if unit_range:
+        assert entry["params"]["b_mean"] == pytest.approx(0.25)
+        output = entry["reactivation_output"]
+        assert output["sat_lo"] + output["sat_hi"] + output["active_frac"] == (
+            pytest.approx(1.0)
+        )
+    else:
+        assert "sat_lo" not in entry["reactivation_output"]
+        assert entry["reactivation_output"]["min"] >= 0.0  # m * relu(V - b)
+
+
+def test_forward_failures_propagate():
+    class Broken(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.gate = ParametricTanh(6)
+
+        def forward(self, x):
+            raise RuntimeError("forward failed")
+
+    with pytest.raises(RuntimeError, match="forward failed"):
+        _snapshot(Broken(), shape=(8, 6))

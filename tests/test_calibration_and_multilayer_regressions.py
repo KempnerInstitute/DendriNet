@@ -5,10 +5,9 @@
    calibration guard can otherwise leave the 2nd+ model in a process at its
    initialization value, which breaks sweeps, notebooks, and multi-model drivers.
 
-2. Multi-layer EI networks with ``transfer.input_mode == 1`` must build and run
-   a forward pass. This guards the inter-layer inhibitory projection
-   (``branch_inhibition`` matmul) so both supported input modes work for
-   multi-layer networks.
+2. Multi-layer EI networks must build and run a forward pass. This guards the
+   inter-layer inhibitory projection: the second layer's inhibitory cells read
+   the first layer's inhibitory cells through a ``branch_inhibition`` bank.
 """
 
 from __future__ import annotations
@@ -26,17 +25,16 @@ def _small_additive_net(input_dim: int = 16):
     params = {
         "architecture": {
             "excitatory_layer_sizes": [8],
-            "inhibitory_layer_sizes": [4],
+            "inhibitory_layer_sizes": [0],
             "excitatory_branch_factors": [2],
             "inhibitory_branch_factors": [1],
         },
         "connectivity": {
             "ee_synapses_per_branch_per_layer": [4],
-            "ei_synapses_per_branch_per_layer": [2],
+            "ei_synapses_per_branch_per_layer": [0],
             "ie_synapses_per_branch_per_layer": [2],
             "ii_synapses_per_branch_per_layer": [0],
         },
-        "transfer": {"input_mode": 1},
         "reactivation": {"enabled": True, "init_policy": "occupancy_quantile"},
     }
     return get_architecture(
@@ -86,9 +84,8 @@ def test_calibration_fires_for_every_model_in_one_process():
     assert calibrated_layer_counts[0] == calibrated_layer_counts[1]
 
 
-def test_two_layer_input_mode_1_builds_and_forwards():
-    """A 2-layer EI network with input_mode=1 must build and forward cleanly."""
-    params = {
+def _two_layer_params():
+    return {
         "architecture": {
             "excitatory_layer_sizes": [16, 8],
             "inhibitory_layer_sizes": [4, 4],
@@ -97,14 +94,23 @@ def test_two_layer_input_mode_1_builds_and_forwards():
         },
         "connectivity": {
             "ee_synapses_per_branch_per_layer": [4, 4],
-            "ei_synapses_per_branch_per_layer": [2, 2],
+            "ei_synapses_per_branch_per_layer": [3, 3],
             "ie_synapses_per_branch_per_layer": [2, 2],
-            "ii_synapses_per_branch_per_layer": [0, 0],
+            "ii_synapses_per_branch_per_layer": [0, 2],
         },
-        "transfer": {"input_mode": 1},  # the PR fix: input_mode=1 with >1 layer
-        "morphology": {"use_shunting": True},
     }
+
+
+def _inter_layer_inhibition(net):
+    branch = net.layers[1].inhibitory_cells.branch_layers[0]
+    return branch.branch_inhibition
+
+
+def test_two_layer_network_builds_and_forwards():
+    """A 2-layer shunting EI network with inter-layer inhibition runs cleanly."""
+    params = {**_two_layer_params(), "morphology": {"use_shunting": True}}
     net = get_architecture("einet", params, input_dim=16)
+    assert _inter_layer_inhibition(net).in_features == 4
 
     # shunting requires non-negative (conductance-like) inputs
     x = torch.rand(4, 16)
@@ -113,24 +119,10 @@ def test_two_layer_input_mode_1_builds_and_forwards():
     assert torch.isfinite(y).all()
 
 
-def test_two_layer_input_mode_1_additive_builds_and_forwards():
-    """Same as above for raw additive morphology (covers branch_inhibition path)."""
-    params = {
-        "architecture": {
-            "excitatory_layer_sizes": [16, 8],
-            "inhibitory_layer_sizes": [4, 4],
-            "excitatory_branch_factors": [2, 2],
-            "inhibitory_branch_factors": [1],
-        },
-        "connectivity": {
-            "ee_synapses_per_branch_per_layer": [4, 4],
-            "ei_synapses_per_branch_per_layer": [2, 2],
-            "ie_synapses_per_branch_per_layer": [2, 2],
-            "ii_synapses_per_branch_per_layer": [0, 0],
-        },
-        "transfer": {"input_mode": 1},
-    }
-    net = get_architecture("dendritic_additive", params, input_dim=16)
+def test_two_layer_additive_network_builds_and_forwards():
+    """Same as above for raw additive morphology."""
+    net = get_architecture("dendritic_additive", _two_layer_params(), input_dim=16)
+    assert _inter_layer_inhibition(net).in_features == 4
 
     x = torch.randn(4, 16)
     y = _forward(net, x)

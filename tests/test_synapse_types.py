@@ -3,6 +3,7 @@
 import pytest
 import torch
 
+from dendritic_modeling.config import has_enabled_synapse_types
 from dendritic_modeling.networks.architectures.recurrent import (
     PopulationConfig,
     StatefulDendriNet,
@@ -106,6 +107,48 @@ def test_synapse_types_enabled_requires_explicit_polarity_lists():
                 "excitatory": [{"name": "AMPA", "fraction": 1.0, "tau": None}],
             }
         )
+
+
+_AMPA = {"name": "AMPA", "fraction": 1.0, "tau": None}
+_GABA = {"name": "GABA_A", "fraction": 1.0, "tau": None}
+_TYPE_LISTS = {
+    "excitatory/inhibitory": {"excitatory": [_AMPA], "inhibitory": [_GABA]},
+    "exc/inh": {"exc": [_AMPA], "inh": [_GABA]},
+    "e/i": {"e": [_AMPA], "i": [_GABA]},
+    "types": {
+        "types": [
+            {**_AMPA, "polarity": "excitatory"},
+            {**_GABA, "polarity": "inhibitory"},
+        ]
+    },
+}
+
+
+@pytest.mark.parametrize("lists", list(_TYPE_LISTS), ids=list(_TYPE_LISTS))
+@pytest.mark.parametrize("enabled", [True, False, None])
+def test_every_consumer_reads_enabled_with_one_rule(lists, enabled):
+    """Layer recurrence and the synapse builder agree, or both raise."""
+    block = dict(_TYPE_LISTS[lists])
+    if enabled is not None:
+        block["enabled"] = enabled
+    if enabled is None:
+        with pytest.raises(ValueError, match="without 'enabled'"):
+            has_enabled_synapse_types(block)
+        with pytest.raises(ValueError, match="without 'enabled'"):
+            build_synapse_type_set(block)
+        return
+    assert has_enabled_synapse_types(block) is enabled
+    assert build_synapse_type_set(block).enabled is enabled
+
+
+def test_an_empty_or_disabled_block_needs_no_enabled_key():
+    assert has_enabled_synapse_types({}) is False
+    assert build_synapse_type_set({}).enabled is False
+
+
+def test_types_entries_must_state_their_polarity():
+    with pytest.raises(ValueError, match="needs polarity"):
+        build_synapse_type_set({"enabled": True, "types": [_AMPA, _GABA]})
 
 
 def test_synapse_types_enabled_rejects_all_disabled_entries():
@@ -452,6 +495,81 @@ def test_short_term_plasticity_tracks_utilization_and_resources():
     assert resources.max() <= 1
 
 
+def _stp_network(**stp):
+    torch.manual_seed(4)
+    return _network(
+        _population_config(
+            {
+                "enabled": True,
+                "excitatory": [
+                    {
+                        "name": "STP",
+                        "fraction": 1.0,
+                        "tau": None,
+                        "stp": {"enabled": True, "u0": 0.3, **stp},
+                    }
+                ],
+                "inhibitory": [{"name": "GABA_A", "fraction": 1.0, "tau": None}],
+            },
+            ff_inhibitory_synapses=0,
+        )
+    )
+
+
+def _stp_resources_after(net, x, steps):
+    state = None
+    for _ in range(steps):
+        _, state = net.step(x, state=state)
+    traces = state.typed_traces
+    return traces["ff_exc:STP:stp_u"], traces["ff_exc:STP:stp_x"]
+
+
+@pytest.mark.parametrize("activity", ["saturating", "clamped"])
+def test_short_term_plasticity_rests_without_input(activity):
+    """No input: resources stay full and utilization at u0, even with facilitation."""
+    net = _stp_network(activity=activity, facilitation=0.2, depression=1.0)
+    utilization, resources = _stp_resources_after(net, torch.zeros(2, 5), 200)
+    for level in resources:
+        torch.testing.assert_close(level, torch.ones_like(level))
+    for level in utilization:
+        torch.testing.assert_close(level, torch.full_like(level, 0.3))
+
+
+def test_short_term_plasticity_depletes_more_with_more_input():
+    net = _stp_network(depression=1.0)
+    depleted = [
+        torch.cat(_stp_resources_after(net, torch.full((2, 5), drive), 50)[1], dim=1)
+        for drive in (0.1, 1.0, 10.0)
+    ]
+    assert (depleted[0] > depleted[1]).all() and (depleted[1] > depleted[2]).all()
+    assert (depleted[0] < 1).all()
+
+
+def test_short_term_plasticity_activity_survives_type_normalization():
+    types = build_synapse_type_set(
+        {
+            "enabled": True,
+            "excitatory": [
+                {
+                    "name": "AMPA",
+                    "fraction": 2.0,
+                    "tau": None,
+                    "stp": {"activity": "clamped", "activity_scale": 3.0},
+                }
+            ],
+            "inhibitory": [{"name": "GABA_A", "fraction": 1.0, "tau": None}],
+        }
+    )
+    (ampa,) = types.excitatory.types
+    assert (ampa.stp_activity, ampa.stp_activity_scale, ampa.fraction) == (
+        "clamped",
+        3.0,
+        1.0,
+    )
+    with pytest.raises(ValueError, match="stp activity must be one of"):
+        SynapseTypeConfig(name="X", polarity="excitatory", stp_activity="sigmoid")
+
+
 def test_short_term_plasticity_differentiable_state_controls_history_gradient():
     net = _network(_population_config())
     raw_first = torch.ones(2, 4, requires_grad=True)
@@ -555,3 +673,20 @@ def test_inhibitory_reversal_potential_changes_shunting_output():
     y_hyperpolarizing, _ = hyperpolarizing.step(x, inhibitory_input=inhibitory)
 
     assert (y_hyperpolarizing < y_base).all()
+
+
+@pytest.mark.parametrize(
+    "block",
+    [
+        {"enabeld": True},
+        {"enabeld": True, **_TYPE_LISTS["excitatory/inhibitory"]},
+        {"enabled": True, "tyeps": [{**_AMPA, "polarity": "excitatory"}]},
+    ],
+    ids=["misspelt-enabled", "misspelt-enabled-with-lists", "misspelt-types"],
+)
+def test_unknown_synapse_types_keys_raise(block):
+    """A misspelt key would otherwise leave the block silently disabled."""
+    with pytest.raises(ValueError, match="synapse_types"):
+        has_enabled_synapse_types(block)
+    with pytest.raises(ValueError, match="synapse_types"):
+        build_synapse_type_set(block)

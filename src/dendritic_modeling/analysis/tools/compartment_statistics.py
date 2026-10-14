@@ -7,6 +7,7 @@ optional entropy and per-class statistics.
 
 import logging
 import os
+import re
 import time
 import traceback
 import zlib
@@ -28,6 +29,7 @@ from dendritic_modeling.config import CompartmentStatisticsAnalysisParams
 from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import DendriticBranchLayer, TopKLinear
+from dendritic_modeling.plotting.styles import bar_kwargs, indexed_hatch, indexed_style
 from dendritic_modeling.plotting.visualizations.plotting_utils import (
     convert_layer_names,
     get_color_scheme,
@@ -100,8 +102,10 @@ def _tensor_statistics(
         stats[f"{prefix}_mean"] = data_tensor.mean().item()
 
     if compute_variance:
-        stats[f"{prefix}_var"] = data_tensor.var().item()
-        stats[f"{prefix}_std"] = data_tensor.std().item()
+        # The sample variance of one value is undefined (NaN).
+        single = data_tensor.numel() < 2
+        stats[f"{prefix}_var"] = float("nan") if single else data_tensor.var().item()
+        stats[f"{prefix}_std"] = float("nan") if single else data_tensor.std().item()
 
     if compute_min_max:
         stats[f"{prefix}_min"] = data_tensor.min().item()
@@ -156,7 +160,9 @@ class CompartmentStatisticsAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
     ):
         """Collect raw data from the model."""
         self.raw_dict = {}
-        self.class_labels = y if self.per_class_analysis and y is not None else None
+        self.class_labels = (
+            y.detach().cpu() if self.per_class_analysis and y is not None else None
+        )
 
         def _attach_hooks():
             return register_named_forward_hook_groups(
@@ -176,7 +182,7 @@ class CompartmentStatisticsAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
                     )[: self.n_samples]
                     batch_x = batch_x[indices]
                     if self.class_labels is not None:
-                        self.class_labels = self.class_labels[indices]
+                        self.class_labels = self.class_labels[indices.cpu()]
                 with torch.no_grad():
                     _ = model(batch_x)
 
@@ -466,7 +472,6 @@ class CompartmentStatisticsAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
                     elif "per_class" in prefix:
                         # Handle per-class data
                         if self.per_class_analysis:
-                            branch_stats[prefix] = {}
                             for class_idx, class_data_list in data_tensor.items():
                                 # Concatenate all data for this class
                                 class_data = torch.cat(class_data_list, dim=0)
@@ -596,6 +601,7 @@ class CompartmentStatisticsAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         """
         core = getattr(model, "core_network", model)
         if not any(iter_named_modules_of_type(core, DendriticBranchLayer)):
+            self.report_skip("the model has no dendritic branch layers")
             return None
 
         start_time = time.time()
@@ -664,7 +670,7 @@ class CompartmentStatisticsAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
             #     traceback.print_exc()
 
             try:
-                plot_ratio_pairwise_comparison(
+                skipped = plot_ratio_pairwise_comparison(
                     branch_statistics=branch_statistics,
                     weights_ratio=self.synapse_weights,
                     inputs_ratio=self.inputs,
@@ -676,9 +682,25 @@ class CompartmentStatisticsAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
                     f"Error generating ratio pairwise comparison plot: {e}"
                 )
                 traceback.print_exc()
+            else:
+                for reason in skipped:
+                    self.logger.info("ratio_pairwise_comparison.png: %s", reason)
+                    self.report_missing_output("ratio_pairwise_comparison.png", reason)
 
             # Only generate plots during final analysis (not during training)
             if not training:
+                if self.per_class_analysis:
+                    try:
+                        skipped = plot_per_class_analysis(branch_statistics, save_path)
+                    except Exception as e:
+                        self.logger.error(
+                            f"Error generating per-class analysis plot: {e}"
+                        )
+                        traceback.print_exc()
+                    else:
+                        for reason in skipped:
+                            self.logger.info("per_class_analysis.png: %s", reason)
+                            self.report_missing_output("per_class_analysis.png", reason)
                 self.logger.info("Starting plot generation...")
                 self._generate_all_plots(results, save_path, model)
                 self.logger.info("Plot generation completed!")
@@ -792,16 +814,14 @@ class CompartmentStatisticsAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
                     min_weights,
                     width,
                     label="Min Weight",
-                    color=colors["excitatory"],
-                    alpha=0.7,
+                    **bar_kwargs(colors["excitatory"], indexed_hatch(0), alpha=0.7),
                 )
                 ax1.bar(
                     x_pos + width / 2,
                     max_weights,
                     width,
                     label="Max Weight",
-                    color=colors["inhibitory"],
-                    alpha=0.7,
+                    **bar_kwargs(colors["inhibitory"], indexed_hatch(1), alpha=0.7),
                 )
 
                 setup_basic_plot(
@@ -1145,16 +1165,14 @@ def _plot_compartment_weight_strength(
             exc_weights,
             width,
             label="Excitatory Weights",
-            color=colors["excitatory"],
-            alpha=0.7,
+            **bar_kwargs(colors["excitatory"], indexed_hatch(0), alpha=0.7),
         )
         ax.bar(
             x_pos + width / 2,
             inh_weights,
             width,
             label="Inhibitory Weights",
-            color=colors["inhibitory"],
-            alpha=0.7,
+            **bar_kwargs(colors["inhibitory"], indexed_hatch(1), alpha=0.7),
         )
 
         setup_basic_plot(
@@ -1187,11 +1205,9 @@ def _plot_compartment_weight_comparisons(
     import os
 
     from dendritic_modeling.plotting.visualizations.plotting_utils import (
-        get_color_scheme,
         setup_basic_plot,
     )
 
-    colors = get_color_scheme()
     _, ax = plt.subplots(1, 1, figsize=(10, 8))
 
     # Collect excitatory vs inhibitory weight data
@@ -1211,7 +1227,8 @@ def _plot_compartment_weight_comparisons(
             ax.scatter(
                 exc_weights[i],
                 inh_weights[i],
-                color=colors["excitatory"] if i % 2 == 0 else colors["inhibitory"],
+                color=indexed_style(i).color,
+                marker=indexed_style(i).marker,
                 s=100,
                 alpha=0.7,
                 label=layer_name,
@@ -1285,16 +1302,14 @@ def _plot_compartment_input_strength(
             exc_inputs,
             width,
             label="Excitatory Inputs",
-            color=colors["excitatory"],
-            alpha=0.7,
+            **bar_kwargs(colors["excitatory"], indexed_hatch(0), alpha=0.7),
         )
         ax.bar(
             x_pos + width / 2,
             inh_inputs,
             width,
             label="Inhibitory Inputs",
-            color=colors["inhibitory"],
-            alpha=0.7,
+            **bar_kwargs(colors["inhibitory"], indexed_hatch(1), alpha=0.7),
         )
 
         setup_basic_plot(
@@ -1327,11 +1342,9 @@ def _plot_compartment_input_comparisons(
     import os
 
     from dendritic_modeling.plotting.visualizations.plotting_utils import (
-        get_color_scheme,
         setup_basic_plot,
     )
 
-    colors = get_color_scheme()
     _, ax = plt.subplots(1, 1, figsize=(10, 8))
 
     # Collect excitatory vs inhibitory input data
@@ -1351,7 +1364,8 @@ def _plot_compartment_input_comparisons(
             ax.scatter(
                 exc_inputs[i],
                 inh_inputs[i],
-                color=colors["excitatory"] if i % 2 == 0 else colors["inhibitory"],
+                color=indexed_style(i).color,
+                marker=indexed_style(i).marker,
                 s=100,
                 alpha=0.7,
                 label=layer_name,
@@ -1425,16 +1439,14 @@ def _plot_compartment_activation_strength(
             exc_activations,
             width,
             label="Excitatory Activations",
-            color=colors["excitatory"],
-            alpha=0.7,
+            **bar_kwargs(colors["excitatory"], indexed_hatch(0), alpha=0.7),
         )
         ax.bar(
             x_pos + width / 2,
             inh_activations,
             width,
             label="Inhibitory Activations",
-            color=colors["inhibitory"],
-            alpha=0.7,
+            **bar_kwargs(colors["inhibitory"], indexed_hatch(1), alpha=0.7),
         )
 
         setup_basic_plot(
@@ -1467,11 +1479,9 @@ def _plot_compartment_activation_comparisons(
     import os
 
     from dendritic_modeling.plotting.visualizations.plotting_utils import (
-        get_color_scheme,
         setup_basic_plot,
     )
 
-    colors = get_color_scheme()
     _, ax = plt.subplots(1, 1, figsize=(10, 8))
 
     # Collect excitatory vs inhibitory activation data
@@ -1491,7 +1501,8 @@ def _plot_compartment_activation_comparisons(
             ax.scatter(
                 exc_activations[i],
                 inh_activations[i],
-                color=colors["excitatory"] if i % 2 == 0 else colors["inhibitory"],
+                color=indexed_style(i).color,
+                marker=indexed_style(i).marker,
                 s=100,
                 alpha=0.7,
                 label=layer_name,
@@ -1760,151 +1771,196 @@ def _aggregate_branch_to_layer_stats(branch_statistics):
     return layer_stats
 
 
+_PER_CLASS_MEAN = re.compile(
+    r"^(?P<metric>(?:exc|inh)_(?:inputs|activations))_per_class_class_(?P<cls>\d+)_mean$"
+)
+_PER_CLASS_METRICS = ("exc_inputs", "inh_inputs", "exc_activations", "inh_activations")
+
+
 def plot_per_class_analysis(
     branch_statistics: dict[str, dict[int, dict[str, float]]], save_path: str
-):
-    """Generate per-class analysis plots."""
-    # Extract per-class data
-    per_class_data = {}
-    classes = set()
+) -> list[str]:
+    """Plot each class's mean input and activation per branch depth.
 
-    for _layer_key, layer_data in branch_statistics.items():
-        for _branch_idx, branch_data in layer_data.items():
-            depth = branch_data["depth"]
-            if f"depth {depth}" not in per_class_data:
-                per_class_data[f"depth {depth}"] = {}
-
-            # Find all per-class metrics
+    Reads the statistics that ``per_class_analysis`` adds to every branch,
+    ``{exc,inh}_{inputs,activations}_per_class_class_<k>_mean``, and draws for
+    each depth the mean over that depth's branches with their standard
+    deviation, one point per class. A class a depth has no value for is left
+    out of its line. Writes ``per_class_analysis.png`` and returns the reasons
+    nothing was drawn (empty when the figure was written).
+    """
+    per_depth: dict[int, dict[str, dict[int, list[float]]]] = {}
+    classes: set[int] = set()
+    for layer_data in branch_statistics.values():
+        for branch_data in layer_data.values():
+            depth = int(branch_data["depth"])
             for key, value in branch_data.items():
-                if "_class_" in key:
-                    parts = key.split("_class_")
-                    if len(parts) == 2:
-                        metric_name = parts[0]
-                        class_idx = int(
-                            parts[1].split("_")[0]
-                        )  # Handle cases like "class_0_mean"
-                        classes.add(class_idx)
+                match = _PER_CLASS_MEAN.match(str(key))
+                if match is None:
+                    continue
+                class_idx = int(match["cls"])
+                classes.add(class_idx)
+                per_depth.setdefault(depth, {}).setdefault(
+                    match["metric"], {}
+                ).setdefault(class_idx, []).append(float(value))
+    if not classes:
+        return [
+            "not drawn: no branch has per-class statistics (they need "
+            "per_class_analysis and class labels)"
+        ]
 
-                        if metric_name not in per_class_data[f"depth {depth}"]:
-                            per_class_data[f"depth {depth}"][metric_name] = {}
-                        if (
-                            class_idx
-                            not in per_class_data[f"depth {depth}"][metric_name]
-                        ):
-                            per_class_data[f"depth {depth}"][metric_name][
-                                class_idx
-                            ] = []
-
-                        per_class_data[f"depth {depth}"][metric_name][class_idx].append(
-                            value
-                        )
-
-    if not per_class_data or not classes:
-        return
-
-    classes = sorted(classes)
-
-    # Create per-class comparison plots
-    metrics_to_plot = [
-        "exc_inputs_per_class_mean",
-        "inh_inputs_per_class_mean",
-        "exc_activations_per_class_mean",
-        "inh_activations_per_class_mean",
-    ]
-
+    classes_sorted = sorted(classes)
     fig, axes = plt.subplots(2, 2, figsize=(16, 12))
-    axes = axes.flatten()
-
-    for i, metric in enumerate(metrics_to_plot):
-        if i >= len(axes):
-            break
-
-        ax = axes[i]
-
-        # Plot data for each depth
-        for depth_key in sorted(per_class_data.keys()):
-            if metric in per_class_data[depth_key]:
-                class_means = []
-                class_stds = []
-                for class_idx in classes:
-                    if class_idx in per_class_data[depth_key][metric]:
-                        values = per_class_data[depth_key][metric][class_idx]
-                        class_means.append(np.mean(values))
-                        class_stds.append(np.std(values))
-                    else:
-                        class_means.append(0)
-                        class_stds.append(0)
-
-                ax.errorbar(
-                    classes,
-                    class_means,
-                    yerr=class_stds,
-                    label=depth_key.title(),
-                    marker="o",
-                    alpha=0.7,
-                )
-
+    for ax, metric in zip(axes.flatten(), _PER_CLASS_METRICS):
+        for depth_index, depth in enumerate(sorted(per_depth)):
+            values = per_depth[depth].get(metric)
+            if not values:
+                continue
+            means = [
+                np.mean(values[c]) if c in values else np.nan for c in classes_sorted
+            ]
+            stds = [
+                np.std(values[c]) if c in values else np.nan for c in classes_sorted
+            ]
+            ax.errorbar(
+                classes_sorted,
+                means,
+                yerr=stds,
+                label=f"Depth {depth}",
+                **indexed_style(depth_index).kwargs(),
+                alpha=0.7,
+            )
         ax.set_xlabel("Class Index")
-        ax.set_ylabel("Mean Value")
+        ax.set_ylabel("Mean over branches")
         ax.set_title(metric.replace("_", " ").title())
-        ax.legend()
+        if ax.get_legend_handles_labels()[0]:
+            ax.legend()
         ax.grid(True, alpha=0.3)
-        ax.set_xticks(classes)
+        ax.set_xticks(classes_sorted)
 
     plt.suptitle("Per-Class Analysis: Compartment Statistics", fontsize=16)
     plt.tight_layout()
+    os.makedirs(save_path, exist_ok=True)
     fig.savefig(
         os.path.join(save_path, "per_class_analysis.png"), dpi=300, bbox_inches="tight"
     )
     plt.close(fig)
+    return []
+
+
+def _branches_with_statistics(
+    branch_statistics: dict[str, dict[int, dict[str, float]]],
+    required: tuple[str, ...],
+) -> tuple[list[dict[str, float]], list[str]]:
+    """Return the branches that hold every ``required`` statistic, and notes.
+
+    E/I ratios need excitatory and inhibitory statistics; branches without
+    inhibitory synapses (excitatory-only trees) have none. The notes say what
+    was left out: every branch (nothing to plot) or some of them.
+    """
+    branches = [
+        branch_data
+        for layer_data in branch_statistics.values()
+        for branch_data in layer_data.values()
+    ]
+    usable = [data for data in branches if all(key in data for key in required)]
+    missing = sorted({key for data in branches for key in required if key not in data})
+    why = ", ".join(missing)
+    if missing and all(key.startswith("inh_") for key in missing):
+        why += " (branches without inhibitory synapses have no inhibitory statistics)"
+    if not usable:
+        return [], [f"not drawn: no branch has {why}"]
+    if len(usable) < len(branches):
+        return usable, [
+            f"{len(branches) - len(usable)} of {len(branches)} branches lack "
+            f"{why} and are left out"
+        ]
+    return usable, []
+
+
+def _ratio_statistics(
+    weights_ratio: bool, inputs_ratio: bool, activations_ratio: bool
+) -> tuple[str, ...]:
+    """The branch statistics the selected E/I ratios read."""
+    fields = [
+        field
+        for field, selected in (
+            ("weights", weights_ratio),
+            ("inputs", inputs_ratio),
+            ("activations", activations_ratio),
+        )
+        if selected
+    ]
+    return tuple(
+        f"{side}_{field}_{statistic}"
+        for field in fields
+        for side in ("exc", "inh")
+        for statistic in ("mean", "std")
+    )
 
 
 def plot_ratio_comparison(
     branch_statistics: dict[str, dict[int, dict[str, float]]], save_path: str
-):
+) -> list[str]:
+    """Plot E/I spread ratios against E/I drive ratios per depth.
+
+    Returns notes on branches left out (see ``_branches_with_statistics``);
+    nothing is drawn when no branch has inhibitory statistics.
+    """
+    required = tuple(
+        f"{side}_{name}"
+        for side in ("exc", "inh")
+        for name in (
+            "inputs_mean",
+            "weights_mean",
+            "activations_mean",
+            "activations_entropy",
+            "activations_std",
+        )
+    )
+    usable, notes = _branches_with_statistics(branch_statistics, required)
+    if not usable:
+        return notes
     agg_data: dict[str, dict[str, list[float]]] = {}
-    for _layer_key, layer_data in branch_statistics.items():
-        for branch_data in layer_data.values():
-            depth = branch_data["depth"]
-            if f"depth {depth}" not in agg_data.keys():
-                agg_data[f"depth {depth}"] = {}
+    for branch_data in usable:
+        depth = branch_data["depth"]
+        if f"depth {depth}" not in agg_data.keys():
+            agg_data[f"depth {depth}"] = {}
 
-            if "ei_expected_act_ratio" not in agg_data[f"depth {depth}"].keys():
-                agg_data[f"depth {depth}"]["ei_expected_act_ratio"] = []
-            if "ei_act_mean_ratio" not in agg_data[f"depth {depth}"].keys():
-                agg_data[f"depth {depth}"]["ei_act_mean_ratio"] = []
+        if "ei_expected_act_ratio" not in agg_data[f"depth {depth}"].keys():
+            agg_data[f"depth {depth}"]["ei_expected_act_ratio"] = []
+        if "ei_act_mean_ratio" not in agg_data[f"depth {depth}"].keys():
+            agg_data[f"depth {depth}"]["ei_act_mean_ratio"] = []
 
-            if "ei_acts_eff_std_ratio" not in agg_data[f"depth {depth}"].keys():
-                agg_data[f"depth {depth}"]["ei_acts_eff_std_ratio"] = []
-            if "ei_acts_emp_std_ratio" not in agg_data[f"depth {depth}"].keys():
-                agg_data[f"depth {depth}"]["ei_acts_emp_std_ratio"] = []
+        if "ei_acts_eff_std_ratio" not in agg_data[f"depth {depth}"].keys():
+            agg_data[f"depth {depth}"]["ei_acts_eff_std_ratio"] = []
+        if "ei_acts_emp_std_ratio" not in agg_data[f"depth {depth}"].keys():
+            agg_data[f"depth {depth}"]["ei_acts_emp_std_ratio"] = []
 
-            ei_expected_act_ratio = (
-                branch_data["exc_inputs_mean"] * branch_data["exc_weights_mean"]
-            ) / (
-                branch_data["inh_inputs_mean"] * branch_data["inh_weights_mean"] + 1e-8
-            )
-            agg_data[f"depth {depth}"]["ei_expected_act_ratio"].append(
-                ei_expected_act_ratio
-            )
+        ei_expected_act_ratio = (
+            branch_data["exc_inputs_mean"] * branch_data["exc_weights_mean"]
+        ) / (branch_data["inh_inputs_mean"] * branch_data["inh_weights_mean"] + 1e-8)
+        agg_data[f"depth {depth}"]["ei_expected_act_ratio"].append(
+            ei_expected_act_ratio
+        )
 
-            ei_act_mean_ratio = branch_data["exc_activations_mean"] / (
-                branch_data["inh_activations_mean"] + 1e-8
-            )
-            agg_data[f"depth {depth}"]["ei_act_mean_ratio"].append(ei_act_mean_ratio)
+        ei_act_mean_ratio = branch_data["exc_activations_mean"] / (
+            branch_data["inh_activations_mean"] + 1e-8
+        )
+        agg_data[f"depth {depth}"]["ei_act_mean_ratio"].append(ei_act_mean_ratio)
 
-            ei_acts_entropy_diff = (
-                branch_data["exc_activations_entropy"]
-                - branch_data["inh_activations_entropy"]
-            )
-            ei_acts_eff_std_ratio = np.exp(ei_acts_entropy_diff)
-            agg_data[f"depth {depth}"]["ei_acts_eff_std_ratio"].append(
-                ei_acts_eff_std_ratio
-            )
-            agg_data[f"depth {depth}"]["ei_acts_emp_std_ratio"].append(
-                branch_data["exc_activations_std"]
-                / (branch_data["inh_activations_std"] + 1e-8)
-            )
+        ei_acts_entropy_diff = (
+            branch_data["exc_activations_entropy"]
+            - branch_data["inh_activations_entropy"]
+        )
+        ei_acts_eff_std_ratio = np.exp(ei_acts_entropy_diff)
+        agg_data[f"depth {depth}"]["ei_acts_eff_std_ratio"].append(
+            ei_acts_eff_std_ratio
+        )
+        agg_data[f"depth {depth}"]["ei_acts_emp_std_ratio"].append(
+            branch_data["exc_activations_std"]
+            / (branch_data["inh_activations_std"] + 1e-8)
+        )
 
     indeps = ["ei_expected_act_ratio", "ei_act_mean_ratio"]
     deps = ["ei_acts_eff_std_ratio", "ei_acts_emp_std_ratio"]
@@ -1933,12 +1989,13 @@ def plot_ratio_comparison(
         "ei_acts_emp_std_ratio": r"$\frac{\sigma_{E}}{\sigma_{I}}$",
     }
 
-    # Scatter faceted by (row=dep, col=indep) with hue=depth
+    # Scatter faceted by (row=dep, col=indep); depth by colour and marker
     g = sns.relplot(
         data=df,
         x="x",
         y="y",
         hue="depth",
+        style="depth",
         row="row",
         col="col",
         kind="scatter",
@@ -1993,6 +2050,7 @@ def plot_ratio_comparison(
         os.path.join(save_path, "another_comparison.png"), dpi=300, bbox_inches="tight"
     )
     plt.close(g.figure)
+    return notes
 
 
 def plot_ratio_pairwise_comparison(
@@ -2001,103 +2059,102 @@ def plot_ratio_pairwise_comparison(
     inputs_ratio: bool = False,
     activations_ratio: bool = False,
     save_path: Optional[str] = None,
-):
+) -> list[str]:
+    """Plot every pair of the selected E/I ratios per depth.
+
+    Branches without inhibitory statistics (excitatory-only trees) have no
+    E/I ratios and are left out; nothing is drawn when no branch has them.
+    Returns notes on what was left out, empty when every branch was plotted.
+    """
     if save_path is None:
         logger.warning("save_path is None; skipping ratio pairwise comparison plot")
-        return
+        return ["not drawn: no save_path was given"]
+    required = _ratio_statistics(weights_ratio, inputs_ratio, activations_ratio)
+    if not required:
+        return []  # no ratio selected: nothing to draw
+    usable, notes = _branches_with_statistics(branch_statistics, required)
+    if not usable:
+        return notes
 
     agg_data: dict[str, dict[str, list[float]]] = {}
-    for _layer_key, layer_data in branch_statistics.items():
-        for branch_data in layer_data.values():
-            depth = branch_data["depth"]
-            if f"depth {depth}" not in agg_data.keys():
-                agg_data[f"depth {depth}"] = {}
+    for branch_data in usable:
+        depth = branch_data["depth"]
+        if f"depth {depth}" not in agg_data.keys():
+            agg_data[f"depth {depth}"] = {}
 
-            if (
-                weights_ratio
-                and "ei_w_mean_ratio" not in agg_data[f"depth {depth}"].keys()
-            ):
-                agg_data[f"depth {depth}"]["ei_w_mean_ratio"] = []
-            if (
-                weights_ratio
-                and "ei_w_std_ratio" not in agg_data[f"depth {depth}"].keys()
-            ):
-                agg_data[f"depth {depth}"]["ei_w_std_ratio"] = []
+        if weights_ratio and "ei_w_mean_ratio" not in agg_data[f"depth {depth}"].keys():
+            agg_data[f"depth {depth}"]["ei_w_mean_ratio"] = []
+        if weights_ratio and "ei_w_std_ratio" not in agg_data[f"depth {depth}"].keys():
+            agg_data[f"depth {depth}"]["ei_w_std_ratio"] = []
 
-            if (
-                inputs_ratio
-                and "ei_x_mean_ratio" not in agg_data[f"depth {depth}"].keys()
-            ):
-                agg_data[f"depth {depth}"]["ei_x_mean_ratio"] = []
-            if (
-                inputs_ratio
-                and "ei_x_std_ratio" not in agg_data[f"depth {depth}"].keys()
-            ):
-                agg_data[f"depth {depth}"]["ei_x_std_ratio"] = []
+        if inputs_ratio and "ei_x_mean_ratio" not in agg_data[f"depth {depth}"].keys():
+            agg_data[f"depth {depth}"]["ei_x_mean_ratio"] = []
+        if inputs_ratio and "ei_x_std_ratio" not in agg_data[f"depth {depth}"].keys():
+            agg_data[f"depth {depth}"]["ei_x_std_ratio"] = []
 
-            if (
-                weights_ratio
-                and inputs_ratio
-                and "ei_wx_mean_ratio" not in agg_data[f"depth {depth}"].keys()
-            ):
-                agg_data[f"depth {depth}"]["ei_wx_mean_ratio"] = []
-            if (
-                weights_ratio
-                and inputs_ratio
-                and "ei_wx_std_ratio" not in agg_data[f"depth {depth}"].keys()
-            ):
-                agg_data[f"depth {depth}"]["ei_wx_std_ratio"] = []
+        if (
+            weights_ratio
+            and inputs_ratio
+            and "ei_wx_mean_ratio" not in agg_data[f"depth {depth}"].keys()
+        ):
+            agg_data[f"depth {depth}"]["ei_wx_mean_ratio"] = []
+        if (
+            weights_ratio
+            and inputs_ratio
+            and "ei_wx_std_ratio" not in agg_data[f"depth {depth}"].keys()
+        ):
+            agg_data[f"depth {depth}"]["ei_wx_std_ratio"] = []
 
-            if (
-                activations_ratio
-                and "ei_a_mean_ratio" not in agg_data[f"depth {depth}"].keys()
-            ):
-                agg_data[f"depth {depth}"]["ei_a_mean_ratio"] = []
-            if (
-                activations_ratio
-                and "ei_a_std_ratio" not in agg_data[f"depth {depth}"].keys()
-            ):
-                agg_data[f"depth {depth}"]["ei_a_std_ratio"] = []
+        if (
+            activations_ratio
+            and "ei_a_mean_ratio" not in agg_data[f"depth {depth}"].keys()
+        ):
+            agg_data[f"depth {depth}"]["ei_a_mean_ratio"] = []
+        if (
+            activations_ratio
+            and "ei_a_std_ratio" not in agg_data[f"depth {depth}"].keys()
+        ):
+            agg_data[f"depth {depth}"]["ei_a_std_ratio"] = []
 
-            if weights_ratio:
-                ei_w_mean_ratio = branch_data["exc_weights_mean"] / (
-                    branch_data["inh_weights_mean"] + 1e-8
-                )
-                agg_data[f"depth {depth}"]["ei_w_mean_ratio"].append(ei_w_mean_ratio)
+        if weights_ratio:
+            ei_w_mean_ratio = branch_data["exc_weights_mean"] / (
+                branch_data["inh_weights_mean"] + 1e-8
+            )
+            agg_data[f"depth {depth}"]["ei_w_mean_ratio"].append(ei_w_mean_ratio)
 
-                ei_w_std_ratio = branch_data["exc_weights_std"] / (
-                    branch_data["inh_weights_std"] + 1e-8
-                )
-                agg_data[f"depth {depth}"]["ei_w_std_ratio"].append(ei_w_std_ratio)
+            ei_w_std_ratio = branch_data["exc_weights_std"] / (
+                branch_data["inh_weights_std"] + 1e-8
+            )
+            agg_data[f"depth {depth}"]["ei_w_std_ratio"].append(ei_w_std_ratio)
 
-            if inputs_ratio:
-                ei_x_mean_ratio = branch_data["exc_inputs_mean"] / (
-                    branch_data["inh_inputs_mean"] + 1e-8
-                )
-                agg_data[f"depth {depth}"]["ei_x_mean_ratio"].append(ei_x_mean_ratio)
+        if inputs_ratio:
+            ei_x_mean_ratio = branch_data["exc_inputs_mean"] / (
+                branch_data["inh_inputs_mean"] + 1e-8
+            )
+            agg_data[f"depth {depth}"]["ei_x_mean_ratio"].append(ei_x_mean_ratio)
 
-                ei_x_std_ratio = branch_data["exc_inputs_std"] / (
-                    branch_data["inh_inputs_std"] + 1e-8
-                )
-                agg_data[f"depth {depth}"]["ei_x_std_ratio"].append(ei_x_std_ratio)
+            ei_x_std_ratio = branch_data["exc_inputs_std"] / (
+                branch_data["inh_inputs_std"] + 1e-8
+            )
+            agg_data[f"depth {depth}"]["ei_x_std_ratio"].append(ei_x_std_ratio)
 
-            if weights_ratio and inputs_ratio:
-                ei_wx_mean_ratio = ei_w_mean_ratio * ei_x_mean_ratio
-                agg_data[f"depth {depth}"]["ei_wx_mean_ratio"].append(ei_wx_mean_ratio)
+        if weights_ratio and inputs_ratio:
+            ei_wx_mean_ratio = ei_w_mean_ratio * ei_x_mean_ratio
+            agg_data[f"depth {depth}"]["ei_wx_mean_ratio"].append(ei_wx_mean_ratio)
 
-                ei_wx_std_ratio = ei_w_std_ratio * ei_x_std_ratio
-                agg_data[f"depth {depth}"]["ei_wx_std_ratio"].append(ei_wx_std_ratio)
+            ei_wx_std_ratio = ei_w_std_ratio * ei_x_std_ratio
+            agg_data[f"depth {depth}"]["ei_wx_std_ratio"].append(ei_wx_std_ratio)
 
-            if activations_ratio:
-                ei_a_mean_ratio = branch_data["exc_activations_mean"] / (
-                    branch_data["inh_activations_mean"] + 1e-8
-                )
-                agg_data[f"depth {depth}"]["ei_a_mean_ratio"].append(ei_a_mean_ratio)
+        if activations_ratio:
+            ei_a_mean_ratio = branch_data["exc_activations_mean"] / (
+                branch_data["inh_activations_mean"] + 1e-8
+            )
+            agg_data[f"depth {depth}"]["ei_a_mean_ratio"].append(ei_a_mean_ratio)
 
-                ei_a_std_ratio = branch_data["exc_activations_std"] / (
-                    branch_data["inh_activations_std"] + 1e-8
-                )
-                agg_data[f"depth {depth}"]["ei_a_std_ratio"].append(ei_a_std_ratio)
+            ei_a_std_ratio = branch_data["exc_activations_std"] / (
+                branch_data["inh_activations_std"] + 1e-8
+            )
+            agg_data[f"depth {depth}"]["ei_a_std_ratio"].append(ei_a_std_ratio)
 
     available = []
     if weights_ratio:
@@ -2134,12 +2191,13 @@ def plot_ratio_pairwise_comparison(
         "ei_a_std_ratio": r"$\frac{\sigma(A_E)}{\sigma(A_I)}$",
     }
 
-    # Scatter faceted by (row=dep, col=indep) with hue=depth
+    # Scatter faceted by (row=dep, col=indep); depth by colour and marker
     g = sns.relplot(
         data=df,
         x="x",
         y="y",
         hue="depth",
+        style="depth",
         row="row",
         col="col",
         kind="scatter",
@@ -2196,6 +2254,7 @@ def plot_ratio_pairwise_comparison(
         bbox_inches="tight",
     )
     plt.close(g.figure)
+    return notes
 
 
 __all__ = ["CompartmentStatisticsAnalyzer"]

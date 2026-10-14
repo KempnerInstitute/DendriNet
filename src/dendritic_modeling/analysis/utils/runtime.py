@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import copy
 import logging
 from collections.abc import Callable, Iterable
 
@@ -10,6 +11,10 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 
+from dendritic_modeling.analysis.utils.activation_memory import (
+    available_device_bytes,
+    full_pass_cannot_fit,
+)
 from dendritic_modeling.analysis.utils.dataset_runtime import (
     effective_sample_cap,
     estimate_dataset_size_mb,
@@ -17,6 +22,7 @@ from dendritic_modeling.analysis.utils.dataset_runtime import (
     subset_dataset_for_runtime,
 )
 from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
+from dendritic_modeling.config.seeds import seed_or_default
 from dendritic_modeling.training.dataloader_utils import (
     dataloader_supports_kwarg,
     seeded_dataloader_kwargs,
@@ -98,7 +104,7 @@ def make_analysis_loader(
         dataset_view,
         batch_size=runtime.batch_size,
         shuffle=False,
-        **seeded_dataloader_kwargs(int(getattr(runtime, "seed", 0))),
+        **seeded_dataloader_kwargs(seed_or_default(getattr(runtime, "seed", None), 0)),
         **loader_kwargs,
     )
 
@@ -160,7 +166,7 @@ def evaluation_kwargs_from_runtime(
         "eval_prefetch_factor": runtime.prefetch_factor,
         "eval_max_batches": runtime.max_batches,
         "eval_materialize_threshold_mb": runtime.materialize_threshold_mb,
-        "eval_seed": runtime.seed,
+        "eval_seed": seed_or_default(runtime.seed, 0),
     }
     if runtime.in_order is not None:
         kwargs["eval_in_order"] = runtime.in_order
@@ -294,6 +300,48 @@ def _run_no_grad_batches(
             process_batch(batch, device)
 
 
+def materialized_batch_or_streaming_runtime(
+    *,
+    model: nn.Module,
+    dataset: Dataset,
+    device: str | torch.device,
+    runtime: EvaluationRuntimeConfig | None,
+    explicit_max_samples: int | None = None,
+) -> tuple[tuple[torch.Tensor, ...] | None, EvaluationRuntimeConfig | None]:
+    """Materialize the one batch of ``runtime``, or stream when it cannot fit.
+
+    On a CUDA device, when ``runtime`` would process the (capped) split as one
+    batch, the split is materialized here, exactly as
+    :func:`iter_analysis_batches` would, and returned with ``runtime``.
+    When the activation-memory bound proves that a forward pass of ``model``
+    over it exceeds the device memory (see
+    :mod:`dendritic_modeling.analysis.utils.activation_memory`), no batch is
+    returned, with a copy of ``runtime`` set to ``mode: stream``: such a pass
+    would fail with an out-of-memory error. In every other case no batch is
+    returned and ``runtime`` is unchanged. Call it with ``model`` on
+    ``device`` and before attaching hooks; the dataset is read only as the
+    pass reads it.
+    """
+    if available_device_bytes(device) is None:  # no bound off CUDA devices
+        return None, runtime
+    effective = EvaluationRuntimeConfig() if runtime is None else runtime
+    view = subset_dataset_for_runtime(dataset, effective, explicit_max_samples)
+    if not should_materialize_dataset(view, effective):
+        return None, runtime
+    try:
+        items = view[:]
+    except Exception:  # iter_analysis_batches streams such datasets itself
+        return None, runtime
+    batch = (items,) if isinstance(items, torch.Tensor) else tuple(items)
+    cannot_fit, reason = full_pass_cannot_fit(model, batch, device=device)
+    if not cannot_fit:
+        return batch, runtime
+    logger.info("Streaming the analysis batches: %s", reason)
+    streamed = copy.copy(effective)
+    streamed.mode = "stream"
+    return None, streamed
+
+
 def run_model_over_analysis_batches(
     *,
     model: nn.Module,
@@ -304,23 +352,39 @@ def run_model_over_analysis_batches(
     attach_hooks: Callable[[], Iterable[HookHandle]],
     remove_hooks: Callable[[Iterable[HookHandle]], None],
 ) -> None:
-    """Run a model over analysis batches with managed hooks and device state."""
+    """Run a model over analysis batches with managed hooks and device state.
+
+    A split that would be processed as one batch is streamed instead when the
+    pass certainly cannot fit on the device
+    (:func:`materialized_batch_or_streaming_runtime`).
+    """
 
     def _process_batch(batch: tuple[torch.Tensor, ...], analysis_device) -> None:
         _ = model(batch[0].to(analysis_device))
 
     with analysis_device_context(model, device) as analysis_device:
-        run_with_forward_hooks(
-            attach=attach_hooks,
-            remove=remove_hooks,
-            body=lambda: _run_no_grad_batches(
-                dataset=dataset,
-                runtime=runtime,
-                explicit_max_samples=explicit_max_samples,
-                device=analysis_device,
-                process_batch=_process_batch,
-            ),
+        batch, runtime = materialized_batch_or_streaming_runtime(
+            model=model,
+            dataset=dataset,
+            device=analysis_device,
+            runtime=runtime,
+            explicit_max_samples=explicit_max_samples,
         )
+
+        def _body() -> None:
+            if batch is None:
+                _run_no_grad_batches(
+                    dataset=dataset,
+                    runtime=runtime,
+                    explicit_max_samples=explicit_max_samples,
+                    device=analysis_device,
+                    process_batch=_process_batch,
+                )
+                return
+            with torch.no_grad():
+                _process_batch(batch, analysis_device)
+
+        run_with_forward_hooks(attach=attach_hooks, remove=remove_hooks, body=_body)
 
 
 def resolve_analysis_pin_memory(
@@ -349,6 +413,7 @@ __all__ = [
     "iter_analysis_batches",
     "make_analysis_loader",
     "materialize_dataset",
+    "materialized_batch_or_streaming_runtime",
     "resolve_analysis_pin_memory",
     "run_model_over_analysis_batches",
     "run_no_grad_analysis_batches",

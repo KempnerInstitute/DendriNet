@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import warnings
+from contextlib import contextmanager
 from math import atanh, isfinite, sqrt
 
 import torch
@@ -9,7 +10,9 @@ from dendritic_modeling.config.reactivation import (
     is_data_driven_reactivation_policy,
     normalize_reactivation_init_policy,
     reactivation_policy_to_calibration_mode,
+    resolve_reactivation_calibration_mode,
 )
+from dendritic_modeling.config.sparse_backends import ACCELERATOR_INDEXED_BACKENDS
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize_expectations import (
     _aggregate_quantiles_from_chunks,
 )
@@ -17,6 +20,63 @@ from dendritic_modeling.utils.hooks import (
     iter_named_modules_of_type,
     remove_hook_handles,
 )
+
+
+@contextmanager
+def _portable_indexed_backends_for_cpu_calibration(model):
+    """Use the exact portable indexed kernel during a CPU-only init pass.
+
+    An explicit CUDA or Triton backend remains strict during ordinary model
+    execution. Data-driven reactivation initialization, however, runs before
+    the training model is transferred to its accelerator. Temporarily using
+    the mathematically equivalent recompute implementation keeps that CPU
+    measurement possible, then restores both the requested backend and its
+    device-resolution cache before returning to the caller.
+    """
+
+    try:
+        model_device = next(model.parameters()).device
+    except StopIteration:
+        model_device = torch.device("cpu")
+    if model_device.type != "cpu":
+        yield
+        return
+
+    records = []
+    # Legacy aliases are included for checkpoints created before backend
+    # normalization moved to module construction.
+    accelerator_backends = ACCELERATOR_INDEXED_BACKENDS | {"cuda", "triton"}
+    for module in model.modules():
+        backend = getattr(module, "projection_backend", None)
+        if backend not in accelerator_backends:
+            continue
+        records.append(
+            (
+                module,
+                backend,
+                getattr(module, "recompute_backward", None),
+                getattr(module, "_last_resolved_projection_backend", None),
+                getattr(module, "_last_projection_device", None),
+            )
+        )
+        module.projection_backend = "recompute"
+        if hasattr(module, "recompute_backward"):
+            module.recompute_backward = True
+        if hasattr(module, "_last_resolved_projection_backend"):
+            module._last_resolved_projection_backend = None
+        if hasattr(module, "_last_projection_device"):
+            module._last_projection_device = None
+    try:
+        yield
+    finally:
+        for module, backend, recompute, resolved, projection_device in records:
+            module.projection_backend = backend
+            if hasattr(module, "recompute_backward"):
+                module.recompute_backward = recompute
+            if hasattr(module, "_last_resolved_projection_backend"):
+                module._last_resolved_projection_backend = resolved
+            if hasattr(module, "_last_projection_device"):
+                module._last_projection_device = projection_device
 
 
 def _apply_reactivation_init(
@@ -34,6 +94,11 @@ def _apply_reactivation_init(
     """
     initialize = getattr(dbl.reactivation, "initialize", None)
     if isinstance(dbl.reactivation, torch.nn.Identity) or not callable(initialize):
+        return
+    # Activations without slope/midpoint parameters (e.g. residual_silu) keep
+    # their own construction state; explicit data-driven calibration of such an
+    # activation still fails closed in ``_apply_reactivation_calibration``.
+    if not getattr(dbl.reactivation, "supports_slope_midpoint_init", True):
         return
 
     # Persist the analytical state so the component-factorial policies can use
@@ -236,7 +301,7 @@ def _fit_occupancy_quantile(
     q_low_p, q_high_p, r_low, r_high = _resolve_occupancy_spec(layer, layer_name)
     q_vals = torch.tensor([q_low_p, q_high_p], dtype=v.dtype, device=v.device)
     occ_q_vals, _ = _aggregate_quantiles_from_chunks(
-        flattened_chunks, q_vals, aggregation=quantile_aggregation
+        flattened_chunks, q_vals, aggregation=quantile_aggregation, pooled=v
     )
     q_low_v, q_high_v = [float(x.item()) for x in occ_q_vals]
     delta_q_raw = float(q_high_v - q_low_v)
@@ -395,6 +460,34 @@ def _fit_occupancy_quantile(
     }
 
 
+def reactivation_calibration_targets(
+    model: torch.nn.Module, mode: str | None
+) -> dict[str, torch.nn.Module]:
+    """The branch layers that :func:`calibrate_reactivation_from_data` calibrates.
+
+    Returns ``{module name: DendriticBranchLayer}`` for the layers whose
+    reactivation can be calibrated: every such layer when ``mode`` is a
+    calibration rule, and only the layers with a data-driven
+    ``reactivation_init_policy`` when ``mode`` is None. Nothing is calibrated
+    and nothing raises here.
+    """
+    from .branch_layer import DendriticBranchLayer
+
+    targets: dict[str, torch.nn.Module] = {}
+    for name, mod in iter_named_modules_of_type(model, DendriticBranchLayer):
+        initialize = getattr(mod.reactivation, "initialize", None)
+        if isinstance(mod.reactivation, torch.nn.Identity) or not callable(initialize):
+            continue
+        if mode is None:
+            layer_policy = normalize_reactivation_init_policy(
+                getattr(mod, "reactivation_init_policy", "analytical")
+            )
+            if not is_data_driven_reactivation_policy(layer_policy):
+                continue
+        targets[name] = mod
+    return targets
+
+
 def calibrate_reactivation_from_data(
     model: torch.nn.Module,
     batches,
@@ -459,21 +552,16 @@ def calibrate_reactivation_from_data(
         "V_median": ..., "V_mad_std": ..., "V_min": ..., "V_max": ...,
         "n": N}}`` dict for each calibrated branch layer, for diagnostics.
     """
-    from .branch_layer import DendriticBranchLayer
-
     # Collect the branch layers we will calibrate, keyed by module name.
-    targets: dict[str, DendriticBranchLayer] = {}
-    for name, mod in iter_named_modules_of_type(model, DendriticBranchLayer):
-        initialize = getattr(mod.reactivation, "initialize", None)
-        if isinstance(mod.reactivation, torch.nn.Identity) or not callable(initialize):
-            continue
-        if mode is None:
-            layer_policy = normalize_reactivation_init_policy(
-                getattr(mod, "reactivation_init_policy", "analytical")
+    targets = reactivation_calibration_targets(model, mode)
+    for name, mod in targets.items():
+        if not getattr(mod.reactivation, "supports_midpoint_calibration", True):
+            raise ValueError(
+                f"{type(mod.reactivation).__name__} at {name!r} requires fixed "
+                "reactivation initialization; data-driven calibration "
+                f"(mode={mode!r}) would write a voltage midpoint into its "
+                "parameters."
             )
-            if not is_data_driven_reactivation_policy(layer_policy):
-                continue
-        targets[name] = mod
 
     if not targets:
         return {}
@@ -505,7 +593,7 @@ def calibrate_reactivation_from_data(
     was_training = model.training
     model.eval()
     try:
-        with torch.no_grad():
+        with torch.no_grad(), _portable_indexed_backends_for_cpu_calibration(model):
             for batch in batches:
                 if isinstance(batch, (list, tuple)):
                     inputs = tuple(
@@ -554,8 +642,10 @@ def calibrate_reactivation_from_data(
         # Always compute quantiles so we can report them for diagnosis even
         # when a non-quantile mode is selected.
         q_probs = torch.tensor([0.10, 0.50, 0.90], dtype=v.dtype, device=v.device)
+        # The finite float64 chunks and their concatenation ``v`` are reused
+        # by every statistic instead of being filtered and copied again.
         q_stats, quantile_sample_n = _aggregate_quantiles_from_chunks(
-            flattened_chunks, q_probs, aggregation=quantile_aggregation
+            flattened_chunks, q_probs, aggregation=quantile_aggregation, pooled=v
         )
         q10, q50, q90 = [float(x.item()) for x in q_stats]
         median = float(torch.median(v).item())
@@ -572,9 +662,7 @@ def calibrate_reactivation_from_data(
         else:
             # Back-compat: robust=False still selects mean/std mode.
             active_mode = (
-                (reactivation_policy_to_calibration_mode(mode) or str(mode).lower())
-                if robust
-                else "mean_std"
+                resolve_reactivation_calibration_mode(mode) if robust else "mean_std"
             )
 
         layer_k = (
@@ -744,4 +832,5 @@ __all__ = [
     "_resolve_occupancy_spec",
     "calibrate_reactivation_empirical",
     "calibrate_reactivation_from_data",
+    "reactivation_calibration_targets",
 ]

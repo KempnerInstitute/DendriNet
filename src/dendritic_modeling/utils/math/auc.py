@@ -18,7 +18,7 @@ def _binary_roc_auc_pytorch(
         dim: Dimension to compute AUC over
 
     Returns:
-        AUC scores
+        AUC scores; NaN where only one class is present (the AUC is undefined).
     """
     # Handle the case where y_score has extra class dimension
     if y_score.dim() == y_true.dim() + 1:
@@ -49,7 +49,7 @@ def _binary_roc_auc_pytorch(
         n_neg = neg_mask.sum().float()
 
         if n_pos == 0 or n_neg == 0:
-            return torch.tensor(0.5, device=y_true.device, dtype=torch.float32)
+            return torch.tensor(float("nan"), device=y_true.device)
 
         pos_scores = y_score[pos_mask]
         neg_scores = y_score[neg_mask]
@@ -83,9 +83,9 @@ def _binary_roc_auc_pytorch(
         n_pos = pos_mask.sum().float()
         n_neg = neg_mask.sum().float()
 
-        # Handle edge cases
+        # The AUC of a row with one class only is undefined.
         if n_pos == 0 or n_neg == 0:
-            aucs[i] = 0.5  # Undefined case, return 0.5
+            aucs[i] = float("nan")
             continue
 
         pos_scores = scores_i[pos_mask]
@@ -128,14 +128,6 @@ def _multiclass_roc_auc_pytorch(
 
     if n_classes < 2:
         raise ValueError("Need at least 2 classes for multiclass ROC AUC")
-
-    # Determine shape for results
-    if dim != -1:
-        # Move dim to last position temporarily for shape calculation
-        y_true_temp = y_true.moveaxis(dim, -1)
-        y_true_temp.shape[:-1]
-    else:
-        pass  # original_shape already set above
 
     # Compute one-vs-rest AUC for each class
     class_aucs = []
@@ -215,6 +207,11 @@ def roc_auc_score(
     # Determine if binary or multiclass
     unique_labels = torch.unique(y_true)
     n_unique = len(unique_labels)
+    if n_unique < 2:
+        raise ValueError(
+            "ROC AUC needs at least 2 classes in y_true; it is undefined for "
+            f"{n_unique}"
+        )
 
     if multi_class == "auto":
         is_binary = n_unique == 2
@@ -237,7 +234,9 @@ def roc_auc_score(
         y_true = y_true_mapped
 
     if is_binary:
-        # Handle binary case
+        # The greater of the two labels is the positive class, so labels such
+        # as {1, 2} or {-1, 1} score like {0, 1}.
+        y_true = (y_true == unique_labels.max()).to(y_true.dtype)
         if y_score.dim() == y_true.dim() + 1 and y_score.shape[-1] == 2:
             # Probabilities for both classes provided, use positive class
             y_score = y_score[..., 1]

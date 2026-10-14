@@ -1,8 +1,9 @@
 """
-AlexNet-based Input Transform for neural networks.
+ImageNet-pretrained AlexNet feature extractor.
 
-This module implements AlexNetInputTransform which uses a pre-trained AlexNet
-to transform inputs into excitatory and inhibitory pathways.
+``AlexNet`` runs torchvision's pretrained AlexNet convolutional features (the
+weights are downloaded on first use), pools them to 6 x 6 and flattens them to
+9216 features, optionally followed by a linear projection to ``output_dim``.
 """
 
 from typing import Optional
@@ -19,7 +20,7 @@ class AlexNet(BaseNetwork):
         super().__init__()
 
         # Load AlexNet
-        alexnet = models.alexnet(pretrained=True)
+        alexnet = models.alexnet(weights=models.AlexNet_Weights.IMAGENET1K_V1)
         layers = list(alexnet.features)
         layers.append(nn.AdaptiveAvgPool2d((6, 6)))
         layers.append(nn.Flatten(start_dim=-3))

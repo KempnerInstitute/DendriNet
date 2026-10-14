@@ -1,20 +1,43 @@
+# ============================================================================
+# DENDRINET ANNOTATED REFERENCE CONFIG (FSDP)
+# ============================================================================
+# A population network with indexed synapses on CIFAR-10, trained with
+# FullyShardedDataParallel (distributed.mode: fsdp). Launch one process per GPU
+# on one node from the repository root:
+#   torchrun --nproc_per_node=<gpus> \
+#     -m dendritic_modeling.scripts.training.train_experiments_fsdp \
+#     configs/config_exp_fsdp.yaml
+# Add --validate-only to build the datasets and the wrapped model and
+# optimizer without training. docs/distributed_training.rst covers multi-node
+# launches and every FSDP option.
+#
+# The sections are in alphabetical order, as in a saved config.json.
+# config_exp.yaml describes every option; the comments here explain the
+# settings that matter under FSDP. The FSDP trainer trains with
+# backpropagation and a plain optimizer step. It rejects LR schedules,
+# regularization, pruning, sparse-synapse maintenance (synapse_decay_rate must
+# be 0 and weight_boosting false for Top-K and indexed synapses), rewiring
+# synapses, and strategies other than "standard" and "recurrent".
+
+config_version: 3
+
 analysis:
   runtime:
-    # Keep the same shared runtime surface as the main reference config.
-    # For FSDP / large datasets, streaming is usually the right final-analysis choice.
+    # Same keys as in config_exp.yaml. Under DDP and FSDP an omitted mode is
+    # "auto"; "stream" never materializes a split, which suits large datasets.
     training:
-      mode: "auto"                      # "auto" keeps small datasets materialized; use "stream" if training analysis is too heavy
+      mode: "auto"                      # "auto" materializes splits up to materialize_threshold_mb and streams larger ones
       batch_size: 256
       num_workers: 4
       pin_memory: true
       persistent_workers: true
       prefetch_factor: 4
-      in_order: false
+      in_order: false                   # false: batches arrive as workers finish them
       max_batches: null
       max_samples: null
       materialize_threshold_mb: 1024
     final:
-      mode: "stream"                    # safest default for large datasets / large activation analyses
+      mode: "stream"                    # Stream every split in batches
       batch_size: 256
       num_workers: 4
       pin_memory: true
@@ -34,8 +57,8 @@ analysis:
 
       methods:
         ablation_methods: ["lesion"]  # Methods: "lesion", "shuffle", "mean_clamp"
-        shuffle_seed: 0               # Shuffle seed (int)
-        clamp_statistic: "mean"       # mean_clamp statistic: "mean"
+        shuffle_seed: 0               # Shuffle seed; a written seed is used as is in every run (null = derived from experiment.probe_seed)
+        clamp_statistic: "mean"       # mean_clamp statistic: "mean" (the only supported value)
     training: false
   branch_activation:
     enabled: false
@@ -61,22 +84,21 @@ analysis:
       compute:
         computation_level: "layer_branch"  # Level: "synaptic", "single_branch", "layer_branch", "all_branch"
         max_samples: 5000                 # Max samples (null = all)
-        batch_process: true               # Batch processing: true|false
         per_layer_analysis: true          # Extra breakdown/plots: per-layer (overridden by selection.scopes if non-empty)
         per_einet_analysis: true          # Extra breakdown/plots: per-E/I-net (overridden by selection.scopes if non-empty)
         per_neuron_analysis: false        # Extra breakdown/plots: per-neuron (expensive; overridden by selection.scopes if non-empty)
 
       sampling:
         n_synapse_pairs: 10000             # Synaptic-only: number of synapse pairs (int >= 1)
-        sampling_strategy: "stratified"    # Sampling: "random", "stratified", "importance"
-        stratified_categories: ["within_branch", "within_layer", "across_layer"]  # Stratified categories: "within_branch", "within_layer", "across_layer"
+        sampling_strategy: "stratified"    # Sampling: "stratified", "random" (other values raise)
+        stratified_categories: ["within_branch", "within_layer"]  # Stratified categories: "within_branch", "within_layer"
         max_pairs_per_category: 1000       # Stratified-only: max pairs per category (int >= 1)
     training: false
   information:
     enabled: false
     params:
       selection:
-        components: ["basic", "pairwise", "conditional", "ablation_aligned", "layer_proxies"]  # Components: "basic", "pairwise", "conditional", "gaussian_fisher", "pid", "ablation_aligned", "layer_proxies", "upstream_unique_cmi"
+        components: ["basic", "pairwise", "conditional", "ablation_aligned", "layer_proxies"]  # Components: "basic", "pairwise", "conditional", "gaussian_fisher", "pid", "ablation_aligned", "layer_proxies", "upstream_unique_cmi", "soma_coupling"
         scopes: []                        # Scopes: "layer", "einet", "neuron" (alias: views)
         signal_variants: ["network", "lda"]  # Variants: "network", "lda", "random" (random requires baselines.random_weights.n_shuffles > 0)
 
@@ -97,7 +119,7 @@ analysis:
           eps: 1.0e-8  # Denominator stabilizer (alias: ridge) (float > 0)
 
       pid:
-        binarize: true  # Binarize continuous vars: true|false
+        binarize: false  # Threshold E, I and Vout (never the labels) before PID: true|false
         binarize_method: median  # Binarization: "median"|"mean"|"quantile"
         binarize_threshold: 0.5  # Used only if binarize_method="quantile": q∈[0,1]
 
@@ -106,32 +128,32 @@ analysis:
         kraskov:
           n_neighbors: 10                 # Kraskov k-NN (int >= 1)
         binned:
-          n_bins: 20                      # Binned/sklearn histogram bins (int >= 2)
+          n_bins: 20                      # Histogram bins of the binned estimator; the sklearn estimator uses it too (int >= 2)
           binning_strategy: "quantile"    # binned: "quantile" or "uniform"
           bias_correction: "none"         # binned: "none" or "miller_madow"
         decoder:
           cv_folds: 5                     # decoder: CV folds (int >= 2)
           C: 1.0                          # decoder: LogisticRegression C (float > 0)
           standardize: true               # decoder: standardize X (true|false)
-          seed: 0                         # decoder: CV shuffle seed (int)
+          seed: 0                         # decoder: CV shuffle seed; a written seed is used as is in every run (null = derived from experiment.probe_seed)
           continuous:
             strategy: "none"              # decoder continuous: "none", "binned", "gaussian"
             max_total_dim: 2              # decoder continuous: max total dim (x+y [+z]); used only if strategy != "none"
             gaussian_ridge: 1e-6          # decoder continuous: gaussian ridge (float > 0)
         copula:
-          type: gaussian                  # Copula: "gaussian", "kernel", "dvc"
-        sklearn:
-          n_bins: 20                      # sklearn histogram bins (int >= 2)
-          bandwidth: null                 # sklearn KDE bandwidth (null = auto)
+          type: gaussian                  # Copula: "gaussian" (scalars, vectors, labels), "kernel" (two continuous scalars)
+        sklearn:                          # Not read: the sklearn estimator takes its bins from estimator.binned.n_bins
+          n_bins: 20                      # Not read
+          bandwidth: null                 # Not read
 
       baselines:
         random_weights:
           n_shuffles: 0                   # Random-weight baseline shuffles (int >= 0; produces *_sh metrics)
-          seed: 42                        # Random-weight seed (int)
+          seed: 42                        # Random-weight seed; a written seed is used as is in every run (null = derived from experiment.probe_seed)
         label_shuffle_null:
           n_shuffles: 0                   # Null (label-shuffle) baseline shuffles (int >= 0; produces *_null metrics)
-          seed: 0                         # Null baseline seed (int)
-          components: ["basic"]           # Null components: "basic", "conditional", "ablation_aligned", "upstream_unique_cmi", "all"
+          seed: 0                         # Null baseline seed; a written seed is used as is in every run (null = derived from experiment.probe_seed)
+          components: ["basic"]           # Null components: "basic", "pairwise", "conditional", "ablation_aligned", "upstream_unique_cmi", "soma_coupling", "all"
     training: false
   noise_perturbation:
     enabled: false
@@ -159,9 +181,12 @@ analysis:
       categorical_loglikelihood: true
       cosine_similarity: false
       mse: false
+    # training: true runs the performance analysis after every epoch on rank 0
+    # while the other ranks wait in a collective (distributed.timeout_seconds,
+    # default 1800 s under FSDP, bounds the wait).
     training: true
-    training_splits: ["train", "valid", "test"]   # use ["valid"] for cheaper training-time checks
-    final_splits: ["train", "valid", "test"]
+    training_splits: ["train", "validation", "test"]   # use ["validation"] for cheaper training-time checks
+    final_splits: ["train", "validation", "test"]
   single_layer_contribution:
     enabled: false
     params:
@@ -176,11 +201,9 @@ analysis:
     training: false
   synapse_turnover:
     enabled: false
-    training: false
+    training: false                     # Set to true before enabling: turnover compares training snapshots, and training: false raises
     params:
       snapshot_interval: 10
-      synaptic_analysis: false
-      save_synaptic_report: false
   synaptic_activation:
     enabled: false
     params:
@@ -213,7 +236,7 @@ analysis:
       weight_threshold: 1e-6
     training: false
   compartment_statistics:
-    enabled: true
+    enabled: true                       # Enabled in this example (default false)
     training: false
     params:
       synapse_weights: true
@@ -231,54 +254,39 @@ analysis:
       per_class_analysis: false
       n_samples: 1000
 data:
-  base_dir: ''
+  base_dir: ''                          # Data root (empty = $DENDRITIC_DATA_DIR, else ~/.cache/dendritic_modeling)
   dataset_name: cifar10
-  dataset_params:
+  dataset_params:                       # Only the block named by dataset_name is read; these two are ignored with cifar10
     mnist_modulo10:
       shuffle_iterations: 2
-    multixor:
-      n_bits: 8
-    orientation_bars:
-      n_orient_classes: 8
-    orthonet:
-      input_dim: 784
-      n_layers: 5
-      noise_std: 0.1
-      nonlinearity: sigmoid
-      repeat_layers: false
     poisson_generator:
       base_dataset: mnist
-      rate_multiplier: 1.0
-    random_flip_mnist:
-      flip_probability: 0.5
   processing:
     flatten: true
     normalize: false
 experiment:
   checkpointing:
-    checkpoint_dir: results/checkpoints/
-    enabled: false
+    enabled: false                      # true: the FSDP trainer saves checkpoints (with optimizer state) under checkpoints/ in the run directory
     save_every_n_epochs: 10
-  enable_hooks: true
-  enable_profiling: false
-  profiling_output_dir: results/profiling/
   seed: 42
   train_valid_split: 0.8
-# Distributed training mode: use scripts/train.sh to auto-select launcher.
 distributed:
-  mode: fsdp
+  mode: fsdp                            # Train with FSDP: launch train_experiments_fsdp under torchrun (see the header)
   fsdp:
-    backward_prefetch: BACKWARD_POST
+    backward_prefetch: BACKWARD_POST    # "BACKWARD_PRE" (default) | "BACKWARD_POST"
     cpu_offload: false
     forward_prefetch: true
     gradient_checkpointing: false
     limit_all_gathers: true
-    min_num_params: 10000
-    mixed_precision: false
-    reduce_communication_overhead: true
-    sharding_strategy: FULL_SHARD
-    sync_module_states: false
-    use_orig_params: true
+    mixed_precision: false              # Full-precision parameters, reductions and buffers (default true: bf16)
+    sharding_strategy: FULL_SHARD       # "FULL_SHARD" | "SHARD_GRAD_OP" | "NO_SHARD" | "HYBRID_SHARD"
+    sync_module_states: true
+    use_orig_params: true               # Needed for the per-component learning rates (training.main.common.param_groups)
+  # Not set here: auto_wrap_policy ("none" makes the whole model one FSDP unit;
+  # "indexed_synapses" wraps each indexed synapse module, which bounds the
+  # parameter all-gathers of contact-heavy models), mixed_precision_dtype and
+  # the per-tensor dtypes, freeze_core, cache_frozen_core_outputs,
+  # cached_core_batch_size, and distributed.timeout_seconds.
 model:
   core:
     type: population_network
@@ -300,17 +308,14 @@ model:
           use_shunting: true
           reactivate: true
           reactivation_type: param_tanh
-          reactivation_init_policy: occupancy_quantile
-          reactivation_init_m: 1.5
-          reactivation_init_b: 0.5
+          reactivation_init_policy: occupancy_quantile  # Data-driven gate placement (the default for shunting populations is "analytical")
           dbl_init_method: analytical_expectation
           weight_transform: softplus
-          topk_type: indexed_rewire
+          # FSDP has no rewiring step, so rewiring synapses (indexed_rewire,
+          # deepst, credit_deepst, dense_to_sparse with advance_on_forward:
+          # false) raise ValueError.
+          topk_type: indexed                # Indexed synapses store only the active contacts
           topk_init_method: xavier_normal
-          indexed_seed: 42
-          indexed_rewire_frequency: 100
-          indexed_rewire_quantile: 0.05
-          indexed_rewire_until_step: null
           indexed_output_chunk_size: 2048
           efficient_blocklinear: true
         populations:
@@ -332,10 +337,9 @@ model:
         - source: i
           target: e
   decoder:
-    params: {}
+    params: {}                          # MLP defaults: hidden_dims [16], output_dim 10; input_dim comes from the core
     type: MLP
   encoder:
-    load_save_root: ./.trained_encoder_networks/
     params: {}
     type: identity
   task: classification
@@ -343,11 +347,6 @@ outputs:
   results_dir: results
   run_name: fsdp_large_exp
 training:
-  encoder:
-    common:
-      param_groups:
-        lr: 0.001
-    strategy: standard
   main:
     common:
       num_workers: 8
@@ -355,10 +354,10 @@ training:
       persistent_workers: true
       prefetch_factor: 4
       param_groups: {}
-      weight_decay_rate: 0.0
+      synapse_decay_rate: 0.0           # Must be 0: FSDP runs no sparse-synapse maintenance (weight_boosting keeps its default, false)
     pruning: {}
     regularization: {}
-    strategies:
+    strategies:                         # Only the block of the selected strategy is read
       freeze_branch_kl: {}
       freeze_branches: {}
       freeze_layers: {}
@@ -366,14 +365,4 @@ training:
       multi_stage: {}
       standard: {}
       voltage_stabilization: {}
-    strategy: standard
-wandb:
-  entity: null
-  group: large-scale-ei
-  project: dendritic-fsdp-experiments
-  tags:
-  - fsdp
-  - large-model
-  - ei-network
-  - pruning
-  use_wandb: false
+    strategy: standard                  # The FSDP trainer runs "standard" or "recurrent"

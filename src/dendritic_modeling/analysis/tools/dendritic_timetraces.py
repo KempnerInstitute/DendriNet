@@ -10,8 +10,10 @@ population on a configurable synthetic input trial::
     V_l(t)   = rho_l * V_l(t-1)   + (1 - rho_l) * V_{l+1}(t)    for l < L
     hat V_l  = 0.5 * (1 + tanh(m_l * (V_l - b_l)))
 
-where ``rho_l = exp(-1 / tau_l)`` and ``m_l``, ``b_l`` are the mean of
-the per-unit reactivation parameters at level ``l``. The output is the
+where ``rho_l = exp(-dt / tau_l)`` with the population's step ``dt`` and
+``m_l``, ``b_l`` are the mean of the per-unit reactivation parameters at
+level ``l``. ``hat V`` is the ``param_tanh`` gate, so populations with other
+gates are skipped with a warning. The output is the
 per-level ``V_l(t)`` and ``hat V_l(t)`` under the specified stimulus
 protocol (default: a Romo-style two-pulse trial), suitable for figures
 that illustrate how the learned dendritic cascade shapes temporal
@@ -36,7 +38,9 @@ from dendritic_modeling.analysis.utils.recurrent_introspection import (
     iter_recurrent_populations,
 )
 from dendritic_modeling.config.analysis import DendriticTimetracesAnalysisParams
+from dendritic_modeling.config.seeds import seed_or_default
 from dendritic_modeling.models import BaseModel
+from dendritic_modeling.networks.activations.parametric import ParametricTanh
 from dendritic_modeling.utils import save_dict
 
 logger = logging.getLogger(__name__)
@@ -56,7 +60,7 @@ def _build_input(params: DendriticTimetracesAnalysisParams) -> list[float]:
             u[t] += float(params.stim2_amp)
     if params.noise_std > 0:
         g = torch.Generator()
-        g.manual_seed(int(params.seed))
+        g.manual_seed(seed_or_default(params.seed, 0))
         noise = torch.randn(T, generator=g) * float(params.noise_std)
         for t in range(T):
             u[t] = float(u[t] + noise[t].item())
@@ -68,11 +72,12 @@ def _simulate_cascade(
     tau: list[float],
     m: list[float],
     b: list[float],
+    dt: float = 1.0,
 ) -> tuple[list[list[float]], list[list[float]]]:
     """Simulate the per-level cascade. Returns ``(V, V_hat)`` of shape ``(L, T)``."""
     T = len(u)
     L = len(tau)
-    rho = [math.exp(-1.0 / max(tau_l, 1e-6)) for tau_l in tau]
+    rho = [math.exp(-dt / max(tau_l, 1e-6)) for tau_l in tau]
     V = [[0.0] * T for _ in range(L)]
     # Convention: level 0 = most-distal, level L-1 = soma. StatefulDendriNet
     # integrates distal compartments first, then aggregates toward the soma.
@@ -114,21 +119,25 @@ def _timetraces_for_population(
     b: list[float] = []
     for lyr in branch_layers:
         reactivation = getattr(lyr, "reactivation", None)
-        if reactivation is None:
-            return None
-        log_m = getattr(reactivation, "log_m", None)
-        bias = getattr(reactivation, "b", None)
-        if log_m is None or bias is None:
+        if type(reactivation) is not ParametricTanh:
+            logger.warning(
+                "Skipping dendritic time traces: the cascade applies the "
+                "param_tanh gate 0.5 * (1 + tanh(m (V - b))), and this population "
+                "has %s gates",
+                type(reactivation).__name__,
+            )
             return None
         with torch.no_grad():
-            m.append(float(torch.exp(log_m.detach().cpu()).mean().item()))
-            b.append(float(bias.detach().cpu().mean().item()))
+            m.append(float(torch.exp(reactivation.log_m.detach().cpu()).mean().item()))
+            b.append(float(reactivation.b.detach().cpu().mean().item()))
 
     u = _build_input(params)
-    V, V_hat = _simulate_cascade(u, tau, m, b)
+    dt = float(getattr(e_population, "dt", 1.0))
+    V, V_hat = _simulate_cascade(u, tau, m, b, dt=dt)
 
     return {
         "tau": tau,
+        "dt": dt,
         "m": m,
         "b": b,
         "n_levels": len(tau),
@@ -282,6 +291,7 @@ class DendriticTimetracesAnalyzer(AbstractAnalyzer):
                     color=colors[level_idx],
                     lw=1.0,
                     alpha=0.5,
+                    linestyle=":",
                     label="V",
                 )
                 ax.plot(

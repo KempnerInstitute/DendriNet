@@ -5,7 +5,11 @@ from __future__ import annotations
 import torch
 from torch.utils.data import Dataset, Subset
 
-from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
+from dendritic_modeling.config.analysis import (
+    EVALUATION_RUNTIME_MODES,
+    EvaluationRuntimeConfig,
+)
+from dendritic_modeling.config.choices import normalize_choice
 
 
 def estimate_dataset_size_mb(dataset: Dataset) -> float:
@@ -36,7 +40,11 @@ def should_materialize_dataset(
     """Return whether *dataset* should be materialized under *runtime*."""
     if runtime is None:
         runtime = EvaluationRuntimeConfig()
-    mode = getattr(runtime, "mode", "auto")
+    mode = normalize_choice(
+        getattr(runtime, "mode", "auto"),
+        EVALUATION_RUNTIME_MODES,
+        field="analysis.runtime mode",
+    )
     threshold = getattr(runtime, "materialize_threshold_mb", 1024)
     if mode == "materialize":
         return True

@@ -17,8 +17,10 @@ class TestInputNetTransform:
     """Comprehensive tests for InputNetTransform class."""
 
     def test_init_with_minimal_params(self):
-        """Test initialization with minimal parameters."""
-        with pytest.raises((AttributeError, TypeError)):
+        """The default MLP input network needs its dimensions."""
+        with pytest.raises(
+            ValueError, match="input_dim, excitatory_dim, inhibitory_dim"
+        ):
             InputNetTransform()
 
     def test_init_with_all_none_dimensions(self):
@@ -31,16 +33,16 @@ class TestInputNetTransform:
                 network_type="IndexInputTransform",
             )
 
-    def test_init_independent_heads(self):
-        """Test initialization with independent heads."""
-        transform = InputNetTransform(
-            input_dim=10,
-            excitatory_dim=6,
-            inhibitory_dim=4,
-            independent_heads=True,
-            network_type="IndexInputTransform",
-        )
-        assert transform.input_transform is not None
+    def test_index_split_rejects_mlp_options(self):
+        """MLP options would be ignored by the index split, so they raise."""
+        with pytest.raises(ValueError, match="independent_heads configure the MLP"):
+            InputNetTransform(
+                input_dim=10,
+                excitatory_dim=6,
+                inhibitory_dim=4,
+                independent_heads=True,
+                network_type="IndexInputTransform",
+            )
 
     def test_init_shared_network(self):
         """Test initialization with shared network."""
@@ -86,13 +88,12 @@ class TestInputNetTransform:
             transform_c.input_transform.exc_dims,
         )
 
-    def test_forward_mlp_independent(self):
-        """Test forward pass with independent heads using IndexInputTransform."""
+    def test_forward_index_split(self):
+        """The index split returns the configured number of features per stream."""
         transform = InputNetTransform(
             input_dim=10,
             excitatory_dim=6,
             inhibitory_dim=4,
-            independent_heads=True,
             network_type="IndexInputTransform",
         )
 
@@ -118,51 +119,39 @@ class TestInputNetTransform:
         assert exc_out.shape == (2, 6)
         assert inh_out.shape == (2, 4)
 
-    def test_init_alexnet_transform(self):
-        """Test initialization with AlexNetTransform."""
-        with pytest.raises(NotImplementedError):
-            InputNetTransform(
-                input_shape=(3, 224, 224),
-                excitatory_dim=256,
-                inhibitory_dim=128,
-                network_type="AlexNetTransform",
-            )
+    @pytest.mark.parametrize("independent_heads", [False, True])
+    def test_mlp_network_maps_inputs_to_both_streams(self, independent_heads):
+        transform = InputNetTransform(
+            input_dim=10,
+            hidden_dims=[8],
+            excitatory_dim=6,
+            inhibitory_dim=4,
+            excitatory_hidden_dims=[5],
+            independent_heads=independent_heads,
+        )
+        x = torch.randn(3, 10, requires_grad=True)
+        excitatory, inhibitory = transform(x)
 
-    def test_forward_alexnet_transform(self):
-        """Test forward pass with AlexNetTransform."""
-        with pytest.raises(NotImplementedError):
-            transform = InputNetTransform(
-                input_shape=(3, 224, 224),
-                excitatory_dim=256,
-                inhibitory_dim=128,
-                network_type="AlexNetTransform",
-            )
-            x = torch.randn(1, 3, 224, 224)
-            transform(x)
+        assert excitatory.shape == (3, 6) and inhibitory.shape == (3, 4)
+        (excitatory.sum() + inhibitory.sum()).backward()
+        assert all(p.grad is not None for p in transform.parameters())
+        linear = [m for m in transform.head_exc.modules() if isinstance(m, nn.Linear)]
+        if independent_heads:
+            assert isinstance(transform.shared, nn.Identity)
+            assert [layer.in_features for layer in linear] == [10, 8, 5]
+        else:
+            trunk = [m for m in transform.shared.modules() if isinstance(m, nn.Linear)]
+            assert [layer.in_features for layer in trunk] == [10]
+            assert [layer.in_features for layer in linear] == [8, 5]
 
-    def test_alexnet_with_custom_dimensions(self):
-        """Test AlexNetTransform with custom dimensions."""
-        with pytest.raises(NotImplementedError):
+    def test_unknown_network_types_are_rejected(self):
+        with pytest.raises(
+            ValueError, match="expected one of MLP, IndexInputTransform"
+        ):
             InputNetTransform(
-                input_shape=(3, 64, 64),
-                excitatory_dim=128,
-                inhibitory_dim=64,
-                excitatory_hidden_dims=[32, 64],
-                inhibitory_hidden_dims=[16, 32],
-                network_type="AlexNetTransform",
-            )
-
-    def test_conv_layers_initialization(self):
-        """Test initialization of convolutional layers."""
-        with pytest.raises(NotImplementedError):
-            InputNetTransform(
-                input_shape=(3, 32, 32),
-                excitatory_dim=64,
-                inhibitory_dim=32,
-                excitatory_kernel_sizes=[3, 5],
-                inhibitory_kernel_sizes=[3, 5],
-                excitatory_strides=[1, 2],
-                inhibitory_strides=[1, 2],
+                input_dim=10,
+                excitatory_dim=6,
+                inhibitory_dim=4,
                 network_type="AlexNetTransform",
             )
 
@@ -175,8 +164,11 @@ class TestInputNetTransform:
             network_type="IndexInputTransform",
         )
 
-        total_params = sum(p.numel() for p in transform.parameters() if p.requires_grad)
-        assert total_params >= 0
+        # Index selection has no parameters, only the selected index buffers.
+        assert list(transform.parameters()) == []
+        buffers = dict(transform.named_buffers())
+        assert buffers["input_transform.exc_dims"].numel() == 6
+        assert buffers["input_transform.inh_dims"].numel() == 4
 
     def test_load_pretrained_weights_none_source(self):
         """Test loading weights with None source."""
@@ -202,18 +194,17 @@ class TestInputNetTransform:
         with pytest.raises(ValueError, match="Unknown source"):
             transform.load_pretrained_weights("")
 
-    def test_load_pretrained_weights_pytorch_alexnet(self):
-        """Test loading PyTorch AlexNet weights."""
-        with pytest.raises(
-            NotImplementedError, match="AlexNetInputTransform not implemented"
-        ):
-            transform = InputNetTransform(
-                input_shape=(3, 224, 224),
-                excitatory_dim=256,
-                inhibitory_dim=128,
-                network_type="AlexNetTransform",
-            )
-            transform.load_pretrained_weights("pytorch:alexnet")
+    def test_load_pretrained_weights_from_file_round_trips(self, tmp_path):
+        source = InputNetTransform(input_dim=6, excitatory_dim=3, inhibitory_dim=2)
+        target = InputNetTransform(input_dim=6, excitatory_dim=3, inhibitory_dim=2)
+        path = tmp_path / "input_net.pt"
+        torch.save(source.state_dict(), path)
+
+        target.load_pretrained_weights("file", weights_path=str(path))
+
+        x = torch.randn(2, 6)
+        for a, b in zip(source(x), target(x), strict=True):
+            assert torch.equal(a, b)
 
     # Extended tests start here
     def test_forward_pass_shapes_consistency(self):
@@ -274,12 +265,8 @@ class TestInputNetTransform:
             network_type="IndexInputTransform",
         )
 
-        params = list(transform.parameters())
-        assert len(params) >= 0  # IndexInputTransform may have no trainable params
-
-        # Test parameter counting
-        total_params = sum(p.numel() for p in params if p.requires_grad)
-        assert total_params >= 0
+        # Index selection has no parameters.
+        assert list(transform.parameters()) == []
 
     def test_training_mode_switching(self):
         """Test switching between training and evaluation modes."""
@@ -352,23 +339,6 @@ class TestInputNetTransform:
 
         assert exc_out.shape == (1, 1)
         assert inh_out.shape == (1, 1)
-
-    def test_load_pretrained_weights_pytorch_models(self):
-        """Test loading weights from different PyTorch models."""
-        # Test with valid model names but expect NotImplementedError
-        valid_models = ["alexnet", "vgg16", "resnet18", "resnet50"]
-
-        for model_name in valid_models:
-            with pytest.raises(
-                NotImplementedError, match="AlexNetInputTransform not implemented"
-            ):
-                transform = InputNetTransform(
-                    input_shape=(3, 224, 224),
-                    excitatory_dim=256,
-                    inhibitory_dim=128,
-                    network_type="AlexNetTransform",
-                )
-                transform.load_pretrained_weights(f"pytorch:{model_name}")
 
     def test_load_pretrained_weights_file_operations(self):
         """Test file operations in load_pretrained_weights."""

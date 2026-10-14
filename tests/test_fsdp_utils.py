@@ -3,63 +3,134 @@ Tests for training FSDP utils module to improve coverage.
 """
 
 import logging
-import os
-import tempfile
-from dataclasses import dataclass
-from datetime import datetime as RealDatetime
+from datetime import timedelta
 from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import pytest
 import torch
 import torch.nn as nn
-from torch.utils.data import TensorDataset
+from torch.utils.data import DataLoader, TensorDataset
 
 import dendritic_modeling.scripts.training.train_experiments_fsdp as fsdp_script
-from dendritic_modeling.networks.activations import ParametricTanh
-from dendritic_modeling.networks.architectures.classical.autoencoder import (
-    BaseAutoencoder,
+from dendritic_modeling.config.keys import field_default
+from dendritic_modeling.config.training import (
+    CommonTrainerConfig,
+    OptimizerConfig,
+    ParamGroupsConfig,
 )
+from dendritic_modeling.networks.activations import ParametricTanh
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.blocklinear import (
     BlockLinear,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse import (
+    IndexedDynamicTopKLinear,
+    IndexedSparseLinear,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
     TopKLinear,
 )
+from dendritic_modeling.networks.architectures.factory import get_architecture
 from dendritic_modeling.scripts.training.train_experiments_fsdp import (
+    _apply_fsdp_trainability_policy,
     _build_fsdp_runtime_configs,
+    _calibrate_fsdp_reactivation,
     _create_fsdp_trainer,
     _dataloader_kwargs_from_common,
-    _encode_rank0_analysis_datasets,
-    _maybe_calibrate_fsdp_data_driven_reactivation,
-    _prepare_rank_analysis_datasets,
     _print_rank0_model_summary,
     _requested_data_driven_reactivation_policies,
     _resolve_large_model_input_dim,
     _run_final_analysis_on_plain_model,
-    _save_final_fsdp_checkpoint_and_run_analysis,
-    _save_fsdp_run_config,
-    _save_rank0_training_results,
+    _save_final_model_and_run_analysis,
     _setup_rank0_analysis_manager,
-    _setup_rank0_run_directory,
+    setup_distributed,
+)
+from dendritic_modeling.training.distributed_samplers import (
+    PaddedDistributedEvalSampler,
 )
 from dendritic_modeling.training.fsdp_utils import (
     _apply_gradient_checkpointing,
     _is_dendritic_fsdp_module,
     _is_large_linear_checkpoint_candidate,
-    create_fsdp_wrap_policy,
     estimate_memory_requirements,
     get_fsdp_config,
     get_recommended_gpu_count,
-    load_fsdp_checkpoint,
-    save_fsdp_checkpoint,
     wrap_model_with_fsdp,
 )
+from dendritic_modeling.training.loss.functions import CrossEntropyLoss
 from dendritic_modeling.training.strategies.fsdp_standard import (
     FSDPTrainer,
-    _iter_modules_by_class_name,
-    _iter_reactivation_parameter_candidates,
+    _sequence_lengths_from_batch,
+    _tensor_diagnostics,
 )
+
+
+@pytest.mark.parametrize(
+    "timeout_seconds, expected",
+    [(3600, timedelta(hours=1)), (None, timedelta(seconds=1800))],
+)
+def test_setup_distributed_uses_the_configured_timeout(
+    monkeypatch, timeout_seconds, expected
+):
+    monkeypatch.setenv("RANK", "3")
+    monkeypatch.setenv("LOCAL_RANK", "1")
+    monkeypatch.setenv("WORLD_SIZE", "8")
+    monkeypatch.setattr(fsdp_script.dist, "is_initialized", lambda: False)
+    init_calls = []
+    monkeypatch.setattr(
+        fsdp_script.dist,
+        "init_process_group",
+        lambda **kwargs: init_calls.append(kwargs),
+    )
+    device_calls = []
+    monkeypatch.setattr(
+        fsdp_script.torch.cuda,
+        "set_device",
+        lambda local_rank: device_calls.append(local_rank),
+    )
+
+    assert setup_distributed(timeout_seconds) == (3, 1, 8)
+    assert init_calls == [{"backend": "nccl", "timeout": expected}]
+    assert set(device_calls) == {1}
+
+
+def test_setup_distributed_rejects_a_non_positive_timeout(monkeypatch):
+    monkeypatch.setenv("RANK", "0")
+    monkeypatch.setenv("LOCAL_RANK", "0")
+    monkeypatch.setenv("WORLD_SIZE", "1")
+    monkeypatch.setattr(fsdp_script.dist, "is_initialized", lambda: False)
+
+    with pytest.raises(ValueError, match="must be positive"):
+        setup_distributed(timeout_seconds=0)
+
+
+def test_ddp_setup_passes_the_configured_timeout(monkeypatch):
+    from dendritic_modeling.scripts.training import train_experiments
+
+    monkeypatch.setenv("RANK", "1")
+    monkeypatch.setenv("LOCAL_RANK", "1")
+    monkeypatch.setenv("WORLD_SIZE", "2")
+    monkeypatch.setattr(train_experiments.dist, "is_initialized", lambda: False)
+    monkeypatch.setattr(train_experiments.torch.cuda, "set_device", lambda _rank: None)
+    init_calls = []
+    monkeypatch.setattr(
+        train_experiments.dist,
+        "init_process_group",
+        lambda **kwargs: init_calls.append(kwargs),
+    )
+    train_experiments.setup_distributed(timeout_seconds=7200)
+    train_experiments.setup_distributed()
+    assert init_calls == [
+        {"backend": "nccl", "timeout": timedelta(hours=2)},
+        {"backend": "nccl"},
+    ]
+
+
+def test_distributed_timeout_must_be_positive():
+    from dendritic_modeling.config import config_from_mapping
+
+    with pytest.raises(ValueError, match="timeout_seconds must be a positive"):
+        config_from_mapping({"distributed": {"timeout_seconds": 0}})
 
 
 def test_fsdp_dataloader_kwargs_from_common_config():
@@ -79,6 +150,30 @@ def test_fsdp_dataloader_kwargs_from_common_config():
         "persistent_workers": True,
         "prefetch_factor": 3,
     }
+
+
+def test_tensor_diagnostics_reports_finite_values_only():
+    diagnostics = _tensor_diagnostics(
+        torch.tensor([1.0, 3.0, float("nan"), float("inf")])
+    )
+
+    assert diagnostics == {
+        "numel": 4,
+        "finite_count": 2,
+        "mean": 2.0,
+        "std": 1.0,
+        "min": 1.0,
+        "max": 3.0,
+        "rms": pytest.approx(5**0.5),
+    }
+
+
+def test_tensor_diagnostics_separates_feature_and_sample_variation():
+    diagnostics = _tensor_diagnostics(torch.tensor([[1.0, 3.0], [3.0, 5.0]]))
+
+    assert diagnostics["within_row_std_mean"] == 1.0
+    assert diagnostics["row_mean_std"] == 1.0
+    assert diagnostics["across_row_feature_std_mean"] == 1.0
 
 
 def test_fsdp_dataloader_kwargs_auto_avoids_workers_for_tensor_data():
@@ -154,16 +249,9 @@ def test_fsdp_dataloader_tuning_summary_reports_dataset_type():
 
 
 def test_fsdp_setup_data_loaders_logs_tuning_on_rank0(monkeypatch, caplog):
-    """FSDP data-loader setup should log resolved tuning once on rank 0."""
+    """FSDP loaders shard the run's datasets and log their tuning on rank 0."""
     train_ds = TensorDataset(torch.randn(8, 3), torch.randint(0, 2, (8,)))
     valid_ds = TensorDataset(torch.randn(4, 3), torch.randint(0, 2, (4,)))
-    test_ds = TensorDataset(torch.randn(4, 3), torch.randint(0, 2, (4,)))
-
-    monkeypatch.setattr(
-        fsdp_script,
-        "get_unified_datasets",
-        lambda task_cfg: (train_ds, valid_ds, test_ds),
-    )
     monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
 
     common = SimpleNamespace(
@@ -174,12 +262,6 @@ def test_fsdp_setup_data_loaders_logs_tuning_on_rank0(monkeypatch, caplog):
         prefetch_factor=None,
     )
     config = SimpleNamespace(
-        data=SimpleNamespace(
-            base_dir="",
-            dataset_name="unit",
-            dataset_params=None,
-            processing=None,
-        ),
         experiment=SimpleNamespace(train_valid_split=0.8, seed=7),
         training=SimpleNamespace(main=SimpleNamespace(common=common)),
     )
@@ -188,15 +270,14 @@ def test_fsdp_setup_data_loaders_logs_tuning_on_rank0(monkeypatch, caplog):
         logging.INFO,
         logger="dendritic_modeling.scripts.training.train_experiments_fsdp",
     ):
-        train_loader, valid_loader, returned_test, returned_train, returned_valid = (
-            fsdp_script.setup_data_loaders(config, rank=0, world_size=1)
+        train_loader, valid_loader = fsdp_script.setup_data_loaders(
+            config, train_ds, valid_ds, rank=0, world_size=1
         )
 
+    assert train_loader.dataset is train_ds
+    assert valid_loader.dataset is valid_ds
     assert train_loader.num_workers == 0
     assert valid_loader.num_workers == 0
-    assert returned_test is test_ds
-    assert returned_train is train_ds
-    assert returned_valid is valid_ds
     assert "FSDP DataLoader tuning:" in caplog.text
     assert "dataset=torch.utils.data.dataset.TensorDataset" in caplog.text
     assert "num_workers=0" in caplog.text
@@ -220,6 +301,41 @@ def test_resolve_large_model_input_dim_preserves_existing_mapping(
     assert _resolve_large_model_input_dim(data_config) == expected
 
 
+def test_resolve_large_model_input_dim_honors_explicit_sequence_width():
+    data_config = SimpleNamespace(dataset_name="romo_delay_comparison_positive")
+    model_config = SimpleNamespace(
+        encoder=SimpleNamespace(params=SimpleNamespace(input_dim=11))
+    )
+
+    assert _resolve_large_model_input_dim(data_config, model_config) == 11
+
+
+def test_sequence_lengths_from_recurrent_batch():
+    x_batch = torch.zeros(3, 7, 4)
+    lengths = torch.tensor([7, 5, 6])
+
+    resolved = _sequence_lengths_from_batch(
+        (x_batch, torch.zeros(3), lengths),
+        x_batch=x_batch,
+        device=torch.device("cpu"),
+    )
+
+    torch.testing.assert_close(resolved, lengths)
+
+
+def test_sequence_lengths_ignores_nonsequence_metadata():
+    x_batch = torch.zeros(3, 4)
+
+    assert (
+        _sequence_lengths_from_batch(
+            (x_batch, torch.zeros(3), torch.arange(3)),
+            x_batch=x_batch,
+            device=torch.device("cpu"),
+        )
+        is None
+    )
+
+
 def test_fsdp_dataloader_kwargs_reject_invalid_persistent_workers():
     """persistent_workers=True is invalid when DataLoader has no workers."""
     common = SimpleNamespace(
@@ -233,8 +349,8 @@ def test_fsdp_dataloader_kwargs_reject_invalid_persistent_workers():
         _dataloader_kwargs_from_common(common)
 
 
-def test_run_final_analysis_on_plain_model_reloads_checkpoint(monkeypatch):
-    """FSDP final analysis should run on a fresh non-sharded model."""
+def test_run_final_analysis_on_plain_model_loads_the_gathered_weights(monkeypatch):
+    """FSDP final analysis runs on a fresh unsharded copy of the model."""
 
     class PlainModel(nn.Module):
         def __init__(self):
@@ -242,7 +358,6 @@ def test_run_final_analysis_on_plain_model_reloads_checkpoint(monkeypatch):
             self.loaded_state = None
             self.to_device = None
             self.eval_called = False
-            self.encoder_network = None
 
         def load_state_dict(self, state_dict):
             self.loaded_state = state_dict
@@ -262,322 +377,28 @@ def test_run_final_analysis_on_plain_model_reloads_checkpoint(monkeypatch):
         def run_analysis(self, *, filename, training):
             self.run_calls.append({"filename": filename, "training": training})
 
-    config = SimpleNamespace(name="config")
+    config = SimpleNamespace(model=SimpleNamespace(name="model"))
     plain_model = PlainModel()
     analysis_manager = AnalysisManagerStub()
-    encoder = object()
     state = {"weight": torch.ones(1)}
-    load_calls = []
-
     monkeypatch.setattr(
-        "dendritic_modeling.scripts.training.train_experiments_fsdp.create_large_model",
-        lambda received_config: plain_model,
-    )
-
-    def fake_load(path, *, map_location):
-        load_calls.append({"path": path, "map_location": map_location})
-        return {"model_state_dict": state}
-
-    monkeypatch.setattr(
-        "dendritic_modeling.scripts.training.train_experiments_fsdp.torch.load",
-        fake_load,
+        fsdp_script,
+        "initialize_model",
+        lambda model_config: (plain_model, None),
     )
 
     _run_final_analysis_on_plain_model(
         config=config,
         analysis_manager=analysis_manager,
-        full_ckpt_path="/tmp/final_full.pt",
-        encoder_network=encoder,
+        state_dict=state,
         local_rank=2,
     )
 
     assert plain_model.loaded_state is state
     assert plain_model.to_device == "cuda:2"
     assert plain_model.eval_called
-    assert plain_model.encoder_network is encoder
     assert analysis_manager.model is plain_model
     assert analysis_manager.run_calls == [{"filename": "final", "training": False}]
-    assert load_calls == [{"path": "/tmp/final_full.pt", "map_location": "cuda:2"}]
-
-
-@dataclass
-class _RunOutputsConfig:
-    run_name: str
-    results_dir: str
-    exact_run_dir: bool = False
-
-
-@dataclass
-class _RunConfigSnapshot:
-    outputs: _RunOutputsConfig
-    marker: int = 7
-
-
-def test_save_fsdp_run_config_applies_canonicalizers(monkeypatch):
-    """FSDP config snapshots should preserve the existing canonicalizer order."""
-    config = _RunConfigSnapshot(outputs=_RunOutputsConfig("run", "/tmp/results"))
-    saved = []
-
-    def fake_model_canonicalizer(payload):
-        return {**payload, "model_canonicalized": True}
-
-    def fake_rnn_canonicalizer(payload):
-        return {**payload, "rnn_saw_model": payload["model_canonicalized"]}
-
-    monkeypatch.setattr(
-        fsdp_script, "canonicalize_model_core_flags", fake_model_canonicalizer
-    )
-    monkeypatch.setattr(
-        fsdp_script, "canonicalize_rnn_core_flags", fake_rnn_canonicalizer
-    )
-    monkeypatch.setattr(
-        fsdp_script,
-        "save_dict",
-        lambda payload, path, filename: saved.append(
-            {"payload": payload, "path": path, "filename": filename}
-        ),
-    )
-
-    _save_fsdp_run_config(config, "/tmp/run")
-
-    assert saved == [
-        {
-            "payload": {
-                "outputs": {
-                    "run_name": "run",
-                    "results_dir": "/tmp/results",
-                    "exact_run_dir": False,
-                },
-                "marker": 7,
-                "model_canonicalized": True,
-                "rnn_saw_model": True,
-            },
-            "path": "/tmp/run",
-            "filename": "config.json",
-        }
-    ]
-
-
-def test_setup_rank0_run_directory_creates_log_dir_and_config(monkeypatch, tmp_path):
-    """FSDP rank-0 setup should create the timestamped output and save config."""
-
-    class FixedDatetime:
-        @classmethod
-        def now(cls):
-            return RealDatetime(2025, 1, 2, 3, 4, 5)
-
-    config = _RunConfigSnapshot(outputs=_RunOutputsConfig("experiment", str(tmp_path)))
-    log_dirs = []
-    saved_configs = []
-    original_handlers = list(fsdp_script.logger.handlers)
-
-    monkeypatch.setattr(fsdp_script, "datetime", FixedDatetime)
-    monkeypatch.setattr(
-        fsdp_script.logger_manager,
-        "set_log_directory",
-        lambda path: log_dirs.append(path),
-    )
-    monkeypatch.setattr(
-        fsdp_script,
-        "_save_fsdp_run_config",
-        lambda received_config, path: saved_configs.append((received_config, path)),
-    )
-
-    try:
-        run_save_path = _setup_rank0_run_directory(config)
-    finally:
-        for handler in list(fsdp_script.logger.handlers):
-            if handler not in original_handlers:
-                fsdp_script.logger.removeHandler(handler)
-                handler.close()
-
-    expected_path = os.path.join(str(tmp_path), "experiment_20250102_030405")
-    assert run_save_path == expected_path
-    assert os.path.isdir(expected_path)
-    assert os.path.exists(os.path.join(expected_path, "train.log"))
-    assert log_dirs == [expected_path]
-    assert saved_configs == [(config, expected_path)]
-
-
-def test_setup_rank0_run_directory_can_use_exact_manifest_path(monkeypatch, tmp_path):
-    exact_path = tmp_path / "claimed-run"
-    exact_path.mkdir()
-    config = _RunConfigSnapshot(
-        outputs=_RunOutputsConfig(
-            "experiment",
-            str(exact_path),
-            exact_run_dir=True,
-        )
-    )
-    log_dirs = []
-    saved_configs = []
-    original_handlers = list(fsdp_script.logger.handlers)
-    monkeypatch.setattr(
-        fsdp_script.logger_manager,
-        "set_log_directory",
-        lambda path: log_dirs.append(path),
-    )
-    monkeypatch.setattr(
-        fsdp_script,
-        "_save_fsdp_run_config",
-        lambda received_config, path: saved_configs.append((received_config, path)),
-    )
-
-    try:
-        run_save_path = _setup_rank0_run_directory(config)
-    finally:
-        for handler in list(fsdp_script.logger.handlers):
-            if handler not in original_handlers:
-                fsdp_script.logger.removeHandler(handler)
-                handler.close()
-
-    assert run_save_path == str(exact_path)
-    assert log_dirs == [str(exact_path)]
-    assert saved_configs == [(config, str(exact_path))]
-
-
-def test_encode_rank0_analysis_datasets_delegates_to_encoder_loader(monkeypatch):
-    """FSDP rank-0 encoding should preserve the encoder-loader call contract."""
-    encoder = object()
-    encoded_encoder = object()
-    train_ds = object()
-    valid_ds = object()
-    test_ds = object()
-    encoded_train_ds = object()
-    encoded_valid_ds = object()
-    encoded_test_ds = object()
-    model = SimpleNamespace(encoder_network=encoder)
-    config = SimpleNamespace(
-        training=SimpleNamespace(encoder=object()),
-        model=SimpleNamespace(encoder=object()),
-        data=object(),
-    )
-    calls = []
-
-    def fake_load_train_encoder_network(**kwargs):
-        calls.append(kwargs)
-        return encoded_encoder, encoded_train_ds, encoded_valid_ds, encoded_test_ds
-
-    monkeypatch.setattr(
-        fsdp_script,
-        "load_train_encoder_network",
-        fake_load_train_encoder_network,
-    )
-
-    result = _encode_rank0_analysis_datasets(
-        model=model,
-        config=config,
-        train_ds=train_ds,
-        valid_ds=valid_ds,
-        test_ds=test_ds,
-    )
-
-    assert result == (
-        encoded_encoder,
-        encoded_train_ds,
-        encoded_valid_ds,
-        encoded_test_ds,
-    )
-    assert calls == [
-        {
-            "encoder_network": encoder,
-            "encoder_train_config": config.training.encoder,
-            "train_ds": train_ds,
-            "valid_ds": valid_ds,
-            "test_ds": test_ds,
-            "encoder_network_config": config.model.encoder,
-            "task_config": config.data,
-        }
-    ]
-
-
-def test_encode_rank0_analysis_datasets_skips_base_autoencoder(monkeypatch):
-    """FSDP should not try to pretrain a BaseAutoencoder inside rank-0 encoding."""
-    encoder = BaseAutoencoder()
-    train_ds = object()
-    valid_ds = object()
-    test_ds = object()
-    model = SimpleNamespace(encoder_network=encoder)
-    config = SimpleNamespace()
-
-    monkeypatch.setattr(
-        fsdp_script,
-        "load_train_encoder_network",
-        lambda **kwargs: pytest.fail("BaseAutoencoder should not be encoded here"),
-    )
-
-    result = _encode_rank0_analysis_datasets(
-        model=model,
-        config=config,
-        train_ds=train_ds,
-        valid_ds=valid_ds,
-        test_ds=test_ds,
-    )
-
-    assert result == (encoder, train_ds, valid_ds, test_ds)
-
-
-def test_prepare_rank_analysis_datasets_rank0_delegates_to_encoder(monkeypatch):
-    """Rank 0 should prepare real encoded datasets for analysis."""
-    model = object()
-    config = object()
-    train_ds = object()
-    valid_ds = object()
-    test_ds = object()
-    result = (object(), object(), object(), object())
-    calls = []
-
-    monkeypatch.setattr(
-        fsdp_script,
-        "_encode_rank0_analysis_datasets",
-        lambda **kwargs: calls.append(kwargs) or result,
-    )
-
-    prepared = _prepare_rank_analysis_datasets(
-        rank=0,
-        model=model,
-        config=config,
-        train_ds=train_ds,
-        valid_ds=valid_ds,
-        test_ds=test_ds,
-    )
-
-    assert prepared is result
-    assert calls == [
-        {
-            "model": model,
-            "config": config,
-            "train_ds": train_ds,
-            "valid_ds": valid_ds,
-            "test_ds": test_ds,
-        }
-    ]
-
-
-def test_prepare_rank_analysis_datasets_non_rank0_returns_placeholders(monkeypatch):
-    """Non-rank-0 processes should not encode analysis datasets."""
-    monkeypatch.setattr(
-        fsdp_script,
-        "_encode_rank0_analysis_datasets",
-        lambda **kwargs: pytest.fail("non-rank-0 should not encode datasets"),
-    )
-
-    encoder_network, encoded_train_ds, encoded_valid_ds, encoded_test_ds = (
-        _prepare_rank_analysis_datasets(
-            rank=1,
-            model=object(),
-            config=object(),
-            train_ds=object(),
-            valid_ds=object(),
-            test_ds=object(),
-        )
-    )
-
-    assert isinstance(encoder_network, fsdp_script.Identity)
-    assert encoder_network.output_dim == 1
-    assert encoded_train_ds is None
-    assert encoded_valid_ds is None
-    assert encoded_test_ds is None
 
 
 def test_print_rank0_model_summary_uses_sample_input(monkeypatch):
@@ -626,13 +447,37 @@ def test_print_rank0_model_summary_falls_back_without_sample(monkeypatch):
     assert calls == [(model, None)]
 
 
+def test_parameter_summary_skips_torchinfo_for_sequence_input(monkeypatch):
+    model = nn.Linear(4, 2)
+    summary_calls = []
+    monkeypatch.setattr(fsdp_script, "TORCHINFO_AVAILABLE", True)
+    monkeypatch.setattr(
+        fsdp_script.torchinfo,
+        "summary",
+        lambda *args, **kwargs: summary_calls.append((args, kwargs)),
+    )
+
+    fsdp_script.print_model_parameter_summary(model, torch.zeros(7, 4))
+
+    assert summary_calls == []
+
+
 def test_build_fsdp_runtime_configs_uses_typed_config_values(monkeypatch):
     """FSDP runtime config assembly should preserve typed config values."""
     fsdp_config = object()
     calls = []
     train_common = SimpleNamespace(
-        param_groups=SimpleNamespace(lr=0.123, split_params=True),
-        weight_decay_rate=0.4,
+        param_groups=SimpleNamespace(
+            lr=0.123,
+            split_params=True,
+            topk_lr=0.01,
+            blocklinear_lr=0.02,
+            reactivation_lr=0.03,
+            decoder_lr=0.04,
+            decoder_input_lr=0.006,
+            encoder_lr=0.05,
+        ),
+        synapse_decay_rate=0.4,
     )
     fsdp_cfg = SimpleNamespace(
         mixed_precision=True,
@@ -657,10 +502,20 @@ def test_build_fsdp_runtime_configs_uses_typed_config_values(monkeypatch):
 
     assert result_train_common is train_common
     assert result_fsdp_config is fsdp_config
+    # synapse_decay_rate (0.4) is sparse maintenance and is not mapped to
+    # optimizer weight decay; the optimizer comes from training.main.optimizer.
     assert optimizer_config == {
-        "lr": 0.123,
-        "weight_decay": 0.4,
-        "split_params": True,
+        "optimizer": OptimizerConfig(),
+        "param_groups": ParamGroupsConfig(
+            lr=0.123,
+            split_params=True,
+            topk_lr=0.01,
+            blocklinear_lr=0.02,
+            reactivation_lr=0.03,
+            decoder_lr=0.04,
+            decoder_input_lr=0.006,
+            encoder_lr=0.05,
+        ),
     }
     assert calls == [
         {
@@ -672,10 +527,10 @@ def test_build_fsdp_runtime_configs_uses_typed_config_values(monkeypatch):
     ]
 
 
-def test_build_fsdp_runtime_configs_preserves_defaults_and_slot_fsdp_config(
+def test_build_fsdp_runtime_configs_fills_typed_defaults_and_slot_fsdp_config(
     monkeypatch,
 ):
-    """FSDP runtime config assembly should keep legacy optimizer defaults."""
+    """Unset param-group fields take the ParamGroupsConfig defaults."""
 
     class SlotFSDPConfig:
         __slots__ = ("cpu_offload", "mixed_precision", "sharding_strategy")
@@ -706,9 +561,8 @@ def test_build_fsdp_runtime_configs_preserves_defaults_and_slot_fsdp_config(
     assert result_train_common is train_common
     assert result_fsdp_config is fsdp_config
     assert optimizer_config == {
-        "lr": 0.01,
-        "weight_decay": 0.0,
-        "split_params": False,
+        "optimizer": OptimizerConfig(),
+        "param_groups": ParamGroupsConfig(lr=0.01),
     }
     assert calls == [
         {
@@ -721,7 +575,11 @@ def test_build_fsdp_runtime_configs_preserves_defaults_and_slot_fsdp_config(
 
 
 def test_fsdp_optimizer_split_groups_assign_each_parameter_once():
-    """FSDP split optimizer groups should be single-assignment and ordered."""
+    """FSDP split optimizer groups are single-assignment and ordered.
+
+    A model without ``core_network`` is its own core; a gate inside the
+    decoder trains with the decoder, as in single-process training.
+    """
 
     class GroupedModel(nn.Module):
         def __init__(self):
@@ -734,13 +592,15 @@ def test_fsdp_optimizer_split_groups_assign_each_parameter_once():
 
     trainer = FSDPTrainer.__new__(FSDPTrainer)
     trainer.optimizer_config = {
-        "split_params": True,
-        "lr": 0.05,
-        "topk_lr": 0.01,
-        "blocklinear_lr": 0.02,
-        "reactivation_lr": 0.03,
-        "decoder_lr": 0.04,
-        "weight_decay": 0.001,
+        "optimizer": OptimizerConfig(weight_decay=0.001),
+        "param_groups": {
+            "split_params": True,
+            "lr": 0.05,
+            "topk_lr": 0.01,
+            "blocklinear_lr": 0.02,
+            "reactivation_lr": 0.03,
+            "decoder_lr": 0.04,
+        },
     }
     model = GroupedModel()
 
@@ -770,37 +630,393 @@ def test_fsdp_optimizer_split_groups_assign_each_parameter_once():
     assert lr_by_param_id[id(model.topk.pre_w)] == 0.01
     assert lr_by_param_id[id(model.blocklinear.log_weight)] == 0.02
     assert lr_by_param_id[id(model.reactivation.log_m)] == 0.03
-    assert lr_by_param_id[id(model.decoder_network[0].log_m)] == 0.03
+    assert lr_by_param_id[id(model.decoder_network[0].log_m)] == 0.04
     assert lr_by_param_id[id(model.decoder_network[1].weight)] == 0.04
     assert lr_by_param_id[id(model.other.weight)] == 0.05
 
 
-def test_fsdp_module_class_name_iterator_preserves_concrete_name_rule():
-    class TopKLinear(nn.Module):
-        pass
+def test_fsdp_optimizer_assigns_indexed_synapses_to_topk_group():
+    """Indexed sparse weights should honor the configured synapse LR."""
+    model = nn.Module()
+    model.fixed = IndexedSparseLinear(4, 3, K=2, seed=1)
+    model.dynamic = IndexedDynamicTopKLinear(
+        4,
+        3,
+        K=2,
+        candidate_size=3,
+        seed=2,
+    )
+    model.decoder_network = nn.Linear(3, 2)
 
-    class DerivedTopKLinear(TopKLinear):
-        pass
+    trainer = FSDPTrainer.__new__(FSDPTrainer)
+    trainer.optimizer_config = {
+        "param_groups": {
+            "split_params": True,
+            "lr": 0.05,
+            "topk_lr": 0.01,
+            "decoder_lr": 0.04,
+        }
+    }
 
-    first = TopKLinear()
-    derived = DerivedTopKLinear()
-    second = TopKLinear()
-    model = nn.Sequential(first, derived, nn.Sequential(second))
+    optimizer = trainer.create_optimizer(model)
+    lr_by_param_id = {
+        id(param): group["lr"]
+        for group in optimizer.param_groups
+        for param in group["params"]
+    }
 
-    assert list(_iter_modules_by_class_name(model, "TopKLinear")) == [
-        first,
-        second,
-    ]
+    assert lr_by_param_id[id(model.fixed.pre_w)] == 0.01
+    assert lr_by_param_id[id(model.dynamic.pre_w)] == 0.01
+    assert lr_by_param_id[id(model.decoder_network.weight)] == 0.04
 
 
-def test_fsdp_reactivation_candidate_iterator_preserves_module_order():
-    first = ParametricTanh(2)
-    second = ParametricTanh(3)
-    model = nn.Sequential(first, nn.ReLU(), nn.Sequential(second))
+def test_fsdp_optimizer_scales_only_decoder_input_weight():
+    model = nn.Module()
+    model.decoder_network = nn.Sequential(
+        nn.LayerNorm(8, elementwise_affine=False),
+        nn.Linear(8, 4),
+        nn.ReLU(),
+        nn.Linear(4, 2),
+    )
 
-    candidates = list(_iter_reactivation_parameter_candidates(model))
+    trainer = FSDPTrainer.__new__(FSDPTrainer)
+    trainer.optimizer_config = {
+        "param_groups": {
+            "split_params": True,
+            "lr": 0.05,
+            "decoder_input_lr": 1e-5,
+            "decoder_lr": 1e-3,
+        }
+    }
 
-    assert candidates == [(first.log_m, first.b), (second.log_m, second.b)]
+    optimizer = trainer.create_optimizer(model)
+    group_by_param_id = {
+        id(param): group
+        for group in optimizer.param_groups
+        for param in group["params"]
+    }
+
+    assert group_by_param_id[id(model.decoder_network[1].weight)]["name"] == (
+        "decoder_input"
+    )
+    assert group_by_param_id[id(model.decoder_network[1].weight)]["lr"] == 1e-5
+    assert group_by_param_id[id(model.decoder_network[1].bias)]["name"] == "decoder"
+    assert group_by_param_id[id(model.decoder_network[1].bias)]["lr"] == 1e-3
+    assert group_by_param_id[id(model.decoder_network[3].weight)]["name"] == "decoder"
+    assert group_by_param_id[id(model.decoder_network[3].weight)]["lr"] == 1e-3
+
+
+def test_fsdp_freeze_core_policy_leaves_only_readout_trainable():
+    model = nn.Module()
+    model.core_network = nn.Linear(8, 8)
+    model.decoder_network = nn.Linear(8, 2)
+
+    frozen = _apply_fsdp_trainability_policy(
+        model,
+        SimpleNamespace(freeze_core=True),
+    )
+
+    assert frozen == 72
+    assert all(
+        not parameter.requires_grad for parameter in model.core_network.parameters()
+    )
+    assert all(
+        parameter.requires_grad for parameter in model.decoder_network.parameters()
+    )
+    assert model._freeze_core_forward is True
+    assert all(
+        module._fsdp_frozen_core is True for module in model.core_network.modules()
+    )
+
+    trainer = FSDPTrainer.__new__(FSDPTrainer)
+    trainer.optimizer_config = {
+        "param_groups": {"split_params": True, "lr": 0.0, "decoder_lr": 1e-3}
+    }
+    optimizer = trainer.create_optimizer(model)
+    optimized = {
+        id(parameter)
+        for group in optimizer.param_groups
+        for parameter in group["params"]
+    }
+    assert optimized == {
+        id(parameter) for parameter in model.decoder_network.parameters()
+    }
+
+
+def test_fsdp_freeze_core_policy_is_opt_in():
+    model = nn.Module()
+    model.core_network = nn.Linear(3, 2)
+
+    frozen = _apply_fsdp_trainability_policy(
+        model,
+        SimpleNamespace(freeze_core=False),
+    )
+
+    assert frozen == 0
+    assert all(parameter.requires_grad for parameter in model.core_network.parameters())
+    assert not hasattr(model, "_freeze_core_forward")
+
+
+def test_fsdp_core_output_cache_requires_frozen_core():
+    model = nn.Module()
+    model.core_network = nn.Linear(3, 2)
+
+    with pytest.raises(ValueError, match="requires freeze_core=true"):
+        _apply_fsdp_trainability_policy(
+            model,
+            SimpleNamespace(
+                freeze_core=False,
+                cache_frozen_core_outputs=True,
+            ),
+        )
+
+
+def test_fsdp_core_output_cache_requires_frozen_encoder():
+    model = nn.Module()
+    model.encoder_network = nn.Linear(3, 3)
+    model.core_network = nn.Linear(3, 2)
+
+    with pytest.raises(ValueError, match="frozen or parameter-free encoder"):
+        _apply_fsdp_trainability_policy(
+            model,
+            SimpleNamespace(
+                freeze_core=True,
+                cache_frozen_core_outputs=True,
+            ),
+        )
+
+
+def test_fsdp_cache_core_output_loader_materializes_decoder_inputs():
+    class CacheModel(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.core_network = nn.Linear(2, 2, bias=False)
+            self.decoder_network = nn.Linear(2, 2)
+            self.core_calls = 0
+            self._freeze_core_forward = True
+            with torch.no_grad():
+                self.core_network.weight.copy_(2 * torch.eye(2))
+
+        def forward(self, inputs, seq_lengths=None, *, precomputed_core=False):
+            del seq_lengths
+            if not precomputed_core:
+                self.core_calls += 1
+                inputs = self.core_network(inputs)
+            return self.decoder_network(inputs)
+
+    trainer = FSDPTrainer.__new__(FSDPTrainer)
+    trainer.device = torch.device("cpu")
+    trainer.rank = 0
+    trainer.seed = 11
+    trainer.cached_core_batch_size = None
+    model = CacheModel()
+    inputs = torch.arange(8, dtype=torch.float32).reshape(4, 2)
+    targets = torch.tensor([0, 1, 0, 1])
+    loader = DataLoader(TensorDataset(inputs, targets), batch_size=2)
+
+    cached_loader = trainer._cache_core_output_loader(
+        model,
+        loader,
+        shuffle=False,
+        seed_offset=17,
+    )
+
+    cached_features, cached_targets = cached_loader.dataset.tensors
+    torch.testing.assert_close(cached_features, 2 * inputs)
+    torch.testing.assert_close(cached_targets, targets)
+    assert model.core_calls == 2
+
+    cached_logits = model(cached_features, precomputed_core=True)
+    direct_logits = model.decoder_network(2 * inputs)
+    torch.testing.assert_close(cached_logits, direct_logits)
+    assert model.core_calls == 2
+
+
+def test_fsdp_cached_eval_loader_preserves_real_padding_count():
+    trainer = FSDPTrainer.__new__(FSDPTrainer)
+    trainer.device = torch.device("cpu")
+    trainer.rank = 1
+    trainer.seed = 11
+    trainer.cached_core_batch_size = None
+    model = nn.Module()
+    model.decoder_network = nn.Identity()
+    model.forward = lambda inputs, **_kwargs: model.decoder_network(inputs)
+    dataset = TensorDataset(torch.ones(3, 2), torch.tensor([0, 1, 0]))
+    sampler = PaddedDistributedEvalSampler(dataset, num_replicas=2, rank=1)
+    loader = DataLoader(dataset, batch_size=1, sampler=sampler)
+
+    cached_loader = trainer._cache_core_output_loader(
+        model,
+        loader,
+        shuffle=False,
+        seed_offset=29,
+    )
+
+    assert len(cached_loader.dataset) == 2
+    assert cached_loader._dendritic_real_count == 1
+
+
+def test_fsdp_training_reuses_cached_core_outputs_across_epochs(
+    monkeypatch,
+    tmp_path,
+):
+    class CacheModel(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.core_network = nn.Linear(2, 2)
+            self.core_network.requires_grad_(False)
+            self.decoder_network = nn.Linear(2, 2)
+            self.core_calls = 0
+            self._freeze_core_forward = True
+
+        def forward(self, inputs, seq_lengths=None, *, precomputed_core=False):
+            del seq_lengths
+            if not precomputed_core:
+                self.core_calls += 1
+                inputs = self.core_network(inputs)
+            return self.decoder_network(inputs)
+
+    trainer = FSDPTrainer.__new__(FSDPTrainer)
+    trainer.device = torch.device("cpu")
+    trainer.rank = 0
+    trainer.epochs = 2
+    trainer.early_stopping = False
+    trainer.patience = 10
+    trainer.checkpointing = False
+    trainer.print_every = 1
+    trainer.save_every_n_epochs = None
+    trainer.save_path = str(tmp_path)
+    trainer.log_first_step_diagnostics = False
+    trainer.cache_frozen_core_outputs = True
+    trainer.cached_core_batch_size = 2
+    trainer.first_step_diagnostics = None
+    trainer._decoder_input_diagnostics = None
+    trainer._use_precomputed_core = False
+    trainer.fsdp_config = {}
+    trainer.optimizer_config = {"param_groups": {"lr": 1e-2, "split_params": False}}
+    trainer.analysis_manager = None
+    trainer.grad_clip_value = None
+    trainer.use_amp = False
+    trainer.loss_function = CrossEntropyLoss()
+    trainer.loss_fn = trainer.loss_function.from_predictions
+    trainer._class_logit_loss = True
+    trainer.seed = 13
+    trainer._loss_plotting = lambda *_args: None
+
+    inputs = torch.tensor([[1.0, 0.0], [0.0, 1.0], [2.0, 0.0], [0.0, 2.0]])
+    targets = torch.tensor([0, 1, 0, 1])
+    loader = DataLoader(TensorDataset(inputs, targets), batch_size=2)
+    model = CacheModel()
+    monkeypatch.setattr(
+        "dendritic_modeling.training.strategies.fsdp_standard.wrap_model_with_fsdp",
+        lambda wrapped_model, _config: wrapped_model,
+    )
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
+    monkeypatch.setattr(torch.distributed, "all_reduce", lambda *_args, **_kwargs: None)
+
+    results = trainer.train(model, loader, loader)
+
+    # Two train and two validation batches are cached once. Neither training
+    # epoch recomputes the frozen core.
+    assert model.core_calls == 4
+    assert len(results["train_losses"]) == 2
+    assert len(results["valid_losses"]) == 2
+    assert results["fsdp_setup_seconds"] >= 0.0
+    assert results["frozen_core_cache_seconds"] >= 0.0
+    assert len(results["epoch_times_seconds"]) == 2
+    assert results["training_loop_seconds"] >= sum(results["epoch_times_seconds"])
+    assert results["trainer_total_seconds"] >= results["training_loop_seconds"]
+
+
+def test_fsdp_best_valid_loss_tracks_history_without_early_stopping(
+    monkeypatch,
+    tmp_path,
+):
+    trainer = FSDPTrainer.__new__(FSDPTrainer)
+    trainer.device = torch.device("cpu")
+    trainer.rank = 0
+    trainer.epochs = 3
+    trainer.early_stopping = False
+    trainer.patience = 10
+    trainer.checkpointing = False
+    trainer.print_every = 1
+    trainer.save_every_n_epochs = None
+    trainer.save_path = str(tmp_path)
+    trainer.log_first_step_diagnostics = False
+    trainer.cache_frozen_core_outputs = False
+    trainer.cached_core_batch_size = None
+    trainer._use_precomputed_core = False
+    trainer.first_step_diagnostics = None
+    trainer._decoder_input_diagnostics = None
+    trainer.fsdp_config = {}
+    trainer.optimizer_config = {"param_groups": {"lr": 1e-3}}
+    trainer.analysis_manager = None
+    trainer._loss_plotting = lambda *_args: None
+    trainer._epoch_train_fsdp = lambda *_args: (0.5, 0.5)
+    validation_losses = iter((0.7, 0.4, 0.6))
+    trainer._epoch_valid_fsdp = lambda *_args: (next(validation_losses), 0.5)
+
+    model = nn.Linear(2, 2)
+    loader = DataLoader(TensorDataset(torch.ones(1, 2), torch.zeros(1)), batch_size=1)
+    monkeypatch.setattr(
+        "dendritic_modeling.training.strategies.fsdp_standard.wrap_model_with_fsdp",
+        lambda wrapped_model, _config: wrapped_model,
+    )
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
+
+    results = trainer.train(model, loader, loader)
+
+    assert results["valid_losses"] == [0.7, 0.4, 0.6]
+    assert results["best_valid_loss"] == 0.4
+    assert results["frozen_core_cache_seconds"] is None
+    assert len(results["epoch_times_seconds"]) == 3
+
+
+def test_fsdp_final_checkpoint_does_not_take_the_final_weights_name(
+    monkeypatch,
+    tmp_path,
+):
+    trainer = FSDPTrainer.__new__(FSDPTrainer)
+    trainer.device = torch.device("cpu")
+    trainer.rank = 0
+    trainer.epochs = 1
+    trainer.early_stopping = False
+    trainer.patience = 10
+    trainer.checkpointing = True
+    trainer.checkpoint_dir = str(tmp_path)
+    trainer.print_every = 1
+    trainer.save_every_n_epochs = None
+    trainer.save_path = str(tmp_path)
+    trainer.log_first_step_diagnostics = False
+    trainer.cache_frozen_core_outputs = False
+    trainer.cached_core_batch_size = None
+    trainer._use_precomputed_core = False
+    trainer.first_step_diagnostics = None
+    trainer._decoder_input_diagnostics = None
+    trainer.fsdp_config = {}
+    trainer.optimizer_config = {"param_groups": {"lr": 1e-3}}
+    trainer.analysis_manager = None
+    trainer._loss_plotting = lambda *_args: None
+    trainer._epoch_train_fsdp = lambda *_args: (0.5, 0.5)
+    trainer._epoch_valid_fsdp = lambda *_args: (0.4, 0.5)
+    saved = []
+    monkeypatch.setattr(
+        "dendritic_modeling.training.strategies.fsdp_standard.save_fsdp_checkpoint",
+        lambda _model, _optimizer, _epoch, path, **_kwargs: saved.append(path),
+    )
+    monkeypatch.setattr(
+        "dendritic_modeling.training.strategies.fsdp_standard.wrap_model_with_fsdp",
+        lambda wrapped_model, _config: wrapped_model,
+    )
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
+    loader = DataLoader(TensorDataset(torch.ones(1, 2), torch.zeros(1)), batch_size=1)
+
+    trainer.train(nn.Linear(2, 2), loader, loader)
+
+    # The entry point writes the plain weights to final_model.pt afterwards.
+    assert trainer.final_checkpoint_path == str(tmp_path / "final_checkpoint.pt")
+    assert str(tmp_path / "final_model.pt") not in saved
+    assert trainer.final_checkpoint_path in saved
 
 
 def test_create_fsdp_trainer_preserves_rank0_custom_kwargs(monkeypatch):
@@ -815,10 +1031,8 @@ def test_create_fsdp_trainer_preserves_rank0_custom_kwargs(monkeypatch):
     fsdp_config = object()
     optimizer_config = object()
     analysis_manager = object()
-    wandb_run = object()
-    train_common = SimpleNamespace(
+    train_common = CommonTrainerConfig(
         epochs=12,
-        save_every_n_epochs=3,
         loss_function="mse",
         grad_clip_value=1.5,
         use_amp=True,
@@ -826,8 +1040,21 @@ def test_create_fsdp_trainer_preserves_rank0_custom_kwargs(monkeypatch):
         patience=4,
         print_every=2,
         plot_losses=True,
+        log_first_step_diagnostics=True,
     )
-    config = SimpleNamespace(experiment=SimpleNamespace(seed="42"))
+    config = SimpleNamespace(
+        model=SimpleNamespace(task="regression"),
+        experiment=SimpleNamespace(
+            seed="42",
+            checkpointing={"enabled": True, "save_every_n_epochs": 3},
+        ),
+        distributed=SimpleNamespace(
+            fsdp=SimpleNamespace(
+                cache_frozen_core_outputs=True,
+                cached_core_batch_size=16,
+            )
+        ),
+    )
 
     monkeypatch.setattr(fsdp_script, "FSDPTrainer", FSDPTrainerStub)
 
@@ -839,7 +1066,6 @@ def test_create_fsdp_trainer_preserves_rank0_custom_kwargs(monkeypatch):
         train_common=train_common,
         optimizer_config=optimizer_config,
         analysis_manager=analysis_manager,
-        wandb_run=wandb_run,
         config=config,
     )
 
@@ -852,15 +1078,18 @@ def test_create_fsdp_trainer_preserves_rank0_custom_kwargs(monkeypatch):
         "save_every_n_epochs": 3,
         "optimizer_config": optimizer_config,
         "analysis_manager": analysis_manager,
-        "wandb_run": wandb_run,
         "epochs": 12,
         "loss_function": "mse",
+        "task": "regression",
         "grad_clip_value": 1.5,
         "use_amp": True,
         "early_stopping": True,
         "patience": 4,
         "print_every": 2,
-        "save_checkpoints": True,
+        "log_first_step_diagnostics": True,
+        "cache_frozen_core_outputs": True,
+        "cached_core_batch_size": 16,
+        "checkpointing": True,
         "plot_losses": True,
         "save_path": "/tmp/run",
         "seed": 42,
@@ -879,8 +1108,17 @@ def test_create_fsdp_trainer_preserves_non_rank0_defaults(monkeypatch):
 
     fsdp_config = object()
     optimizer_config = object()
-    train_common = SimpleNamespace(epochs=5)
-    config = SimpleNamespace(experiment=SimpleNamespace(seed=9))
+    train_common = CommonTrainerConfig(epochs=5)
+    config = SimpleNamespace(
+        model=SimpleNamespace(task="classification"),
+        experiment=SimpleNamespace(seed=9),
+        distributed=SimpleNamespace(
+            fsdp=SimpleNamespace(
+                cache_frozen_core_outputs=False,
+                cached_core_batch_size=None,
+            )
+        ),
+    )
 
     monkeypatch.setattr(fsdp_script, "FSDPTrainer", FSDPTrainerStub)
 
@@ -892,7 +1130,6 @@ def test_create_fsdp_trainer_preserves_non_rank0_defaults(monkeypatch):
         train_common=train_common,
         optimizer_config=optimizer_config,
         analysis_manager=None,
-        wandb_run=None,
         config=config,
     )
 
@@ -904,58 +1141,49 @@ def test_create_fsdp_trainer_preserves_non_rank0_defaults(monkeypatch):
         "save_every_n_epochs": None,
         "optimizer_config": optimizer_config,
         "analysis_manager": None,
-        "wandb_run": None,
         "epochs": 5,
-        "loss_function": "cat_nll",
-        "grad_clip_value": 5.0,
-        "use_amp": False,
-        "early_stopping": False,
-        "patience": 10,
-        "print_every": 1,
-        "save_checkpoints": True,
-        "plot_losses": False,
+        # The typed configuration's defaults, not separate ones.
+        "loss_function": field_default(CommonTrainerConfig, "loss_function"),
+        "task": "classification",
+        "grad_clip_value": field_default(CommonTrainerConfig, "grad_clip_value"),
+        "use_amp": field_default(CommonTrainerConfig, "use_amp"),
+        "early_stopping": field_default(CommonTrainerConfig, "early_stopping"),
+        "patience": field_default(CommonTrainerConfig, "patience"),
+        "print_every": field_default(CommonTrainerConfig, "print_every"),
+        "log_first_step_diagnostics": False,
+        "cache_frozen_core_outputs": False,
+        "cached_core_batch_size": None,
+        "checkpointing": False,
+        "plot_losses": field_default(CommonTrainerConfig, "plot_losses"),
         "save_path": None,
         "seed": 9,
     }
     assert calls == [trainer.kwargs]
 
 
-def test_setup_rank0_analysis_manager_wires_manager_and_calibration(monkeypatch):
-    """FSDP rank-0 analysis setup should preserve manager and calibration wiring."""
-    analysis_encoder = object()
-    original_encoder = object()
+def test_setup_rank0_analysis_manager_wires_manager(monkeypatch):
+    """The rank-0 analysis manager reads the run's datasets and model."""
+    encoder = object()
     encoded_train_ds = object()
     encoded_valid_ds = object()
     encoded_test_ds = object()
-    model = SimpleNamespace(encoder_network=original_encoder)
+    model = SimpleNamespace(encoder_network=encoder)
     config = SimpleNamespace(
         analysis=SimpleNamespace(
-            performance_analysis=SimpleNamespace(enabled=True, training=False)
+            performance=SimpleNamespace(enabled=True, training=False)
         )
     )
     manager_calls = []
-    calibration_calls = []
 
     class AnalysisManagerStub:
         def __init__(self, **kwargs):
             manager_calls.append(kwargs)
 
-    monkeypatch.setattr(
-        fsdp_script,
-        "_get_analysis_encoder_network",
-        lambda encoder_network: analysis_encoder,
-    )
     monkeypatch.setattr(fsdp_script, "AnalysisManager", AnalysisManagerStub)
-    monkeypatch.setattr(
-        fsdp_script,
-        "_maybe_calibrate_fsdp_data_driven_reactivation",
-        lambda **kwargs: calibration_calls.append(kwargs),
-    )
 
     analysis_manager = _setup_rank0_analysis_manager(
         config=config,
         model=model,
-        encoder_network=original_encoder,
         encoded_train_ds=encoded_train_ds,
         encoded_valid_ds=encoded_valid_ds,
         encoded_test_ds=encoded_test_ds,
@@ -964,7 +1192,7 @@ def test_setup_rank0_analysis_manager_wires_manager_and_calibration(monkeypatch)
     )
 
     assert isinstance(analysis_manager, AnalysisManagerStub)
-    assert model.encoder_network is analysis_encoder
+    assert model.encoder_network is encoder
     assert manager_calls == [
         {
             "model": model,
@@ -978,40 +1206,23 @@ def test_setup_rank0_analysis_manager_wires_manager_and_calibration(monkeypatch)
             "device": "cuda:3",
         }
     ]
-    assert calibration_calls == [
-        {
-            "config": config,
-            "model": model,
-            "train_dataset": encoded_train_ds,
-        }
-    ]
 
 
-def test_save_final_fsdp_checkpoint_and_run_analysis_rank0(monkeypatch):
-    """FSDP finalization should save a full checkpoint and run analysis on rank 0."""
-    fsdp_model = object()
-    optimizer = object()
-    config = object()
-    analysis_manager = object()
-    encoder_network = object()
-    trainer = SimpleNamespace(fsdp_model=fsdp_model, optimizer=optimizer, epochs=7)
-    mkdir_calls = []
-    checkpoint_calls = []
+@pytest.mark.parametrize("rank", [0, 1])
+def test_final_weights_are_saved_on_rank0_after_releasing_the_fsdp_model(
+    monkeypatch, tmp_path, rank
+):
+    """Every rank gathers; rank 0 saves final_model.pt and runs the analysis."""
+    state = {"weight": torch.ones(2)}
+    gathered = []
     analysis_calls = []
-
-    monkeypatch.setattr(
-        fsdp_script.os,
-        "makedirs",
-        lambda path, *, exist_ok: mkdir_calls.append(
-            {"path": path, "exist_ok": exist_ok}
-        ),
-    )
+    trainer = SimpleNamespace(fsdp_model=object(), optimizer=object())
+    trainer.release_model = lambda: setattr(trainer, "fsdp_model", None)
+    analysis_manager = SimpleNamespace(model=object())
     monkeypatch.setattr(
         fsdp_script,
-        "save_fsdp_checkpoint",
-        lambda *args, **kwargs: checkpoint_calls.append(
-            {"args": args, "kwargs": kwargs}
-        ),
+        "gather_full_state_dict",
+        lambda model: gathered.append(model) or (state if rank == 0 else {}),
     )
     monkeypatch.setattr(
         fsdp_script,
@@ -1019,119 +1230,33 @@ def test_save_final_fsdp_checkpoint_and_run_analysis_rank0(monkeypatch):
         lambda **kwargs: analysis_calls.append(kwargs),
     )
 
-    full_ckpt_path = _save_final_fsdp_checkpoint_and_run_analysis(
-        rank=0,
+    path = _save_final_model_and_run_analysis(
+        rank=rank,
         trainer=trainer,
-        run_save_path="/tmp/run",
-        config=config,
+        run_save_path=str(tmp_path),
+        config="config",
         analysis_manager=analysis_manager,
-        encoder_network=encoder_network,
-        local_rank=2,
+        local_rank=1,
     )
 
-    assert full_ckpt_path == "/tmp/run/checkpoints/final_full.pt"
-    assert mkdir_calls == [{"path": "/tmp/run/checkpoints", "exist_ok": True}]
-    assert checkpoint_calls == [
-        {
-            "args": (
-                fsdp_model,
-                optimizer,
-                6,
-                "/tmp/run/checkpoints/final_full.pt",
-            ),
-            "kwargs": {"rank": 0},
-        }
-    ]
-    assert analysis_calls == [
-        {
-            "config": config,
-            "analysis_manager": analysis_manager,
-            "full_ckpt_path": "/tmp/run/checkpoints/final_full.pt",
-            "encoder_network": encoder_network,
-            "local_rank": 2,
-        }
-    ]
-
-
-def test_save_final_fsdp_checkpoint_and_run_analysis_non_rank0(monkeypatch):
-    """FSDP finalization should only gather/save on nonzero ranks."""
-    fsdp_model = object()
-    optimizer = object()
-    analysis_manager = object()
-    trainer = SimpleNamespace(fsdp_model=fsdp_model, optimizer=optimizer, epochs=4)
-    mkdir_calls = []
-    checkpoint_calls = []
-    analysis_calls = []
-
-    monkeypatch.setattr(
-        fsdp_script.os,
-        "makedirs",
-        lambda path, *, exist_ok: mkdir_calls.append(
-            {"path": path, "exist_ok": exist_ok}
-        ),
-    )
-    monkeypatch.setattr(
-        fsdp_script,
-        "save_fsdp_checkpoint",
-        lambda *args, **kwargs: checkpoint_calls.append(
-            {"args": args, "kwargs": kwargs}
-        ),
-    )
-    monkeypatch.setattr(
-        fsdp_script,
-        "_run_final_analysis_on_plain_model",
-        lambda **kwargs: analysis_calls.append(kwargs),
-    )
-
-    full_ckpt_path = _save_final_fsdp_checkpoint_and_run_analysis(
-        rank=1,
-        trainer=trainer,
-        run_save_path=None,
-        config=object(),
-        analysis_manager=analysis_manager,
-        encoder_network=object(),
-        local_rank=0,
-    )
-
-    assert full_ckpt_path == "/tmp/checkpoints/final_full.pt"
-    assert mkdir_calls == []
-    assert checkpoint_calls == [
-        {
-            "args": (
-                fsdp_model,
-                optimizer,
-                3,
-                "/tmp/checkpoints/final_full.pt",
-            ),
-            "kwargs": {"rank": 1},
-        }
-    ]
-    assert analysis_calls == []
-
-
-def test_save_rank0_training_results_saves_only_on_rank0(monkeypatch):
-    """Training results should be persisted by rank 0 only."""
-    save_calls = []
-
-    monkeypatch.setattr(
-        fsdp_script,
-        "save_dict",
-        lambda *args: save_calls.append(args),
-    )
-
-    results = {"final_train_loss": 1.5, "final_valid_loss": 2.5}
-    _save_rank0_training_results(
-        rank=0,
-        results=results,
-        run_save_path="/tmp/run",
-    )
-    _save_rank0_training_results(
-        rank=1,
-        results={"final_train_loss": 99.0},
-        run_save_path="/tmp/other",
-    )
-
-    assert save_calls == [(results, "/tmp/run", "training_results.json")]
+    assert len(gathered) == 1
+    assert trainer.fsdp_model is None
+    assert analysis_manager.model is None
+    if rank == 0:
+        assert path == str(tmp_path / "final_model.pt")
+        torch.testing.assert_close(torch.load(path)["weight"], state["weight"])
+        assert analysis_calls == [
+            {
+                "config": "config",
+                "analysis_manager": analysis_manager,
+                "state_dict": state,
+                "local_rank": 1,
+            }
+        ]
+    else:
+        assert path == ""
+        assert not (tmp_path / "final_model.pt").exists()
+        assert analysis_calls == []
 
 
 class _PolicyLayer(nn.Module):
@@ -1176,36 +1301,32 @@ def test_requested_data_driven_reactivation_policies_ignores_missing_config_and_
     assert policies == set()
 
 
-def test_maybe_calibrate_fsdp_data_driven_reactivation_calls_single_gpu_helper(
-    monkeypatch,
-):
-    """FSDP helper should delegate calibration with the same public contract."""
-    from dendritic_modeling.scripts.training import train_experiments
-
-    config = SimpleNamespace(
+def _calibration_config(init_policy, *, sync_module_states=True):
+    return SimpleNamespace(
         model=SimpleNamespace(
-            core=SimpleNamespace(reactivation=SimpleNamespace(init_policy="empirical"))
-        )
+            core=SimpleNamespace(reactivation=SimpleNamespace(init_policy=init_policy))
+        ),
+        distributed=SimpleNamespace(
+            fsdp=SimpleNamespace(sync_module_states=sync_module_states)
+        ),
     )
+
+
+def test_fsdp_calibration_runs_on_rank_zero_without_analysis(monkeypatch):
+    """FSDP calibrates data-driven gates before wrapping, on rank 0."""
+    config = _calibration_config("empirical")
     model = _PolicyModel()
     train_dataset = object()
     calls = []
-
-    def fake_calibrate(**kwargs):
-        calls.append(kwargs)
-
     monkeypatch.setattr(
-        train_experiments,
+        fsdp_script,
         "_maybe_calibrate_data_driven_reactivation",
-        fake_calibrate,
+        lambda **kwargs: calls.append(kwargs),
     )
 
-    _maybe_calibrate_fsdp_data_driven_reactivation(
-        config=config,
-        model=model,
-        train_dataset=train_dataset,
-    )
-
+    _calibrate_fsdp_reactivation(config, model, train_dataset, rank=1)
+    assert calls == []
+    _calibrate_fsdp_reactivation(config, model, train_dataset, rank=0)
     assert calls == [
         {
             "config": config,
@@ -1216,31 +1337,29 @@ def test_maybe_calibrate_fsdp_data_driven_reactivation_calls_single_gpu_helper(
     ]
 
 
-def test_maybe_calibrate_fsdp_data_driven_reactivation_skips_when_not_requested(
-    monkeypatch,
-):
-    """FSDP helper should not import/delegate calibration for fixed policies."""
-    from dendritic_modeling.scripts.training import train_experiments
-
-    config = SimpleNamespace(
-        model=SimpleNamespace(
-            core=SimpleNamespace(reactivation=SimpleNamespace(init_policy="fixed"))
+def test_fsdp_calibration_needs_synchronized_module_states():
+    with pytest.raises(ValueError, match="sync_module_states"):
+        _calibrate_fsdp_reactivation(
+            _calibration_config("empirical", sync_module_states=False),
+            _PolicyModel(),
+            object(),
+            rank=0,
         )
-    )
-    calls = []
 
+
+def test_fsdp_calibration_skips_fixed_policies(monkeypatch):
+    calls = []
     monkeypatch.setattr(
-        train_experiments,
+        fsdp_script,
         "_maybe_calibrate_data_driven_reactivation",
         lambda **kwargs: calls.append(kwargs),
     )
-
-    _maybe_calibrate_fsdp_data_driven_reactivation(
-        config=config,
-        model=_PolicyModel("analytical"),
-        train_dataset=object(),
+    _calibrate_fsdp_reactivation(
+        _calibration_config("fixed", sync_module_states=False),
+        _PolicyModel("analytical"),
+        object(),
+        rank=0,
     )
-
     assert calls == []
 
 
@@ -1266,8 +1385,8 @@ class MockExcitationInhibitionLayer(nn.Module):
         return x
 
 
-class TestCreateFSDPWrapPolicy:
-    """Test create_fsdp_wrap_policy function."""
+class TestFSDPModulePredicates:
+    """Which modules gradient checkpointing treats as dendritic or large."""
 
     def test_fsdp_dendritic_module_predicate_preserves_isinstance_rule(self):
         from dendritic_modeling.networks.architectures.excitation_inhibition import (
@@ -1284,64 +1403,6 @@ class TestCreateFSDPWrapPolicy:
         assert not _is_large_linear_checkpoint_candidate(nn.Linear(1000, 2))
         assert _is_large_linear_checkpoint_candidate(nn.Linear(1001, 2))
         assert not _is_large_linear_checkpoint_candidate(nn.ReLU())
-
-    def test_wrap_policy_basic(self):
-        """Test basic wrap policy creation."""
-        policy = create_fsdp_wrap_policy(min_num_params=1000)
-
-        assert callable(policy)
-
-    def test_wrap_policy_dendritic_layers(self):
-        """Test policy wraps dendritic layers."""
-        policy = create_fsdp_wrap_policy(min_num_params=1000)
-
-        # Mock dendritic layer - test shows isinstance check behavior
-        dendritic_layer = MockDendriticBranchLayer()
-        result = policy(
-            dendritic_layer, None, 500
-        )  # Below threshold, not actual DendriticBranchLayer
-        assert result is False  # Mock doesn't inherit from actual class
-
-        # Test with enough parameters to trigger wrapping
-        large_layer = nn.Linear(100, 100)  # >10k parameters
-        result = policy(large_layer, None, 20000)
-        assert result is True
-
-    def test_wrap_policy_parameter_threshold(self):
-        """Test policy wraps based on parameter count."""
-        policy = create_fsdp_wrap_policy(min_num_params=1000)
-
-        # Regular module above threshold should be wrapped
-        regular_module = nn.Linear(100, 100)  # ~10k params
-        result = policy(regular_module, None, 2000)
-        assert result is True
-
-        # Regular module below threshold should not be wrapped
-        result = policy(regular_module, None, 500)
-        assert result is False
-
-    def test_wrap_policy_recurse_true(self):
-        """Test policy behavior - recurse parameter not used in logic."""
-        policy = create_fsdp_wrap_policy(min_num_params=1000)
-
-        regular_module = nn.Linear(10, 10)
-        result = policy(regular_module, True, 500)  # Below threshold
-        assert (
-            result is False
-        )  # Policy doesn't use recurse parameter, only checks param count
-
-    def test_wrap_policy_different_thresholds(self):
-        """Test policy with different parameter thresholds."""
-        # High threshold
-        policy_high = create_fsdp_wrap_policy(min_num_params=10000)
-        regular_module = nn.Linear(50, 50)  # ~2.5k params
-        result = policy_high(regular_module, None, 2500)
-        assert result is False
-
-        # Low threshold
-        policy_low = create_fsdp_wrap_policy(min_num_params=100)
-        result = policy_low(regular_module, None, 2500)
-        assert result is True
 
 
 class TestGetFSDPConfig:
@@ -1363,9 +1424,52 @@ class TestGetFSDPConfig:
         assert config["mixed_precision"].reduce_dtype is torch.float32
         assert config["mixed_precision"].buffer_dtype is torch.bfloat16
 
-    @pytest.mark.skipif(
-        not torch.cuda.is_available(), reason="CUDA not available - FSDP requires GPU"
-    )
+    @patch("torch.cuda.current_device", return_value=0)
+    def test_get_fsdp_config_indexes_synapses_with_narrow_wrap_policy(
+        self, _mock_current_device
+    ):
+        config = get_fsdp_config(
+            fsdp_config_dict={"auto_wrap_policy": "indexed_synapses"}
+        )
+
+        policy = config["auto_wrap_policy"]
+        assert policy._module_classes == {
+            IndexedSparseLinear,
+            IndexedDynamicTopKLinear,
+        }
+
+    @patch("torch.cuda.current_device", return_value=0)
+    def test_get_fsdp_config_defaults_to_bf16_and_explicit_prefetch(
+        self, _mock_current_device
+    ):
+        config = get_fsdp_config()
+        assert config["mixed_precision"].param_dtype is torch.bfloat16
+        assert config["limit_all_gathers"] is True
+        assert config["forward_prefetch"] is True
+        config = get_fsdp_config(
+            fsdp_config_dict={"limit_all_gathers": False, "forward_prefetch": False}
+        )
+        assert config["limit_all_gathers"] is False
+        assert config["forward_prefetch"] is False
+
+    @patch("torch.cuda.current_device", return_value=0)
+    def test_get_fsdp_config_size_policy_reads_min_num_params(
+        self, _mock_current_device
+    ):
+        policy = get_fsdp_config(
+            fsdp_config_dict={"auto_wrap_policy": "size", "min_num_params": 50}
+        )["auto_wrap_policy"]
+        assert policy(nn.Linear(10, 10), recurse=False, nonwrapped_numel=110)
+        assert not policy(nn.Linear(2, 2), recurse=False, nonwrapped_numel=6)
+
+    @patch("torch.cuda.current_device", return_value=0)
+    def test_get_fsdp_config_rejects_unknown_auto_wrap_policy(
+        self, _mock_current_device
+    ):
+        with pytest.raises(ValueError, match="auto_wrap_policy"):
+            get_fsdp_config(fsdp_config_dict={"auto_wrap_policy": "size_based_huge"})
+
+    @pytest.mark.requires_gpu
     def test_get_fsdp_config_defaults(self):
         """Test get_fsdp_config with default parameters."""
         config = get_fsdp_config()
@@ -1377,39 +1481,7 @@ class TestGetFSDPConfig:
         assert "sharding_strategy" in config
         assert "sync_module_states" in config
 
-    @pytest.mark.skipif(
-        not torch.cuda.is_available(), reason="CUDA not available - FSDP requires GPU"
-    )
-    def test_get_fsdp_config_small_model(self):
-        """Test FSDP config for small model."""
-        config = get_fsdp_config(model_size="small")
-
-        # Auto-wrapping is disabled to fix parameter corruption, so policy should be None
-        assert config["auto_wrap_policy"] is None
-
-    @pytest.mark.skipif(
-        not torch.cuda.is_available(), reason="CUDA not available - FSDP requires GPU"
-    )
-    def test_get_fsdp_config_large_model(self):
-        """Test FSDP config for large model."""
-        config = get_fsdp_config(model_size="large")
-
-        # Auto-wrapping is disabled to fix parameter corruption, so policy should be None
-        assert config["auto_wrap_policy"] is None
-
-    @pytest.mark.skipif(
-        not torch.cuda.is_available(), reason="CUDA not available - FSDP requires GPU"
-    )
-    def test_get_fsdp_config_xlarge_model(self):
-        """Test FSDP config for extra large model."""
-        config = get_fsdp_config(model_size="xlarge")
-
-        # Auto-wrapping is disabled to fix parameter corruption, so policy should be None
-        assert config["auto_wrap_policy"] is None
-
-    @pytest.mark.skipif(
-        not torch.cuda.is_available(), reason="CUDA not available - FSDP requires GPU"
-    )
+    @pytest.mark.requires_gpu
     def test_get_fsdp_config_mixed_precision(self):
         """Test FSDP config with mixed precision."""
         config = get_fsdp_config(mixed_precision=True)
@@ -1419,9 +1491,7 @@ class TestGetFSDPConfig:
         config_no_mp = get_fsdp_config(mixed_precision=False)
         assert config_no_mp["mixed_precision"] is None
 
-    @pytest.mark.skipif(
-        not torch.cuda.is_available(), reason="CUDA not available - FSDP requires GPU"
-    )
+    @pytest.mark.requires_gpu
     def test_get_fsdp_config_cpu_offload(self):
         """Test FSDP config with CPU offload."""
         config = get_fsdp_config(cpu_offload=True)
@@ -1431,9 +1501,7 @@ class TestGetFSDPConfig:
         config_no_offload = get_fsdp_config(cpu_offload=False)
         assert config_no_offload["cpu_offload"] is None
 
-    @pytest.mark.skipif(
-        not torch.cuda.is_available(), reason="CUDA not available - FSDP requires GPU"
-    )
+    @pytest.mark.requires_gpu
     def test_get_fsdp_config_sharding_strategies(self):
         """Test different sharding strategies."""
         strategies = ["FULL_SHARD", "SHARD_GRAD_OP", "NO_SHARD", "HYBRID_SHARD"]
@@ -1442,16 +1510,13 @@ class TestGetFSDPConfig:
             config = get_fsdp_config(sharding_strategy=strategy)
             assert config["sharding_strategy"] is not None
 
-    @pytest.mark.skipif(
-        not torch.cuda.is_available(), reason="CUDA not available - FSDP requires GPU"
-    )
+    @pytest.mark.requires_gpu
     def test_get_fsdp_config_with_dict_override(self):
         """Test FSDP config with dictionary override."""
         override_dict = {
             "mixed_precision": False,
             "cpu_offload": True,
             "sharding_strategy": "NO_SHARD",
-            "min_num_params": 5000,
             "sync_module_states": False,
         }
 
@@ -1462,20 +1527,7 @@ class TestGetFSDPConfig:
         assert config["sync_module_states"] is False
         assert config["mixed_precision"] is None  # False from override
 
-    @pytest.mark.skipif(
-        not torch.cuda.is_available(), reason="CUDA not available - FSDP requires GPU"
-    )
-    def test_get_fsdp_config_communication_overhead(self):
-        """Test communication overhead optimization."""
-        with patch("dendritic_modeling.training.fsdp_utils.logger") as mock_logger:
-            get_fsdp_config(reduce_communication_overhead=True)
-
-            # Should log optimization info
-            mock_logger.info.assert_called_once()
-
-    @pytest.mark.skipif(
-        not torch.cuda.is_available(), reason="CUDA not available - FSDP requires GPU"
-    )
+    @pytest.mark.requires_gpu
     def test_get_fsdp_config_backward_prefetch_mapping(self):
         """Test backward prefetch strategy mapping."""
         config = get_fsdp_config()
@@ -1496,7 +1548,7 @@ class TestWrapModelWithFSDP:
     def mock_fsdp_config(self):
         """Create mock FSDP config."""
         return {
-            "auto_wrap_policy": create_fsdp_wrap_policy(),
+            "auto_wrap_policy": None,
             "mixed_precision": None,
             "cpu_offload": None,
             "sharding_strategy": "FULL_SHARD",
@@ -1508,10 +1560,11 @@ class TestWrapModelWithFSDP:
             "gradient_checkpointing": False,
         }
 
+    @patch("torch.distributed.get_world_size", return_value=1)
     @patch("torch.distributed.is_initialized")
     @patch("dendritic_modeling.training.fsdp_utils.FullyShardedDataParallel")
     def test_wrap_model_basic(
-        self, mock_fsdp, mock_dist_init, simple_model, mock_fsdp_config
+        self, mock_fsdp, mock_dist_init, _world_size, simple_model, mock_fsdp_config
     ):
         """Test basic model wrapping with FSDP."""
         mock_dist_init.return_value = True
@@ -1539,13 +1592,12 @@ class TestWrapModelWithFSDP:
         ):
             wrap_model_with_fsdp(simple_model, mock_fsdp_config)
 
+    @patch("torch.distributed.get_world_size", return_value=1)
     @patch("torch.distributed.is_initialized")
-    @pytest.mark.skipif(
-        not torch.cuda.is_available(), reason="CUDA not available - FSDP requires GPU"
-    )
+    @pytest.mark.requires_gpu
     @patch("dendritic_modeling.training.fsdp_utils.FullyShardedDataParallel")
     def test_wrap_model_with_gradient_checkpointing(
-        self, mock_fsdp, mock_dist_init, simple_model
+        self, mock_fsdp, mock_dist_init, _world_size, simple_model
     ):
         """Test model wrapping with gradient checkpointing."""
         mock_dist_init.return_value = True
@@ -1626,6 +1678,65 @@ class TestApplyGradientCheckpointing:
         assert torch.isfinite(x.grad).all()
         assert torch.isfinite(layer.weight.grad).all()
 
+    def test_recurrent_ei_checkpoint_preserves_forward_and_gradients(self):
+        """Checkpoint the recurrent layer that owns raw-current computation."""
+        params = {
+            "unified_ei": {
+                "output_mode": "last",
+                "layers": [
+                    {
+                        "excitatory": {
+                            "n_neurons": 6,
+                            "branch_factors": [1],
+                            "ff_excitatory_synapses": 3,
+                            "rec_excitatory_synapses": 2,
+                            "use_noise": False,
+                        },
+                        "inhibitory": None,
+                        "recurrent": True,
+                    }
+                ],
+            }
+        }
+        torch.manual_seed(12)
+        baseline = get_architecture("ei_unified", params, input_dim=4)
+        checkpointed = get_architecture("ei_unified", params, input_dim=4)
+        checkpointed.load_state_dict(baseline.state_dict())
+        _apply_gradient_checkpointing(checkpointed)
+
+        assert checkpointed.forward.__func__.__name__ == "checkpointed_forward"
+        assert (
+            checkpointed.layers[0].forward.__func__.__name__ != "checkpointed_forward"
+        )
+        assert (
+            checkpointed.layers[0]
+            .e_population.branch_layers[0]
+            .forward.__func__.__name__
+            != "checkpointed_forward"
+        )
+
+        x_baseline = torch.randn(2, 3, 4, requires_grad=True)
+        x_checkpointed = x_baseline.detach().clone().requires_grad_(True)
+        y_baseline = baseline(x_baseline)
+        y_checkpointed = checkpointed(x_checkpointed)
+        torch.testing.assert_close(y_checkpointed, y_baseline)
+
+        y_baseline.square().sum().backward()
+        y_checkpointed.square().sum().backward()
+        torch.testing.assert_close(x_checkpointed.grad, x_baseline.grad)
+        for baseline_param, checkpointed_param in zip(
+            baseline.parameters(),
+            checkpointed.parameters(),
+            strict=True,
+        ):
+            if baseline_param.grad is None:
+                assert checkpointed_param.grad is None
+            else:
+                torch.testing.assert_close(
+                    checkpointed_param.grad,
+                    baseline_param.grad,
+                )
+
     def test_apply_gradient_checkpointing_selects_targets_in_module_order(
         self, monkeypatch
     ):
@@ -1661,117 +1772,6 @@ class TestApplyGradientCheckpointing:
         # The function only logs for dendritic layers or large linear layers
         # Test passes if no exception is raised
         _apply_gradient_checkpointing(model)
-
-
-@pytest.mark.skip(reason="FSDP checkpointing requires complex PyTorch FSDP setup")
-class TestFSDPCheckpointing:
-    """Test FSDP checkpoint save/load functions."""
-
-    @pytest.fixture
-    def mock_fsdp_model(self):
-        """Create mock FSDP model."""
-        # Use a real PyTorch model to avoid deep FSDP mocking issues
-        return nn.Linear(3, 2)
-
-    @pytest.fixture
-    def mock_optimizer(self):
-        """Create mock optimizer."""
-        optimizer = Mock()
-        optimizer.state_dict.return_value = {"lr": 0.001}
-        return optimizer
-
-    def test_save_fsdp_checkpoint(self, mock_fsdp_model, mock_optimizer):
-        """Test saving FSDP checkpoint."""
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            checkpoint_path = os.path.join(tmp_dir, "checkpoint.pt")
-
-            with patch("torch.save") as mock_save:
-                save_fsdp_checkpoint(
-                    mock_fsdp_model,
-                    mock_optimizer,
-                    epoch=10,
-                    save_path=checkpoint_path,
-                )
-
-        mock_save.assert_called_once()
-        saved_data = mock_save.call_args[0][0]
-        assert "model_state_dict" in saved_data
-        assert "optimizer_state_dict" in saved_data
-        assert "epoch" in saved_data
-        assert saved_data["epoch"] == 10
-
-    def test_save_fsdp_checkpoint_with_metadata(self, mock_fsdp_model, mock_optimizer):
-        """Test saving checkpoint with additional metadata."""
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            checkpoint_path = os.path.join(tmp_dir, "checkpoint.pt")
-
-            with patch("torch.save") as mock_save:
-                save_fsdp_checkpoint(
-                    mock_fsdp_model,
-                    mock_optimizer,
-                    epoch=5,
-                    save_path=checkpoint_path,
-                )
-
-        mock_save.assert_called_once()
-        saved_data = mock_save.call_args[0][0]
-        assert "model_state_dict" in saved_data
-        assert "optimizer_state_dict" in saved_data
-        assert "epoch" in saved_data
-        assert saved_data["epoch"] == 5
-
-    def test_load_fsdp_checkpoint(self, mock_fsdp_model, mock_optimizer):
-        """Test loading FSDP checkpoint."""
-        checkpoint_data = {
-            "model_state_dict": {"weight": torch.randn(5, 5)},
-            "optimizer_state_dict": {"lr": 0.001},
-            "epoch": 15,
-            "loss": 0.25,
-        }
-
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            checkpoint_path = os.path.join(tmp_dir, "checkpoint.pt")
-
-            with patch("torch.load", return_value=checkpoint_data) as mock_load:
-                loaded_data = load_fsdp_checkpoint(
-                    mock_fsdp_model, mock_optimizer, checkpoint_path
-                )
-
-                mock_load.assert_called_once_with(checkpoint_path, map_location="cpu")
-                mock_fsdp_model.load_state_dict.assert_called_once()
-                mock_optimizer.load_state_dict.assert_called_once()
-
-                assert loaded_data["epoch"] == 15
-                assert loaded_data["loss"] == 0.25
-
-    def test_load_fsdp_checkpoint_model_only(self, mock_fsdp_model):
-        """Test loading checkpoint with model only."""
-        checkpoint_data = {
-            "model_state_dict": {"weight": torch.randn(5, 5)},
-            "epoch": 20,
-        }
-
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            checkpoint_path = os.path.join(tmp_dir, "checkpoint.pt")
-
-            with patch("torch.load", return_value=checkpoint_data):
-                loaded_data = load_fsdp_checkpoint(
-                    mock_fsdp_model,
-                    None,
-                    checkpoint_path,  # No optimizer
-                )
-
-                mock_fsdp_model.load_state_dict.assert_called_once()
-                assert loaded_data["epoch"] == 20
-
-    def test_load_fsdp_checkpoint_nonexistent_file(
-        self, mock_fsdp_model, mock_optimizer
-    ):
-        """Test loading checkpoint from nonexistent file."""
-        with pytest.raises(FileNotFoundError):
-            load_fsdp_checkpoint(
-                mock_fsdp_model, mock_optimizer, "/nonexistent/checkpoint.pt"
-            )
 
 
 class TestMemoryEstimation:
@@ -1885,18 +1885,9 @@ class TestMemoryEstimation:
 class TestFSDPUtilsEdgeCases:
     """Test edge cases for FSDP utilities."""
 
-    def test_wrap_policy_with_none_values(self):
-        """Test wrap policy with None values."""
-        policy = create_fsdp_wrap_policy()
-
-        # Should handle None module gracefully
-        result = policy(None, None, 1000)
-        assert result is False
-
     def test_get_fsdp_config_invalid_strategy(self):
-        """Test FSDP config with invalid sharding strategy."""
-        # Should raise KeyError for invalid strategy
-        with pytest.raises(KeyError, match="INVALID_STRATEGY"):
+        """An unknown sharding strategy raises naming the valid ones."""
+        with pytest.raises(ValueError, match="INVALID_STRATEGY"):
             get_fsdp_config(sharding_strategy="INVALID_STRATEGY")
 
     def test_memory_estimation_edge_cases(self):
@@ -1917,11 +1908,6 @@ class TestFSDPUtilsEdgeCases:
         )
         assert isinstance(memory, dict)
 
-    def test_checkpoint_save_directory_creation(self):
-        """Test that checkpoint save creates directory if needed."""
-        # This test requires complex FSDP setup, skip it for now
-        pytest.skip("FSDP checkpoint save requires complex PyTorch FSDP setup")
-
     def test_estimate_memory_with_all_optimizations(self):
         """Test memory estimation with all memory optimizations enabled."""
         memory = estimate_memory_requirements(
@@ -1934,3 +1920,35 @@ class TestFSDPUtilsEdgeCases:
         # Should return memory breakdown
         assert isinstance(memory, dict)
         assert len(memory) > 0
+
+
+def test_checkpoint_saving_gathers_optimizer_state_on_rank_zero_only(
+    monkeypatch, tmp_path
+):
+    from contextlib import contextmanager
+
+    from dendritic_modeling.training import fsdp_utils
+
+    contexts = []
+
+    class _FSDP:
+        @staticmethod
+        @contextmanager
+        def state_dict_type(module, kind, model_config, optim_config):
+            contexts.append((model_config, optim_config))
+            yield
+
+        @staticmethod
+        def optim_state_dict(module, optimizer):
+            raise RuntimeError("gather failed")
+
+    model = nn.Linear(2, 2)
+    monkeypatch.setattr(fsdp_utils, "FullyShardedDataParallel", _FSDP)
+    with pytest.raises(RuntimeError, match="gather failed"):
+        fsdp_utils.save_fsdp_checkpoint(
+            model, torch.optim.Adam(model.parameters()), 1, str(tmp_path / "c.pt")
+        )
+    ((model_config, optim_config),) = contexts
+    assert model_config.rank0_only and optim_config.rank0_only
+    assert optim_config.offload_to_cpu
+    assert not (tmp_path / "c.pt").exists()  # no rank-local fallback was written

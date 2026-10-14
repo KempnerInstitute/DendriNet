@@ -53,7 +53,7 @@
   <text class="head" x="92" y="204">Load YAML</text>
   <text class="body" x="92" y="228">OmegaConf + dataclasses</text>
   <rect class="box" x="304" y="176" width="222" height="72" fill="url(#cfg)" stroke="#77a3c4"/>
-  <text class="head" x="326" y="204">Resolve Contract</text>
+  <text class="head" x="326" y="204">Resolve config</text>
   <text class="body" x="326" y="228">aliases, typed defaults, seeds</text>
   <rect class="box" x="572" y="164" width="226" height="96" fill="url(#cfg)" stroke="#77a3c4"/>
   <text class="head" x="594" y="194">Build Model</text>
@@ -125,8 +125,8 @@
   <text class="body" x="932" y="754">metrics, JSON, figures</text>
   <rect class="box" x="1174" y="676" width="140" height="112" fill="url(#artifact)" stroke="#c69742"/>
   <text class="head" x="1198" y="706">Compare</text>
-  <text class="body" x="1198" y="732">branch parity</text>
-  <text class="body" x="1198" y="754">numerical drift</text>
+  <text class="body" x="1198" y="732">paired seeds</text>
+  <text class="body" x="1198" y="754">checkpoint summaries</text>
   <path class="arrow" d="M312,732 L356,732"/>
   <path class="softArrow" d="M596,732 L640,732"/>
   <path class="arrow" d="M864,732 L908,732"/>

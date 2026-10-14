@@ -2,25 +2,84 @@
 
 from __future__ import annotations
 
+import logging
 from math import log
+from numbers import Integral
+from typing import ClassVar
 
 import torch
 import torch.nn as nn
 
+from dendritic_modeling.config.sparse_backends import ACCELERATOR_INDEXED_BACKENDS
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.indexed_common import (
-    _allowed_mask_with_forbidden,
     _connection_generator,
+    _dispatch_indexed_sparse_projection,
+    _resolve_index_dtype,
     _sample_indices_from_mask,
     _scale_for_sparse_target,
+    _validate_forbidden_indices,
+    _workspace_limited_chunk_size,
+    check_topology_fingerprint,
+    contiguous_block_layout,
+    register_topology_fingerprint,
+    sample_structured_indices,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.kernels import (
+    normalize_indexed_projection_options,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.structured_mask import (
+    validate_connection_mask,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
     TOPK_INIT_METHODS,
 )
+from dendritic_modeling.networks.state_versions import (
+    file_predates,
+    record_legacy_state,
+)
+from dendritic_modeling.networks.utils.sparse_maintenance import maintenance_applies
 from dendritic_modeling.networks.utils.weight_transforms import (
     WeightTransformType,
     apply_weight_transform,
     inverse_softplus,
 )
+
+logger = logging.getLogger(__name__)
+
+# Frozen wide layers can otherwise gather tens of GiB in one projection. This
+# is a per-tile budget, not a bound on total device memory: selected
+# activations, their product, and transformed weights can coexist.
+_DEFAULT_FROZEN_WORKSPACE_MB = 256.0
+
+
+def _workspace_limited_row_chunk_size(
+    *,
+    flattened_batch_size: int,
+    output_chunk_size: int,
+    workspace_mb: float | None,
+    synapses_per_output: int,
+    element_size: int,
+) -> int:
+    """Cap gathered batch rows so the workspace fits the same byte budget.
+
+    ``_workspace_limited_chunk_size`` shrinks the output chunk assuming the
+    full flattened batch is gathered per chunk, but its ``max(1, ...)`` floor
+    means that once a single output column exceeds the budget the workspace is
+    still ``flat_rows * K * element_size`` bytes — unbounded in the batch.
+    This companion cap bounds the other axis: with the output chunk fixed, it
+    limits how many batch rows are gathered per tile so that
+    ``row_chunk * output_chunk * K * element_size`` respects the budget.
+    When no budget is set, or the whole flattened batch already fits it, this
+    returns the full batch (a single row chunk).
+    """
+    rows = max(1, int(flattened_batch_size))
+    if workspace_mb is None or flattened_batch_size <= 0:
+        return rows
+    bytes_per_row = (
+        int(output_chunk_size) * int(synapses_per_output) * int(element_size)
+    )
+    budget_bytes = int(float(workspace_mb) * 1024 * 1024)
+    return min(rows, max(1, budget_bytes // max(1, bytes_per_row)))
 
 
 class IndexedSparseLinear(nn.Module):
@@ -37,6 +96,29 @@ class IndexedSparseLinear(nn.Module):
     no dense trainable matrix.  The morphology/topology is fixed at
     construction time; only the synaptic weights are learned.
     """
+
+    # Contact semantics read by the compact bitmask encoding
+    # (deployment.compression.bitmask_slot_order_keys). CONTACT_SLOT_STATE
+    # names the state tensors with one entry per stored contact, aligned with
+    # the slots of ``connection_indices``. SLOT_ORDER_MATTERS states whether a
+    # training update depends on the slot order (tie-breaks or random draws by
+    # slot position). Only a class that sets SLOT_ORDER_MATTERS = False in its
+    # own body, with ``pre_w`` as its only per-contact tensor, may have its
+    # contacts reordered; subclasses keep their slot order unless they declare
+    # otherwise.
+    CONTACT_SLOT_STATE: ClassVar[tuple[str, ...]] = ("pre_w",)
+    SLOT_ORDER_MATTERS: ClassVar[bool] = False
+
+    # Subclasses whose topology changes during training resample contacts
+    # from the allowed-connection mask, so they checkpoint it; a fixed layer
+    # only needs its (checkpointed) indices.
+    _persist_allowed_connection_mask: bool = False
+    # Version 2 (2026-10-09) marks files whose rewiring subclasses persist the
+    # allowed-connection mask; older files keep the constructed mask.
+    _version = 2
+    _STATE_KEYS_ADDED: ClassVar[dict[int, tuple[str, ...]]] = {
+        2: ("_allowed_connection_mask",)
+    }
 
     def __init__(
         self,
@@ -55,12 +137,27 @@ class IndexedSparseLinear(nn.Module):
         forbidden_input_index_per_output: torch.Tensor | None = None,
         seed: int | None = None,
         output_chunk_size: int = 2048,
+        index_dtype: str | torch.dtype = "int64",
+        workspace_mb: float | None = None,
+        cache_transformed_weights: bool = False,
+        recompute_backward: bool = False,
+        projection_backend: str = "eager",
+        persistent_indices: bool = True,
+        init_mode: str = "per_rank",
+        support_group_rows: int = 1,
+        support_col_block: int = 1,
         **_: object,
     ):
         super().__init__()
+        # Hardware-structured support (row-group sharing / column blocks).
+        # Defaults of 1/1 preserve the historical unstructured sampler and
+        # its exact generator stream.
+        self.support_group_rows = int(support_group_rows)
+        self.support_col_block = int(support_col_block)
 
-        if not isinstance(K, int):
-            K = int(K)
+        if isinstance(K, bool) or not isinstance(K, Integral):
+            raise TypeError("K must be an integer")
+        K = int(K)
         if K < 1:
             raise ValueError("K must be >= 1")
         if K > in_features:
@@ -68,8 +165,23 @@ class IndexedSparseLinear(nn.Module):
                 f"K must be <= number of input features. "
                 f"(K={K}, in_features={in_features})"
             )
+        if isinstance(output_chunk_size, bool) or not isinstance(
+            output_chunk_size, Integral
+        ):
+            raise TypeError("output_chunk_size must be an integer")
+        output_chunk_size = int(output_chunk_size)
         if output_chunk_size < 1:
             raise ValueError("output_chunk_size must be >= 1")
+        if workspace_mb is not None and float(workspace_mb) <= 0:
+            raise ValueError("workspace_mb must be > 0 when provided")
+        init_mode = str(init_mode).strip().lower()
+        if init_mode not in {"per_rank", "rank0_broadcast"}:
+            raise ValueError("init_mode must be 'per_rank' or 'rank0_broadcast'")
+        if not persistent_indices and connection_indices is None and seed is None:
+            raise ValueError(
+                "persistent_indices=False requires an explicit seed so the "
+                "topology can be regenerated when loading a checkpoint"
+            )
 
         self.in_features = int(in_features)
         self.out_features = int(out_features)
@@ -81,30 +193,111 @@ class IndexedSparseLinear(nn.Module):
         self.weight_norm_order = weight_norm_order
         self.gamma = float(gamma)
         self.output_chunk_size = int(output_chunk_size)
+        self.workspace_mb = None if workspace_mb is None else float(workspace_mb)
+        self.index_dtype = _resolve_index_dtype(
+            index_dtype,
+            in_features=self.in_features,
+        )
+        self.cache_transformed_weights = bool(cache_transformed_weights)
+        normalized_backend = normalize_indexed_projection_options(
+            projection_backend,
+            recompute_backward=bool(recompute_backward),
+        )
+        self.projection_backend = normalized_backend
+        # Retained as a compatibility attribute for code that predates the
+        # single backend selector.
+        self.recompute_backward = normalized_backend == "recompute"
+        self._last_resolved_projection_backend: str | None = None
+        self._last_projection_device: torch.device | None = None
+        # the request that produced the cached resolution; changing projection_backend
+        # after a forward must re-resolve instead of reusing the old kernel
+        self._last_requested_projection_backend: str | None = None
+        # (device, data_ptr, version) of the indices -> ContiguousBlockLayout,
+        # for projection_backend="contiguous_blocks"; never serialized.
+        self._contiguous_block_layout_cache = None
+        self.persistent_indices = bool(persistent_indices)
+        self.init_mode = init_mode
         self.input_scale_vec = None
         self.param_scale_vec = None
+        self._use_forward_dynamic_grad_scaling = False
         self.cache_mask = False
         self._last_forward_weight_mask: torch.Tensor | None = None
         self._last_forward_param_tensor: torch.Tensor | None = None
+        self._recurrent_weight_cache_enabled = False
+        self._recurrent_cached_weight: torch.Tensor | None = None
+        # Inference-frozen fold of the transformed weights. Non-persistent so
+        # checkpoints keep only the raw ``pre_w`` parameterization; rebuilt on
+        # demand by ``freeze_for_inference`` and dropped whenever the module
+        # returns to training or loads new weights.
+        self.register_buffer("_inference_folded_weight", None, persistent=False)
+        # ``pre_w.requires_grad`` before ``freeze_for_inference``; restored by
+        # ``train(True)``.
+        self._requires_grad_before_inference_fold: bool | None = None
 
-        allowed_connection_mask = _allowed_mask_with_forbidden(
-            connection_mask=connection_mask,
-            forbidden_input_index_per_output=forbidden_input_index_per_output,
+        allowed_connection_mask = validate_connection_mask(
+            connection_mask,
+            self.out_features,
+            self.in_features,
+        )
+        forbidden = _validate_forbidden_indices(
+            forbidden_input_index_per_output,
             out_features=self.out_features,
             in_features=self.in_features,
         )
 
+        topology_initialized = True
         if connection_indices is None:
-            generator = _connection_generator(seed)
-            connection_indices = _sample_indices_from_mask(
-                out_features=self.out_features,
-                in_features=self.in_features,
-                K=self.K,
-                connection_mask=allowed_connection_mask,
-                generator=generator,
+            rank0_initializes = (
+                self.init_mode == "rank0_broadcast"
+                and torch.distributed.is_available()
+                and torch.distributed.is_initialized()
             )
+            topology_initialized = (
+                not rank0_initializes or torch.distributed.get_rank() == 0
+            )
+            if topology_initialized:
+                generator = _connection_generator(seed)
+                structured = self.support_group_rows > 1 or self.support_col_block > 1
+                if structured and (
+                    allowed_connection_mask is not None or forbidden is not None
+                ):
+                    raise ValueError(
+                        "Structured support (support_group_rows/"
+                        "support_col_block > 1) does not compose with "
+                        "connection_mask or forbidden indices yet."
+                    )
+                if structured:
+                    connection_indices = sample_structured_indices(
+                        out_features=self.out_features,
+                        in_features=self.in_features,
+                        K=self.K,
+                        generator=generator,
+                        index_dtype=self.index_dtype,
+                        support_group_rows=self.support_group_rows,
+                        support_col_block=self.support_col_block,
+                    )
+                else:
+                    connection_indices = _sample_indices_from_mask(
+                        out_features=self.out_features,
+                        in_features=self.in_features,
+                        K=self.K,
+                        connection_mask=allowed_connection_mask,
+                        forbidden_input_index_per_output=forbidden,
+                        generator=generator,
+                        index_dtype=self.index_dtype,
+                    )
+            else:
+                # FSDP ``sync_module_states=True`` broadcasts this buffer and
+                # the initialization marker from rank 0 before first use.
+                connection_indices = torch.zeros(
+                    self.out_features,
+                    self.K,
+                    dtype=self.index_dtype,
+                )
         else:
-            connection_indices = torch.as_tensor(connection_indices, dtype=torch.long)
+            connection_indices = torch.as_tensor(
+                connection_indices, dtype=self.index_dtype
+            )
             if tuple(connection_indices.shape) != (self.out_features, self.K):
                 raise ValueError(
                     "connection_indices must have shape "
@@ -122,10 +315,23 @@ class IndexedSparseLinear(nn.Module):
                 raise ValueError("connection_indices must be unique within each row")
             if allowed_connection_mask is not None:
                 row = torch.arange(self.out_features)[:, None]
-                if not bool(allowed_connection_mask[row, connection_indices].all()):
+                if not bool(
+                    allowed_connection_mask[
+                        row, connection_indices.to(torch.long)
+                    ].all()
+                ):
                     raise ValueError(
                         "connection_indices contains entries disallowed by "
-                        "connection_mask or forbidden_input_index_per_output"
+                        "connection_mask"
+                    )
+            if forbidden is not None:
+                violates_forbidden = (forbidden[:, None] >= 0) & (
+                    connection_indices.to(torch.long) == forbidden[:, None]
+                )
+                if bool(violates_forbidden.any()):
+                    raise ValueError(
+                        "connection_indices contains entries disallowed by "
+                        "forbidden_input_index_per_output"
                     )
 
         if allowed_connection_mask is None:
@@ -135,14 +341,34 @@ class IndexedSparseLinear(nn.Module):
                 persistent=False,
             )
         else:
+            # Rewiring subclasses checkpoint a provided mask: an unseeded
+            # structured mask differs between runs, and resumed rewiring must
+            # keep sampling from the original one.
             self.register_buffer(
                 "_allowed_connection_mask",
                 allowed_connection_mask.contiguous(),
-                persistent=False,
+                persistent=self._persist_allowed_connection_mask,
             )
+        if forbidden is None:
+            forbidden = torch.empty(0, dtype=torch.long)
         self.register_buffer(
-            "connection_indices", connection_indices.contiguous(), persistent=True
+            "_forbidden_input_index_per_output",
+            forbidden.contiguous(),
+            persistent=False,
         )
+        self.register_buffer(
+            "connection_indices",
+            connection_indices.contiguous(),
+            persistent=self.persistent_indices,
+        )
+        if not self.persistent_indices:
+            register_topology_fingerprint(self)
+        self.register_buffer(
+            "_topology_initialized",
+            torch.tensor(int(topology_initialized), dtype=torch.uint8),
+            persistent=False,
+        )
+        self._topology_ready = topology_initialized
         self.pre_w = nn.Parameter(torch.empty(self.out_features, self.K))
         self.initialize()
 
@@ -160,6 +386,123 @@ class IndexedSparseLinear(nn.Module):
         """Return the trainable sparse weights with shape ``[out_features, K]``."""
         return apply_weight_transform(self.pre_w, self.weight_transform)
 
+    def connectivity_resource_counts(self) -> dict[str, int | float | str]:
+        """Return exact connectivity counts without materializing a dense matrix.
+
+        Resource accounting is called after training, including for layers whose
+        dense compatibility view can be hundreds of GiB.  Fixed indexed layers
+        already store every realized contact explicitly, so their counts should
+        be obtained from the compact indices.
+        """
+
+        allowed = self._allowed_connection_mask
+        forbidden = self._forbidden_input_index_per_output
+        if allowed.numel() > 0:
+            candidate_slots = int(allowed.count_nonzero().item())
+            if forbidden.numel() > 0:
+                valid = forbidden >= 0
+                if bool(valid.any()):
+                    rows = torch.arange(
+                        self.out_features,
+                        device=forbidden.device,
+                    )
+                    candidate_slots -= int(
+                        allowed[
+                            rows[valid],
+                            forbidden[valid].to(torch.long),
+                        ]
+                        .count_nonzero()
+                        .item()
+                    )
+        else:
+            candidate_slots = self.out_features * self.in_features
+            if forbidden.numel() > 0:
+                candidate_slots -= int((forbidden >= 0).count_nonzero().item())
+
+        active_synapses = int(self.connection_indices.numel())
+        return {
+            "out_features": self.out_features,
+            "in_features": self.in_features,
+            "candidate_slots": candidate_slots,
+            "active_synapses": active_synapses,
+            "realized_k_min": self.K,
+            "realized_k_max": self.K,
+            "realized_k_mean": float(self.K),
+            "selection_policy": "indexed_fixed",
+            "mask_source": "fixed_indices",
+        }
+
+    def local_weight_gradient(
+        self,
+        factor: torch.Tensor,
+        x_pre: torch.Tensor,
+        *,
+        normalize_by_batch: bool,
+    ) -> torch.Tensor:
+        """Compute a compact local conductance gradient on the fixed support.
+
+        A dense local rule forms ``factor.T @ x_pre``, whose shape is
+        ``[out_features, in_features]``.  For fixed indexed connectivity only
+        the ``K`` stored contacts per output can be updated.  This method
+        evaluates exactly those entries in bounded output chunks and returns a
+        tensor matching ``pre_w``.
+        """
+
+        if factor.ndim != 2 or x_pre.ndim != 2:
+            raise ValueError(
+                "Indexed local gradients require two-dimensional factor and "
+                f"input tensors, got {tuple(factor.shape)} and {tuple(x_pre.shape)}"
+            )
+        if factor.shape[0] != x_pre.shape[0]:
+            raise ValueError(
+                "Indexed local-gradient batch dimensions differ: "
+                f"{factor.shape[0]} vs {x_pre.shape[0]}"
+            )
+        if factor.shape[1] != self.out_features:
+            raise ValueError(
+                "Indexed local-gradient factor width does not match out_features: "
+                f"{factor.shape[1]} vs {self.out_features}"
+            )
+        if x_pre.shape[1] != self.in_features:
+            raise ValueError(
+                "Indexed local-gradient input width does not match in_features: "
+                f"{x_pre.shape[1]} vs {self.in_features}"
+            )
+        if factor.device != self.pre_w.device or x_pre.device != self.pre_w.device:
+            raise ValueError(
+                "Indexed local-gradient tensors must share the layer device"
+            )
+
+        factor = factor.detach()
+        x_pre = x_pre.detach()
+        gradient = torch.empty_like(self.pre_w)
+        output_chunk_size = self._forward_output_chunk_size(x_pre)
+        batch_scale = 1.0 / factor.shape[0] if normalize_by_batch else 1.0
+
+        with torch.no_grad():
+            for start in range(0, self.out_features, output_chunk_size):
+                end = min(start + output_chunk_size, self.out_features)
+                indices = self.connection_indices[start:end].to(torch.long)
+                selected = x_pre.index_select(1, indices.reshape(-1)).reshape(
+                    x_pre.shape[0],
+                    end - start,
+                    self.K,
+                )
+                factor_chunk = factor[:, start:end]
+                if selected.dtype != factor_chunk.dtype:
+                    selected = selected.to(factor_chunk.dtype)
+                chunk_gradient = torch.einsum(
+                    "bo,bok->ok",
+                    factor_chunk,
+                    selected,
+                )
+                if normalize_by_batch:
+                    chunk_gradient.mul_(batch_scale)
+                gradient[start:end].copy_(
+                    chunk_gradient.to(device=gradient.device, dtype=gradient.dtype)
+                )
+        return gradient
+
     def _normalized_sparse_weight(self) -> torch.Tensor:
         weight = self.sparse_weight()
         if self.weight_norm_order is None:
@@ -168,6 +511,238 @@ class IndexedSparseLinear(nn.Module):
         safe_norm = norm.clamp_min(torch.finfo(weight.dtype).eps)
         normalized = (weight / safe_norm) * self.gamma
         return torch.where(norm > 0, normalized, weight)
+
+    def set_recurrent_weight_cache(self, enabled: bool) -> None:
+        """Cache the transformed fixed weights once per recurrent unroll."""
+        self._recurrent_weight_cache_enabled = (
+            bool(enabled)
+            and self.cache_transformed_weights
+            and not self._use_forward_dynamic_grad_scaling
+        )
+        self._recurrent_cached_weight = None
+
+    def _forward_sparse_weight(self) -> torch.Tensor:
+        if not self._recurrent_weight_cache_enabled:
+            return self._normalized_sparse_weight()
+        if self._recurrent_cached_weight is None:
+            self._recurrent_cached_weight = self._normalized_sparse_weight()
+        return self._recurrent_cached_weight
+
+    def freeze_for_inference(self) -> None:
+        """Fold the transformed weights into a reusable inference buffer.
+
+        The softplus/exp weight transform (plus any weight normalization and
+        gamma scaling) is otherwise recomputed on every forward even though the
+        weights are constant at inference. Folding computes it once; forward
+        then feeds the folded tensor straight into the standard projection
+        dispatch, so the tuned CUDA/Triton kernels remain in use. The fold is
+        dropped automatically by ``train(True)`` or by loading new weights, and
+        it is never serialized (the checkpoint representation stays raw).
+        ``train(True)`` also restores ``pre_w.requires_grad`` to its value
+        before the first freeze.
+        """
+        if getattr(self, "_requires_grad_before_inference_fold", None) is None:
+            self._requires_grad_before_inference_fold = bool(self.pre_w.requires_grad)
+        self.pre_w.requires_grad_(False)
+        with torch.no_grad():
+            self._inference_folded_weight = (
+                self._normalized_sparse_weight().detach().contiguous()
+            )
+        self.eval()
+
+    def unfreeze_inference_fold(self) -> None:
+        """Drop the folded inference weights (weights may change again)."""
+        self._inference_folded_weight = None
+
+    def train(self, mode: bool = True):
+        if mode:
+            self.unfreeze_inference_fold()
+            restored = getattr(self, "_requires_grad_before_inference_fold", None)
+            if restored is not None:
+                self.pre_w.requires_grad_(restored)
+                self._requires_grad_before_inference_fold = None
+        return super().train(mode)
+
+    def _load_from_state_dict(
+        self,
+        state_dict,
+        prefix,
+        local_metadata,
+        strict,
+        missing_keys,
+        unexpected_keys,
+        error_msgs,
+    ):
+        self.unfreeze_inference_fold()
+        super()._load_from_state_dict(
+            state_dict,
+            prefix,
+            local_metadata,
+            strict,
+            missing_keys,
+            unexpected_keys,
+            error_msgs,
+        )
+        # Checkpoints written before rewiring layers saved their allowed-
+        # connection mask keep the constructor's mask.
+        mask_key = prefix + "_allowed_connection_mask"
+        if mask_key in missing_keys and file_predates(local_metadata, 2):
+            missing_keys.remove(mask_key)
+            record_legacy_state(self, mask_key, self._kept_mask_note())
+        if not self.persistent_indices:
+            check_topology_fingerprint(
+                self, state_dict, prefix, missing_keys, error_msgs
+            )
+
+    def _kept_mask_note(self) -> str:
+        """Describe a constructed mask kept for a legacy checkpoint."""
+        note = "the file predates the saved mask; the constructed mask is kept"
+        mask = self._allowed_connection_mask
+        if mask.numel() == 0:
+            return note
+        indices = self.connection_indices.to(device=mask.device, dtype=torch.long)
+        outside = int((~torch.gather(mask.to(torch.bool), 1, indices)).sum())
+        if outside:
+            note += (
+                f", and {outside} of {indices.numel()} loaded contacts lie outside "
+                "it (rewiring will treat them as disallowed)"
+            )
+        return note
+
+    def _forward_output_chunk_size(self, flat_x: torch.Tensor) -> int:
+        return _workspace_limited_chunk_size(
+            output_chunk_size=self.output_chunk_size,
+            workspace_mb=self.workspace_mb,
+            out_features=self.out_features,
+            flattened_batch_size=flat_x.shape[0],
+            synapses_per_output=self.K,
+            element_size=flat_x.element_size(),
+        )
+
+    def _block_layout(self, indices: torch.Tensor):
+        """Cached ``contiguous_blocks`` layout of ``indices`` (``None`` for other backends).
+
+        The cache holds the index tensor itself and its version counter: a
+        device move or ``load_state_dict(assign=True)`` replaces the tensor and
+        an in-place write (rewiring, ordinary ``load_state_dict``) bumps the
+        version. Holding the tensor keeps its storage from being recycled
+        under a stale ``data_ptr`` key.
+        """
+        if self.projection_backend != "contiguous_blocks":
+            return None
+        cached = self._contiguous_block_layout_cache
+        if cached is None or cached[0] is not indices or cached[1] != indices._version:
+            cached = (
+                indices,
+                indices._version,
+                contiguous_block_layout(indices, self.in_features),
+            )
+            object.__setattr__(self, "_contiguous_block_layout_cache", cached)
+        return cached[2]
+
+    # Per-forward tensors that may hold autograd graph nodes (needed only
+    # until the gradient-scaling hooks of that forward are registered) and
+    # derived caches. They are not module state: dropping them keeps
+    # ``copy.deepcopy``/pickling working after a training forward.
+    _TRANSIENT_FORWARD_STATE = (
+        "_last_forward_param_tensor",
+        "_recurrent_cached_weight",
+        "_contiguous_block_layout_cache",
+    )
+
+    def __getstate__(self):
+        state = super().__getstate__()
+        for name in self._TRANSIENT_FORWARD_STATE:
+            if name in state:
+                state[name] = None
+        return state
+
+    def _can_use_frozen_chunked_transform(self, flat_x: torch.Tensor) -> bool:
+        """Return whether forward can transform each projection chunk in place.
+
+        Frozen projections are tiled to bound the ``[batch, out, K]`` gather
+        workspace of the eager and recompute backends. GEMM layouts and the
+        fused accelerator kernels have no such workspace, so a frozen layer
+        configured with one of them runs that backend.
+        """
+        if self.projection_backend in (
+            {"contiguous_blocks", "scatter_dense"} | ACCELERATOR_INDEXED_BACKENDS
+        ):
+            return False
+        return (
+            (
+                not self.pre_w.requires_grad
+                or bool(getattr(self, "_fsdp_frozen_core", False))
+            )
+            and not flat_x.requires_grad
+            and self.weight_norm_order is None
+            and not self._recurrent_weight_cache_enabled
+        )
+
+    def _forward_frozen_chunked_transform(
+        self,
+        flat_x: torch.Tensor,
+        connection_indices: torch.Tensor,
+        output_chunk_size: int,
+    ) -> torch.Tensor:
+        """Project frozen weights without materializing one full transformed copy.
+
+        Both axes of the gather workspace are bounded. Frozen inference uses
+        a conservative default when ``workspace_mb`` is unset. The output and
+        row chunks use the same budget, so each gathered tile is at most
+        ``row_chunk x output_chunk x K`` elements even when a single output
+        column over the full batch would exceed the budget (the regime where
+        the output cap alone bottoms out at one column but still gathers
+        every row). Tiling is bitwise inert: every ``out[i, j]`` is produced
+        by exactly one tile as the same K-length reduction over the same
+        operand values in the same order, and when the whole flattened batch
+        fits the budget the row loop degenerates to a
+        single full-batch chunk — the previous behavior, kernel for kernel.
+        """
+        rows = flat_x.shape[0]
+        out = flat_x.new_empty(rows, self.out_features)
+        workspace_mb = (
+            self.workspace_mb
+            if self.workspace_mb is not None
+            else _DEFAULT_FROZEN_WORKSPACE_MB
+        )
+        # Multiplication may promote a lower-precision activation to the
+        # weight dtype, so bound the larger of the gather and product tiles.
+        element_size = max(flat_x.element_size(), self.pre_w.element_size())
+        output_chunk_size = _workspace_limited_chunk_size(
+            output_chunk_size=output_chunk_size,
+            workspace_mb=workspace_mb,
+            out_features=self.out_features,
+            flattened_batch_size=rows,
+            synapses_per_output=self.K,
+            element_size=element_size,
+        )
+        row_chunk_size = _workspace_limited_row_chunk_size(
+            flattened_batch_size=rows,
+            output_chunk_size=min(int(output_chunk_size), self.out_features),
+            workspace_mb=workspace_mb,
+            synapses_per_output=self.K,
+            element_size=element_size,
+        )
+        for row_start in range(0, rows, row_chunk_size):
+            row_end = min(row_start + row_chunk_size, rows)
+            x_rows = flat_x[row_start:row_end]
+            for start in range(0, self.out_features, output_chunk_size):
+                end = min(start + output_chunk_size, self.out_features)
+                idx_chunk = connection_indices[start:end].to(torch.long)
+                selected = x_rows[:, idx_chunk.reshape(-1)].reshape(
+                    row_end - row_start,
+                    end - start,
+                    self.K,
+                )
+                weight_chunk = apply_weight_transform(
+                    self.pre_w[start:end],
+                    self.weight_transform,
+                )
+                out[row_start:row_end, start:end] = (
+                    selected * weight_chunk.unsqueeze(0)
+                ).sum(dim=-1)
+        return out
 
     def weight(self) -> torch.Tensor:
         """Return a dense compatibility view of the effective weights."""
@@ -220,27 +795,50 @@ class IndexedSparseLinear(nn.Module):
         return ((self.weight_mask() - 1) * 10) + self.log_weight()
 
     def decay_weights(self, weight_decay: float = 0.1, weight_boosting: bool = False):
-        """Decay active sparse weights in-place."""
+        """Decay every stored contact in-place by ``1 - weight_decay``.
+
+        All ``K`` stored contacts of a fixed-index layer are active, so there
+        are no unselected candidates and ``weight_boosting`` (which acts only
+        on unselected candidates) has nothing to boost; it is accepted for API
+        compatibility and ignored. Frozen layers
+        (``pre_w.requires_grad`` is ``False``) are not changed.
+        """
+        del weight_boosting
+        if not maintenance_applies(self.pre_w):
+            return
         with torch.no_grad():
             if self.weight_transform == "exp":
                 self.pre_w.data += log(1 - weight_decay)
-                if weight_boosting:
-                    self.pre_w.data += log(1 + weight_decay)
             elif self.weight_transform == "softplus":
                 weight = nn.functional.softplus(self.pre_w.data)
-                scale = 1 - weight_decay
-                if weight_boosting:
-                    scale *= 1 + weight_decay
-                updated = weight * scale
+                updated = weight * (1 - weight_decay)
                 self.pre_w.data = inverse_softplus(updated)
             elif self.weight_transform in {"identity", "relu"}:
-                scale = 1 - weight_decay
-                if weight_boosting:
-                    scale *= 1 + weight_decay
-                self.pre_w.data *= scale
+                self.pre_w.data *= 1 - weight_decay
+
+    def _resolution_is_current(self, device: torch.device) -> bool:
+        """Whether the cached backend resolution still answers the current request."""
+        return (
+            self._last_resolved_projection_backend is not None
+            and self._last_projection_device == device
+            and getattr(self, "_last_requested_projection_backend", None)
+            == self.projection_backend
+        )
+
+    def _require_topology(self) -> None:
+        """Raise while a rank0_broadcast topology still awaits its broadcast."""
+        if not self._topology_ready:
+            if not bool(self._topology_initialized.item()):
+                raise RuntimeError(
+                    "Indexed topology is awaiting rank-0 broadcast. Construct "
+                    "this module under FSDP with sync_module_states=True before "
+                    "forward."
+                )
+            self._topology_ready = True
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Apply the fixed sparse projection along the last input dimension."""
+        self._require_topology()
         if not isinstance(x, torch.Tensor):
             raise TypeError(f"Expected input to be a tensor, got {type(x)}")
         squeezed = False
@@ -255,21 +853,67 @@ class IndexedSparseLinear(nn.Module):
 
         original_shape = x.shape
         flat_x = x.reshape(-1, self.in_features)
-        out = flat_x.new_empty(flat_x.shape[0], self.out_features)
-        weight = self._normalized_sparse_weight()
-        # ``weight`` can be the Parameter itself for the identity transform.
-        # Bypass ``nn.Module.__setattr__`` so this diagnostic cache is not
-        # registered as a duplicate parameter/state-dict key.
-        object.__setattr__(self, "_last_forward_param_tensor", weight)
         indices = self.connection_indices.to(flat_x.device)
+        output_chunk_size = self._forward_output_chunk_size(flat_x)
 
-        for start in range(0, self.out_features, self.output_chunk_size):
-            end = min(start + self.output_chunk_size, self.out_features)
-            idx_chunk = indices[start:end]
-            selected = flat_x[:, idx_chunk.reshape(-1)].reshape(
-                flat_x.shape[0], end - start, self.K
+        folded_weight = None if self.training else self._inference_folded_weight
+        if folded_weight is None and self._can_use_frozen_chunked_transform(flat_x):
+            out = self._forward_frozen_chunked_transform(
+                flat_x,
+                indices,
+                output_chunk_size,
             )
-            out[:, start:end] = (selected * weight[start:end].unsqueeze(0)).sum(dim=-1)
+            object.__setattr__(self, "_last_forward_param_tensor", None)
+            out = out.reshape(*original_shape[:-1], self.out_features)
+            if self.cache_mask:
+                self._last_forward_weight_mask = self.weight_mask().detach()
+            if squeezed:
+                return out.squeeze(0)
+            return out
+
+        if folded_weight is not None:
+            # Inference fold: transform already applied once by
+            # freeze_for_inference; reuse the tensor and keep the fast
+            # projection dispatch below.
+            weight = folded_weight
+            object.__setattr__(self, "_last_forward_param_tensor", None)
+        else:
+            weight = self._forward_sparse_weight()
+            # ``weight`` can be the Parameter itself for the identity transform.
+            # Bypass ``nn.Module.__setattr__`` so this diagnostic cache is not
+            # registered as a duplicate parameter/state-dict key. Frozen weights
+            # cannot receive the optional gradient hook, so do not retain their
+            # potentially multi-gigabyte transformed tensors after this forward.
+            object.__setattr__(
+                self,
+                "_last_forward_param_tensor",
+                weight if weight.requires_grad else None,
+            )
+        requested_backend = self.projection_backend
+        backend_is_resolved = self._resolution_is_current(flat_x.device)
+        if backend_is_resolved:
+            requested_backend = self._last_resolved_projection_backend
+        out, resolved_backend = _dispatch_indexed_sparse_projection(
+            flat_x=flat_x,
+            weight=weight,
+            connection_indices=indices,
+            output_chunk_size=output_chunk_size,
+            projection_backend=requested_backend,
+            backend_is_resolved=backend_is_resolved,
+            block_layout=self._block_layout(indices),
+            auto_requested=self.projection_backend == "auto",
+        )
+        if resolved_backend != self._last_resolved_projection_backend:
+            logger.info(
+                "IndexedSparseLinear projection backend resolved: requested=%s, "
+                "resolved=%s, device=%s",
+                self.projection_backend,
+                resolved_backend,
+                flat_x.device,
+            )
+            self._last_resolved_projection_backend = resolved_backend
+        self._last_projection_device = flat_x.device
+        self._last_requested_projection_backend = self.projection_backend
 
         out = out.reshape(*original_shape[:-1], self.out_features)
         if self.cache_mask:
@@ -277,6 +921,62 @@ class IndexedSparseLinear(nn.Module):
         if squeezed:
             return out.squeeze(0)
         return out
+
+    def effective_sparse_weight(self) -> torch.Tensor:
+        """Return the ``[out_features, K]`` weights of the sparse projection.
+
+        These are the transformed weights after the optional row normalization,
+        the values :meth:`forward` multiplies the gathered inputs by
+        (subclasses whose forward adds release noise or rounding apply those
+        on top).
+        """
+        return self._forward_sparse_weight()
+
+    def project_with_weights(
+        self, x: torch.Tensor, weight: torch.Tensor
+    ) -> torch.Tensor:
+        """Project ``x`` through this layer's contacts with other weights.
+
+        ``weight`` has the shape ``[out_features, K]`` of
+        :meth:`sparse_weight`; the result is
+        ``out[..., i] = sum_j weight[i, j] * x[..., connection_indices[i, j]]``,
+        computed with the layer's projection backend. For example
+        ``project_with_weights(x.abs(), effective_sparse_weight().abs())`` sums
+        the magnitudes of the synaptic drives. The layer's state, including
+        its resolved backend, is unchanged.
+        """
+        self._require_topology()
+        if not isinstance(x, torch.Tensor) or not isinstance(weight, torch.Tensor):
+            raise TypeError("x and weight must be tensors")
+        if x.shape[-1] != self.in_features:
+            raise ValueError(
+                f"Input feature dimension mismatch: got {x.shape[-1]}, "
+                f"expected {self.in_features}"
+            )
+        if tuple(weight.shape) != tuple(self.connection_indices.shape):
+            raise ValueError(
+                f"weight must have shape {tuple(self.connection_indices.shape)}, "
+                f"got {tuple(weight.shape)}"
+            )
+        original_shape = x.shape
+        flat_x = x.reshape(-1, self.in_features)
+        indices = self.connection_indices.to(flat_x.device)
+        backend_is_resolved = self._resolution_is_current(flat_x.device)
+        out, _ = _dispatch_indexed_sparse_projection(
+            flat_x=flat_x,
+            weight=weight,
+            connection_indices=indices,
+            output_chunk_size=self._forward_output_chunk_size(flat_x),
+            projection_backend=(
+                self._last_resolved_projection_backend
+                if backend_is_resolved
+                else self.projection_backend
+            ),
+            backend_is_resolved=backend_is_resolved,
+            block_layout=self._block_layout(indices),
+            auto_requested=self.projection_backend == "auto",
+        )
+        return out.reshape(*original_shape[:-1], self.out_features)
 
     def register_forward_param_gradient_scale(self, param_scale: torch.Tensor) -> None:
         """Scale sparse parameter gradients for the most recent forward call."""

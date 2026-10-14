@@ -14,6 +14,11 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.b
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer import (
     DendriticBranchLayer,
 )
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_rule_override import (
+    BRANCH_RULE_OVERRIDES,
+    BranchRuleOverride,
+    override_branch_rules,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.dendrinet import (
     DendriNet,
     DendriNetConfig,
@@ -45,8 +50,10 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.v
 )
 
 __all__ = [
+    "BRANCH_RULE_OVERRIDES",
     "AdaptiveInitConfig",
     "BlockLinear",
+    "BranchRuleOverride",
     "DeepSTConfig",
     "DendriNet",
     "DendriNetConfig",
@@ -65,4 +72,5 @@ __all__ = [
     "create_end_stopped_unit",
     "create_gabor_unit",
     "create_motion_unit",
+    "override_branch_rules",
 ]

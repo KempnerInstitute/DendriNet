@@ -4,9 +4,25 @@ from __future__ import annotations
 
 import torch
 
+from dendritic_modeling.config.seeds import derive_seed
+from dendritic_modeling.utils.stable_hash import stable_seed_offset
+
 
 class LocalLearningLowRankBroadcastMixin:
     """Cached low-rank random broadcast projections."""
+
+    def _broadcast_seed(self) -> int:
+        """Seed of the randomized feedback controls.
+
+        An unset ``broadcast_seed`` is derived from the trainer seed, so seed
+        replicates draw independent feedback controls.
+        """
+        configured = getattr(self.local_cfg, "broadcast_seed", None)
+        if configured is not None:
+            return int(configured)
+        return derive_seed(
+            int(getattr(self, "seed", 0) or 0), "local_learning.broadcast"
+        )
 
     def _get_low_rank_broadcast_factors(
         self,
@@ -44,15 +60,15 @@ class LocalLearningLowRankBroadcastMixin:
             return cached
 
         generator = torch.Generator()
-
-        seed = (
-            15485863
-            + 7919 * int(layer_idx)
-            + 104729 * int(in_features)
-            + 53 * int(out_features)
+        generator.manual_seed(
+            (
+                self._broadcast_seed()
+                + stable_seed_offset(
+                    "low_rank_broadcast", int(layer_idx), in_features, out_features
+                )
+            )
+            % ((1 << 63) - 1)
         )
-
-        generator.manual_seed(seed)
 
         left = torch.randn(in_features, rank, generator=generator, dtype=dtype)
 

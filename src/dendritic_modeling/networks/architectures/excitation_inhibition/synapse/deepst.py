@@ -1,27 +1,42 @@
 """
 DeepST Linear Layer for Dendritic Networks.
 
-This module implements a dynamic sparse training (DeepST) linear layer
-with Brownian motion-like weight evolution and dynamic rewiring.
+This module implements a dynamic sparse training (DeepST) linear layer. At
+each rewiring event an active contact is pruned when its weight plus Gaussian
+noise of standard deviation ``sigma`` falls to ``weight_threshold`` (the
+magnitude for identity weights), and as many inactive contacts are regrown.
+The noise enters only this prune test; the weights receive no noise, so a
+contact of weight ``w`` is pruned with probability about
+``Phi((weight_threshold - w) / sigma)`` per event.
 """
 
+import contextlib
 import math
-from typing import Optional
+from typing import ClassVar, Optional
 
 import torch
 import torch.nn as nn
 
+from dendritic_modeling.config.choices import (
+    DEEPST_PARAM_SPACES,
+    DEEPST_REWIRING_MODES,
+    normalize_choice,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.structured_mask import (
     validate_connection_mask,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
     TOPK_INIT_METHODS,
 )
+from dendritic_modeling.networks.state_versions import accept_legacy_missing_key
+from dendritic_modeling.networks.utils.sparse_maintenance import maintenance_applies
 from dendritic_modeling.networks.utils.weight_transforms import (
     WeightTransformType,
     apply_weight_transform,
     inverse_softplus,
 )
+from dendritic_modeling.utils.reproducibility import isolated_random_seed
+from dendritic_modeling.utils.stable_hash import stable_seed_offset
 
 
 def _normalize_forbidden_inputs(
@@ -49,9 +64,17 @@ def _normalize_forbidden_inputs(
     return forbidden
 
 
-def _resolve_weight_init_range(param_space, weight_init_range):
+def _resolve_weight_init_range(param_space, weight_init_range, weight_transform="exp"):
+    """Range of new-contact draws: the parameter range, given explicitly or by default.
+
+    The default log-space range draws log-weights in [-2.1, -2.0]; relu and
+    identity take the weight itself, so their default is the same weights,
+    [exp(-2.1), exp(-2.0)].
+    """
     if weight_init_range is not None:
         return weight_init_range
+    if param_space == "log" and weight_transform in {"relu", "identity"}:
+        return (math.exp(-2.1), math.exp(-2.0))
     if param_space == "log":
         return (-2.1, -2.0)
     if param_space == "presigmoid":
@@ -98,14 +121,19 @@ def _resolve_target_connections(
     allowed_connection_mask: torch.Tensor,
     target_density: float,
     synapses_per_branch,
+    allowed_connections: int,
 ) -> int:
     if rewiring_mode == "constant_branch":
         allowed_per_branch = allowed_connection_mask.sum(dim=1)
         return int(
             torch.clamp(allowed_per_branch, max=synapses_per_branch).sum().item()
         )
-    allowed_connections = int(allowed_connection_mask.sum().item())
     return int(allowed_connections * target_density)
+
+
+def _linear_parameter(weight_transform) -> bool:
+    """Whether the parameter is the weight itself (relu, identity)."""
+    return weight_transform in {"relu", "identity"}
 
 
 def _initialize_weight_parameter(
@@ -114,6 +142,7 @@ def _initialize_weight_parameter(
     init_method,
     param_space,
     weight_init_range,
+    weight_transform="exp",
 ) -> nn.Parameter:
     if init_method is not None and init_method in TOPK_INIT_METHODS:
         pre_w = nn.Parameter(
@@ -123,7 +152,12 @@ def _initialize_weight_parameter(
         TOPK_INIT_METHODS[init_method](temp_weight)
         pre_w.data = temp_weight.reshape(out_features, in_features)
 
-        if param_space == "log":
+        if param_space == "log" and weight_transform == "relu":
+            # relu passes the parameter through: draw a positive weight.
+            pre_w.data = torch.abs(pre_w.data)
+        elif param_space == "log" and weight_transform == "identity":
+            pass  # signed weights keep the signed draw
+        elif param_space == "log":
             pre_w.data = torch.abs(pre_w.data).clamp(min=1e-6)
             pre_w.data = torch.log(pre_w.data)
         elif param_space == "presigmoid":
@@ -165,26 +199,77 @@ def _build_forbidden_connection_mask(
 
 
 class DeepstLinear(nn.Module):
+    # Version 2 (2026-10-09) marks files that persist the rewiring counter.
+    _version = 2
+    _STATE_KEYS_ADDED: ClassVar[dict[int, tuple[str, ...]]] = {2: ("rewire_step",)}
+
     def __init__(
         self,
         in_features,
         out_features,
         target_density=0.1,
-        sigma=0.05,  # Noise amplitude for the random walk
-        use_noise=True,  # Whether to apply Gaussian noise
+        sigma=0.05,  # Noise std of the prune test (weights receive no noise)
+        use_noise=True,  # Whether the prune test is noisy
         rewiring_mode="global",  # 'local', 'global', or 'constant_branch'
         synapses_per_branch=None,  # Required for 'constant_branch' mode
         param_space="log",  # 'log' or 'presigmoid' for weight parameterization
         weight_init_range=None,
-        init_method=None,
+        init_method="xavier_normal",  # DeepSTConfig.init_method
         freeze_connectivity=False,  # Freeze synapse locations.
         weight_threshold=1e-6,  # Threshold for weight pruning.
         weight_transform: WeightTransformType = "exp",
         forbidden_input_index_per_output: Optional[torch.Tensor] = None,
         connection_mask: Optional[torch.Tensor] = None,
+        rewire_frequency: int = 1,  # Rewire every N optimizer steps.
+        seed: Optional[int] = None,
     ):
         super().__init__()
+        # With a seed, the initial contacts and every rewiring event draw from
+        # their own isolated streams (keyed by the event's step), so topology
+        # neither consumes nor depends on the global training RNG and resumed
+        # or data-parallel runs make identical choices. Without one, topology
+        # draws from the global RNG.
+        self.seed = None if seed is None else int(seed)
 
+        try:
+            frequency = int(rewire_frequency)
+        except (TypeError, ValueError):
+            frequency = 0
+        if (
+            isinstance(rewire_frequency, bool)
+            or frequency != rewire_frequency
+            or frequency < 1
+        ):
+            raise ValueError(
+                f"rewire_frequency must be an integer >= 1, got {rewire_frequency!r}"
+            )
+        self.rewire_frequency = frequency
+        rewiring_mode = normalize_choice(
+            rewiring_mode, DEEPST_REWIRING_MODES, field="deepst.rewiring_mode"
+        )
+        param_space = normalize_choice(
+            param_space, DEEPST_PARAM_SPACES, field="deepst.param_space"
+        )
+        if not 0.0 <= float(target_density) <= 1.0:
+            raise ValueError(
+                f"deepst target_density must be in [0, 1], got {target_density!r}"
+            )
+        if float(sigma) < 0.0:
+            raise ValueError(f"deepst sigma must be >= 0, got {sigma!r}")
+        if float(weight_threshold) < 0.0:
+            raise ValueError(
+                f"deepst weight_threshold must be >= 0, got {weight_threshold!r}"
+            )
+        if rewiring_mode == "constant_branch" and synapses_per_branch is not None:
+            if (
+                isinstance(synapses_per_branch, bool)
+                or int(synapses_per_branch) != synapses_per_branch
+                or synapses_per_branch < 1
+            ):
+                raise ValueError(
+                    "deepst synapses_per_branch must be an integer >= 1, got "
+                    f"{synapses_per_branch!r}"
+                )
         self.in_features = in_features
         self.out_features = out_features
         self.target_density = target_density
@@ -194,18 +279,20 @@ class DeepstLinear(nn.Module):
         self.param_space = param_space
         self.init_method = init_method
         self.weight_transform = weight_transform
+        # Conductance-dynamic forward-hook mode (stateful population paths):
+        # the masked weight of the latest forward receives the gradient scale.
+        self._use_forward_dynamic_grad_scaling = False
+        self._last_forward_param_tensor: Optional[torch.Tensor] = None
         forbidden = _normalize_forbidden_inputs(
             forbidden_input_index_per_output,
             out_features,
             in_features,
         )
 
-        # Compatibility with dendritic branch-layer initialization.
-        self.K = int(target_density * in_features) if in_features else None
-
         self.weight_init_range = _resolve_weight_init_range(
             param_space,
             weight_init_range,
+            weight_transform,
         )
         self.freeze_connectivity = freeze_connectivity
         self.weight_threshold = weight_threshold
@@ -217,6 +304,14 @@ class DeepstLinear(nn.Module):
         )
         if rewiring_mode == "constant_branch":
             self.synapses_per_branch = synapses_per_branch
+
+        # Compatibility with dendritic branch-layer initialization.  Constant
+        # branch mode is governed by its explicit budget, not target_density.
+        self.K = (
+            int(synapses_per_branch)
+            if rewiring_mode == "constant_branch"
+            else (int(target_density * in_features) if in_features else None)
+        )
 
         # Total number of possible connections
         self.total_connections = out_features * in_features
@@ -238,6 +333,7 @@ class DeepstLinear(nn.Module):
             allowed_connection_mask,
             target_density,
             synapses_per_branch,
+            self.allowed_connections,
         )
 
         self.pre_w = _initialize_weight_parameter(
@@ -246,6 +342,7 @@ class DeepstLinear(nn.Module):
             self.init_method,
             param_space,
             self.weight_init_range,
+            weight_transform,
         )
 
         # Initialize mask
@@ -264,9 +361,28 @@ class DeepstLinear(nn.Module):
         self.register_buffer(
             "_forbidden_connection_mask", forbidden_connection_mask, persistent=False
         )
+        self.register_buffer(
+            "_last_rewired_mask", torch.zeros_like(mask), persistent=False
+        )
+        # Optimizer steps seen by ``apply_rewiring``; checkpointed so a resumed
+        # run keeps the ``rewire_frequency`` schedule. Checkpoints written
+        # before this counter existed load with the counter left unchanged.
+        self.register_buffer(
+            "rewire_step", torch.zeros((), dtype=torch.long), persistent=True
+        )
 
         # Initialize connectivity
-        self._initialize_connectivity()
+        with self._topology_rng("init"):
+            self._initialize_connectivity()
+
+    def _topology_rng(self, event: str, step: int = 0):
+        """Return the RNG scope for one topology event."""
+        if self.seed is None:
+            return contextlib.nullcontext()
+        return isolated_random_seed(
+            (self.seed + stable_seed_offset("deepst", event, int(step)))
+            % ((1 << 63) - 1)
+        )
 
     def _initialize_connectivity(self):
         if self.rewiring_mode == "constant_branch":
@@ -313,7 +429,33 @@ class DeepstLinear(nn.Module):
 
     def forward(self, x):
         # Apply mask and sum across dendritic locations
-        return torch.matmul(x, self.pruned_weight().t())
+        pruned_weight = self.pruned_weight()
+        object.__setattr__(
+            self,
+            "_last_forward_param_tensor",
+            pruned_weight if self._use_forward_dynamic_grad_scaling else None,
+        )
+        return torch.matmul(x, pruned_weight.t())
+
+    # The last forward's pruned weights, kept only to register that forward's
+    # gradient-scaling hook; not module state (see TopKLinear.__getstate__).
+    _TRANSIENT_FORWARD_STATE = ("_last_forward_param_tensor",)
+
+    def __getstate__(self):
+        state = super().__getstate__()
+        for name in self._TRANSIENT_FORWARD_STATE:
+            if name in state:
+                state[name] = None
+        return state
+
+    def register_forward_param_gradient_scale(self, param_scale: torch.Tensor) -> None:
+        """Scale parameter gradients for the most recent forward call only."""
+        self._use_forward_dynamic_grad_scaling = True
+        target = self._last_forward_param_tensor
+        if target is None or not target.requires_grad:
+            return
+        scale = param_scale.detach().to(device=target.device, dtype=target.dtype)
+        target.register_hook(lambda grad, scale=scale: grad * scale)
 
     def weighted_synapses(self, cell_weights, prune=False):
         """Apply cell weights to synapses (compatibility with DendriNet)"""
@@ -327,10 +469,11 @@ class DeepstLinear(nn.Module):
 
     def apply_noise_and_enforce_constraints(self):
         """
-        Apply Brownian motion-like noise and enforce connectivity constraints.
+        Clamp the parameters, prune by the noisy threshold test, and regrow.
         Modified to support freezing connectivity while maintaining stability.
         """
         with torch.no_grad():
+            self._last_rewired_mask.zero_()
             # Get current weights
             current_weights = self.weight()
 
@@ -357,7 +500,11 @@ class DeepstLinear(nn.Module):
                 )
                 current_weights = current_weights + noise
 
-            # Find connections to prune (weights <= weight_threshold)
+            # Find connections to prune (weights <= weight_threshold). Signed
+            # (identity) weights are pruned by magnitude: a strong negative
+            # contact is not weak.
+            if self.weight_transform == "identity":
+                current_weights = current_weights.abs()
             to_prune = (current_weights <= self.weight_threshold) & self.mask
 
             # Count pruned connections
@@ -365,6 +512,7 @@ class DeepstLinear(nn.Module):
 
             # Update mask (remove pruned connections)
             self.mask[to_prune] = False
+            self._last_rewired_mask[to_prune] = True
 
             # Create new random connections
             if num_pruned > 0:
@@ -453,6 +601,111 @@ class DeepstLinear(nn.Module):
     def _activate_new_connection(self, output_idx, input_idx):
         self.mask[output_idx, input_idx] = True
         self.pre_w.data[output_idx, input_idx] = self._initialize_new_weight()
+        self._last_rewired_mask[output_idx, input_idx] = True
+
+    @staticmethod
+    def _mark(tensor: torch.Tensor) -> tuple[int, int]:
+        """Identify a buffer's contents: in-place writes advance its version."""
+        return id(tensor), tensor._version
+
+    def consume_rewired_mask(self):
+        """Return slots changed by the last rewiring event and clear the record.
+
+        A record left unwritten since it was last consumed (and cleared) is
+        empty, so steps without a rewiring event read nothing from the device.
+        """
+        mark = self._mark(self._last_rewired_mask)
+        if mark == getattr(self, "_consumed_rewired_mark", None):
+            return None
+        rewired = None
+        if bool(self._last_rewired_mask.any()):
+            rewired = self._last_rewired_mask.clone()
+            self._last_rewired_mask.zero_()
+        self._consumed_rewired_mark = self._mark(self._last_rewired_mask)
+        return rewired
+
+    def _rewire_step_value(self) -> int:
+        """The optimizer-step count from its host mirror.
+
+        The buffer is read back only after a change from outside
+        ``apply_rewiring`` (a state load, a device move or a direct write).
+        """
+        if self._mark(self.rewire_step) != getattr(self, "_rewire_step_mark", None):
+            self._rewire_step_host = int(self.rewire_step.item())
+            self._rewire_step_mark = self._mark(self.rewire_step)
+        return self._rewire_step_host
+
+    def apply_rewiring(self):
+        """Advance one optimizer step; rewire every ``rewire_frequency`` steps.
+
+        This is the leaf-module rewiring API used by every maintenance path
+        (``CustomWeightDecayOptimizer``, branch-layer containers and the
+        direct ``apply_sparse_topology_updates_after_step`` helper), so the
+        schedule is the same on all of them. The step counter is a
+        checkpointed buffer. ``apply_noise_and_enforce_constraints`` remains
+        the unconditional single rewiring event. Frozen layers
+        (``pre_w.requires_grad`` is ``False``) neither count nor rewire.
+        """
+        if not maintenance_applies(self.pre_w):
+            return
+        step = self._rewire_step_value() + 1
+        with torch.no_grad():
+            self.rewire_step.add_(1)
+        self._rewire_step_host = step
+        self._rewire_step_mark = self._mark(self.rewire_step)
+        self._check_rewiring_inputs()
+        if self.rewire_frequency > 1 and step % self.rewire_frequency != 0:
+            return
+        with self._topology_rng("rewire", step):
+            self.apply_noise_and_enforce_constraints()
+
+    def _check_rewiring_inputs(self) -> None:
+        """Validate training-time inputs before a scheduled rewiring step."""
+
+    def _load_from_state_dict(
+        self,
+        state_dict,
+        prefix,
+        local_metadata,
+        strict,
+        missing_keys,
+        unexpected_keys,
+        error_msgs,
+    ):
+        super()._load_from_state_dict(
+            state_dict,
+            prefix,
+            local_metadata,
+            strict,
+            missing_keys,
+            unexpected_keys,
+            error_msgs,
+        )
+        # Checkpoints written before the rewiring counter existed keep the
+        # current counter, so the rewiring schedule restarts.
+        accept_legacy_missing_key(
+            self,
+            "rewire_step",
+            prefix=prefix,
+            local_metadata=local_metadata,
+            missing_keys=missing_keys,
+            version=2,
+            note="the file predates the saved rewiring counter; the rewiring "
+            "schedule restarts at the constructed step",
+        )
+        # The forbidden-slot mask is derived from the (possibly restored)
+        # allowed-connection mask; rebuild it so rewiring after a resume
+        # respects the checkpointed connectivity, not the constructor's.
+        with torch.no_grad():
+            rebuilt = _build_forbidden_connection_mask(
+                self._allowed_connection_mask.to(torch.bool),
+                self._forbidden_input_index_per_output,
+                self.out_features,
+            )
+            self._forbidden_connection_mask.copy_(
+                rebuilt.to(self._forbidden_connection_mask.device)
+            )
+        self.allowed_connections = int(self._allowed_connection_mask.sum().item())
 
     def _initialize_new_weight(self):
         """Initialize a newly activated synapse."""
@@ -462,7 +715,15 @@ class DeepstLinear(nn.Module):
             value = temp[0, 0].item()
 
             if self.param_space == "log":
-                value = math.log(self.weight_threshold)
+                # A new contact starts at the pruning threshold: log(threshold)
+                # for exp and softplus. relu and identity pass the parameter
+                # through, so they start at +threshold (relu(log(threshold))
+                # would be a dead contact with zero gradient).
+                value = (
+                    float(self.weight_threshold)
+                    if _linear_parameter(self.weight_transform)
+                    else math.log(self.weight_threshold)
+                )
             elif self.param_space == "presigmoid":
                 value = max(min(value, 1 - 1e-6), 1e-6)
                 value = math.log(value / (1 - value))
@@ -527,6 +788,8 @@ class DeepstLinear(nn.Module):
             weight_boosting = bool(weight_boost)
         if not 0.0 <= float(weight_decay) < 1.0:
             raise ValueError("weight_decay must satisfy 0 <= weight_decay < 1")
+        if not maintenance_applies(self.pre_w):
+            return
 
         with torch.no_grad():
             active_mask = self.mask.to(device=self.pre_w.device, dtype=torch.bool)

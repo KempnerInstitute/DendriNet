@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Optional
 
 import pandas as pd
+import yaml
 
 from .config_extractor import ConfigExtractor
 
@@ -36,6 +37,10 @@ class DataCollector:
         self.configs_dir = self.results_dir / "configs"
         self.results_subdir = self.results_dir / "results"
         self.config_extractor = ConfigExtractor()
+        # Columns that describe a run's configuration rather than its results.
+        self.config_columns: set[str] = set()
+        # Flattened generated config of every collected run, by config id.
+        self._flat_configs: dict[int, dict[str, object]] = {}
 
     def collect_all(self) -> pd.DataFrame:
         """
@@ -58,7 +63,7 @@ class DataCollector:
         all_data = []
         for i, config_dir in enumerate(config_dirs):
             if (i + 1) % 50 == 0:
-                logger.info(f"Processing {i+1}/{len(config_dirs)}...")
+                logger.info(f"Processing {i + 1}/{len(config_dirs)}...")
 
             data = self._collect_single_config(config_dir)
             if data:
@@ -68,6 +73,14 @@ class DataCollector:
             f"Successfully collected data from {len(all_data)}/{len(config_dirs)} configs"
         )
 
+        swept = swept_config_paths(
+            [self._flat_configs.get(row["config_id"], {}) for row in all_data]
+        )
+        for row in all_data:
+            flat = self._flat_configs.get(row["config_id"], {})
+            for path in swept:
+                row[path] = flat.get(path)
+        self.config_columns.update(swept)
         return pd.DataFrame(all_data)
 
     def _get_config_dirs(self) -> list[Path]:
@@ -118,6 +131,8 @@ class DataCollector:
 
         # Extract parameters from config
         params = self.config_extractor.extract_from_file(config_yaml)
+        self.config_columns.update(params)
+        self._flat_configs[config_id] = flatten_config(config_yaml)
         params["config_id"] = config_id
         params["config_file"] = str(config_yaml)
 
@@ -265,31 +280,74 @@ class DataCollector:
 
         # Layer statistics
         if "layer_statistics" in data and isinstance(data["layer_statistics"], dict):
-            layer_names: list[str] = [
-                name
-                for name in data["layer_statistics"].keys()
-                if "inhibitory_cells" not in name
-            ]
-            depths: list[int] = list(range(len(layer_names)))
-            depths.reverse()
-            for i, layer_name in enumerate(layer_names):
-                layer_data: dict[str, float] = data["layer_statistics"][layer_name]
-                if isinstance(layer_data, dict):
-                    depth = ablation_depth_map.get(layer_name, depths[i])
-                    for mi_key, mi_value in layer_data.items():
-                        if isinstance(mi_value, (int, float)):
-                            base_key = (
-                                mi_key.replace("I(", "layer_mi_")
-                                .replace(";", "_")
-                                .replace(")", "")
-                                .replace(",", "_")
-                                .replace("|", "_given_")
-                                .replace("Vout", "V")
-                                .replace("_mean", "")
-                            )
-                            result[f"{base_key}_depth{depth}"] = mi_value
+            result.update(
+                self._layer_information_columns(
+                    data["layer_statistics"],
+                    data.get("layer_soma_relative_depths"),
+                    ablation_depth_map,
+                )
+            )
 
         return result
+
+    @staticmethod
+    def _layer_information_columns(
+        layer_statistics: dict,
+        soma_relative_depths: dict | None,
+        ablation_depth_map: dict[str, int],
+    ) -> dict:
+        """Flatten per-layer MI into columns keyed by dendritic tree and depth.
+
+        Depths are the analyzer's soma-relative depths, else the ablation
+        analysis's, never the order of the keys; layers without either are
+        counted in ``layer_mi_depth_unresolved``. A tree is the module path
+        before ``.branch_layers.``; EINet inhibitory cells are left out as
+        before. With one tree the columns are ``layer_mi_<metric>_depth<d>``;
+        with several, the tree path precedes the depth.
+        """
+        depths = soma_relative_depths if isinstance(soma_relative_depths, dict) else {}
+        entries: list[tuple[str, str, int]] = []
+        unresolved = 0
+        for layer_name, layer_data in layer_statistics.items():
+            if "inhibitory_cells" in layer_name or not isinstance(layer_data, dict):
+                continue
+            if layer_name in depths:
+                depth = int(depths[layer_name])
+            elif layer_name in ablation_depth_map:
+                depth = int(ablation_depth_map[layer_name])
+            else:
+                unresolved += 1
+                continue
+            tree = layer_name.rsplit(".branch_layers.", 1)[0]
+            entries.append((layer_name, tree, depth))
+
+        several_trees = len({tree for _name, tree, _depth in entries}) > 1
+        columns: dict = {}
+        for layer_name, tree, depth in entries:
+            tree_key = re.sub(r"[^a-zA-Z0-9]+", "_", tree).strip("_")
+            suffix = f"{tree_key}_depth{depth}" if several_trees else f"depth{depth}"
+            for mi_key, mi_value in layer_statistics[layer_name].items():
+                if not isinstance(mi_value, (int, float)):
+                    continue
+                base_key = (
+                    mi_key.replace("I(", "layer_mi_")
+                    .replace(";", "_")
+                    .replace(")", "")
+                    .replace(",", "_")
+                    .replace("|", "_given_")
+                    .replace("Vout", "V")
+                    .replace("_mean", "")
+                )
+                column = f"{base_key}_{suffix}"
+                if column in columns:
+                    raise ValueError(
+                        f"information layers {layer_name!r} and another layer both "
+                        f"map to column {column!r}"
+                    )
+                columns[column] = mi_value
+        if unresolved:
+            columns["layer_mi_depth_unresolved"] = unresolved
+        return columns
 
     def _load_ablation_depth_map(self, config_dir: Path) -> dict[str, int]:
         """Map module names to analyzer-provided ablation depths when available."""
@@ -362,10 +420,16 @@ class DataCollector:
             for layer_name, layer_data in data["layer_statistics"].items():
                 if isinstance(layer_data, dict):
                     layer_key = self._format_layer_key(layer_name)
+                    depth_key = layer_key.replace("layer_", "depth", 1)
                     for metric, value in layer_data.items():
                         if isinstance(value, (int, float)):
                             safe_metric = metric.replace(".", "_").replace(" ", "_")
                             result[f"weight_{safe_metric}_{layer_key}"] = value
+                            # The weight analyzer's layer index is the
+                            # soma-relative depth; the layer_<N> name is kept
+                            # for existing tables.
+                            if depth_key != layer_key:
+                                result[f"weight_{safe_metric}_{depth_key}"] = value
 
         return result
 
@@ -642,6 +706,8 @@ class DataCollector:
         for key in (
             "total_parameters",
             "trainable_parameters",
+            "core_total_parameters",
+            "core_trainable_parameters",
             "synapse_candidate_parameters",
             "non_synaptic_parameters",
             "candidate_synapse_slots",
@@ -678,17 +744,6 @@ class DataCollector:
 
         return result
 
-    def _extract_depth(self, layer_name: str) -> int:
-        """Extract depth/layer index from layer name."""
-        try:
-            if "branch_layers." in layer_name:
-                return int(layer_name.split("branch_layers.")[-1].split(".")[0])
-            elif "layer_" in layer_name:
-                return int(layer_name.split("layer_")[-1])
-            return 0
-        except (ValueError, IndexError):
-            return 0
-
     def _format_layer_key(self, layer_name: str) -> str:
         """Format layer name to a consistent key."""
         if "branch_layers." in layer_name:
@@ -698,3 +753,60 @@ class DataCollector:
             return "soma"
         else:
             return layer_name.replace(".", "_")
+
+
+def flatten_config(config_path: Path) -> dict[str, object]:
+    """Dotted path -> value of every leaf of a YAML config (list items by index)."""
+    try:
+        with open(config_path, encoding="utf-8") as handle:
+            data = yaml.safe_load(handle) or {}
+    except (OSError, yaml.YAMLError) as error:
+        logger.warning(
+            "Could not read %s for its swept parameters: %s", config_path, error
+        )
+        return {}
+    flat: dict[str, object] = {}
+
+    def visit(node, prefix):
+        if isinstance(node, dict) and node:
+            for key, value in node.items():
+                visit(value, f"{prefix}{key}.")
+        elif (
+            isinstance(node, list)
+            and node
+            and any(isinstance(item, dict | list) for item in node)
+        ):
+            for index, value in enumerate(node):
+                visit(value, f"{prefix}{index}.")
+        else:
+            flat[prefix[:-1]] = node
+
+    visit(data, "")
+    return flat
+
+
+def swept_config_paths(flat_configs: list[dict[str, object]]) -> list[str]:
+    """Config paths whose values differ between runs, apart from replicate seeds.
+
+    A sweep varies these paths between conditions. Replicates of one condition
+    differ only in ``experiment.seed`` and in the seed paths written with it
+    (paths whose value equals ``experiment.seed`` in every run); generator
+    bookkeeping (keys starting with ``_``) and ``outputs`` are not conditions.
+    """
+    if len(flat_configs) < 2:
+        return []
+    paths = sorted(set().union(*flat_configs))
+    seeds = [config.get("experiment.seed") for config in flat_configs]
+    swept = []
+    for path in paths:
+        if path == "experiment.seed" or path.startswith("outputs."):
+            continue
+        if any(part.startswith("_") for part in path.split(".")):
+            continue
+        values = [config.get(path) for config in flat_configs]
+        if len({repr(value) for value in values}) < 2:
+            continue
+        if None not in seeds and values == seeds:
+            continue
+        swept.append(path)
+    return swept

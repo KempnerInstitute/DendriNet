@@ -67,7 +67,7 @@ jobs:
         # Simplified matrix: test on essential Python versions only (Linux only for SLURM compatibility)
         include:
           - os: ubuntu-latest
-            python-version: "3.10"  # Minimum supported
+            python-version: "3.10"  # Minimum supported, on the pinned core stack
           - os: ubuntu-latest
             python-version: "3.11"  # Primary development version
           - os: ubuntu-latest
@@ -98,8 +98,14 @@ jobs:
     - name: Install Python dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-        pip install -e .[dev]
+        # Python 3.10 installs the pinned stack the core line is qualified on
+        # (setup/constraints); the other versions take the newest releases.
+        CONSTRAINTS=""
+        if [ "${{ matrix.python-version }}" = "3.10" ]; then
+          CONSTRAINTS="-c setup/constraints/core-py310-torch2.9.1.txt"
+        fi
+        pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu $CONSTRAINTS
+        pip install -e .[dev] $CONSTRAINTS
         pip install \
           "coverage[toml]==7.13.4" \
           "pytest==9.0.2" \
@@ -121,6 +127,7 @@ jobs:
         python -m pytest tests/ \
           -n 2 \
           --dist loadfile \
+          -m "not multiprocess" \
           --no-cov \
           --timeout=300 \
           --durations=25 \
@@ -139,6 +146,7 @@ jobs:
         python -m pytest tests/ \
           -n 2 \
           --dist loadfile \
+          -m "not multiprocess" \
           --cov=src/dendritic_modeling \
           --cov-branch \
           --cov-report=xml \
@@ -147,6 +155,27 @@ jobs:
           --durations=25 \
           --junitxml=pytest-results.xml \
           --maxfail=5 \
+          -v
+
+    # Tests that start their own worker processes (distributed training) run
+    # one at a time, outside pytest-xdist: on the two-CPU runners a parallel
+    # test worker starves them. gloo connects the local processes over the
+    # loopback interface.
+    - name: Run multi-process tests
+      env:
+        PYTHONPATH: ${{ github.workspace }}/src
+        MPLBACKEND: Agg
+        CUDA_VISIBLE_DEVICES: ""
+        OMP_NUM_THREADS: "1"
+        GLOO_SOCKET_IFNAME: lo
+      run: |
+        python -m pytest tests/ \
+          -m multiprocess \
+          -p no:xdist \
+          --no-cov \
+          --timeout=900 \
+          --durations=10 \
+          --junitxml=pytest-multiprocess-results.xml \
           -v
 
     # Only upload coverage from one job to avoid duplicates
@@ -208,7 +237,9 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: test-results-${{ matrix.os }}-${{ matrix.python-version }}
-        path: pytest-results.xml
+        path: |
+          pytest-results.xml
+          pytest-multiprocess-results.xml
 
     - name: Upload coverage report
       if: always() && matrix.python-version == '3.11'
@@ -245,8 +276,12 @@ jobs:
         ignore-vulns: |
           GHSA-887c-mr87-cxwp
 
-    - name: Build documentation
+    - name: Build documentation (warnings are errors)
       run: |
-        cd docs
-        make html
-        echo "Documentation built successfully!"
+        python -m sphinx -b html -W --keep-going docs docs/_build/html
+
+    - name: Check that the command-line reference is current
+      run: python docs/scripts/generate_cli_reference.py --check
+
+    - name: Check that the options reference is current
+      run: python docs/scripts/generate_options_reference.py --check

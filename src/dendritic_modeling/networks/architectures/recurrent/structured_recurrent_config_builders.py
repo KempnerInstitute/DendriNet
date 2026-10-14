@@ -6,14 +6,12 @@ from typing import Any
 
 from dendritic_modeling.config.conversion import layer_value
 from dendritic_modeling.networks.architectures.recurrent.structured_recurrent_layer_policy import (
-    _direct_ff_inhibitory_enabled,
     _effective_layer_recurrence_enabled,
     _layer_recurrence_enabled,
     _resolve_layer_inhibitory_synapse_counts,
     _resolve_layer_recurrent_timing,
     _resolve_recurrent_input_projection_dims,
     _resolve_recurrent_store_routing,
-    _resolve_recurrent_transfer_params,
     _should_build_inhibitory_population,
 )
 from dendritic_modeling.networks.architectures.recurrent.structured_recurrent_population_builders import (
@@ -50,8 +48,6 @@ def _build_structured_recurrent_layer_config(
     layer_idx: int,
     n_exc: Any,
     n_inh: int,
-    input_mode: int,
-    transfer_inhibitory_mode: str,
     explicit_recurrent_layers: Any,
     use_shunting: bool,
     use_additive_normalization: bool,
@@ -114,18 +110,15 @@ def _build_structured_recurrent_layer_config(
         inh_cfg=inh_cfg,
     )
 
-    direct_ff_inh = _direct_ff_inhibitory_enabled(
-        input_mode=input_mode,
-        transfer_inhibitory_mode=transfer_inhibitory_mode,
-        layer_idx=layer_idx,
-    )
-
+    # The first layer's feedforward inhibitory input is the transferred
+    # inhibitory stream; its excitatory cells read it when the layer has no
+    # inhibitory cells (config.inhibitory_wiring).
     return ei_layer_config_cls(
         excitatory=exc_cfg,
         inhibitory=inh_cfg,
         recurrent=rec_enabled,
         dt=timing.dt,
-        direct_ff_inhibitory_to_excitatory=direct_ff_inh,
+        direct_ff_inhibitory_to_excitatory=layer_idx == 0,
     )
 
 
@@ -138,8 +131,6 @@ def _build_structured_recurrent_layers(
     flags: _RecurrentFeatureFlags,
     excitatory_sizes: list[Any],
     inhibitory_sizes: list[Any],
-    input_mode: int,
-    transfer_inhibitory_mode: str,
     explicit_recurrent_layers: Any,
     use_shunting: bool,
     use_additive_normalization: bool,
@@ -159,8 +150,6 @@ def _build_structured_recurrent_layers(
                 layer_idx=layer_idx,
                 n_exc=n_exc,
                 n_inh=n_inh,
-                input_mode=input_mode,
-                transfer_inhibitory_mode=transfer_inhibitory_mode,
                 explicit_recurrent_layers=explicit_recurrent_layers,
                 use_shunting=use_shunting,
                 use_additive_normalization=use_additive_normalization,
@@ -179,10 +168,7 @@ def _build_structured_recurrent_network_config(
     use_transfer: bool,
 ) -> Any:
     """Assemble the recurrent network config from resolved sections."""
-    transfer_params = _resolve_recurrent_transfer_params(
-        transfer=sections.transfer,
-        recurrent_cfg=sections.recurrent_cfg,
-    )
+    transfer_params = dict(sections.transfer)
     input_projection_dims = _resolve_recurrent_input_projection_dims(
         architecture=sections.architecture,
         recurrent_cfg=sections.recurrent_cfg,

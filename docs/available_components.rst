@@ -1,548 +1,436 @@
-Available Components
-====================
+Component catalogue
+===================
 
-Quick reference of all implemented components and their configuration strings.
+A model is an encoder, a core network and a decoder (see
+:ref:`model-overview`), each selected by a name in the configuration. This
+page lists the core types, the encoder and decoder types, and the registries
+through which code adds new components. The other lists of names (synapse
+types, activations, training strategies, datasets, analyzers and more) live on
+the pages that explain them; `Other component lists`_ links to them.
 
-Extension Registries
---------------------
+Component names are resolved when the component is built, not when the
+configuration loads, so a misspelled name passes the loader and fails when
+the model, dataset or trainer is built. ``dendritic-train --validate-only``
+builds every component without training and reports such errors.
 
-Most built-in components below are selected by YAML strings. For project-local
-extensions, use the registry APIs so additional components can be added without
-editing central dispatch chains:
+.. _core-types:
 
-.. list-table::
-   :header-rows: 1
-   :widths: 28 36 36
+Core types
+----------
 
-   * - Family
-     - Registry API
-     - Selection path
-   * - Architecture / core
-     - ``dendritic_modeling.networks.architectures.register_architecture``
-     - ``model.core.type`` or direct ``get_architecture(...)`` calls
-   * - Optimizer
-     - ``dendritic_modeling.training.optimizers.register_optimizer``
-     - ``training.main.optimizer.name``
-   * - Loss
-     - ``dendritic_modeling.training.loss.register_loss_function``
-     - trainer ``loss_function`` / configured loss name
-   * - Dataset
-     - ``dendritic_modeling.datasets.register_dataset``
-     - ``data.task.dataset``
-   * - Analyzer metadata
-     - ``dendritic_modeling.analysis.register_analyzer``
-     - metadata/discovery only; execution remains in ``AnalysisManager``
+``model.core.type`` selects the core. Names are case-insensitive.
+``dendritic_modeling.networks.architectures.factory.get_available_architectures()``
+returns every built-in name and every registered extension.
 
-Built-in architecture names are reserved and cannot be shadowed by extension
-registrations. This keeps existing experiments reproducible while allowing
-project-local components to be introduced cleanly.
-
-Extension workflow:
+Population networks
+~~~~~~~~~~~~~~~~~~~
 
 .. list-table::
    :header-rows: 1
-   :widths: 22 38 40
+   :widths: 26 46 28
 
-   * - Component type
-     - Add
-     - Keep stable
-   * - Architecture or layer family
-     - Register with ``register_architecture`` and expose a YAML type string
-     - Existing ``model.core.type`` aliases and typed-config defaults
-   * - Synapse or receptor kinetics
-     - Add a ``synapse_types`` entry or a typed-synapse implementation behind
-       the recurrent population path
-     - Source-population polarity and target synapse-count semantics
-   * - Neuron or soma dynamics
-     - Add a population-level dynamics mode or module, selected from
-       ``PopulationConfig``
-     - Rate-mode behavior and state ``to``/``detach``/``clone`` contracts
-   * - Learning rule
-     - Add a strategy/rule object under training and connect it through the
-       strategy config
-     - Optimizer parameter groups and saved resolved configs
-   * - Analyzer
-     - Register metadata and route execution through ``AnalysisManager``
-     - Analysis output names, runtime streaming/materialization behavior, and
-       device restoration
-
-Core Network Types
-------------------
-
-.. list-table::
-   :header-rows: 1
-   :widths: 25 75
-
-   * - Type string
-     - Description
-   * - ``dendritic_shunting``
-     - E-I network with shunting (divisive) inhibition
-   * - ``dendritic_additive``
-     - E-I network with raw additive (subtractive) inhibition, ``V = E - I``
-   * - ``dendritic_normalized_additive``
-     - E-I network with additive inhibition plus explicit voltage normalization
-   * - ``flat_shunting``
-     - Flattened dendrites (single level) with shunting
-   * - ``flat_additive``
-     - Flattened dendrites with raw additive inhibition
-   * - ``flat_normalized_additive``
-     - Flattened dendrites with normalized additive inhibition
-   * - ``dendritic_mlp``
-     - E-I with signed weights (identity transform)
-   * - ``flat_mlp``
-     - Flattened dendrites with signed weights (MLP-like dendritic baseline)
-   * - ``einet``
-     - Generic E-I; reads use_shunting from config
-   * - ``ei_unified``
-     - Unified E-I (feedforward + recurrent capable)
+   * - ``model.core.type``
+     - Core
+     - Configuration
    * - ``population_network``
-     - Canonical feedforward/recurrent dendritic layers with named
-       populations, per-population morphology, and validated directional
-       same-step connections
-   * - ``rnn_dendritic_shunting``, ``rnn_dendritic_additive``, ``rnn_dendritic_normalized_additive``, ``rnn_flat_shunting``, ``rnn_flat_additive``, ``rnn_flat_normalized_additive``
-     - Unified recurrent-EI aliases with explicit shunting, raw-additive, or normalized-additive defaults
-   * - ``point_mlp``
-     - Plain point-neuron MLP baseline
-   * - ``total_param_mlp``
-     - MLP baseline matched by total parameter count
-   * - ``active_param_mlp``
-     - MLP baseline matched by active parameter count
-   * - ``ss_mlp``
-     - Sparse structured MLP baseline
-   * - ``ss_mlp_flat``
-     - Flattened sparse structured MLP baseline
-   * - ``hierarchical_dendritic_tensor_map``
-     - Vision-replacement baseline: keep the pretrained prefix/suffix around a
-       newly initialized dendritic core, flatten the prefix tensor, run an
-       EINet-style hierarchical dendritic core, then optionally project to a
-       flat suffix input
-   * - ``hierarchical_dendritic_conv``
-     - Spatial dendritic convolutional core over local patches; preserves the prefix/suffix spatial tensor contract for convolutional replacement
-   * - ``gru``
-     - Gated Recurrent Unit
-   * - ``lstm``
-     - Long Short-Term Memory
-   * - ``vanilla_rnn``
-     - Standard RNN
-   * - ``mlp``
-     - Multi-layer perceptron
-   * - ``alexnet``
-     - AlexNet-style classical CNN backbone
-   * - ``cnn``
-     - Small classical CNN
-   * - ``cnn_down``
-     - Downsampling CNN decoder/encoder helper
-   * - ``cnn_up``
-     - Upsampling CNN decoder helper
-   * - ``identity``
-     - Identity core / pass-through
+     - Layers of named excitatory and inhibitory populations with explicit,
+       directed connections, feedforward or recurrent; each population has
+       its own morphology and options. See :ref:`population-networks`.
+     - ``model.core.population_network``
 
-Encoder / Decoder Types
------------------------
+Structured E/I cores
+~~~~~~~~~~~~~~~~~~~~
+
+Stacks of excitation/inhibition (E/I) layers: each layer has an excitatory
+population of dendritic trees and an optional inhibitory population, wired by
+synapse counts per branch. They read the sections
+``model.core.architecture``, ``connectivity``, ``transfer``, ``morphology``,
+``sparsity``, ``reactivation``, ``blocklinear`` and ``implementation``; a
+recurrent structured core also reads ``dynamics``, ``synapse_types``,
+``dendritic_spikes``, ``soma_feedback`` and ``recurrent_ei``. See
+:ref:`structured-ei-cores`, and :ref:`integration-modes` for the integration
+rules.
 
 .. list-table::
    :header-rows: 1
-   :widths: 25 75
+   :widths: 34 66
 
-   * - Type
-     - Description
-   * - ``Identity``
-     - Pass-through (no transformation)
-   * - ``MLP``
-     - Multi-layer perceptron encoder/decoder
-   * - ``CNN``
-     - Convolutional encoder (encoder only)
+   * - ``model.core.type``
+     - Core
+   * - ``einet``
+     - Structured E/I core whose integration rule comes from
+       ``model.core.morphology`` (``use_shunting``, default ``true``).
+   * - ``dendritic_shunting``
+     - Shunting (divisive) inhibition.
+   * - ``dendritic_additive``
+     - Raw additive (subtractive) inhibition.
+   * - ``dendritic_normalized_additive``
+     - Additive inhibition with voltage normalization.
+   * - ``dendritic_signed``
+     - Signed weights (``weight_transform: identity``) in separate excitatory
+       and inhibitory synapse banks, combined additively.
+   * - ``dendritic_mlp``
+     - Signed weights in one synapse bank per branch that reads the
+       excitatory and inhibitory inputs together, combined additively.
+   * - ``flat_shunting``, ``flat_additive``, ``flat_normalized_additive``,
+       ``flat_signed``, ``flat_mlp``
+     - The ``dendritic_*`` type of the same suffix with a flattened tree: the
+       same number of branch compartments, all attached directly to the soma.
 
-TopK Variants
--------------
+Recurrent unified E/I cores
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Set via ``model.core.sparsity.type``. Canonical values are:
-
-.. list-table::
-   :header-rows: 1
-   :widths: 20 80
-
-   * - Type
-     - Description
-   * - ``standard``
-     - Deterministic top-K mask
-   * - ``stochastic``
-     - Soft top-K with temperature
-   * - ``variance``
-     - Variance-aware selection
-   * - ``dense_to_sparse``
-     - Dense/high-K warmup followed by scheduled pruning to the configured
-       synapse count; ``annealed_topk`` is an alias
-   * - ``deepst``
-     - Dynamic rewiring with density targets
-   * - ``indexed``
-     - Fixed-index sparse synapses that store only ``out_features x K``
-       weights plus integer presynaptic indices
-   * - ``indexed_dynamic``
-     - Candidate-pool sparse TopK; stores ``out_features x C`` candidate
-       weights and dynamically selects ``K`` active candidates per forward pass
-   * - ``indexed_rewire``
-     - Fixed-budget indexed sparse synapses with adaptive-quantile turnover;
-       stores only ``out_features x K`` weights and periodically replaces weak
-       same-row synapses with newly sampled allowed inputs
-
-``topk`` is retained as an alias for ``standard``.
-``annealed_topk`` is retained as a readable alias for ``dense_to_sparse``.
-
-Weight Transforms
------------------
-
-Set via ``model.core.morphology.weight_transform``:
-
-``softplus`` -- always positive, smoother gradient (default structured EI / recurrent setting).
-``exp`` -- always positive, sharp exponential parameterization.
-``relu`` -- non-negative, can be exactly zero.
-``identity`` -- signed weights (for dendritic_mlp).
-
-For biologically constrained recurrent runs, pair a positive transform
-(``exp`` or ``softplus``) with ``allow_self_recurrence: false`` in the
-population config to remove same-population autaptic feedback.
-
-Recurrent Extensions
---------------------
+Layered E/I networks with an excitatory and an optional inhibitory population
+per layer, feedforward or recurrent, configured by ``model.core.unified_ei``.
+See :ref:`unified-ei`.
 
 .. list-table::
    :header-rows: 1
-   :widths: 24 32 44
+   :widths: 34 66
 
-   * - Component
-     - Config keys
-     - Notes
-   * - Named populations
-     - ``model.core.population_network.layers[].populations``
-     - Each entry defines ``name``, ``polarity``, ``n_neurons``, and
-       ``branch_factors``.
-   * - Source-target population masks
-     - ``model.core.population_network.layers[].connections``
-     - Optional ``source``, ``target``, ``enabled``, ``probability`` /
-       ``p_connect``, and ``seed``.
-   * - Structured TopK masks
-     - ``model.core.connectivity.structured``
-     - Supports ``fixed_indegree``, ``bernoulli``, and ``distance`` pathway
-       masks for feedforward and recurrent E/I pathways.
-   * - Synapse types
-     - ``synapse_types.enabled``, ``excitatory``, ``inhibitory``
-     - Each type can define ``name``, ``fraction``, ``tau`` or
-       ``tau_rise``/``tau_decay``, ``magnesium_block``, ``stp``, and
-       ``reversal_potential``.
-   * - Spiking soma
-     - ``dynamics_mode: spike`` or ``model.core.dynamics.mode: spike``
-     - LIF soma with ``spike_readout`` set to ``spikes``, ``rate``, or
-       ``membrane``.
-   * - Dendritic spike / plateau events
-     - ``dendritic_spikes_enabled`` or
-       ``model.core.dynamics.dendritic_spikes.enabled``
-     - Optional local branch threshold/plateau events at distal, proximal, or
-       all non-soma dendritic levels; propagation can be ``additive``,
-       ``replace``, or ``gated``.
-   * - Soma-to-dendrite feedback
-     - ``soma_feedback_enabled`` or ``model.core.soma_feedback.enabled``
-     - Optional previous-timestep soma output/voltage/readout projected back
-       into dendritic levels as additive, shunting, or gated feedback.
-   * - Shared replacement cells
-     - ``networks.architectures.replacement``
-     - Reusable ``input_adapter -> dendritic_core -> output_adapter``
-       components used by domain-specific vision and transformer placement
-       code. ``signed_split`` maps signed activations into non-negative
-       dendritic channels.
-   * - Vision backbone replacement
-     - ``model.vision_replacement`` plus
-       ``hierarchical_dendritic_tensor_map`` or ``hierarchical_dendritic_conv``
-     - Torchvision backbone splitter for replacing AlexNet/VGG classifier or
-       feature-map blocks named in ``target_modules`` with dendritic cores
-       while preserving prefix/suffix tensor contracts.
-   * - Vision replacement distillation
-     - ``training.vision_replacement``
-     - Block-output distillation from cached replacement inputs/targets or
-       image-level teacher outputs; supports replacement-only or full-model
-       trainable scope for image-level caches.
-   * - Transformer FFN replacement
-     - ``model.transformer_replacement`` plus ``model.core.type: dendritic_ffn``
-     - Hugging Face model patcher for replacing decoder-block target modules
-       identified by ``target_module`` names or dotted paths; use
-       ``population_defaults.topk_type: indexed_rewire`` for
-       low-parameter sparse synapses.
-   * - Transformer replacement distillation
-     - ``training.transformer_replacement``
-     - Layerwise block-output distillation or joint LM training for patched
-       causal LMs using ``synthetic_mlp``, ``hidden_cache``, or ``hf_text``
-       teacher sources.
-   * - Recurrent analysis introspection
-     - ``analysis.utils.recurrent_introspection`` and
-       ``analysis.spike_train``
-     - Shared helper for structured E/I and named-population analysis tools, plus
-       LIF raster/rate/ISI/Fano summaries.
-   * - Recurrent protocols
-     - ``networks.RecurrentCore``, ``networks.SteppableRecurrentCore``
-     - Small structural interfaces for trainer-facing sequence cores and
-       one-step recurrent dendritic populations.
+   * - ``model.core.type``
+     - Core
+   * - ``unified_ei`` (alias ``ei_unified``)
+     - Each population's options set its integration rule and morphology.
+       The names ``ei_net`` and ``unified_einet`` build the same core with a
+       deprecation warning.
+   * - ``rnn_dendritic_shunting``, ``rnn_dendritic_additive``,
+       ``rnn_dendritic_normalized_additive``
+     - ``unified_ei`` with shunting, raw additive or normalized additive
+       integration set on every population.
+   * - ``rnn_flat_shunting``, ``rnn_flat_additive``,
+       ``rnn_flat_normalized_additive``
+     - As the ``rnn_dendritic_*`` types, with ``branch_factors: [1]`` on every
+       population.
 
-Population Network Layers
+Spatial cores
+~~~~~~~~~~~~~
+
+Cores for image-shaped inputs ``(batch, channels, height, width)``. See
+:ref:`spatial-cores`.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 44 26
+
+   * - ``model.core.type``
+     - Core
+     - Configuration
+   * - ``hierarchical_dendritic_tensor_map`` (aliases
+       ``dendritic_tensor_map``, ``tensor_map``)
+     - Flattens the input and applies a structured E/I core to it, without
+       spatial locality.
+     - Structured E/I sections
+   * - ``hierarchical_dendritic_conv`` (alias ``spatial_dendritic_conv``)
+     - Applies one shared structured E/I core to every local patch and
+       returns a ``(batch, channels, height, width)`` map.
+     - Structured E/I sections and ``model.core.spatial``
+   * - ``dendritic_alexnet``
+     - An AlexNet-shaped network of dendritic convolution stages and a
+       dendritic classifier.
+     - ``model.core.vision`` and the structured E/I sections of its cells
+
+Baselines and controls
+~~~~~~~~~~~~~~~~~~~~~~
+
+Conventional networks for comparisons, described in :ref:`baseline-models`.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 40 26
+
+   * - ``model.core.type``
+     - Core
+     - Configuration
+   * - ``affine_mlp``
+     - Dense, fixed-sparse or learned Top-K multilayer perceptron.
+     - ``model.core.affine_mlp``
+   * - ``point_mlp``, ``total_param_mlp``, ``active_param_mlp``
+     - Point-neuron MLPs matched to the parameter count of a dendritic
+       reference.
+     - Structured E/I sections or ``model.core.population_network``
+   * - ``ss_mlp``, ``ss_mlp_flat``
+     - Sparse structured MLPs with the branch structure of a structured E/I
+       reference.
+     - Structured E/I sections
+   * - ``sparse_active_matched_point``, ``direct_active_matched_point``
+     - One-layer point controls matched to the effective parameter count of a
+       structured E/I reference.
+     - Structured E/I sections
+   * - ``sparse_active_matched_point_conv`` (alias
+       ``spatial_sparse_active_matched_point``)
+     - The sparse matched control applied to local image patches.
+     - Structured E/I sections and ``model.core.spatial``
+   * - ``gru``, ``lstm``, ``vanilla_rnn`` (alias ``rnn``)
+     - PyTorch recurrent networks.
+     - ``model.core.baseline_rnn``
+   * - ``heterogeneous_leak_ctrnn`` (alias ``heterogeneous_ctrnn``)
+     - Sparse point-neuron E/I network with leaky channels of several time
+       constants.
+     - ``model.core.heterogeneous_leak_ctrnn``
+   * - ``legendre_memory``
+     - Fixed Legendre delay-network memory with sparse learned input and
+       readout.
+     - ``model.core.legendre_memory``
+
+Pass-through
+~~~~~~~~~~~~
+
+``identity`` (alias ``none``) passes the encoder output to the decoder
+unchanged; it reads no section.
+
+Names that are not core types
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The architecture factory also builds encoder, decoder and Python building
+blocks: ``mlp``, ``effectivematchedparammlp``, ``alexnet``, ``cnn``,
+``cnn_down``, ``cnn_downsample``, ``cnndownsample``, ``cnn_up``,
+``cnn_upsample``, ``cnnupsample``, ``mlpautoencoder``,
+``mlpvariationalautoencoder``, ``cnnautoencoder``,
+``cnnvariationalautoencoder``, ``pathway_router`` and ``router``. They take
+flat parameters that ``model.core`` cannot express, so ``model.core.type`` set
+to one of them raises an error that names the alternatives (``affine_mlp`` for
+a plain MLP core, ``point_mlp`` for a matched control).
+
+.. _encoder-decoder-types:
+
+Encoder and decoder types
 -------------------------
 
-Set ``model.core.type: population_network`` to define layers with more than
-one named cell population. Each population owns its own ``PopulationConfig``
-payload, so morphology and dynamics can differ by population.
+``model.encoder.type`` and ``model.decoder.type`` select the encoder and the
+decoder; their options go under ``model.encoder.params`` and
+``model.decoder.params``. Names are case-insensitive. The loader rejects an
+option that the selected type does not read, unless it holds its default
+value.
 
-The current two-population E/I feedforward layer is the simple special case:
-
-.. code-block:: yaml
-
-   model:
-     core:
-       type: population_network
-       population_network:
-         layers:
-           - name: layer0
-             readout_population: e
-             population_defaults:
-               ff_excitatory_synapses: 4
-               ff_inhibitory_synapses: 2
-               rec_excitatory_synapses: 0
-               rec_inhibitory_synapses: 0
-               reactivate: true
-             populations:
-               - name: i
-                 polarity: inhibitory
-                 n_neurons: 16
-                 branch_factors: [1]
-               - name: e
-                 polarity: excitatory
-                 n_neurons: 64
-                 branch_factors: [3, 2]
-             connections:
-               - source: input
-                 target: i
-               - source: input
-                 target: e
-               - source: i
-                 target: e
-
-For independent transfer streams, enable the transfer layer and use explicit
-external source names. ``source: input`` is the default stream;
-``source: input_e`` and ``source: input_i`` refer to the excitatory and
-inhibitory tensors returned by ``TransferLayer`` on the first layer:
-
-.. code-block:: yaml
-
-   model:
-     core:
-       type: population_network
-       population_network:
-         use_transfer: true
-         transfer_params:
-           input_mode: 0
-           independent_pathways: true
-           excitatory_dim: 392
-           inhibitory_dim: 392
-         layers:
-           - name: layer0
-             readout_population: e
-             population_defaults:
-               ff_excitatory_synapses: 4
-               ff_inhibitory_synapses: 2
-               rec_excitatory_synapses: 0
-               rec_inhibitory_synapses: 0
-             populations:
-               - name: i
-                 polarity: inhibitory
-                 n_neurons: 16
-                 branch_factors: [1]
-               - name: e
-                 polarity: excitatory
-                 n_neurons: 64
-                 branch_factors: [3, 2]
-             connections:
-               - source: input_e
-                 target: i
-               - source: input_e
-                 target: e
-               - source: input_i
-                 target: e
-               - source: i
-                 target: e
-
-Same-step population-to-population connections must be directional and
-acyclic. For example, ``i -> e`` is allowed, but ``e -> i`` plus ``i -> e`` in
-the same layer and same timestep raises a config error. Bidirectional
-population interactions are supported with ``timing: delayed`` on recurrent
-layers, where they use previous-timestep outputs instead of creating an
-algebraic loop.
-
-For multiple layers, each layer defines its own population graph.
-``source: input`` remains the compatibility shorthand for the previous layer's
-readout stream. Prefer explicit qualified sources when a later layer should
-receive specific earlier populations:
-
-.. code-block:: yaml
-
-   connections:
-     - source: layer0.e0
-       target: i1
-     - source: layer0.e0
-       target: e1
-     - source: layer0.i0
-       target: e1
-     - source: i1
-       target: e1
-
-Same-step qualified sources must come from earlier layers. Delayed qualified
-sources are allowed on recurrent target layers and use previous-timestep
-population outputs.
-
-If ``input_projection_dims`` is combined with ``use_transfer: true``, the
-projection applies to ``input``/``input_e``. ``input_i`` keeps the inhibitory
-dimension produced by ``TransferLayer``.
-
-Canonical examples cover the main cases:
-``population_network_feedforward.yaml`` for the standard E/I layer,
-``population_network_heterogeneous_feedforward.yaml`` for multiple populations
-with distinct morphologies in one feedforward layer,
-``population_network_two_layer.yaml`` for explicit cross-layer routing,
-``population_network_recurrent_pyr_pv_sst.yaml`` for delayed recurrent
-microcircuits, and the ``population_network_synapse_types_*``,
-``population_network_spiking.yaml``, and ``population_network_soma_feedback.yaml``
-files for biophysical recurrent options.
-
-Activation Types
-----------------
-
-Set via ``model.core.reactivation.type``:
-
-``param_tanh``, ``param_tanh_only_m``, ``param_linear_sigmoid``,
-``param_linear_tanh``, ``param_linear_tanh_transition``, ``relu``,
-``sigmoid``, ``tanh``, ``leaky_relu``, ``elu``, ``selu``, ``softplus``.
-
-Training Strategies
--------------------
-
-Set via ``training.main.strategy``:
-
-``standard``, ``fa``, ``dfa``, ``shunting_fa``, ``shunting_dfa``,
-``local_ca``, ``freeze_layers``, ``freeze_branches``, ``freeze_branch_kl``,
-``voltage_stabilization``, ``homeostatic_control``, ``recurrent``,
-``multi_stage``.
-
-Loss Functions
---------------
-
-Set via ``training.main.common.loss_function``:
-
-``ce``, ``mse``, ``log_mse``, ``bce``, ``cat_nll``, ``vae_elbo``,
-``neg_cos_sim``, ``log_adj_neg_cos_sim``.
-
-Datasets
---------
-
-Set via ``data.dataset_name``:
-
-**Standard**: ``mnist``, ``fashion_mnist``, ``cifar10``, ``imagenet``,
-``mnist_modulo10``, ``cifar10_modulo10``,
-``double_cifar10_contextual_mod10``, ``double_mnist_contextual_mod10``.
-
-**Synthetic**: ``correlated_gaussian``, ``linear_separable``,
-``nonlinear_separable``, ``nonlinear_interaction``, ``block_correlated``,
-``balanced_information``, ``contextual_stream_gain_shift``,
-``poisson_generator``, ``multixor``, ``orientation_bars``, ``orthonet``.
-
-**Sequence**: ``sequential_mnist``, ``copy_task``, ``adding_problem``,
-``variable_delay_dms``, ``multi_frequency``, ``hierarchical_temporal``,
-``context_dependent_decision``, ``context_dependent_decision_hard``,
-``context_dependent_decision_positive``,
-``context_dependent_decision_hard_positive``,
-``switching_context_decision``, ``switching_context_decision_positive``,
-``timescale_generalization``, ``timescale_generalization_positive``,
-``odr_generalization``, ``odr_generalization_positive``,
-``romo_delay_comparison``, ``romo_delay_comparison_positive``,
-``gain_modulated_contextual_comparison``,
-``gain_modulated_contextual_comparison_positive``, ``switching_lds``,
-``lorenz``, ``lorenz_sequence``, ``multi_sine_forecast``, ``stringer_v1``.
-
-Analysis Modules
-----------------
-
-Each enabled under ``analysis.<module_name>.enabled``:
-
-Preferred short names in YAML are ``performance``, ``information``,
-``representation_accessibility``, ``ablation``, and ``correlation``. The longer
-``*_analysis`` names are accepted as aliases.
-
-Available modules: ``performance``, ``information``,
-``representation_accessibility``, ``ablation``,
-``correlation``, ``weight``, ``synapse_turnover``, ``noise_perturbation``,
-``compartment_statistics``, ``compartment_snr``, ``multiplicative_gain``,
-``routing``, ``receptive_field``, ``adversarial_robustness``,
-``single_layer_contribution``, ``synaptic_activation``, ``branch_activation``,
-``reactivation_dynamics``, ``inhibitory_specialization``,
-``jacobian_spectrum``, ``dendritic_timetraces``, ``local_rule_components``,
-``spike_train``.
-
-``representation_accessibility`` captures post-gate soma populations from
-stacked feedforward population networks. It provides validation-to-test Ridge
-and MLP probes, label-independent matched-width projections, joint population
-class information, and separate per-soma scalar information summaries.
-
-Information Analysis Components
--------------------------------
-
-Set via ``analysis.information.params.selection.components``.
+Encoders:
 
 .. list-table::
    :header-rows: 1
-   :widths: 25 75
+   :widths: 30 70
 
-   * - Component
-     - Implemented metrics and notes
-   * - ``basic``
-     - ``I(E; C)``, ``I(I; C)``, ``I(Vb; C)``, ``I(Vout; C)``,
-       ``I(E, I; C)``, and ``I(Vinf; C)`` when ``include_vinf`` is enabled
-   * - ``pairwise``
-     - ``I(E; I)``, ``I(E; Vout)``, ``I(I; Vout)``, ``I(E; Vb)``,
-       ``I(I; Vb)``, ``I(Vb; Vout)``, plus analogous ``Vinf`` pairwise terms
-       when enabled
-   * - ``conditional``
-     - ``I(E; I | C)``, ``I(E; Vout | C)``, ``I(I; Vout | C)``,
-       ``I(E; Vb | C)``, ``I(I; Vb | C)``, ``I(Vb; Vout | C)``, and
-       ``Vinf`` variants when enabled
-   * - ``ablation_aligned``
-     - Adds ablation-mirroring CMI terms including ``I(Vout; C | E)``,
-       ``I(Vout; C | I)``, ``I(Vout; C | Vb)``, ``I(Vout; C | E, I)``,
-       ``I(E; C | I, Vb)``, ``I(I; C | E, Vb)``, ``I(E, I; C | Vb)``, and
-       no-``Vb`` fallbacks such as ``I(E; C | I)`` and ``I(I; C | E)``
-   * - ``upstream_unique_cmi``
-     - Adds ``I(Vb; C | E, I)`` when ``Vb`` exists
-   * - ``gaussian_fisher``
-     - Fisher or Gaussian proxy metrics such as ``I(Vout; C)_fisher`` and
-       ``I(Vb; C | E, I)_fisher``
-   * - ``layer_proxies``
-     - Layer-level derived summaries such as ``_sum``, ``_union``, and
-       ``topK_sum`` built from single-branch metrics
-   * - ``pid``
-     - Partial information decomposition. Present in config, but currently
-       reserved or disabled
+   * - ``model.encoder.type``
+     - Encoder and the options it reads
+   * - ``identity`` (alias ``none``)
+     - Passes the input through. ``input_dim`` and ``input_shape`` are set
+       from the dataset by ``dendritic-train``.
+   * - ``pathway_router`` (alias ``router``)
+     - Routes the input features into separate pathways and concatenates
+       their outputs. ``router_mode`` (``fixed`` or ``learned``),
+       ``pathway_groups`` (input feature indices of each pathway; by default
+       the features are split evenly into ``n_pathways`` groups),
+       ``shared_indices`` (features every pathway receives), ``pathway_dim``
+       or ``pathway_dims`` (output width of each pathway; by default its
+       number of features), ``router_activation`` (an activation type,
+       default ``none``), and for ``learned`` routing
+       ``learned_router_temperature`` and ``learned_router_init_scale``.
+   * - ``mlpautoencoder``, ``mlpvariationalautoencoder``
+     - The encoder half of a multilayer-perceptron (variational) autoencoder:
+       ``encoder_hidden_dims``, ``latent_dim``, ``decoder_hidden_dims``,
+       ``activation``.
+   * - ``cnnautoencoder``, ``cnnvariationalautoencoder``
+     - The encoder half of a convolutional (variational) autoencoder:
+       ``encoder_hidden_dims``, ``latent_shape``, ``decoder_hidden_dims``,
+       ``activation``.
 
-For ``Vout`` specifically, the analyzer currently emits ``I(Vout; C)``,
-``I(Vout; C | E)``, ``I(Vout; C | I)``, and ``I(Vout; C | E, I)``.
+Decoders:
 
-Initialization Methods
-----------------------
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
 
-Set via ``model.core.sparsity.init_method``:
+   * - ``model.decoder.type``
+     - Decoder and the options it reads
+   * - ``MLP``
+     - A multilayer perceptron from the core output to ``output_dim``
+       (default 10) outputs: ``hidden_dims`` (default ``[16]``; ``[]`` gives
+       a single linear readout), ``activation`` (an activation type, default
+       ``relu``), ``input_normalization`` (``none`` or ``layer_norm``),
+       ``input_norm_eps`` (default ``1e-5``) and ``output_init`` (``default``,
+       ``zero``, ``xavier``, ``xavier_zero_bias`` or ``xavier_uniform``).
+   * - ``identity`` (alias ``none``)
+     - Passes the core output through. A written ``output_dim`` must equal the
+       core output size.
 
-``xavier_normal``, ``xavier_uniform``, ``kaiming_normal``,
-``kaiming_uniform``, ``orthogonal``, ``normal``, ``uniform``, ``eye``.
+The decoder's ``input_dim`` is always set from the core output size. Other
+names, such as ``linear`` or the ``CNN`` building blocks, load but fail when
+the model is built.
 
-BlockLinear Initialization
---------------------------
+.. _encoder-pretraining:
 
-Set via ``model.core.morphology.dbl_init_method``:
+Pretraining autoencoder encoders
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-``analytical_expectation``, ``ei_equivalence``, ``naive``, ``default``,
-``mechanism_neutral``. The last option is reserved for paired causal controls:
-with a shared seed it initializes shunting and additive models identically and
-does not provide mechanism-specific operating-point optimization.
+An autoencoder encoder is trained before the main phase. With
+``training.encoder_pretraining.epochs`` positive, ``dendritic-train`` first
+trains the whole autoencoder to reconstruct the training inputs and keeps the
+state with the lowest validation loss; its encoder then feeds the core. A
+trained autoencoder can instead come from ``model.initial_checkpoint`` (with
+``epochs: 0``). Without either, the run raises.
+
+.. code-block:: yaml
+
+   model:
+     encoder:
+       type: mlpautoencoder
+       params: {encoder_hidden_dims: [256], latent_dim: 32, decoder_hidden_dims: [256]}
+   training:
+     encoder_pretraining:
+       epochs: 50                # 0 (default): no pretraining
+       batch_size: 256
+       loss_function: mse        # mse | log_mse | bce | vae_elbo (variational only)
+       optimizer: adam
+       learning_rate: 0.001
+       weight_decay: 0.0
+       early_stopping: true
+       patience: 10
+       grad_clip_value: null
+       freeze_encoder: true      # false: the encoder trains with the model
+
+With ``freeze_encoder`` (the default) the encoder receives no gradients in
+the main phase and stays in evaluation mode, so a variational encoder returns
+its latent mean; the run directory holds the pretraining losses in
+``encoder_pretraining/summary.json``, and the model checkpoints contain the
+encoder. Pretraining runs in single-process training: start a DDP run from the
+checkpoint of a single-process run, and use another encoder with FSDP. A
+positive ``epochs`` with an encoder that is not an autoencoder raises.
+``dendritic-train`` and the FSDP entry point check these requests for the
+built-in encoder types before they create the run directory, so a rejected
+request leaves no files behind; an encoder that a plugin builds is checked once
+the model is built.
+
+.. _extension-registries:
+
+Extension registries
+--------------------
+
+Code outside the library adds named components by registering them. A
+registered name is then accepted wherever the configuration selects that kind
+of component.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 26 22 22
+
+   * - Function
+     - Registers
+     - Selected by
+     - Name rules
+   * - ``register_architecture(name, builder, *, aliases=(),
+       description="", allow_override=False)`` in
+       ``dendritic_modeling.networks.architectures``
+     - A core builder, called as ``builder(parameters, input_dim=...,
+       suffix_input_dim=...)``. It returns an ``nn.Module`` with an
+       ``output_dim`` attribute; ``parameters`` is the typed ``model.core``
+       section.
+     - ``model.core.type``
+     - Built-in names are reserved; an existing extension name needs
+       ``allow_override=True``.
+   * - ``register_sparse_layer(name, layer_class, *,
+       allow_override=False)`` in
+       ``dendritic_modeling.networks.architectures.excitation_inhibition.synapse``
+     - A sparse synapse class, built as ``layer_class(in_features=...,
+       out_features=..., K=..., **options)``.
+     - ``topk_type`` (population options) and ``model.core.sparsity.type``
+     - Existing names, built-in or registered, need ``allow_override=True``.
+   * - ``register_activation_builder(act_type, builder, *,
+       allow_override=False)`` in ``dendritic_modeling.networks.activations``
+     - An activation or reactivation-gate builder.
+     - ``reactivation_type``, ``model.core.reactivation.type``, decoder
+       ``activation``
+     - Existing names need ``allow_override=True``.
+   * - ``register_trainer_strategy(name, trainer_class, *,
+       fixed_kwargs=None, allow_override=False)`` in
+       ``dendritic_modeling.training``
+     - A ``Trainer`` subclass, constructed with the trainer options plus
+       ``fixed_kwargs``.
+     - ``training.main.strategy``
+     - Existing names, built-in or registered, need ``allow_override=True``.
+       Settings go in a plugin section ``training.strategies.<name>``
+       (:doc:`extending`).
+   * - ``register_optimizer(name, builder, *, aliases=(),
+       allow_override=False)`` in ``dendritic_modeling.training.optimizers``
+     - An optimizer builder, called as ``builder(model_parameters,
+       optimizer_config)``.
+     - ``training.main.optimizer.name``
+     - Existing names need ``allow_override=True``.
+   * - ``register_loss_function(name, builder, *, aliases=(),
+       allow_override=False)`` in ``dendritic_modeling.training.loss``
+     - A loss builder, a callable without arguments that returns a
+       ``LossFunction``.
+     - ``training.main.common.loss_function``
+     - Existing names need ``allow_override=True``.
+   * - ``register_dataset(name, builder, *, aliases=(), description="",
+       sequence=False, required_strategy=None, processing=None,
+       allow_override=False)`` in ``dendritic_modeling.datasets``
+     - A dataset builder, called with the task configuration; it returns
+       ``(train, valid, test)`` datasets and defines its own splits.
+     - ``data.dataset_name``
+     - Registered names are looked up before the built-in loaders, so
+       registering a built-in name such as ``mnist`` replaces that loader.
+       Existing registered names need ``allow_override=True``.
+   * - ``register_sequence_dataset_builder(name, builder, *,
+       allow_override=False)`` in ``dendritic_modeling.datasets.sequence``
+     - A sequence-task builder, called as ``builder(dataset_name, data_path,
+       parameters)``.
+     - ``data.dataset_name``
+     - Existing names need ``allow_override=True``.
+   * - ``register_analyzer(name, *, config_field, class_path,
+       attribute_name, save_subdir, ...)`` in ``dendritic_modeling.analysis``
+     - An analyzer: configuration field, class, output directory and the
+       phase of the analysis order it runs in.
+     - ``analysis.<config_field>.enabled``, a plugin section
+       (:doc:`extending`)
+     - Existing names need ``allow_override=True``. Without a ``phase`` the
+       analyzer is built but never run.
+   * - ``InformationEstimatorFactory.register_estimator(method,
+       estimator_class)`` in ``dendritic_modeling.utils.information.estimators``
+     - The estimator class of one information estimation method.
+     - ``analysis.information.params.estimator.method``
+     - Only the members of ``EstimationMethod``; registering replaces the
+       built-in estimator of that method.
+
+Registrations run in the process that uses them. A package makes them
+available to every DendriNet command and script by declaring them as a plugin,
+which the library loads before the first configuration, whenever a registry
+meets a name it does not know and whenever a registry lists its names; plugins
+can also register configuration sections, model builders and additive
+integration rules (:doc:`extending`).
+
+Other component lists
+---------------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 60
+
+   * - Components
+     - Where they are listed
+   * - Sparse synapse types (``topk_type``, ``model.core.sparsity.type``)
+     - :ref:`synapse-variants`
+   * - Weight transforms (``weight_transform``)
+     - :ref:`weight-transforms`
+   * - Synapse initialization (``topk_init_method``, ``dbl_init_method``)
+     - :ref:`synapse-initialization`
+   * - Activations and reactivation gates (``reactivation_type``)
+     - :ref:`activation-types`
+   * - Indexed projection backends (``projection_backend``)
+     - :ref:`indexed-backends`
+   * - Population options, connections and time constants
+     - :ref:`population-options`, :ref:`population-connections`,
+       :ref:`temporal-constants`
+   * - Receptor synapse types, spiking soma, dendritic spikes and soma
+       feedback
+     - :doc:`temporal_dynamics`
+   * - Training strategies (``training.main.strategy``)
+     - :ref:`training-strategies`
+   * - Loss functions (``training.main.common.loss_function``)
+     - :ref:`loss-functions`
+   * - Optimizers (``training.main.optimizer.name``)
+     - :doc:`training_strategies`
+   * - Datasets (``data.dataset_name``)
+     - :ref:`dataset-catalogue`
+   * - Analyzers (``analysis.<name>``)
+     - :ref:`analyzer-catalogue`
+   * - Baselines and matched controls
+     - :ref:`baseline-models`

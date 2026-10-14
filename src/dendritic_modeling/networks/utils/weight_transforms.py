@@ -1,9 +1,9 @@
-"""
-Weight transformation utilities for positive weight constraints.
+"""Weight transformations for signed and nonnegative synaptic parameters.
 
-This module provides different transformation functions to ensure synaptic weights
-remain positive during training. Each transformation has different characteristics:
-
+``relu`` guarantees only nonnegativity because it can return zero.  ``exp``
+and ``softplus`` are strictly positive as real-valued functions, although
+finite-precision underflow can still produce zero.  The historical
+``POSITIVE_WEIGHT_TRANSFORMS`` name remains as a compatibility alias.
 """
 
 import math
@@ -14,7 +14,10 @@ import torch
 import torch.nn.functional as functional
 
 WeightTransformType = Literal["identity", "exp", "relu", "softplus"]
-POSITIVE_WEIGHT_TRANSFORMS = {"exp", "relu", "softplus"}
+NONNEGATIVE_WEIGHT_TRANSFORMS = {"exp", "relu", "softplus"}
+# Backward-compatible public name used by existing validation and model code.
+POSITIVE_WEIGHT_TRANSFORMS = NONNEGATIVE_WEIGHT_TRANSFORMS
+STRICTLY_POSITIVE_WEIGHT_TRANSFORMS = {"exp", "softplus"}
 NONNEGATIVE_TRANSFER_ACTIVATIONS = {"relu", "sigmoid", "softplus"}
 _SUPPORTED_WEIGHT_TRANSFORMS: tuple[WeightTransformType, ...] = (
     "identity",
@@ -33,13 +36,16 @@ def safe_exp(
     margin: float = DEFAULT_SAFE_EXP_MARGIN,
     max_exponent: float | None = None,
 ) -> torch.Tensor:
-    """Exponentiate without overflowing finite floating-point tensors."""
+    """Exponentiate without overflow or a second full-size output allocation."""
     if not torch.is_floating_point(weights):
         return torch.exp(weights)
     max_log = math.log(torch.finfo(weights.dtype).max) - float(margin)
     if max_exponent is not None:
         max_log = min(max_log, float(max_exponent))
-    return torch.exp(weights.clamp(max=max_log))
+    # clamp() creates a fresh tensor, so exponentiating that buffer in-place
+    # does not mutate the parameter. This avoids simultaneously materializing
+    # both clamp and exp outputs for multi-billion-contact sparse layers.
+    return weights.clamp(max=max_log).exp_()
 
 
 def inverse_softplus(
@@ -101,14 +107,15 @@ def apply_weight_transform(
     weights: torch.Tensor, transform_type: WeightTransformType = "exp"
 ) -> torch.Tensor:
     """
-    Apply the specified transformation to ensure positive weights.
+    Apply the specified transformation to constrain the stored weights.
 
     Args:
         weights: Raw weight parameters (can be negative)
         transform_type: Type of transformation to apply
 
     Returns:
-        Transformed weights (guaranteed to be positive)
+        Transformed weights. ``relu`` is nonnegative; ``exp`` and ``softplus``
+        are strictly positive in real arithmetic.
 
     Raises:
         ValueError: If transform_type is not supported
@@ -151,7 +158,9 @@ def inverse_weight_transform(
 
 __all__ = [
     "NONNEGATIVE_TRANSFER_ACTIVATIONS",
+    "NONNEGATIVE_WEIGHT_TRANSFORMS",
     "POSITIVE_WEIGHT_TRANSFORMS",
+    "STRICTLY_POSITIVE_WEIGHT_TRANSFORMS",
     "WeightTransformType",
     "apply_weight_transform",
     "get_weight_transform_fn",

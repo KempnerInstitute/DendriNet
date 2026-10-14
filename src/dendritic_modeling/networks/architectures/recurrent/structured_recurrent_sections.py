@@ -10,6 +10,10 @@ from dendritic_modeling.config.conversion import (
     to_plain_dict as _to_plain_mapping,
 )
 from dendritic_modeling.config.legacy import normalize_transfer_config
+from dendritic_modeling.config.recurrence import resolve_feature_block
+from dendritic_modeling.config.recurrent_payloads import (
+    reject_replaced_recurrent_ei_keys,
+)
 from dendritic_modeling.networks.architectures.recurrent.structured_recurrent_types import (
     _StructuredRecurrentSections,
 )
@@ -26,6 +30,7 @@ def _parse_structured_recurrent_sections(
     raw_params: dict[str, Any],
 ) -> _StructuredRecurrentSections:
     recurrent_cfg = _to_plain_mapping(raw_params.get("recurrent_ei", {}))
+    reject_replaced_recurrent_ei_keys(recurrent_cfg)
     architecture = _to_plain_mapping(raw_params.get("architecture", {}))
     connectivity = _to_plain_mapping(raw_params.get("connectivity", {}))
     structured_alias_present = "structured_connectivity" in connectivity
@@ -46,15 +51,8 @@ def _parse_structured_recurrent_sections(
     dynamics = _to_plain_mapping(
         raw_params.get("dynamics", raw_params.get("spiking", {}))
     )
-    dendritic_spikes = _to_plain_mapping(
-        raw_params.get("dendritic_spikes", dynamics.get("dendritic_spikes", {}))
-    )
-    soma_feedback = _to_plain_mapping(
-        raw_params.get(
-            "soma_feedback",
-            recurrent_cfg.get("soma_feedback", dynamics.get("soma_feedback", {})),
-        )
-    )
+    dendritic_spikes = resolve_feature_block(raw_params, "dendritic_spikes")
+    soma_feedback = resolve_feature_block(raw_params, "soma_feedback")
     deepst = _to_plain_mapping(sparsity.get("deepst", {}))
     if "annealed_topk" in sparsity and "dense_to_sparse" not in sparsity:
         logger.warning(

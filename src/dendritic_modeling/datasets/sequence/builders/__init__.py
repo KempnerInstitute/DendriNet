@@ -5,6 +5,7 @@ from dendritic_modeling.datasets.sequence.builders.common import (
     SequenceDatasetBuilder,
 )
 from dendritic_modeling.datasets.sequence.builders.registry import (
+    BUILTIN_SEQUENCE_DATASET_BUILDERS,
     SEQUENCE_DATASET_BUILDERS,
     get_registered_sequence_dataset_names,
     get_sequence_dataset_builder,
@@ -14,6 +15,7 @@ from dendritic_modeling.datasets.sequence.builders.registry import (
 )
 
 __all__ = [
+    "BUILTIN_SEQUENCE_DATASET_BUILDERS",
     "SEQUENCE_DATASET_BUILDERS",
     "SequenceDatasetBuild",
     "SequenceDatasetBuilder",

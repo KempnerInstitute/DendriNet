@@ -50,10 +50,6 @@ class _PostFactorProbe(LocalLearningPostFactorsMixin):
         self.calls.append("activation")
         return rec.get("activation_derivative")
 
-    def _ensure_additive_gain_params(self, out_features, device):
-        self.calls.append("learned_gain")
-        return torch.zeros(out_features, device=device)
-
     def _compute_additive_pseudo_signals(self, rec, v_n):
         self.calls.append("pseudo")
         return rec["pseudo_R"], rec["pseudo_drive"]
@@ -184,16 +180,6 @@ def test_compute_local_post_factors_preserves_raw_and_modulated_conductance():
 def test_compute_additive_post_factor_preserves_modes():
     v_n = torch.tensor([[0.5, 0.75]])
     e_v = torch.tensor([[2.0, 3.0]])
-
-    learned = _PostFactorProbe(additive_mode="learned_gain")
-    learned_factor = learned._compute_additive_post_factor(
-        rec={},
-        e_v=e_v,
-        v_n=v_n,
-        layer_idx=1,
-    )
-    torch.testing.assert_close(learned_factor, e_v * 0.5)
-    assert learned.calls == ["learned_gain"]
 
     pseudo = _PostFactorProbe(additive_mode="input_dependent")
     pseudo_R = torch.tensor([[0.25, 0.5]])

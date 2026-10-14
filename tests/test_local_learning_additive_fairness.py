@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 import torch
 import torch.nn as nn
 
@@ -15,8 +16,15 @@ from dendritic_modeling.training.strategies.local_learning import LocalCreditAss
 class _SingleBranchModel(nn.Module):
     """Small model exposing a single dendritic branch layer."""
 
-    def __init__(self, *, use_shunting: bool):
+    def __init__(self, *, use_shunting: bool, topk_type: str = "standard"):
         super().__init__()
+        indexed_options = {}
+        if topk_type == "indexed":
+            indices = torch.tensor([[0, 1], [2, 3]])
+            indexed_options = {
+                "excitatory_connection_indices": indices,
+                "inhibitory_connection_indices": indices,
+            }
         self.branch = DendriticBranchLayer(
             output_dim=2,
             excitatory_input_dim=4,
@@ -27,7 +35,9 @@ class _SingleBranchModel(nn.Module):
             use_shunting=use_shunting,
             reactivate=False,
             topk_noise_level=0.0,
+            topk_type=topk_type,
             weight_transform="identity",
+            **indexed_options,
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -120,8 +130,8 @@ def _run_local_update(
     return exc_grad, inh_grad, den_grad
 
 
-def test_topk_voltage_homeostasis_helper_matches_legacy_formula() -> None:
-    """Shared TopK homeostasis helper should preserve old per-path formulas."""
+def test_topk_voltage_homeostasis_gradient_moves_voltages_to_the_target() -> None:
+    """The homeostasis error is dL/dV, applied through each path's sensitivity."""
     trainer = _make_trainer(dynamics_mode="conductance")
     trainer.local_cfg.voltage_homeostasis.enabled = True
     trainer.local_cfg.voltage_homeostasis.weight = 2.0
@@ -140,7 +150,7 @@ def test_topk_voltage_homeostasis_helper_matches_legacy_formula() -> None:
         conductance_reversal=1.1,
         additive_sign=1.0,
     )
-    voltage_error = 2.0 * (0.25 - v_n)
+    voltage_error = 2.0 * (v_n - 0.25)
     expected_conductance = (voltage_error * r_tot * (1.1 - v_n)).t() @ x_pre
     expected_conductance = expected_conductance / float(v_n.size(0))
     torch.testing.assert_close(conductance_grad, expected_conductance)
@@ -170,6 +180,52 @@ def test_topk_voltage_homeostasis_helper_matches_legacy_formula() -> None:
         )
         is None
     )
+
+
+@pytest.mark.parametrize("below_target", [True, False])
+@pytest.mark.parametrize("reversal", [1.0, 0.0])  # excitatory, inhibitory
+def test_topk_voltage_homeostasis_descent_moves_voltages_to_the_target(
+    below_target, reversal
+) -> None:
+    trainer = _make_trainer(dynamics_mode="conductance")
+    trainer.local_cfg.voltage_homeostasis.enabled = True
+    trainer.local_cfg.voltage_homeostasis.weight = 1.0
+    trainer.local_cfg.voltage_homeostasis.target_voltage = 0.5
+    v_n = torch.full((4, 3), 0.2 if below_target else 0.8)
+    grad = trainer._compute_topk_voltage_homeostasis_grad(
+        v_n=v_n,
+        x_pre=torch.rand(4, 5) + 0.1,
+        r_tot=torch.rand(4, 3) + 0.5,
+        layer_dynamics_mode="conductance",
+        batch_size=4,
+        conductance_reversal=reversal,
+        additive_sign=1.0,
+    )
+    # A descent step changes the conductance by -grad; excitation raises V and
+    # inhibition lowers it, so the step must move V toward the target.
+    voltage_change_sign = -torch.sign(grad) * (1.0 if reversal > 0.5 else -1.0)
+    expected = 1.0 if below_target else -1.0
+    assert torch.all(voltage_change_sign == expected)
+
+
+def test_local_rule_updates_compact_indexed_synapses_without_dense_gradients() -> None:
+    trainer = _make_trainer(dynamics_mode="conductance")
+    model = _SingleBranchModel(use_shunting=True, topk_type="indexed")
+    rec = _capture_record(trainer, model, torch.rand(3, 4))
+
+    exc_grad, inh_grad, dendritic_grad = _run_local_update(
+        trainer,
+        model,
+        rec,
+        delta=torch.tensor([[0.2, -0.1], [-0.3, 0.4], [0.1, 0.2]]),
+    )
+
+    assert exc_grad.shape == (2, 2)
+    assert inh_grad.shape == (2, 2)
+    assert dendritic_grad.shape == model.branch.branches_to_output.log_weight.shape
+    assert torch.isfinite(exc_grad).all()
+    assert torch.isfinite(inh_grad).all()
+    assert torch.isfinite(dendritic_grad).all()
 
 
 def test_local_rule_gradient_dispatch_passes_records_in_order(monkeypatch) -> None:
@@ -525,7 +581,9 @@ def test_path_transport_includes_parent_activation_derivative() -> None:
 
     child_v = torch.zeros(1, 4)
     parent_v = torch.tensor([[0.5, -0.4]], dtype=torch.float32)
-    parent_layer = type("Layer", (), {"reactivation": nn.Tanh()})()
+    parent_layer = type(
+        "Layer", (), {"reactivation": nn.Tanh(), "effective_leak": 1.0}
+    )()
     blk = _DummyBlock(
         weight=torch.tensor([[0.2, 0.4], [0.6, 0.8]], dtype=torch.float32),
         block_size=2,

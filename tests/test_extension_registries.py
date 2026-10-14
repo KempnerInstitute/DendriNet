@@ -92,8 +92,9 @@ def test_loss_registry_adds_custom_loss_without_changing_case_sensitivity():
         loss_fn = get_loss_function("unit_test_zero")
         assert isinstance(loss_fn, ZeroLoss)
         assert "unit_test_zero" in get_available_loss_functions()
+        assert isinstance(get_loss_function("UNIT_TEST_ZERO"), ZeroLoss)
         with pytest.raises(ValueError, match="Invalid loss function"):
-            get_loss_function("MSE")
+            get_loss_function("unit_test_missing")
     finally:
         unregister_loss_function("unit_test_zero")
 
@@ -122,7 +123,7 @@ def test_analyzer_registry_exposes_builtin_metadata_without_execution_change():
     assert "performance" in names
     spec = get_analyzer_spec("performance")
     assert spec is not None
-    assert spec.config_field == "performance_analysis"
+    assert spec.config_field == "performance"
     assert spec.attribute_name == "performance_analyzer"
     assert spec.constructor_style == "params"
     assert load_analyzer_class("performance") is spec.load_class()
@@ -161,3 +162,17 @@ def test_config_alias_canonicalization_is_config_level_and_script_compatible():
     # dendritic_normalized_additive).
     assert morphology["use_additive_normalization"] is False
     assert payload["model"]["core"]["morphology"]["use_shunting"] is True
+
+
+def test_registries_refuse_to_replace_existing_names_silently():
+    import pytest
+
+    from dendritic_modeling.datasets.registry import register_dataset
+    from dendritic_modeling.training.factory import register_trainer_strategy
+
+    with pytest.raises(ValueError, match="built-in dataset"):
+        register_dataset("mnist", lambda task_cfg: (None, None, None))
+    with pytest.raises(ValueError, match="already registered"):
+        register_trainer_strategy("standard", object)
+    with pytest.raises(ValueError, match="already registered"):
+        register_trainer_strategy("multi_stage", object)

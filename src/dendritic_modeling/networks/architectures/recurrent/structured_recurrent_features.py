@@ -35,17 +35,17 @@ def _resolve_recurrent_synapse_counts(
         "rec_inhibitory_synapses_per_layer",
         "rec_inhibitory_synapses",
     )
+    # Unset counts are 0, as in typed configs. Plain-dict configs used rec_ee
+    # and rec_ie as defaults for rec_ei and rec_ii before 2026-10-08.
     rec_ei = _rec_syn(
         "rec_ei_synapses_per_branch",
         "inh_rec_excitatory_synapses_per_layer",
         "inh_rec_excitatory_synapses",
-        fallback=rec_ee,
     )
     rec_ii = _rec_syn(
         "rec_ii_synapses_per_branch",
         "inh_rec_inhibitory_synapses_per_layer",
         "inh_rec_inhibitory_synapses",
-        fallback=rec_ie,
     )
     return _RecurrentSynapseCounts(
         rec_ee=rec_ee,

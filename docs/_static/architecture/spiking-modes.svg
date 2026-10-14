@@ -15,7 +15,7 @@
     </style>
   </defs>
   <text class="title" x="40" y="42">Dynamics modes — rate soma vs somatic spikes vs dendritic plateau spikes</text>
-  <text class="subtitle" x="40" y="70">core PopulationConfig.dynamics_mode = "rate" | "spike" (somatic LIF), and dendritic_spikes.enabled (plateau at branches). Soma vs dendritic spikes differ in locus + dynamics.</text>
+  <text class="subtitle" x="40" y="70">dynamics_mode selects a rate or a spiking (LIF) soma; dendritic spikes add plateaus at the branches.</text>
 
   <!-- RATE -->
   <rect class="card" x="40" y="100" width="370" height="380" rx="16"/>
@@ -33,23 +33,21 @@
   <text class="name" x="457" y="134">Somatic spikes  (dynamics_mode: spike)</text>
   <path class="axis" d="M465,330 L785,330 M465,330 L465,170"/>
   <path class="thr" d="M465,210 L785,210"/>
-  <text class="small" x="788" y="214">V_threshold</text>
   <!-- integrate to threshold, reset (sawtooth) -->
   <path class="spk" d="M465,322 L520,212 L520,318 L575,210 L575,318 L640,210 L640,318 L705,212 L705,318 L760,214"/>
   <!-- spike ticks -->
   <path class="plateau" d="M520,210 L520,180 M575,210 L575,180 M640,210 L640,180 M705,210 L705,180" stroke="#14506e"/>
   <text class="kv" x="457" y="368">LIF: membrane integrates -> threshold</text>
-  <text class="kv" x="457" y="392">-> emits spike -> reset; refractory.</text>
+  <text class="kv" x="457" y="392">-> spike -> reset; refractory. Dashed line: threshold.</text>
   <text class="small" x="457" y="420">params: spike_threshold, spike_reset,</text>
   <text class="small" x="457" y="438">spike_tau, refractory_steps; surrogate</text>
-  <text class="small" x="457" y="456">gradient (beta). readout: spikes or rate-trace</text>
+  <text class="small" x="457" y="456">gradient (beta). Readout: spikes, rate or membrane.</text>
 
   <!-- DENDRITIC PLATEAU -->
   <rect class="card" x="830" y="100" width="370" height="380" rx="16"/>
   <text class="name" x="852" y="134">Dendritic plateau  (dendritic_spikes)</text>
   <path class="axis" d="M860,330 L1180,330 M860,330 L860,170"/>
   <path class="thr" d="M860,250 L1180,250"/>
-  <text class="small" x="1090" y="246">dendritic_spike_threshold</text>
   <!-- branch voltage crosses threshold -> sustained plateau -> decay -->
   <path class="plateau" d="M860,322 C915,322 930,250 955,210 L1075,210 C1110,210 1130,300 1180,322"/>
   <text class="kv" x="852" y="368">Branch voltage crosses dendritic</text>
@@ -57,5 +55,5 @@
   <text class="kv" x="852" y="412">amplitude + tau, then decays; propagates to soma.</text>
   <text class="small" x="852" y="440">params: dendritic_spike_threshold,</text>
   <text class="small" x="852" y="458">plateau_amplitude, plateau_tau, levels,</text>
-  <text class="small" x="852" y="476">propagation. Locus = dendrite (vs soma).</text>
+  <text class="small" x="852" y="476">propagation. Dashed line: the threshold.</text>
 </svg>

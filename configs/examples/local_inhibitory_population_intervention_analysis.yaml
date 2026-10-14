@@ -1,0 +1,19 @@
+# Final-only, same-checkpoint intervention on complete local inhibitory
+# soma-population outputs across a feedforward PopulationNetwork stack.
+analysis:
+  runtime:
+    final:
+      mode: stream
+      batch_size: 512
+      num_workers: 4
+      pin_memory: true
+  local_inhibitory_population_intervention:
+    enabled: true
+    training: false
+    params:
+      methods: [global_test_shuffle, within_class_test_shuffle, zero]
+      permutation_draws: 3
+      shuffle_seed: 20260712
+      expected_network_layers: null
+      expected_inhibitory_width: null
+      max_samples: null

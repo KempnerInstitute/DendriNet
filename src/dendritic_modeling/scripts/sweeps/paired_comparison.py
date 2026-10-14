@@ -13,11 +13,13 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+from typing import Literal
 
 import pandas as pd
 
 from dendritic_modeling.analysis.statistics import bootstrap_mean_interval, stable_seed
 from dendritic_modeling.scripts.sweeps.collectors import DataCollector
+from dendritic_modeling.utils.logging_config import setup_logging
 
 
 def collect_labeled_sweeps(
@@ -76,18 +78,33 @@ def _artifact_inventory(sweep_root: Path) -> tuple[list[dict[str, str]], str]:
 
 
 def _analysis_identity() -> dict:
-    """Record exact reusable analyzer sources, independent of worktree state."""
-    repo_root = Path(__file__).resolve().parents[4]
-    relative_paths = [
-        "src/dendritic_modeling/scripts/sweeps/paired_comparison.py",
-        "src/dendritic_modeling/scripts/sweeps/collectors/data_collector.py",
-        "src/dendritic_modeling/scripts/sweeps/collectors/config_extractor.py",
-        "src/dendritic_modeling/analysis/statistics.py",
+    """Hash the analyzer's modules where they were imported from.
+
+    Paths are recorded as ``src/dendritic_modeling/...`` for a checkout and an
+    installed package alike.
+    """
+    import dendritic_modeling
+    from dendritic_modeling.analysis import statistics
+    from dendritic_modeling.scripts.sweeps.collectors import (
+        config_extractor,
+        data_collector,
+    )
+
+    package_parent = Path(dendritic_modeling.__file__).resolve().parents[1]
+    files = [
+        Path(__file__).resolve(),
+        *(
+            Path(module.__file__).resolve()
+            for module in (data_collector, config_extractor, statistics)
+        ),
     ]
     return {
         "source_files": [
-            {"path": path, "sha256": _sha256(repo_root / path)}
-            for path in relative_paths
+            {
+                "path": f"src/{path.relative_to(package_parent).as_posix()}",
+                "sha256": _sha256(path),
+            }
+            for path in files
         ]
     }
 
@@ -104,8 +121,28 @@ def paired_arm_comparison(
     require_pairs: int | None = None,
     draws: int = 10_000,
     bootstrap_seed: int = 0,
+    contrast_operation: str = "difference",
+    protocol_version: Literal[
+        "current", "legacy_difference", "legacy_grouped"
+    ] = "current",
 ) -> tuple[pd.DataFrame, list[dict]]:
-    """Pair two sweep arms and summarize comparison-minus-reference deltas."""
+    """Pair two sweep arms and summarize a declared within-unit contrast.
+
+    ``difference`` computes ``comparison - reference``. The scale-free
+    ``symmetric_difference`` computes ``(comparison - reference) /
+    (comparison + reference)`` and fails when its denominator is zero.
+
+    ``current`` preserves the current seed identity and output schema.
+    ``legacy_difference`` reproduces ordinary contrasts before the operation
+    entered the seed identity. ``legacy_grouped`` additionally supports the
+    historical normalized-contrast column, retaining ordinary-contrast seeds.
+    NumPy/pandas versions remain part of the reproducibility contract because
+    group-key representations can change across their versions.
+    """
+    if protocol_version not in {"current", "legacy_difference", "legacy_grouped"}:
+        raise ValueError(f"Unsupported paired protocol version: {protocol_version!r}")
+    if protocol_version == "legacy_difference" and contrast_operation != "difference":
+        raise ValueError("legacy_difference supports only the difference operation")
     strata = list(stratum_columns or [])
     required = [arm_column, metric, *pair_columns, *strata]
     missing = [column for column in required if column not in data.columns]
@@ -113,6 +150,10 @@ def paired_arm_comparison(
         raise ValueError(f"Missing required columns: {missing}")
     if reference == comparison:
         raise ValueError("reference and comparison arms must differ")
+    if contrast_operation not in {"difference", "symmetric_difference"}:
+        raise ValueError(
+            f"Unsupported paired contrast operation: {contrast_operation!r}"
+        )
 
     selected = data.loc[
         data[arm_column].astype(str).isin([str(reference), str(comparison)]),
@@ -146,10 +187,27 @@ def paired_arm_comparison(
             comparison: f"{metric}__{comparison}",
         }
     )
-    delta_column = f"delta__{comparison}_minus_{reference}"
-    paired[delta_column] = (
-        paired[f"{metric}__{comparison}"] - paired[f"{metric}__{reference}"]
+    prefix = (
+        "symmetric_delta"
+        if protocol_version == "legacy_grouped"
+        and contrast_operation == "symmetric_difference"
+        else "delta"
     )
+    delta_column = f"{prefix}__{comparison}_minus_{reference}"
+    difference = paired[f"{metric}__{comparison}"] - paired[f"{metric}__{reference}"]
+    if contrast_operation == "difference":
+        paired[delta_column] = difference
+        delta_definition = f"{comparison} - {reference}"
+    else:
+        denominator = (
+            paired[f"{metric}__{comparison}"] + paired[f"{metric}__{reference}"]
+        )
+        if denominator.eq(0).any():
+            raise ValueError("symmetric_difference has a zero denominator")
+        paired[delta_column] = difference / denominator
+        delta_definition = (
+            f"({comparison} - {reference}) / ({comparison} + {reference})"
+        )
 
     grouped = [((), paired)]
     if strata:
@@ -162,28 +220,36 @@ def paired_arm_comparison(
             raise ValueError(
                 f"Expected {int(require_pairs)} pairs for {identity}, observed {len(group)}"
             )
+        seed_identity = [arm_column, reference, comparison, metric]
+        if protocol_version == "current" or contrast_operation != "difference":
+            seed_identity.append(contrast_operation)
+        seed_identity.extend(key_tuple)
         interval = bootstrap_mean_interval(
             group[delta_column].to_numpy(),
             draws=draws,
-            seed=stable_seed(
-                bootstrap_seed,
-                arm_column,
-                reference,
-                comparison,
-                metric,
-                *key_tuple,
-            ),
+            seed=stable_seed(bootstrap_seed, *seed_identity),
             require_n=require_pairs,
         )
+        interval_fields = interval.to_dict()
+        interval_fields["interval_method"] = interval_fields.pop("method")
+        stratum_fields = dict(zip(strata, key_tuple))
+        collisions = sorted(set(stratum_fields) & set(interval_fields))
+        if collisions:
+            raise ValueError(
+                f"stratum columns collide with bootstrap summary fields: {collisions}"
+            )
         record = {
-            **dict(zip(strata, key_tuple)),
+            **stratum_fields,
             "arm_column": arm_column,
             "reference": reference,
             "comparison": comparison,
             "metric": metric,
-            "delta_definition": f"{comparison} - {reference}",
-            **interval.to_dict(),
+            "contrast_operation": contrast_operation,
+            "delta_definition": delta_definition,
+            **interval_fields,
         }
+        if protocol_version == "legacy_difference":
+            del record["contrast_operation"]
         summaries.append(record)
 
     return paired.sort_values(index_columns).reset_index(drop=True), summaries
@@ -219,6 +285,10 @@ def analyze_paired_sweep(
                 "source_artifact_set_sha256": artifact_set_sha256,
                 "source_artifacts": artifact_records,
                 "analysis_identity": _analysis_identity(),
+                "comparison_configuration": {
+                    "protocol_version": "current",
+                    **comparison_kwargs,
+                },
                 "summaries": summaries,
             },
             indent=2,
@@ -229,7 +299,7 @@ def analyze_paired_sweep(
     return paired_path, summary_path
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Pair two sweep arms at the trained-seed level"
     )
@@ -244,7 +314,17 @@ def main() -> int:
     parser.add_argument("--require-pairs", type=int)
     parser.add_argument("--draws", type=int, default=10_000)
     parser.add_argument("--bootstrap-seed", type=int, default=0)
-    args = parser.parse_args()
+    parser.add_argument(
+        "--contrast-operation",
+        choices=["difference", "symmetric_difference"],
+        default="difference",
+    )
+    parser.add_argument(
+        "--protocol-version",
+        choices=["current", "legacy_difference", "legacy_grouped"],
+        default="current",
+    )
+    args = parser.parse_args(argv)
 
     paired_path, summary_path = analyze_paired_sweep(
         args.sweep_root,
@@ -258,6 +338,8 @@ def main() -> int:
         require_pairs=args.require_pairs,
         draws=args.draws,
         bootstrap_seed=args.bootstrap_seed,
+        contrast_operation=args.contrast_operation,
+        protocol_version=args.protocol_version,
     )
     print(f"Paired units: {paired_path}")
     print(f"Summary: {summary_path}")
@@ -265,4 +347,5 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    setup_logging()
     raise SystemExit(main())

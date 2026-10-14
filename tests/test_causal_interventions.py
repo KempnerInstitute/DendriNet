@@ -113,7 +113,7 @@ def _population_classifier(
             encoder,
             core,
             decoder,
-            learned_output_scale=False,
+            output_scale_mode="fixed",
             fixed_output_scale=1.7,
         )
 

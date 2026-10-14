@@ -12,6 +12,7 @@ from typing import Any, Optional
 import matplotlib.pyplot as plt
 import numpy as np
 
+from dendritic_modeling.plotting.styles import bar_kwargs, indexed_hatch
 from dendritic_modeling.plotting.visualizations.plotting_utils import (
     convert_layer_names,
     create_figure,
@@ -144,16 +145,14 @@ def _plot_total_synaptic_strength(
             exc_strengths,
             width,
             label="Excitatory",
-            color=colors["excitatory"],
-            alpha=0.7,
+            **bar_kwargs(colors["excitatory"], indexed_hatch(0), alpha=0.7),
         )
         ax.bar(
             x_pos + width / 2,
             inh_strengths,
             width,
             label="Inhibitory",
-            color=colors["inhibitory"],
-            alpha=0.7,
+            **bar_kwargs(colors["inhibitory"], indexed_hatch(1), alpha=0.7),
         )
 
         setup_basic_plot(
@@ -216,16 +215,14 @@ def _plot_weight_comparisons(
             exc_means,
             width,
             label="Excitatory",
-            color=colors["excitatory"],
-            alpha=0.7,
+            **bar_kwargs(colors["excitatory"], indexed_hatch(0), alpha=0.7),
         )
         ax1.bar(
             x_pos + width / 2,
             inh_means,
             width,
             label="Inhibitory",
-            color=colors["inhibitory"],
-            alpha=0.7,
+            **bar_kwargs(colors["inhibitory"], indexed_hatch(1), alpha=0.7),
         )
 
         setup_basic_plot(
@@ -246,16 +243,14 @@ def _plot_weight_comparisons(
             exc_vars,
             width,
             label="Excitatory",
-            color=colors["excitatory"],
-            alpha=0.7,
+            **bar_kwargs(colors["excitatory"], indexed_hatch(0), alpha=0.7),
         )
         ax2.bar(
             x_pos + width / 2,
             inh_vars,
             width,
             label="Inhibitory",
-            color=colors["inhibitory"],
-            alpha=0.7,
+            **bar_kwargs(colors["inhibitory"], indexed_hatch(1), alpha=0.7),
         )
 
         setup_basic_plot(
@@ -311,16 +306,14 @@ def _plot_active_synapse_counts(
             exc_counts,
             width,
             label="Excitatory",
-            color=colors["excitatory"],
-            alpha=0.7,
+            **bar_kwargs(colors["excitatory"], indexed_hatch(0), alpha=0.7),
         )
         ax.bar(
             x_pos + width / 2,
             inh_counts,
             width,
             label="Inhibitory",
-            color=colors["inhibitory"],
-            alpha=0.7,
+            **bar_kwargs(colors["inhibitory"], indexed_hatch(1), alpha=0.7),
         )
 
         setup_basic_plot(

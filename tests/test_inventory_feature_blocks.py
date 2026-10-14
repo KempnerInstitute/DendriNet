@@ -53,7 +53,61 @@ def test_inventory_feature_blocks_realizes_exact_4_2_2_tree_placement() -> None:
         assert [_row_range(row) for row in mask] == expected_ranges
 
 
-def test_inventory_feature_blocks_flows_through_all_paper_morphologies() -> None:
+def test_inventory_feature_blocks_accepts_explicit_four_to_three_grouping() -> None:
+    pathway = {
+        "method": "inventory_feature_blocks",
+        "owner_count": 1,
+        "inventory_counts": [4, 2, 1, 1],
+        "feature_ranges": [[0, 4], [4, 8], [8, 10], [10, 12]],
+        "tier_groups": [[0], [1], [2, 3]],
+    }
+    config = {
+        "enabled": True,
+        "pathways": {"ee": pathway},
+    }
+    expected = {
+        0: [(0, 4)] * 4,
+        1: [(4, 8)] * 2,
+        2: [(8, 10), (10, 12)],
+    }
+    for level_idx, expected_ranges in expected.items():
+        mask = sample_configured_mask(
+            config,
+            pathway="ee",
+            out_features=len(expected_ranges),
+            in_features=12,
+            level_idx=level_idx,
+            n_levels=4,
+        )
+        assert mask is not None
+        assert [_row_range(row) for row in mask] == expected_ranges
+
+
+def test_inventory_feature_blocks_rejects_invalid_tier_grouping() -> None:
+    pathway = {
+        "method": "inventory_feature_blocks",
+        "owner_count": 1,
+        "inventory_counts": [4, 2, 1, 1],
+        "feature_ranges": [[0, 4], [4, 8], [8, 10], [10, 12]],
+        "tier_groups": [[0], [2], [1, 3]],
+    }
+    config = {"enabled": True, "pathways": {"ee": pathway}}
+    try:
+        sample_configured_mask(
+            config,
+            pathway="ee",
+            out_features=4,
+            in_features=12,
+            level_idx=0,
+            n_levels=4,
+        )
+    except ValueError as error:
+        assert "ordered partition" in str(error)
+    else:
+        raise AssertionError("Expected invalid tier_groups to be rejected.")
+
+
+def test_inventory_feature_blocks_flows_through_all_supported_morphologies() -> None:
     common = {
         "n_neurons": 2,
         "ff_excitatory_synapses": 2,
@@ -90,6 +144,52 @@ def test_inventory_feature_blocks_flows_through_all_paper_morphologies() -> None
                 expected_ranges
             )
             assert torch.equal(exc_mask, inh_mask)
+
+
+def test_two_level_inventory_matches_d1_and_d2_resource_layouts() -> None:
+    pathway = {
+        "method": "inventory_feature_blocks",
+        "owner_count": 2,
+        "inventory_counts": [4, 4],
+        "feature_ranges": [[0, 6], [6, 12]],
+    }
+    structured = {
+        "enabled": True,
+        "pathways": {"ee": dict(pathway), "ie": dict(pathway)},
+    }
+    common = {
+        "n_neurons": 2,
+        "ff_excitatory_synapses": 2,
+        "ff_inhibitory_synapses": 2,
+        "somatic_synapses": False,
+        "reactivate": False,
+        "weight_transform": "softplus",
+        "structured_connectivity": structured,
+    }
+    expected = {
+        (8,): [[(0, 6)] * 4 + [(6, 12)] * 4],
+        (4, 1): [[(0, 6)] * 4, [(6, 12)] * 4],
+    }
+    parameter_counts = []
+    state_widths = []
+    for morphology, expected_levels in expected.items():
+        network = StatefulDendriNet(
+            pop_config=PopulationConfig(branch_factors=list(morphology), **common),
+            excitatory_input_dim=12,
+            inhibitory_input_dim=12,
+        )
+        parameter_counts.append(sum(p.numel() for p in network.parameters()))
+        state_widths.append(sum(network.level_dims))
+        for layer, expected_ranges in zip(
+            network.branch_layers[:-1], expected_levels, strict=True
+        ):
+            mask = layer.branch_config.excitatory_connection_mask
+            assert mask is not None
+            assert [_row_range(row) for row in mask[: len(expected_ranges)]] == (
+                expected_ranges
+            )
+    assert parameter_counts[0] == parameter_counts[1]
+    assert state_widths[0] == state_widths[1]
 
 
 def test_inventory_feature_blocks_rejects_mismatched_morphology() -> None:

@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from types import MappingProxyType
 
+from dendritic_modeling.datasets.sequence.builders.bayesian_timing import (
+    BAYESIAN_TIMING_SEQUENCE_BUILDERS,
+)
 from dendritic_modeling.datasets.sequence.builders.common import SequenceDatasetBuilder
 from dendritic_modeling.datasets.sequence.builders.decision import (
     DECISION_SEQUENCE_BUILDERS,
@@ -15,6 +19,7 @@ from dendritic_modeling.datasets.sequence.builders.neuro import NEURO_SEQUENCE_B
 from dendritic_modeling.datasets.sequence.builders.signal import (
     SIGNAL_SEQUENCE_BUILDERS,
 )
+from dendritic_modeling.plugins import load_plugins
 
 
 def merge_sequence_dataset_builders(
@@ -34,10 +39,16 @@ def merge_sequence_dataset_builders(
 
 
 SEQUENCE_DATASET_BUILDERS = merge_sequence_dataset_builders(
+    BAYESIAN_TIMING_SEQUENCE_BUILDERS,
     DECISION_SEQUENCE_BUILDERS,
     MEMORY_SEQUENCE_BUILDERS,
     NEURO_SEQUENCE_BUILDERS,
     SIGNAL_SEQUENCE_BUILDERS,
+)
+# The library's own builders; their parameters are checked against the keys
+# they read. Builders registered at run time are not checked.
+BUILTIN_SEQUENCE_DATASET_BUILDERS: Mapping[str, SequenceDatasetBuilder] = (
+    MappingProxyType(dict(SEQUENCE_DATASET_BUILDERS))
 )
 
 
@@ -66,6 +77,8 @@ def unregister_sequence_dataset_builder(name: str) -> None:
 def get_sequence_dataset_builder(name: str) -> SequenceDatasetBuilder:
     """Return a registered sequence dataset builder."""
     key = str(name)
+    if key not in SEQUENCE_DATASET_BUILDERS:
+        load_plugins()
     builder = SEQUENCE_DATASET_BUILDERS.get(key)
     if builder is None:
         raise ValueError(f"Unknown sequence dataset: {key}")
@@ -74,15 +87,19 @@ def get_sequence_dataset_builder(name: str) -> SequenceDatasetBuilder:
 
 def has_sequence_dataset_builder(name: str) -> bool:
     """Return True when a sequence dataset builder is registered."""
+    if str(name) not in SEQUENCE_DATASET_BUILDERS:
+        load_plugins()
     return str(name) in SEQUENCE_DATASET_BUILDERS
 
 
 def get_registered_sequence_dataset_names() -> list[str]:
-    """Return registered sequence dataset names."""
+    """Return registered sequence dataset names, including those of plugins."""
+    load_plugins()
     return sorted(SEQUENCE_DATASET_BUILDERS)
 
 
 __all__ = [
+    "BUILTIN_SEQUENCE_DATASET_BUILDERS",
     "SEQUENCE_DATASET_BUILDERS",
     "get_registered_sequence_dataset_names",
     "get_sequence_dataset_builder",

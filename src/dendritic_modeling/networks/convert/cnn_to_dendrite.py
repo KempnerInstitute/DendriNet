@@ -8,6 +8,7 @@ import torch
 from torch import nn
 
 from dendritic_modeling.networks.layers.dendritic_conv2d import DendriteConv2d
+from dendritic_modeling.networks.utils.weight_transforms import inverse_softplus
 
 __all__ = ["conv2d_to_dendrite"]
 
@@ -35,7 +36,7 @@ def conv2d_to_dendrite(
     baseline_inhib
         Constant added to inhibitory weights to keep denominator positive.
     eps
-        Numerical epsilon added before log.
+        Smallest kernel value mapped through the softplus inverse.
     copy_bias
         If ``True`` and ``conv.bias`` is not None, the bias term is copied into
         ``layer.bias_E`` while keeping inhibitory bias at zero.
@@ -95,8 +96,9 @@ def conv2d_to_dendrite(
     I_branches = distribute_to_branches(I_t, layer.weight_I_mask, branch_aggregation)
 
     with torch.no_grad():
-        layer.weight_E_raw.copy_(torch.log(E_branches + eps))
-        layer.weight_I_raw.copy_(torch.log(I_branches + eps))
+        # DendriteConv2d passes its raw kernels through softplus.
+        layer.weight_E_raw.copy_(inverse_softplus(E_branches, eps=eps))
+        layer.weight_I_raw.copy_(inverse_softplus(I_branches, eps=eps))
         if copy_bias and conv.bias is not None:
             layer.bias_E.copy_(conv.bias)
             layer.bias_I.zero_()

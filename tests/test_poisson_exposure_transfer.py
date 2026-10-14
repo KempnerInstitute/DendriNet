@@ -63,7 +63,7 @@ def _legacy_accuracy(
     seed: int,
     batch_size: int,
 ) -> tuple[int, int]:
-    """Reproduce the former paper runner's manual-seed/DataLoader loop."""
+    """Reproduce the reference manual-seed/DataLoader loop."""
 
     with torch.random.fork_rng(devices=[]):
         torch.manual_seed(seed)

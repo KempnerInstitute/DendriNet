@@ -10,13 +10,14 @@ from dendritic_modeling.training.strategies.layerwise import (
     _ordered_layer_training_plan,
     _prepend_loss_histories,
     _prepend_loss_histories_to_results,
-    _restore_best_state_and_unfreeze,
-    _set_all_parameters_trainable,
-    _set_only_module_trainable,
     _strategy_filename_prefix,
     _strategy_logger_prefix,
 )
 from dendritic_modeling.training.strategies.standard import Trainer
+from dendritic_modeling.training.strategies.trainability import (
+    snapshot_requires_grad,
+    train_only,
+)
 
 
 def test_ordered_layer_training_plan_preserves_forward_order():
@@ -61,41 +62,6 @@ def test_strategy_prefix_helpers_preserve_legacy_strings():
     assert _layer_logger_info("Freeze-Layers-Reversed", 3) == (
         "[Freeze-Layers-Reversed] layer=3, "
     )
-
-
-def test_set_only_module_trainable_freezes_model_except_target_module():
-    model = nn.Sequential(nn.Linear(2, 2), nn.Linear(2, 1))
-
-    _set_only_module_trainable(model, model[1])
-
-    assert all(not param.requires_grad for param in model[0].parameters())
-    assert all(param.requires_grad for param in model[1].parameters())
-
-
-def test_set_all_parameters_trainable_unfreezes_every_parameter():
-    model = nn.Sequential(nn.Linear(2, 2), nn.Linear(2, 1))
-    for param in model.parameters():
-        param.requires_grad = False
-
-    _set_all_parameters_trainable(model)
-
-    assert all(param.requires_grad for param in model.parameters())
-
-
-def test_restore_best_state_and_unfreeze_loads_state_and_unfreezes_parameters():
-    source_model = nn.Linear(2, 1)
-    target_model = nn.Linear(2, 1)
-    with torch.no_grad():
-        source_model.weight.fill_(0.75)
-        source_model.bias.fill_(-0.5)
-    for param in target_model.parameters():
-        param.requires_grad = False
-
-    _restore_best_state_and_unfreeze(target_model, source_model.state_dict())
-
-    assert torch.equal(target_model.weight, source_model.weight)
-    assert torch.equal(target_model.bias, source_model.bias)
-    assert all(param.requires_grad for param in target_model.parameters())
 
 
 def test_loss_histories_from_results_uses_legacy_keys_and_empty_defaults():
@@ -151,11 +117,11 @@ def test_prepend_loss_histories_to_results_mutates_final_results_in_place():
     }
 
 
-def test_set_only_module_trainable_does_not_change_parameter_values():
+def test_train_only_does_not_change_parameter_values():
     model = nn.Sequential(nn.Linear(2, 2), nn.Linear(2, 1))
     before = [param.detach().clone() for param in model.parameters()]
 
-    _set_only_module_trainable(model, model[0])
+    train_only(model, [model[0]], snapshot_requires_grad(model))
 
     after = [param.detach() for param in model.parameters()]
     for before_param, after_param in zip(before, after):
@@ -180,11 +146,12 @@ def test_train_layer_plan_sets_prefixes_and_trains_each_target_layer():
             {
                 "n_epochs": kwargs["n_epochs"],
                 "logger_info": kwargs["logger_info"],
-                "wandb_info": kwargs["wandb_info"],
                 "trainable_by_layer": trainable_by_layer,
             }
         )
-        layer_idx = kwargs["wandb_info"]["layer"]
+        layer_idx = next(
+            index for index, flags in enumerate(trainable_by_layer) if all(flags)
+        )
         kwargs["train_losses"].append(float(layer_idx))
         kwargs["valid_losses"].append(float(layer_idx + 10))
         kwargs["train_losses_base"].append(float(layer_idx + 20))
@@ -215,13 +182,11 @@ def test_train_layer_plan_sets_prefixes_and_trains_each_target_layer():
         {
             "n_epochs": 3,
             "logger_info": "[Freeze-Layers-Reversed] layer=1, ",
-            "wandb_info": {"layer": 1},
             "trainable_by_layer": [[False, False], [True, True]],
         },
         {
             "n_epochs": 3,
             "logger_info": "[Freeze-Layers-Reversed] layer=0, ",
-            "wandb_info": {"layer": 0},
             "trainable_by_layer": [[True, True], [False, False]],
         },
     ]

@@ -58,6 +58,12 @@ class StochasticTopKLinear(TopKLinear):
             forbidden_input_index_per_output=forbidden_input_index_per_output,
             connection_mask=connection_mask,
         )
+        if not ultrafast and float(temperature) <= 0.0:
+            raise ValueError(
+                "stochastic Top-K with ultrafast false and temperature "
+                f"{temperature} samples nothing: it selects exactly the standard "
+                "Top-K. Use a positive temperature or sparsity type 'standard'."
+            )
         self.temperature = temperature
         self.ultrafast = ultrafast
         self.initialize()
@@ -76,7 +82,10 @@ class StochasticTopKLinear(TopKLinear):
 
         # Apply scaled and temperature-controlled noise only to structurally
         # allowed scores; forbidden positions are masked before selection.
+        # Signed (identity) weights are ranked by magnitude, as in TopKLinear.
         w_for_topk = self.pre_w.clone()
+        if self.weight_transform == "identity":
+            w_for_topk = w_for_topk.abs()
 
         # Generate noise with standard deviation that scales with temperature
         noise_scale = max(0.01, self.temperature) * (1.0 + self.noise_level)
@@ -211,8 +220,16 @@ class StochasticTopKLinear(TopKLinear):
         return self._apply_forbidden_mask(mask)
 
     def weight_mask(self):
-        """Return a stochastic TopK mask using the configured sampling mode."""
+        """Return a stochastic TopK mask using the configured sampling mode.
 
+        Sampling happens in training mode only. In eval mode the mask is the
+        deterministic top-K of the weights (the selection the stochastic
+        variants perturb), so evaluation is reproducible and consumes no
+        random numbers.
+        """
+
+        if not self.training:
+            return super().weight_mask()
         if self.ultrafast:
             return self.weight_mask_ultrafast()
         return self.weight_mask_rank_probabilistic()

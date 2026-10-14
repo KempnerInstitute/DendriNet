@@ -1,0 +1,24 @@
+# Final-only, package-native local sensitivity of one fitted dendritic tree.
+# The reported derivatives include the exact configured integration rule and
+# the learned reactivation derivative at held-out operating points.
+analysis:
+  runtime:
+    final:
+      mode: stream
+      batch_size: 512
+      num_workers: 4
+      pin_memory: true
+      max_samples: null
+
+  branch_local_sensitivity:
+    enabled: true
+    training: false
+    params:
+      # Soma-relative: 0 is soma and 1 is proximal. Keep include_soma false
+      # for branch-only profiles; enable it when calibrating per-level controls.
+      depths: [1, 2, 3, 4]
+      include_soma: false
+      module_name_prefix: core_network.layers.0.populations.e0.branch_layers
+      expected_n_somas: 64
+      expected_branch_factors: [3, 3, 3, 3]
+      max_samples: null

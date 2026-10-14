@@ -1,4 +1,4 @@
-"""HierarchicalDendriticConv — spatially local dendritic core for conv layer replacement.
+"""HierarchicalDendriticConv — spatially local dendritic core in place of a convolution.
 
 Replaces a Conv2d layer (or Conv2d + activation block) with dendritic E-I
 computation over local patches.  A single shared :class:`ConfigurableEINetwork`
@@ -30,6 +30,10 @@ from omegaconf import DictConfig
 
 from dendritic_modeling.networks.architectures.excitation_inhibition.ei_network import (
     ConfigurableEINetwork,
+)
+from dendritic_modeling.networks.architectures.replacement import (
+    SpatialNonNegativeInputAdapter,
+    make_nonmixing_output_adapter,
 )
 from dendritic_modeling.networks.base import BaseNetwork
 
@@ -67,6 +71,21 @@ class HierarchicalDendriticConv(BaseNetwork):
         kernel_size: Spatial extent of the local receptive field.
         stride: Stride for the unfold operation.
         padding: Padding applied before unfolding.
+        input_transform: Non-negative input contract for the patch
+            (``identity``, ``relu``, or ``signed_split``).
+        input_scale: Fixed positive drive calibration applied to the patch
+            after ``input_transform``. Pretrained conv feature maps exceed the
+            [0, 1] activity range the dendritic conductance initialization
+            assumes; a boundary-specific scale keeps the total branch drive
+            (and hence the shunting denominator) near its analytical design
+            operating point. Defaults to 1.0, which skips the multiply and
+            reproduces the historical forward exactly. A declared constant,
+            not a parameter: no state-dict entries, so pre-existing
+            checkpoints load strictly and resource accounting is unchanged.
+            Consumed only by this core; the sparse point control ignores it.
+        output_adapter_mode: Channel-preserving positive output stage (see
+            ``make_nonmixing_output_adapter``); threshold-ReLU modes supply an
+            exact-zero sparse output contract.
         synapse_mode: Override for the EINet synapse mode.
         use_shunting: Override for shunting inhibition.
         weight_transform: Override for weight transform.
@@ -79,6 +98,11 @@ class HierarchicalDendriticConv(BaseNetwork):
         kernel_size: int | tuple[int, int] = 3,
         stride: int | tuple[int, int] = 1,
         padding: int | tuple[int, int] = 0,
+        input_transform: str = "identity",
+        input_scale: float = 1.0,
+        output_adapter_mode: str = "identity",
+        output_initial_scale: float = 1.0,
+        output_initial_threshold: float = 0.25,
         synapse_mode: str | None = None,
         use_shunting: bool | None = None,
         weight_transform: str | None = None,
@@ -89,8 +113,21 @@ class HierarchicalDendriticConv(BaseNetwork):
         self.stride = _pair(stride)
         self.padding = _pair(padding)
         self.in_channels = in_channels
+        input_scale = float(input_scale)
+        if not input_scale > 0.0:
+            raise ValueError(f"input_scale must be positive, got {input_scale}")
+        # Declared fixed drive calibration: pretrained conv feature maps carry
+        # activations far above the [0, 1] range the dendritic conductance
+        # initialization assumes, so the boundary config may rescale the patch
+        # before it drives the shared E/I network.
+        self.input_scale = input_scale
+        self.input_adapter = SpatialNonNegativeInputAdapter(
+            in_channels,
+            transform=input_transform,
+        )
+        self.adapted_in_channels = self.input_adapter.output_channels
 
-        patch_dim = in_channels * self.kernel_size[0] * self.kernel_size[1]
+        patch_dim = self.adapted_in_channels * self.kernel_size[0] * self.kernel_size[1]
 
         self.einet = ConfigurableEINetwork(
             config=config,
@@ -102,6 +139,14 @@ class HierarchicalDendriticConv(BaseNetwork):
 
         self.out_channels = self.einet.output_dim
         self.output_dim = self.out_channels  # for introspection
+        self.output_adapter_mode = str(output_adapter_mode).strip().lower()
+        self.output_adapter = make_nonmixing_output_adapter(
+            num_features=self.out_channels,
+            feature_axis=1,
+            mode=self.output_adapter_mode,
+            initial_scale=output_initial_scale,
+            initial_threshold=output_initial_threshold,
+        )
 
         logger.info(
             "HierarchicalDendriticConv: in_channels=%d, kernel=%s, stride=%s, "
@@ -132,6 +177,9 @@ class HierarchicalDendriticConv(BaseNetwork):
             )
 
         B, _C, H, W = x.shape
+        x = self.input_adapter(x)
+        if self.input_scale != 1.0:
+            x = x * self.input_scale
 
         # 1. Unfold into local patches: (B, patch_dim, L) where L = H_out * W_out
         patches = F.unfold(
@@ -152,6 +200,7 @@ class HierarchicalDendriticConv(BaseNetwork):
         H_out = (H + 2 * self.padding[0] - self.kernel_size[0]) // self.stride[0] + 1
         W_out = (W + 2 * self.padding[1] - self.kernel_size[1]) // self.stride[1] + 1
         out = out.reshape(B, H_out, W_out, self.out_channels).permute(0, 3, 1, 2)
+        out = self.output_adapter(out)
 
         return out.contiguous()
 
@@ -163,6 +212,32 @@ class HierarchicalDendriticConv(BaseNetwork):
         H_out = (H + 2 * self.padding[0] - self.kernel_size[0]) // self.stride[0] + 1
         W_out = (W + 2 * self.padding[1] - self.kernel_size[1]) // self.stride[1] + 1
         return (H_out, W_out)
+
+    def spatial_output_contract(self) -> dict[str, int | float | str | bool]:
+        """Describe how local dendritic outputs form the next feature map.
+
+        One shared E/I network is evaluated at every output position. Its
+        excitatory soma index is the output-channel index, so channel identity
+        is consistent across the full image. The local inhibitory population
+        contributes inside that position's E/I computation but is not emitted
+        as a second feature stream.
+        """
+
+        return {
+            "input_layout": "BCHW",
+            "patch_layout": "channel_y_x_flat",
+            "output_layout": "BCHW",
+            "spatial_weight_sharing": True,
+            "input_transform": self.input_adapter.transform,
+            "input_scale": self.input_scale,
+            "adapted_input_channels": self.adapted_in_channels,
+            "output_channels": self.out_channels,
+            "excitatory_somas_per_location": self.out_channels,
+            "channel_mapping": "one_excitatory_soma_per_output_channel",
+            "propagated_population": "excitatory",
+            "inhibitory_population_scope": "local_per_output_position",
+            "output_adapter": self.output_adapter_mode,
+        }
 
     # ------------------------------------------------------------------
     # Training hook delegation
@@ -193,5 +268,8 @@ class HierarchicalDendriticConv(BaseNetwork):
         return self.einet.layers
 
     def get_effective_params(self) -> int:
-        """Effective (post-sparsity) parameter count from the inner EINet."""
-        return self.einet.get_effective_params()
+        """Count active core parameters and explicit output-adapter scalars."""
+        adapter_params = sum(
+            parameter.numel() for parameter in self.output_adapter.parameters()
+        )
+        return self.einet.get_effective_params() + adapter_params

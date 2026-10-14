@@ -131,14 +131,14 @@ class InformationMutualInformationMixin(InformationValidationMixin):
             ),
         )
 
-    def _estimate_cmi_or_zero(
+    def _estimate_cmi_or_nan(
         self,
         metric_key: str,
         x: np.ndarray,
         y: np.ndarray,
         condition: np.ndarray,
     ) -> float:
-        """Compute one conditional MI metric, returning zero on estimator failure."""
+        """Compute one conditional MI metric; an estimator failure gives NaN."""
 
         def estimate() -> float:
             try:
@@ -149,7 +149,7 @@ class InformationMutualInformationMixin(InformationValidationMixin):
                 )
             except Exception as e:
                 self.logger.warning(f"  Failed to compute {metric_key}: {e}")
-                return 0.0
+                return float("nan")
 
         return self._estimate_timed_metric(
             metric_key,
@@ -219,7 +219,7 @@ class InformationMutualInformationMixin(InformationValidationMixin):
             self._add_mi_metrics(metrics, [("I(Vb;C)", Vb, C)])
         elif Vb is not None:
             self.logger.debug(
-                f"Skipping I(Vb;C): branch-voltage samples ({Vb.shape[0]}) "
+                f"Skipping I(Vb;C): branch-input samples ({Vb.shape[0]}) "
                 f"do not match labels ({C.shape[0]})."
             )
 
@@ -282,6 +282,44 @@ class InformationMutualInformationMixin(InformationValidationMixin):
         self.logger.debug("  Pairwise MI computation completed.")
         return metrics
 
+    def _compute_soma_coupling_mi(
+        self,
+        E: np.ndarray,
+        I_var: np.ndarray,
+        Vout: np.ndarray,
+        C: np.ndarray,
+        S: np.ndarray | None,
+    ) -> dict[str, float]:
+        """Measure branch-current/output association with the owning soma."""
+        if S is None:
+            return {}
+
+        metrics: dict[str, float] = {}
+        EI = np.hstack([E, I_var])
+        C_col = C.reshape(-1, 1)
+        self._add_mi_metrics(
+            metrics,
+            [
+                ("I(S;C)", S, C_col),
+                ("I(E;S)", E, S),
+                ("I(I;S)", I_var, S),
+                ("I(E,I;S)", EI, S),
+                ("I(Vout;S)", Vout, S),
+            ],
+        )
+        self._add_cmi_metrics(
+            metrics,
+            [
+                ("I(E;S|C)", E, S, C_col),
+                ("I(I;S|C)", I_var, S, C_col),
+                ("I(E,I;S|C)", EI, S, C_col),
+                ("I(Vout;S|C)", Vout, S, C_col),
+                ("I(E;S|I)", E, S, I_var),
+                ("I(I;S|E)", I_var, S, E),
+            ],
+        )
+        return metrics
+
     def _add_ablation_aligned_conditional_metrics(
         self,
         metrics: dict[str, float],
@@ -310,7 +348,7 @@ class InformationMutualInformationMixin(InformationValidationMixin):
             # unique upstream class information beyond the full synapse set.
             if self.compute_upstream_unique_cmi:
                 metric_key, x, y, condition = upstream_unique
-                metrics[metric_key] = self._estimate_cmi_or_zero(
+                metrics[metric_key] = self._estimate_cmi_or_nan(
                     metric_key, x, y, condition
                 )
 

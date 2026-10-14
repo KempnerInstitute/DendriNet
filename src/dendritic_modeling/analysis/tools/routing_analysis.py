@@ -111,11 +111,13 @@ class RoutingAnalyzer(AbstractAnalyzer):
         core = model.core_network
         if not is_recurrent_core(core):
             self.logger.info("Skipping routing analysis: core_network is not recurrent")
+            self.report_skip("the core network is not recurrent")
             return {}
         if not hasattr(core, "store_routing") or not hasattr(core, "_routing_info"):
             self.logger.info(
                 "Skipping routing analysis: core_network has no routing support"
             )
+            self.report_skip("the core network has no routing support")
             return {}
 
         original_store_routing = core.store_routing

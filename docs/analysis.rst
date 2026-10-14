@@ -1,603 +1,697 @@
 Analysis
 ========
 
-All analyses are configured under the ``analysis`` key in the YAML config.
-Each module has ``enabled`` (bool) and ``training`` (bool, whether to run
-during training vs only post-training) flags, plus module-specific ``params``.
-
-Dataset iteration is controlled centrally via ``analysis.runtime``:
-
-.. code-block:: yaml
-
-   analysis:
-     runtime:
-       training:
-         mode: "auto"        # "auto" | "materialize" | "stream"
-         batch_size: 256
-         num_workers: 4
-         pin_memory: true
-         persistent_workers: true
-         prefetch_factor: 4
-         in_order: null
-         max_batches: null
-         max_samples: null
-         materialize_threshold_mb: 1024
-       final:
-         mode: "auto"
-         batch_size: 256
-         num_workers: 4
-         pin_memory: true
-         persistent_workers: true
-         prefetch_factor: 4
-         in_order: null
-         max_batches: null
-         max_samples: null
-         materialize_threshold_mb: 1024
-
-These runtime profiles are shared by performance, information, ablation,
-correlation, activation, and robustness analyses. For large datasets like
-ImageNet, ``mode: "stream"`` avoids materializing the full dataset on the
-device. For expensive analyses that still accumulate tensors on CPU
-(``information``, ``correlation``, some compartment analyses), use
-``max_samples`` to bound total analysis memory explicitly.
-For ImageNet-scale streamed evaluation, ``in_order: false`` can reduce
-DataLoader head-of-line blocking; leave it ``null`` to keep PyTorch's default
-ordering behavior.
-Analyzers may temporarily move the model to the requested analysis device,
-but they restore the original device and train/eval mode before returning, so
-post-training analysis does not leave the model in a different execution state.
-When ``mode: "materialize"`` is selected and the dataset supports slicing,
-hook-based analyses use a single full batch, matching single-pass behavior on
-small single-GPU runs.
-The default ``"auto"`` mode is preferred for most experiments: it preserves
-materialized behavior on small datasets while switching to streaming
-automatically when the estimated dataset footprint becomes large.
-If a config omits ``analysis.runtime`` entirely, non-distributed runs use
-``"materialize"`` by default, while DDP/FSDP runs keep the shared ``"auto"``
-default.
+Analyzers measure a trained model: its performance, the information its
+compartments carry, the effect of interventions, its connectivity and its
+dynamics. Each analyzer has a section ``analysis.<name>`` in the experiment
+configuration. Enabled analyzers run on the final model of a training run,
+and optionally after every epoch, and write their results into the run
+directory. :doc:`analyzers` describes every analyzer, and
+:doc:`checkpoint_analysis` shows how to run analyzers on saved checkpoints and
+how to collect and summarize the results of many checkpoints.
 
 .. contents:: On this page
    :local:
    :depth: 2
 
-Performance Analysis
+Configuring analyses
 --------------------
 
-Computes standard classification/regression metrics: accuracy, AUC,
-categorical log-likelihood, MSE, cosine similarity.
+Every section has three keys:
+
+``enabled`` (default ``false``)
+   Run the analyzer. All analyzers are disabled by default.
+
+``training`` (default ``false``, except where the catalogue says otherwise)
+   Also run it after every training epoch (see :ref:`analysis-runtime`).
+
+``params``
+   The analyzer's options, documented in :doc:`analyzers`. ``routing`` has no
+   ``params``.
+
+``analysis.performance`` also has ``training_splits`` and ``final_splits``,
+and ``analysis.runtime`` sets how analyzers iterate over data
+(:ref:`analysis-runtime-profiles`).
+
+.. code-block:: yaml
+
+   analysis:
+     performance:
+       enabled: true
+       training: true
+       training_splits: ["validation"]
+       final_splits: ["train", "validation", "test"]
+     weight:
+       enabled: true
+     information:
+       enabled: true
+       params:
+         selection:
+           components: ["basic", "conditional"]
+
+Section names are the analyzer names in the :ref:`analyzer-catalogue`, which
+are also the field names in a run's saved ``config.json``. Unknown section
+names and unknown keys raise when the configuration loads.
+The older section names ending in ``_analysis`` (for example
+``performance_analysis``) and ``spike_trains`` still load, with a warning; a
+section may not be written under both names.
+
+.. _analysis-runtime:
+
+When analyzers run
+------------------
+
+After training
+   Every enabled analyzer runs once on the model the run ends with (the
+   restored best-validation weights when
+   ``training.main.common.load_best_state_dict`` is true), whatever its
+   ``training`` flag. Its results are named ``final``.
+
+During training
+   ``training: true`` also runs the analyzer after every training epoch, with
+   results named ``epoch<N>`` (``N`` counts from 1). There is no interval
+   option, so per-epoch analyses add their cost to every epoch.
+
+Two analyzers default to ``training: true``: ``synapse_turnover``, which
+compares snapshots taken during training and raises with ``training: false``,
+and ``reactivation_dynamics``. Nine analyzers are final-only and raise with
+``training: true``: ``representation_accessibility``,
+``source_tuning_support``, ``input_region_intervention``,
+``synapse_pruning``, ``path_matched_intervention``,
+``branch_local_sensitivity``, ``local_inhibitory_population_intervention``,
+``path_matched_information`` and ``gain_load_perturbation``. Both errors are
+raised before training starts.
+
+Other rules:
+
+- **Multi-stage training.** With ``training.main.strategy: multi_stage`` the
+  analyzers run after each stage instead of after training (when
+  ``training.main.strategies.multi_stage.analyze_between_stages`` is true,
+  the default). Each stage writes into ``<run>/<stage name>/`` and names its
+  results after the stage; per-epoch ``performance`` results of all stages
+  are also gathered, renumbered, into ``<run>/performance/epochs/``.
+- **Distributed training.** Under DDP the analyzers run in the main process
+  only. Under FSDP per-epoch analyses are skipped, and the final analysis
+  runs in the main process on an unsharded copy of the trained model.
+- **Sealed test split.** ``experiment.sealed_test: true`` rejects every
+  enabled analyzer (see :ref:`dataset-splits`).
+- **Regression models.** For a regression model ``performance`` replaces
+  ``accuracy``, ``auc`` and ``categorical_loglikelihood`` by ``mse`` and
+  ``cosine_similarity``.
+- **Device.** Analyses run on the GPU when one is visible and on the CPU
+  otherwise. An analyzer may move the model, and restores its device and
+  train/eval mode afterwards.
+- **Random state.** Every analysis pass runs in an isolated random state
+  seeded with ``experiment.evaluation_seed`` (``information`` also with
+  ``experiment.probe_seed``), so enabling analyzers does not change the
+  training random stream (see :ref:`analysis-seeds`).
+- **Models an analyzer does not support.** Most analyzers that need a
+  particular core (an E/I dendritic core, a recurrent core, spiking somas)
+  skip other models, often with only a log message and without writing
+  files; some raise. :doc:`analyzers` lists the requirement of each. Every
+  pass records whether each analyzer completed
+  (:ref:`analysis-status`).
+
+.. _analysis-status:
+
+Completion status
+~~~~~~~~~~~~~~~~~
+
+Every pass records the status of each analyzer it was asked to run (the
+enabled analyzers; during training, those with ``training: true``) in
+``analysis_status.json`` in the run directory (in a multi-stage run, in the
+stage directory); a pass with no analyzer to run writes no record. The
+status of an analyzer is one of:
+
+``completed``
+   The analyzer returned and wrote at least one file into its directory, or
+   reported that it keeps its results for a later pass (``synapse_turnover``
+   during training, recorded under ``deferred_output``).
+``skipped``
+   The analyzer did not run, with the ``reason``: it reported that it does
+   not apply to the model or data, the pass stopped before reaching it, or
+   the manager never runs it (a plugin analyzer registered without a phase).
+``failed``
+   The analyzer raised; ``error_type`` and ``error_message`` record the
+   error, which still ends the pass and the run.
+``empty``
+   The analyzer returned without writing any file into its directory.
+
+A completed analyzer can list ``missing_outputs``: optional outputs it did not
+produce, each with the reason (for example a figure that needs inhibitory
+statistics on a tree without inhibition). The file holds one record per pass,
+under ``passes.<name>`` (``final``, a stage name, or the latest ``epoch<N>``:
+per-epoch passes keep only the most recent record), with ``requested`` (the
+analyzers asked for), ``finished`` (``false`` while the pass runs, or when an
+error stopped it) and ``complete`` (every requested analyzer completed):
+
+.. code-block:: json
+
+   {
+     "schema_version": "analysis_status_v1",
+     "passes": {
+       "final": {
+         "training": false,
+         "require_completion": false,
+         "requested": ["performance", "correlation"],
+         "finished": true,
+         "complete": false,
+         "analyses": {
+           "performance": {"status": "completed", "output_dir": "performance"},
+           "correlation": {
+             "status": "skipped",
+             "output_dir": "correlation_analysis",
+             "reason": "the model has no ExcitationInhibitionNetwork core"
+           }
+         }
+       }
+     }
+   }
+
+``AnalysisManager.run_analysis`` returns the record of its pass. With
+``analysis.require_completion: true`` (default ``false``) a pass whose
+analyses did not all complete raises ``AnalysisIncompleteError`` after
+writing the record, so a training run or a checkpoint analysis fails instead
+of leaving an incomplete result directory. Result files are the same with
+and without the record.
+
+.. code-block:: yaml
+
+   analysis:
+     require_completion: true
+     performance:
+       enabled: true
+     correlation:
+       enabled: true
+
+.. _analysis-runtime-profiles:
+
+Data iteration: ``analysis.runtime``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``analysis.runtime.training`` applies to the per-epoch runs and
+``analysis.runtime.final`` to the run after training. Both have the same keys:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 26 16 58
+
+   * - Key
+     - Default
+     - Meaning
+   * - ``mode``
+     - see below
+     - ``materialize`` loads the whole (capped) split at once, ``stream``
+       iterates in batches through a DataLoader, and ``auto`` materializes
+       when the estimated size is at most ``materialize_threshold_mb`` and
+       streams otherwise. Any other value raises when the configuration
+       loads.
+   * - ``batch_size``
+     - ``256``
+     - Batch size when streaming.
+   * - ``num_workers``
+     - ``4``
+     - DataLoader worker processes when streaming.
+   * - ``pin_memory``
+     - ``true``
+     - Pinned host memory; ignored when the analysis runs on the CPU.
+   * - ``persistent_workers``
+     - ``false``
+     - Keep DataLoader workers between passes.
+   * - ``prefetch_factor``
+     - ``2``
+     - Batches prefetched per worker.
+   * - ``in_order``
+     - ``null``
+     - ``false`` lets workers deliver batches as they finish (useful for
+       large streamed image datasets); ``null`` keeps PyTorch's default.
+   * - ``max_batches``
+     - ``null``
+     - Cap on the number of batches per split.
+   * - ``max_samples``
+     - ``null``
+     - Cap on the number of examples an analyzer sees (the first examples
+       of the split).
+   * - ``materialize_threshold_mb``
+     - ``1024``
+     - Size threshold of ``auto``.
+   * - ``seed``
+     - ``null``
+     - Seed of the analysis data loaders and evaluations; unset takes
+       ``experiment.evaluation_seed``.
+
+``mode`` defaults to ``materialize`` in single-process runs
+(``distributed.mode: none``) and to ``auto`` under DDP and FSDP. Keys left out
+of a written phase keep these defaults, including the ``mode`` of the
+distributed mode. In ``materialize`` mode, and when ``auto`` materializes,
+hook-based analyzers process the split in one batch.
+On a CUDA device, a split whose one-batch pass certainly cannot fit is
+streamed instead (:ref:`analysis-activation-memory`).
 
 .. code-block:: yaml
 
    analysis:
      runtime:
        training:
-         mode: "auto"
-         batch_size: 256
+         mode: stream
+         batch_size: 512
+         max_samples: 2048
        final:
-         mode: "auto"
+         mode: auto
          batch_size: 256
-     performance:
-       enabled: true
-       training: false
-       training_splits: ["valid"]
-       final_splits: ["train", "valid", "test"]
-       params:
-         accuracy: true
-         auc: true
-         categorical_loglikelihood: true
-
-Information Analysis
---------------------
-
-Information-theoretic analysis of network representations. The most
-configurable analysis module.
-
-Components
-~~~~~~~~~~
-
-Set via ``params.selection.components``:
-
-``"basic"``
-   ``I(X; C)`` -- mutual information between each signal and class labels.
-   Implemented examples include ``I(E; C)``, ``I(I; C)``, ``I(Vb; C)``,
-   ``I(Vout; C)``, ``I(Vinf; C)`` when ``include_vinf`` is enabled, and the
-   joint term ``I(E, I; C)``.
-
-``"pairwise"``
-   ``I(X; Y)`` -- MI between pairs of signals (E, I, Vb, Vout).
-   Implemented examples include ``I(E; I)``, ``I(E; Vout)``,
-   ``I(I; Vout)``, ``I(E; Vb)``, ``I(I; Vb)``, ``I(Vb; Vout)``, and the
-   analogous ``Vinf`` pairwise terms when enabled.
-
-``"conditional"``
-   ``I(X; Y | C)`` -- conditional MI given class.
-   Implemented examples include ``I(E; I | C)``, ``I(E; Vout | C)``,
-   ``I(I; Vout | C)``, ``I(E; Vb | C)``, ``I(I; Vb | C)``,
-   ``I(Vb; Vout | C)``, and ``Vinf`` variants when enabled.
-
-``"gaussian_fisher"``
-   Fast Gaussian MI proxy from class-conditional means and variances.
-   Config under ``params.compute.gaussian_fisher``: ``aggregation``
-   (``"sum"``/``"mean"``/``"max"``), ``mi_transform``
-   (``"half_log1p"``/``"log1p"``/``"none"``), ``eps``.
-   Implemented examples include ``I(E; C)_fisher``, ``I(I; C)_fisher``,
-   ``I(Vb; C)_fisher``, ``I(Vout; C)_fisher``, ``I(Vinf; C)_fisher``, and
-   the Fisher-style increment ``I(Vb; C | E, I)_fisher`` when ``Vb`` exists.
-
-``"pid"``
-   Synergy/redundancy decomposition (requires external PID library).
-
-``"ablation_aligned"``
-   Conditional-MI terms aligned to ablation interventions, e.g.,
-   ``I(E; C | I, Vb)`` and ``I(Vout; C | Vb)``.
-   Implemented terms depend on signal availability:
-
-   - Always when enabled: ``I(Vout; C | E)`` and ``I(Vout; C | I)``.
-   - With ``Vb`` present: ``I(Vout; C | Vb)``, ``I(Vb; C | Vout)``,
-     ``I(Vout; C | E, I)``, ``I(E; Vout | I, Vb)``,
-     ``I(I; Vout | E, Vb)``, ``I(Vb; Vout | E, I)``, ``I(E; C | Vb)``,
-     ``I(I; C | Vb)``, ``I(E, I; C | Vb)``, ``I(E; C | I, Vb)``, and
-     ``I(I; C | E, Vb)``.
-   - Without ``Vb``: ``I(E; C | I)``, ``I(I; C | E)``,
-     ``I(E; Vout | I)``, ``I(I; Vout | E)``, and ``I(Vout; C | E, I)``.
-   - With ``Vinf`` enabled: ``I(Vinf; C | Vout)`` and ``I(Vout; C | Vinf)``.
-
-``"upstream_unique_cmi"``
-   Adds the extra conditional term ``I(Vb; C | E, I)`` when ``Vb`` exists.
-   This can be expensive when ``E`` and ``I`` are high-dimensional.
-
-``"layer_proxies"``
-   Aggregate per-branch MI into layer-level proxies: sum, union, topK_sum.
-   This derives layer-level metrics such as ``I(Vout; C)_sum``,
-   ``I(Vout; C | E, I)_union``, and corresponding ``topK_sum`` summaries
-   from single-branch results.
-
-Implemented Metric Notes
-~~~~~~~~~~~~~~~~~~~~~~~~
-
-The information analyzer currently emits ``I(Vout; C)`` and
-``I(Vout; C | E)``, ``I(Vout; C | I)``, and ``I(Vout; C | E, I)``.
-
-Signal Variants
-~~~~~~~~~~~~~~~
-
-Set via ``params.selection.signal_variants``:
-
-``"network"``
-   Network-learned weights (always included).
-
-``"lda"``
-   LDA-optimized weights for ``E_lin``, ``I_lin``, ``Vb_lin`` -- maximizes
-   class separation.
-
-``"random"``
-   Random-weight baseline (requires ``lda_n_shuffles > 0``).
-
-Computation Levels
-~~~~~~~~~~~~~~~~~~
-
-``"single_branch"``
-   Per individual branch (most granular).
-
-``"layer_branch"``
-   Aggregate branches within each layer.
-
-``"all_branch"``
-   Aggregate all branches across the network.
-
-Branch Aggregation
-~~~~~~~~~~~~~~~~~~
-
-``"mean"``
-   Average branch activations to scalars.
-
-``"multivariate"``
-   Use raw multi-dimensional data for joint MI computation.
-
-``"sample"``
-   Treat each branch as a separate observation.
-
-Scopes
-~~~~~~
-
-``"layer"`` -- within-tree dendritic branch-layer breakdown.
-``"einet"`` -- separate excitatory/inhibitory synaptic pathway summaries.
-``"neuron"`` -- per captured branch coordinate (expensive). This legacy name
-does not denote the joint soma population of a stacked network layer. Use
-``representation_accessibility`` for soma-population analyses.
-
-Estimator Methods
-~~~~~~~~~~~~~~~~~
-
-``"kraskov"`` (default) -- k-NN estimator (``n_neighbors`` configurable).
-``"decoder"`` -- classifier-based MI bound. ``"binned"`` -- binned MI.
-``"sklearn"`` -- sklearn functions. ``"copula"`` -- copula-based.
-
-.. code-block:: yaml
-
-   analysis:
-     information:
-       enabled: true
-       training: false
-       params:
-         selection:
-           components: ["basic", "pairwise", "conditional", "gaussian_fisher"]
-           scopes: ["layer"]
-           signal_variants: ["network"]
-         compute:
-           max_samples: 1000
-           computation_level: "single_branch"
-           branch_aggregation: "mean"
-         estimator:
-           method: "kraskov"
-           kraskov:
-             n_neighbors: 10
-
-Representation Accessibility
-----------------------------
-
-``representation_accessibility`` analyzes the post-gate soma outputs of every
-feedforward ``PopulationNetwork`` layer. It keeps three estimands separate:
-
-- validation-fit/test-evaluated Ridge or MLP class accessibility;
-- joint ``I(X; C)`` on a declared label-independent population projection;
-- separately estimated scalar ``I(x_i; C)`` for individual somas.
-
-The MLP result is nonlinear class accessibility, not mutual information. The
-mean of per-soma scalar information is redundancy-sensitive and is not the
-joint information in the layer. Every probe is fit on ``valid`` and the
-untouched ``test`` split is used only for final evaluation. The analyzer is
-therefore final-only; ``training: true`` is rejected.
-
-Representations may be ``excitatory``, ``inhibitory``, ``joint``, ``readout``,
-or an exact name such as ``population:e0``. Networks without an inhibitory soma
-population record that representation as missing rather than confusing raw
-inhibitory synaptic current with an I-population output.
-
-``balanced_countsketch`` provides a label-independent matched-width control.
-Use native width when comparing mechanisms with identical architectures, and a
-common projected width when comparing E, I, and joint populations of different
-sizes. Projection draws and MLP initializations are technical repeats; average
-them within a trained checkpoint before inference across training seeds.
-
-.. code-block:: yaml
-
-   analysis:
-     runtime:
-       final:
-         mode: "stream"
-         batch_size: 256
-         num_workers: 4
-         max_samples: null
-     representation_accessibility:
-       enabled: true
-       training: false
-       params:
-         representations: ["excitatory", "inhibitory", "joint"]
-         projections:
-           - name: "matched16"
-             type: "balanced_countsketch"
-             output_dim: 16
-             draws: 5
-         probes:
-           - name: "linear"
-             type: "ridge"
-             ridge_alpha: 1.0
-             n_label_shuffles: 20
-           - name: "nonlinear"
-             type: "mlp"
-             max_projection_draws: 1
-             hidden_dims: [32, 16]
-             activation: "relu"
-             alpha: 0.0001
-             learning_rate_init: 0.001
-             batch_size: 256
-             max_iter: 300
-             early_stopping: true
-             validation_fraction: 0.1
-             n_iter_no_change: 20
-             draws: 3
-             n_label_shuffles: 5
-         information:
-           enabled: true
-           compute_joint: true
-           compute_per_soma: true
-           projection_names: ["matched16"]
-           per_soma_representations: ["excitatory", "inhibitory"]
-           n_neighbors: 5
-           n_label_shuffles: 20
-           standardize: true
-         seed: 42
-
-Frozen checkpoint execution
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The same analysis profile can be applied to an existing checkpoint without
-rerunning training. Keep the original resolved training YAML immutable and put
-the measurement declaration in a standalone YAML with an ``analysis:`` root::
-
-    dendritic-analyze-checkpoint \
-      --config /path/to/resolved_training_config.yaml \
-      --checkpoint /path/to/final_model.pt \
-      --analysis-config /path/to/representation_accessibility.yaml \
-      --output-dir /path/to/posthoc/config_0
-
-The runner reconstructs the canonical dataset splits and model from the
-training config, performs strict checkpoint loading, runs no optimization, and
-writes ``checkpoint_analysis_provenance.json`` with hashes of all three inputs,
-resolved random streams, dataset sizes, checkpoint compatibility records, and
-the source commit/dirty state when run from a Git checkout.
-
-After an array of checkpoint analyses finishes, collect the exact job
-declarations instead of discovering result directories by filename::
-
-    dendritic-collect-representations \
-      --jobs /path/to/jobs_pilot.jsonl \
-      --jobs /path/to/jobs_full.jsonl \
-      --expected-count 100 \
-      --output-dir /path/to/collected
-
-The collector verifies strict checkpoint loading and the config, checkpoint,
-and analysis hashes for every job. It writes long-form records plus
-within-checkpoint technical-draw summaries. Projection and MLP initialization
-draws remain technical repeats; biological inference should use one aggregated
-value per independently trained checkpoint.
-
-Ablation Analysis
------------------
-
-Evaluates the contribution of specific network components by disabling or
-disrupting them.
-
-Methods (``params.methods.ablation_methods``):
-
-``"lesion"``
-   Structural ablation -- disable connection weights entirely.
-
-``"shuffle"``
-   Permute the signal across samples in a batch. Preserves the marginal
-   distribution but destroys sample-label alignment.
-
-``"mean_clamp"``
-   Replace the signal with its batch mean. Preserves operating point but
-   removes trial-to-trial variability.
-
-Selectors live under ``params.selection``:
-
-``levels``: ``"layer"``, ``"compartment"``.
-``targets``: ``"all_synapses"``, ``"excitation"``, ``"inhibition"``,
-``"upstream"``.
-``metrics``: ``"accuracy"``, ``"auc"``, ``"categorical_loglikelihood"``,
-``"pred_label_mi_bits"``.
-
-.. code-block:: yaml
-
-   analysis:
-     ablation:
-       enabled: true
-       params:
-         selection:
-           levels: ["layer"]
-           targets: ["excitation", "inhibition", "upstream", "all_synapses"]
-           metrics: ["accuracy", "pred_label_mi_bits"]
-         methods:
-           ablation_methods: ["lesion", "shuffle", "mean_clamp"]
-
-Correlation Analysis
---------------------
-
-Pearson correlations between excitatory, inhibitory, and output signals at
-configurable granularity.
-
-``components``: ``"total"`` (all samples), ``"noise"`` (within-class),
-``"signal"`` (between-class), ``"tuning"`` (selectivity).
-
-``pairs``: ``"EE"``, ``"II"``, ``"EI"``, ``"E_output"``, ``"I_output"``,
-``"output_output"``.
-
-``scopes``: ``"layer"``, ``"einet"``, ``"neuron"``.
-
-``computation_level``: ``"synaptic"``, ``"single_branch"``,
-``"layer_branch"``, ``"all_branch"``.
-
-.. code-block:: yaml
-
-   analysis:
-     correlation:
-       enabled: true
-       params:
-         computation_level: "layer_branch"
-         components: ["total", "noise", "signal"]
-         pairs: ["EE", "II", "EI"]
-         scopes: ["layer"]
-
-Other Analysis Modules
-----------------------
-
-Each module follows the same ``enabled``/``training``/``params`` pattern.
-
-``weight``
-   Weight distribution statistics and parameter counts.
-
-``synapse_turnover``
-   Tracks active synapse changes over training. Parameters:
-   ``synaptic_analysis``, ``track_active_synapses``, ``turnover_frequency``.
-
-``noise_perturbation``
-   Evaluates robustness to input noise at configurable noise levels.
-
-``compartment_statistics``
-   Per-compartment (E, I, branch, soma) activation statistics.
-
-``compartment_snr``
-   Discriminability-style compartment SNR. This is not a simple signal/noise
-   power ratio: branch-level scalar signals report ``d'^2`` as between-class
-   variance divided by total variance, while multivariate input/layer signals
-   report ``d_max``, ``d_total``, ``n_sig_dirs``, and ``ratio_sig_dirs`` from
-   between-class versus total covariance. The input view is controlled by
-   ``params.input_capture_mode``:
-
-   - ``"branch"`` (default): measure the actual tensors entering dendritic
-     branch layers. This is the preferred view for E/I and population-network
-     dendritic analyses.
-   - ``"network"``: for explicit ``ExcitationInhibitionNetwork`` cores, measure
-     model-level excitatory input and inhibitory-output diagnostics. Other
-     dendritic cores still report branch/layer SNR, but do not add this
-     input-output diagnostic.
-
-``multiplicative_gain``
-   Measures gain modulation by inhibitory inputs.
-
-``routing``
-   Records which branches are active per input class.
-
-``receptive_field``
-   Computes dendritic receptive-field weight maps for all branch layers. The
-   default mode gathers E/I branch weight maps, plots sampled receptive fields,
-   and writes a raw tensor checkpoint
-   (``<filename>_raw_receptive_fields.pt`` by default) so plots can be
-   regenerated without re-reading model weights. Use
-   ``params.rf_shape`` when excitatory and inhibitory receptive fields share one
-   image shape, or ``params.exc_rf_shape`` / ``params.inh_rf_shape`` when the two
-   streams have different shapes.
-
-   Two optional extensions are available:
-
-   - ``params.compute_activation_tuning: true`` adds class-preferred branch
-     excitation, inhibition, E/I ratio, and output activation summaries from the
-     provided test split.
-   - ``params.compute_rf_tuning: true`` enables aggregate RF tuning,
-     confusion/entropy summaries, discriminability/d-prime heatmaps,
-     preferred/unpreferred compartment summaries, and E-vs-I RF/tuning plots.
-     ``params.plot_rf_tuning`` controls whether those plots are written during
-     final analysis.
-
-   A fully commented analysis block, including every preferred RF and SNR key,
-   lives at ``configs/templates/analysis_full_template.yaml``.
-
-``adversarial_robustness``
-   FGSM attack evaluation at configurable epsilon values.
-
-``single_layer_contribution``
-   Measures each layer's contribution to the network output.
-
-``reactivation_dynamics``
-   Per-epoch trajectory tracker for parametric reactivation gates. For every
-   ``ParametricTanh`` layer in the model, snapshots the pre-reactivation
-   voltage distribution (mean, std, median, MAD, quantiles), the current
-   learnable ``(m, b)`` parameters, and the post-gate saturation fractions
-   (``sat_lo = P(output < 0.05)``, ``sat_hi = P(output > 0.95)``). Saves
-   one JSON file per epoch under ``<run>/reactivation_dynamics/epochs/``.
-   Useful for diagnosing gate-slope drift, init-calibration quality, and
-   voltage-distribution stationarity during training.
-
-   .. code-block:: yaml
-
-      analysis:
-        reactivation_dynamics_analysis:
-          enabled: true
-          training: true
-          params:
-            max_samples: 1024
-
-``inhibitory_specialization``
-   Structural targeting analysis for recurrent inhibitory populations. For each
-   local recurrent I->E route, computes soma-vs-distal targeting indices per
-   ``(I, E)`` pair and summarizes inhibitory neurons into targeting motifs such
-   as ``mixed-conditional`` and ``context-specialist``. For named
-   ``population_network`` cores, the analyzer reports the excitatory target
-   population key, such as ``population_network/microcircuit.pyr``, and includes the
-   contributing inhibitory source populations.
-
-   .. code-block:: yaml
-
-      analysis:
-        inhibitory_specialization_analysis:
-          enabled: true
-          training: false
-          params:
-            gate_threshold: 0.1
-            mixed_std_threshold: 0.15
-
-``jacobian_spectrum``
-   Static recurrent-weight spectrum snapshot for dendritic recurrent models.
-   Reports the top singular values and spectral radii of recurrent excitation
-   and recurrent inhibition at each dendritic level, together with per-level
-   ``tau`` when available.
-
-   .. code-block:: yaml
-
-      analysis:
-        jacobian_spectrum_analysis:
-          enabled: true
-          training: false
-          params:
-            top_k: 5
-            save_figures: true
-
-``dendritic_timetraces``
-   Synthetic time-trace simulator that uses the trained per-level ``tau`` and
-   reactivation parameters to illustrate how a learned dendritic cascade
-   responds to a configurable input protocol. Structured recurrent E/I layers
-   report ``layer_N`` keys; named population networks report keys such as
-   ``population_network/microcircuit.pyr``.
-
-   .. code-block:: yaml
-
-      analysis:
-        dendritic_timetraces_analysis:
-          enabled: true
-          training: false
-          params:
-            n_timesteps: 80
-            save_figures: true
-
-``spike_train``
-   Spike-specific summary for models with opt-in ``LIFSoma`` modules. The
-   analyzer hooks the soma directly, so it works with ``spike_readout`` set to
-   ``spikes``, ``rate``, or ``membrane``. It reports compact raster events,
-   mean firing rate, silent-unit and silent-trial fractions, spike-count Fano
-   factors, and ISI mean/CV.
-
-   .. code-block:: yaml
-
-      analysis:
-        spike_train:
-          enabled: true
-          training: false
-          params:
-            max_samples: 512
-            include_raster: true
-            max_raster_samples: 8
-            include_per_timestep_rate: true
-
-Compatibility Notes
--------------------
-
-Recurrent analysis helpers share a duck-typed introspection layer in
-``dendritic_modeling.analysis.utils.recurrent_introspection``. This keeps E/I
-analysis outputs stable while letting analyzers and scripts discover named
-populations, synapse-type support, and spiking soma state without knowing the
-concrete core class.
-The same compatibility pass lets hook-based synaptic activation and compartment
-statistics run on named recurrent population graphs when their underlying
-``TopKLinear`` branch modules are present.
-
-Configs using ``performance_analysis`` or the
-``training_runtime`` / ``final_runtime`` performance blocks are accepted and
-migrated automatically at load time. Prefer:
-
-- ``analysis.runtime.training``
-- ``analysis.runtime.final``
-- ``analysis.performance.training_splits``
-- ``analysis.performance.final_splits``
-
-If ``analysis.runtime`` is omitted entirely:
-
-- ``distributed.mode: none`` defaults to ``materialize`` for single-process
-  analysis.
-- ``distributed.mode: ddp`` and ``distributed.mode: fsdp`` keep the shared
-  ``auto`` default.
-- CPU analysis automatically disables ``pin_memory`` even if the runtime block
-  leaves it enabled, so the YAML can keep one shared setting for CPU and GPU
-  analysis.
+
+Every analyzer that reads data uses the phase's profile, with these
+exceptions: ``routing`` iterates the test split with batches of 128,
+``reactivation_dynamics`` takes one batch of ``params.max_samples`` examples,
+and ``synapse_turnover``, ``synapse_pruning``, ``inhibitory_specialization``,
+``jacobian_spectrum`` and ``dendritic_timetraces`` read no data. Analyzers
+with their own sample option (for example ``params.max_samples``) use the
+smaller of the two caps. ``performance`` does not apply ``max_samples``, and
+applies ``max_batches`` only when it streams.
+
+A ``training_runtime`` or ``final_runtime`` block under
+``analysis.performance`` (an older layout) is moved to ``analysis.runtime``
+when that section is absent and ignored, with a warning, otherwise; its
+``splits`` list becomes ``training_splits`` or ``final_splits``.
+
+.. _analysis-activation-memory:
+
+Activation memory of one-batch passes
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The size of a split does not bound the memory of a forward pass over it:
+activations grow with the number of examples. Before a CUDA device runs a
+materialized split in one forward pass, the library bounds the memory of that
+pass from below: a copy of the model runs on the first 2, 4 and 8 examples,
+with the random state restored, and the bytes of the tensors it holds at once
+are extrapolated to the whole split. When the bound plus the split's own
+tensors exceed what the device can still provide (its free memory, PyTorch's
+unused cache, and at most a per-process memory fraction), the split is
+streamed in ``batch_size`` batches instead of first failing with an
+out-of-memory error (an INFO record says so). A pass that fits is unchanged:
+it keeps its one batch and gives the same numbers.
+
+The bound covers the scoring of the model through the shared metric
+evaluation, used by ``performance``, ``noise_perturbation``,
+``single_layer_contribution``, ``multiplicative_gain``,
+``gain_load_perturbation`` and ``ablation`` (its scores without signal
+interventions; the ``shuffle`` and ``mean_clamp`` interventions use forward
+hooks, which disable the bound), and the passes of ``branch_activation``,
+``synaptic_activation`` and ``branch_local_sensitivity``. Analyzers that
+materialize a split and run their own pass over it are not covered and can
+still run out of memory on a split too large for one batch: ``information``,
+``correlation``, ``compartment_statistics``, ``compartment_snr``,
+``receptive_field``, ``weight`` (source-region alignment),
+``source_tuning_support``, ``representation_accessibility``,
+``path_matched_information``, ``path_matched_intervention``,
+``local_inhibitory_population_intervention``, ``input_region_intervention``,
+``local_rule_components``, ``spike_train`` and the reference pass of
+``ablation``'s ``mean_clamp``. Set ``mode: stream`` (or a smaller
+``materialize_threshold_mb`` with ``mode: auto``, or ``max_samples``) in the
+runtime profile of such runs.
+
+No bound is used, and the pass runs as before (one full batch; a metric whose
+pass fails is evaluated again by streaming, while an analyzer's own pass
+raises) in these cases:
+
+- on the CPU, where the memory available to a process (Slurm limits, page
+  cache) cannot be measured reliably enough to prove that a pass fails;
+- when forward hooks are registered, since the probes would run them;
+- for models with ``workspace_mb`` chunking, and for modules that set
+  ``batch_adaptive_memory = True`` (a module defined outside the library sets
+  it when its allocations do not grow linearly with the batch size, for
+  example when it picks its chunk size from the batch size);
+- when the probes do not grow linearly with the batch size;
+- when a probe fails for any reason, including an out-of-memory error while
+  copying the model.
+
+The probes cost one copy of the model on the device (the memory of its
+parameters and buffers, freed afterwards) and four forward passes on at most
+8 examples under a recording dispatch mode: about 0.07 s for a 14-million
+parameter E/I network on an A100 once CUDA is warmed up, and about 0.4 s on
+the first call of a process. They are reused for the same model, input shape
+and device until a parameter or buffer of the model changes, so they run once
+per evaluation pass of a fixed model, again after every training epoch (the
+weights change), and again for every lesion of ``ablation``.
+
+Data splits
+~~~~~~~~~~~
+
+Each analyzer reads a fixed split, listed in the :ref:`analyzer-catalogue`.
+Most read the test split. ``performance`` reads the splits in
+``training_splits`` (during training) and ``final_splits`` (after training),
+both defaulting to all three. ``representation_accessibility`` fits its
+probes, and ``path_matched_information`` estimates information, on the
+validation split. Fixed reference statistics (for example the ``mean_clamp``
+reference of ``ablation``) come from the training split.
+
+.. _analysis-seeds:
+
+Seeds
+~~~~~
+
+Seeds written in an analysis section are used unchanged. Every unset seed is
+filled when the analyzers are built:
+
+- ``analysis.runtime.<phase>.seed`` takes ``experiment.evaluation_seed``;
+- every other unset field named ``seed`` or ending in ``_seed`` takes a seed
+  derived from ``experiment.probe_seed`` and the field's configuration path,
+  so each analyzer has its own stream, independent of which other analyzers
+  are enabled.
+
+Both experiment seeds fall back to ``experiment.seed`` (see
+:ref:`random-seeds`). The filled values are saved in the run's
+``config.json``. Because the derivation uses the configuration path, two
+analyzers never share a derived seed, and runs whose ``experiment.probe_seed``
+differs (by default, runs with different ``experiment.seed``) draw different
+analysis seeds. Write a seed explicitly when an analysis must use the same
+random numbers in every checkpoint (for example
+``gain_load_perturbation.params.base_draw_seed``), and write the same
+``support_seed`` (and ``support_namespace`` and ``support_draws``) in both
+sections to make ``path_matched_intervention`` and
+``path_matched_information`` select the same supports.
+
+.. _analysis-outputs:
+
+Where results are written
+-------------------------
+
+An analyzer writes into ``<run directory>/<directory>/``, where the run
+directory is ``<outputs.results_dir>/<outputs.run_name>_<YYYYmmdd_HHMMSS>/``
+(see :ref:`run-outputs`) and ``<directory>`` is the analyzer's directory in the
+:ref:`analyzer-catalogue`. A result is named after its pass: ``final``,
+``epoch<N>`` or a multi-stage stage name; this page writes ``<name>`` for it.
+The directory is created when the analyzer first writes, so an analyzer that
+skips the model leaves no directory.
+
+The JSON result files follow four patterns:
+
+- ``<name>.json``: ``performance``, ``representation_accessibility``,
+  ``source_tuning_support``, ``input_region_intervention``, ``ablation``,
+  ``path_matched_intervention``, ``branch_local_sensitivity``,
+  ``local_inhibitory_population_intervention``, ``path_matched_information``,
+  ``compartment_snr``, ``multiplicative_gain``, ``gain_load_perturbation``,
+  ``inhibitory_specialization``, ``jacobian_spectrum``,
+  ``dendritic_timetraces``, ``spike_train``.
+- ``<name>`` (JSON without a file extension): ``information``, ``weight``,
+  ``correlation``, ``noise_perturbation``, ``single_layer_contribution``,
+  ``compartment_statistics``, ``routing``, ``synaptic_activation``,
+  ``branch_activation``, ``synapse_turnover``, ``synapse_pruning``.
+- per-epoch results in an ``epochs/`` subdirectory: ``performance``,
+  ``ablation``, ``compartment_snr`` and ``multiplicative_gain`` write
+  ``epochs/epoch<N>.json``; ``reactivation_dynamics`` writes every pass,
+  ``final`` included, to ``epochs/<name>.json``; ``local_rule_components``
+  writes ``epochs/epoch<N>.json`` and ``.csv``, appends to
+  ``trajectory.csv``, and writes ``final/final.json`` and ``.csv`` after
+  training.
+- other names: ``adversarial_robustness`` writes
+  ``adversarial_robustness_<name>.json``, and ``receptive_field`` writes
+  ``<name>_summary.json`` (in ``epochs/`` during training) and the raw maps
+  ``<name>_raw_receptive_fields.pt``.
+
+Many analyzers also save figures (PNG or PDF; some have a ``save_figures`` or
+figure-format option). Some figures use fixed file names and are replaced at
+every pass, and some are drawn only after training, including animations of
+per-epoch results (MP4, or GIF when ``ffmpeg`` is missing). Series are never
+told apart by colour alone: each line has its own marker or line style, each
+bar series its own hatch, and overlaid histograms their own outline style
+(``dendritic_modeling.plotting.styles``).
+
+Part of the directory of a two-epoch run in which ``performance``,
+``information``, ``ablation``, ``reactivation_dynamics`` and
+``synapse_turnover`` ran with ``training: true`` (``synapse_turnover`` only
+takes snapshots during training and writes after it):
+
+.. code-block:: text
+
+   <run directory>/
+     ablation_analysis/
+       epochs/epoch1.json
+       epochs/epoch2.json
+       final.json
+       final_lesion_accuracy.png
+     information_analysis/
+       epoch1
+       epoch1_summary.txt
+       epoch2
+       epoch2_summary.txt
+       final
+       final_summary.txt
+       aggregated_basic_mi_comparison_depth.png
+     performance/
+       epochs/epoch1.json
+       epochs/epoch2.json
+       final.json
+       performance_evolution_accuracy.png
+     reactivation_dynamics/
+       epochs/epoch1.json
+       epochs/epoch2.json
+       epochs/final.json
+     synapse_turnover_analysis/
+       final
+       final_turnover.png
+       final_turnover_by_layer.png
+
+.. _analyzer-catalogue:
+
+Analyzer catalogue
+------------------
+
+Every analyzer registered in ``dendritic_modeling.analysis.registry``. The
+configuration block of each is ``analysis.<analyzer>``. "During training"
+says whether ``training: true`` is possible: "yes", "no" (final-only), or the
+default when it is ``true``. "Directory" is the output directory inside the
+run directory.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 23 37 10 15 15
+
+   * - Analyzer
+     - Measures
+     - During training
+     - Data
+     - Directory
+   * - :ref:`performance <analyzer-performance>`
+     - Accuracy, AUC, log-likelihood, MSE, cosine similarity
+     - yes
+     - ``training_splits`` / ``final_splits``
+     - ``performance``
+   * - :ref:`noise_perturbation <analyzer-noise-perturbation>`
+     - Scores under uniform and Gaussian input noise
+     - yes
+     - test
+     - ``noise_perturbation_analysis``
+   * - :ref:`multiplicative_gain <analyzer-multiplicative-gain>`
+     - Scores over a sweep of input gains
+     - yes
+     - test
+     - ``multiplicative_gain_analysis``
+   * - :ref:`gain_load_perturbation <analyzer-gain-load-perturbation>`
+     - Scores over a factorial of shared gain and input load
+     - no
+     - test
+     - ``gain_load_perturbation``
+   * - :ref:`adversarial_robustness <analyzer-adversarial-robustness>`
+     - Accuracy under FGSM attacks
+     - yes
+     - test
+     - ``adversarial_robustness_analysis``
+   * - :ref:`single_layer_contribution <analyzer-single-layer-contribution>`
+     - Scores with only one dendritic layer intact
+     - yes
+     - test
+     - ``single_layer_contribution``
+   * - :ref:`information <analyzer-information>`
+     - Mutual information between compartment signals and classes
+     - yes
+     - test (or validation)
+     - ``information_analysis``
+   * - :ref:`correlation <analyzer-correlation>`
+     - Signal, noise and total correlations of E, I and output signals
+     - yes
+     - test
+     - ``correlation_analysis``
+   * - :ref:`compartment_snr <analyzer-compartment-snr>`
+     - Class discriminability of inputs, layers and branches
+     - yes
+     - test
+     - ``compartment_snr_analysis``
+   * - :ref:`representation_accessibility <analyzer-representation-accessibility>`
+     - Probe decodability and information of soma populations
+     - no
+     - validation, test
+     - ``representation_accessibility``
+   * - :ref:`path_matched_information <analyzer-path-matched-information>`
+     - Class information on matched-width dendritic supports by depth
+     - no
+     - validation
+     - ``path_matched_information``
+   * - :ref:`ablation <analyzer-ablation>`
+     - Score drops after lesioning, shuffling or clamping synapses
+     - yes
+     - test (reference: train)
+     - ``ablation_analysis``
+   * - :ref:`path_matched_intervention <analyzer-path-matched-intervention>`
+     - Score changes after replacing matched-width supports by depth
+     - no
+     - test (reference: train)
+     - ``path_matched_intervention``
+   * - :ref:`local_inhibitory_population_intervention <analyzer-local-inhibitory-population-intervention>`
+     - Score changes after replacing one layer's inhibitory population
+     - no
+     - test
+     - ``local_inhibitory_population_intervention``
+   * - :ref:`input_region_intervention <analyzer-input-region-intervention>`
+     - Effects of removing or keeping image regions
+     - no
+     - test (reference: train)
+     - ``input_region_intervention``
+   * - :ref:`branch_local_sensitivity <analyzer-branch-local-sensitivity>`
+     - Local derivatives of branch outputs by depth
+     - no
+     - test
+     - ``branch_local_sensitivity``
+   * - :ref:`weight <analyzer-weight>`
+     - Weight statistics; optional exact source-support profiles
+     - yes
+     - none (alignment: validation)
+     - ``weight_analysis``
+   * - :ref:`source_tuning_support <analyzer-source-tuning-support>`
+     - Class tuning of the inputs each sparse pathway selects
+     - no
+     - train, validation
+     - ``source_tuning_support_analysis``
+   * - :ref:`synapse_turnover <analyzer-synapse-turnover>`
+     - Contacts kept, formed and removed during training
+     - required (default ``true``)
+     - none
+     - ``synapse_turnover_analysis``
+   * - :ref:`synapse_pruning <analyzer-synapse-pruning>`
+     - Census of realized contacts and of pruning steps
+     - no
+     - none
+     - ``synapse_pruning_analysis``
+   * - :ref:`receptive_field <analyzer-receptive-field>`
+     - Receptive-field maps of branch layers
+     - yes
+     - none (tuning options: test)
+     - ``receptive_field_analysis``
+   * - :ref:`inhibitory_specialization <analyzer-inhibitory-specialization>`
+     - Targeting of recurrent inhibition across dendritic levels
+     - yes
+     - none
+     - ``inhibitory_specialization``
+   * - :ref:`compartment_statistics <analyzer-compartment-statistics>`
+     - Statistics of weights, inputs and activations
+     - yes
+     - test
+     - ``compartment_statistics_analysis``
+   * - :ref:`synaptic_activation <analyzer-synaptic-activation>`
+     - Distributions of synaptic activations
+     - yes
+     - test
+     - ``synaptic_activation_analysis``
+   * - :ref:`branch_activation <analyzer-branch-activation>`
+     - Distributions of branch currents and outputs
+     - yes
+     - test
+     - ``branch_activation_analysis``
+   * - :ref:`reactivation_dynamics <analyzer-reactivation-dynamics>`
+     - Gate parameters and pre-gate voltage statistics
+     - default ``true``
+     - train during training, test after
+     - ``reactivation_dynamics``
+   * - :ref:`routing <analyzer-routing>`
+     - Activity shares of dendritic levels in recurrent cores
+     - yes
+     - test
+     - ``routing_analysis``
+   * - :ref:`jacobian_spectrum <analyzer-jacobian-spectrum>`
+     - Singular values of recurrent weights per level
+     - yes
+     - none
+     - ``jacobian_spectrum``
+   * - :ref:`dendritic_timetraces <analyzer-dendritic-timetraces>`
+     - Simulated responses of the learned dendritic cascade
+     - yes
+     - synthetic input
+     - ``dendritic_timetraces``
+   * - :ref:`spike_train <analyzer-spike-train>`
+     - Firing statistics of spiking somas
+     - yes
+     - test
+     - ``spike_train_analysis``
+   * - :ref:`local_rule_components <analyzer-local-rule-components>`
+     - Factors of the local learning rule by depth
+     - yes
+     - train during training, test after
+     - ``local_rule_components``
+
+``configs/templates/analysis_full_template.yaml`` writes out the options of
+every analyzer except ``representation_accessibility``,
+``source_tuning_support`` and ``input_region_intervention``, which have their
+own example files in ``configs/examples/`` (see :doc:`analyzers`).
+
+Python interface
+----------------
+
+``dendritic_modeling.analysis.AnalysisManager`` runs the configured analyzers
+on a model outside the training scripts:
+
+.. code-block:: python
+
+   from dendritic_modeling.analysis import AnalysisManager
+   from dendritic_modeling.config import load_analysis_config
+
+   analysis_config = load_analysis_config("analysis_profile.yaml")
+   manager = AnalysisManager(
+       model,
+       data={"train": train_ds, "valid": valid_ds, "test": test_ds},
+       analysis_config=analysis_config,
+       save_root="analysis_output",
+       device="cpu",
+       evaluation_seed=42,
+       probe_seed=42,
+   )
+   manager.run_analysis(filename="final", training=False)
+
+``load_analysis_config(path, distributed_mode="none")`` reads a file whose
+root is ``analysis:`` or that is the analysis mapping itself. ``save_root`` is
+required. ``run_analysis`` writes files and returns ``None``; read the results
+from ``save_root``. Without ``evaluation_seed`` and ``probe_seed`` unset seeds
+stay unset and each analyzer uses its own default.
+
+The package also exports analyzers that are used directly from Python rather
+than configured in ``analysis``: ``ClassAccessibilityProbeAnalyzer`` and
+``LinearClassAccessibilityAnalyzer`` (array-level probe decodability),
+``MatchedClassInformationAnalyzer`` (matched-support class information),
+``SameCheckpointCausalInterventionAnalyzer`` (phase, pathway or depth
+interventions on one checkpoint), ``StateTransitionJacobianAnalyzer``
+(leading singular value of a recurrent core's one-step state Jacobian),
+``InhibitoryRoutingComparison`` (seed-level records and paired summaries at
+one contact budget) and ``PoissonExposureTransferAnalyzer``, which
+``dendritic-poisson-exposure-transfer`` runs (see :doc:`checkpoint_analysis`).
+
+Adding an analyzer
+------------------
+
+An analyzer outside the library is a plugin component: its package registers
+the analyzer with ``register_analyzer(..., phase=...)`` and its configuration
+section ``analysis.<name>`` with ``register_config_section``, and the manager
+runs it in that phase of the order (:doc:`extending`).
+
+An analyzer of the library itself needs:
+
+#. a parameter and section dataclass, and a field of ``AnalysisConfig``, in
+   ``dendritic_modeling/config/analysis.py``;
+#. an ``AnalyzerSpec`` in ``_BUILTIN_ANALYZERS``
+   (``dendritic_modeling/analysis/registry.py``) with its output directory,
+   constructor style and whether it supports or requires per-epoch runs;
+#. a step in the execution plan
+   (``dendritic_modeling/analysis/managers/analysis_plan.py``) that calls it
+   with the right data;
+#. tests, an entry in ``configs/templates/analysis_full_template.yaml`` and a
+   section in :doc:`analyzers`.
+
+See :ref:`extension-registries` for the other extension points.

@@ -6,36 +6,62 @@ for all training strategies in the dendritic modeling framework.
 """
 
 import logging
+import math
 import os
 import time
+from collections import OrderedDict
+from contextlib import contextmanager
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, fields
 from typing import Optional
 
 import torch
 import torch.distributed as dist
 import torch.utils.data
-import wandb
-from torch.cuda.amp import GradScaler, autocast
-from torch.nn.utils import clip_grad_value_
+from torch.amp import GradScaler, autocast
+from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader, DistributedSampler, Sampler
 
+from dendritic_modeling.config.choices import normalize_choice
+from dendritic_modeling.config.keys import UnknownConfigKeyError
+from dendritic_modeling.config.reactivation import (
+    normalize_reactivation_recalibration_mode,
+    normalize_reactivation_update_mode,
+    validate_reactivation_updates,
+)
 from dendritic_modeling.config.training import (
+    BEST_CHECKPOINT_SAVES,
+    BEST_STATE_DEVICES,
+    GRAD_CLIP_MODES,
+    CommonTrainerConfig,
     PruningConfig,
     RegularizationConfig,
-    ReportingConfig,
 )
 from dendritic_modeling.models import BaseModel
-from dendritic_modeling.networks import ParametricActivation
+from dendritic_modeling.networks import DendriticBranchLayer, ParametricActivation
+from dendritic_modeling.networks.checkpoints import (
+    atomic_torch_save,
+    copy_state_metadata,
+)
 from dendritic_modeling.plotting import plot_loss_curves
+from dendritic_modeling.training.clipping import (
+    clip_gradients,
+    zero_nonfinite_gradients,
+)
 from dendritic_modeling.training.dataloader_utils import (
+    data_parallel_layout,
     resolve_dataloader_tuning_from_config,
     seeded_dataloader_kwargs,
 )
 from dendritic_modeling.training.distributed_samplers import (
     PaddedDistributedEvalSampler,
 )
-from dendritic_modeling.training.loss.functions import LossFunction, get_loss_function
+from dendritic_modeling.training.loss.functions import (
+    LossFunction,
+    get_loss_function,
+    validate_task_loss,
+)
+from dendritic_modeling.training.reactivation_sync import broadcast_reactivation_state
 from dendritic_modeling.training.regularization import (
     PruningManager,
     RegularizationManager,
@@ -60,16 +86,244 @@ class _ValidationLossStats:
     sample_weighted_loss_sum: float
     sample_count: int
 
+    # Without validation samples the loss is undefined, so the means are NaN
+    # rather than a misleading zero.
     @property
     def batch_mean(self) -> float:
-        return self.batch_loss_sum / max(self.batch_count, 1)
+        if self.batch_count == 0:
+            return math.nan
+        return self.batch_loss_sum / self.batch_count
 
     @property
     def sample_mean(self) -> float:
-        return self.sample_weighted_loss_sum / max(self.sample_count, 1)
+        if self.sample_count == 0:
+            return math.nan
+        return self.sample_weighted_loss_sum / self.sample_count
+
+
+class _ValidationSums:
+    """Per-batch validation losses summed on the device in float64.
+
+    The batch and sample-weighted sums are read once at the end; float64
+    additions in batch order (with a separate multiply by the batch size)
+    reproduce the host sums of per-batch ``loss.item()`` values.
+    """
+
+    def __init__(self, device) -> None:
+        self.batch_loss_sum = torch.zeros((), dtype=torch.float64, device=device)
+        self.weighted_loss_sum = torch.zeros((), dtype=torch.float64, device=device)
+        self.batch_count = 0
+        self.sample_count = 0
+
+    def add(self, loss: torch.Tensor, batch_size: int) -> None:
+        value = loss.detach().double()
+        self.batch_loss_sum += value
+        self.weighted_loss_sum += value * batch_size
+        self.batch_count += 1
+        self.sample_count += int(batch_size)
+
+    def stats(self) -> _ValidationLossStats:
+        batch_loss_sum, weighted_loss_sum = torch.stack(
+            [self.batch_loss_sum, self.weighted_loss_sum]
+        ).tolist()
+        return _ValidationLossStats(
+            batch_loss_sum=batch_loss_sum,
+            batch_count=self.batch_count,
+            sample_weighted_loss_sum=weighted_loss_sum,
+            sample_count=self.sample_count,
+        )
+
+    def distributed_sample_mean(self) -> float:
+        """Sample-weighted mean over all ranks (NaN without samples)."""
+        stats = torch.stack(
+            [
+                self.weighted_loss_sum,
+                torch.full(
+                    (),
+                    float(self.sample_count),
+                    dtype=torch.float64,
+                    device=self.weighted_loss_sum.device,
+                ),
+            ]
+        )
+        dist.all_reduce(stats, op=dist.ReduceOp.SUM)
+        weighted_loss_sum, sample_count = stats.tolist()
+        if sample_count == 0:
+            return math.nan
+        return weighted_loss_sum / sample_count
+
+
+LR_SCHEDULES = ("none", "cosine")
+
+# DendriticBranchLayer attributes set from model.core.{sparsity,reactivation,
+# blocklinear}.gradient_scaling. Their backward hooks act only on gradients
+# produced by autograd.
+_GRADIENT_SCALING_ATTRIBUTES = (
+    "topk_strategy",
+    "reactivation_strategy",
+    "blocklinear_strategy",
+)
+
+
+def configured_gradient_scaling(model) -> list[str]:
+    """Return ``name=value`` for every gradient-scaling strategy in ``model``."""
+    model = model.module if hasattr(model, "module") else model
+    return sorted(
+        {
+            f"{name}={value}"
+            for module in iter_modules_of_type(model, DendriticBranchLayer)
+            for name in _GRADIENT_SCALING_ATTRIBUTES
+            for value in [str(getattr(module, name, "none") or "none")]
+            if value != "none"
+        }
+    )
+
+
+# Common options whose effect lives in Trainer._epoch_train, plus
+# log_first_step_diagnostics, which only the FSDP trainer reads. A trainer whose
+# loop does not apply some of them lists those in ``unapplied_options``.
+STEP_OPTIONS = (
+    "use_amp",
+    "enable_nan_checking",
+    "profile_dataloader",
+    "log_first_step_diagnostics",
+)
+
+
+# Options every trainer accepts as keywords: the training.<phase>.common
+# settings (train_experiments consumes some of them before building the
+# trainer) and the values the training scripts add.
+COMMON_OPTIONS = frozenset(item.name for item in fields(CommonTrainerConfig))
+PIPELINE_OPTIONS = frozenset(
+    {
+        "seed",
+        "loader_seed",
+        "task",
+        "regularization_config",
+        "pruning_config",
+        "param_groups_config",
+        "optimizer_config",
+        "save_every_n_epochs",
+        # Device to train on; by default CUDA when available, else CPU.
+        "device",
+    }
+)
+# Options that __init__ normalizes; the raw keyword must not overwrite them.
+_NORMALIZED_OPTIONS = frozenset(
+    {
+        "seed",
+        "loader_seed",
+        "regularization_config",
+        "pruning_config",
+        "grad_clip_mode",
+        "reactivation_update_mode",
+        "reactivation_recalibration_mode",
+        "best_state_device",
+        "save_best_checkpoint",
+    }
+)
+
+
+def reject_unknown_options(trainer_cls: type, options) -> None:
+    """Fail on keyword options that ``trainer_cls`` does not read."""
+    accepted = (
+        COMMON_OPTIONS
+        | PIPELINE_OPTIONS
+        | getattr(trainer_cls, "strategy_options", frozenset())
+    )
+    unknown = sorted(set(options) - accepted)
+    if unknown:
+        raise UnknownConfigKeyError(f"{trainer_cls.__name__}", unknown, accepted)
+
+
+def reject_unapplied_options(trainer_cls: type, options) -> None:
+    """Fail when an option is enabled that ``trainer_cls`` does not apply."""
+    unapplied = getattr(trainer_cls, "unapplied_options", frozenset())
+    requested = [
+        name for name in STEP_OPTIONS if name in unapplied and options.get(name)
+    ]
+    if requested:
+        raise ValueError(
+            f"{trainer_cls.__name__} does not apply "
+            + ", ".join(f"{name}=true" for name in requested)
+            + ": its training loop does not implement them. Set them to false "
+            "(training.main.common) for this strategy."
+        )
+
+
+def validate_lr_schedule(
+    lr_schedule, lr_warmup_epochs, *, supported: bool, owner: str
+) -> tuple[str, float]:
+    """Validate ``lr_schedule``/``lr_warmup_epochs`` for one training loop.
+
+    Returns the normalized ``(schedule, warmup)`` pair. Raises ``ValueError``
+    for unknown schedules, for a warmup without the cosine schedule (the
+    warmup is part of that schedule), and for strategies whose training loops
+    do not apply the per-epoch schedule (``supports_lr_schedule = False``).
+    """
+    schedule = str(lr_schedule or "none").strip().lower()
+    warmup = lr_warmup_epochs or 0
+    if schedule not in LR_SCHEDULES:
+        raise ValueError(
+            f"Unknown lr_schedule: {schedule!r} (expected one of {LR_SCHEDULES})"
+        )
+    if warmup < 0:
+        raise ValueError(f"lr_warmup_epochs must be non-negative, got {warmup}")
+    if schedule == "none" and warmup > 0:
+        raise ValueError(
+            f"lr_warmup_epochs={warmup} requires lr_schedule='cosine'; the "
+            "warmup is part of the cosine schedule and is not applied with "
+            "lr_schedule='none'."
+        )
+    if schedule != "none" and not supported:
+        raise ValueError(
+            f"{owner} does not apply "
+            f"lr_schedule={schedule!r}: its training loop runs separate phases "
+            "or its own optimizer steps. Set training.main.common.lr_schedule "
+            "to 'none', or use a strategy that applies the per-epoch schedule "
+            "(standard, recurrent, fa, dfa, soma_dfa)."
+        )
+    return schedule, warmup
+
+
+def _step_seconds(step_start: float, device_tensor: torch.Tensor) -> float:
+    """Seconds since ``step_start``, including the step's queued GPU work.
+
+    Training loops read their losses once per epoch, so profiled step times
+    wait for the device explicitly.
+    """
+    if device_tensor.is_cuda:
+        torch.cuda.synchronize(device_tensor.device)
+    return time.perf_counter() - step_start
 
 
 class Trainer:
+
+    # Clipping operator applied when training.<phase>.common.grad_clip_mode is
+    # unset (see config.training.default_grad_clip_mode).
+    default_grad_clip_mode = "value"
+    # Whether ``train()`` of this strategy applies ``lr_schedule`` /
+    # ``lr_warmup_epochs`` through ``_build_scheduler`` and ``_run_epoch``.
+    # Strategies with their own phase loops set this to False so a configured
+    # schedule fails explicitly instead of being skipped or restarted.
+    supports_lr_schedule = True
+    # Whether the trainer applies and checks its own learning-rate schedule
+    # (presentation_stream schedules per step) instead of the per-epoch one.
+    applies_own_lr_schedule = False
+    # STEP_OPTIONS this trainer's loop does not apply; enabling one raises.
+    unapplied_options: frozenset[str] = frozenset({"log_first_step_diagnostics"})
+    # Keyword options of the strategy's own config that this trainer reads,
+    # beyond COMMON_OPTIONS and PIPELINE_OPTIONS.
+    strategy_options: frozenset[str] = frozenset()
+    # Whether construction checks loss_function against model.task (the
+    # ``task`` keyword); trainers that substitute their own task loss do not.
+    checks_task_loss = True
+    # Whether a DistributedDataParallel wrapper reduces this trainer's
+    # gradients, through ``backward()`` on its output. Trainers that compute
+    # gradients with ``torch.autograd.grad`` and average them across ranks
+    # themselves (FA/DFA, LocalCA) set this to False.
+    ddp_reduces_gradients = True
+
     def __init__(
         self,
         optimizer: torch.optim.Optimizer,
@@ -79,7 +333,7 @@ class Trainer:
         patience: int = 10,
         batch_size: int = 256,
         shuffle: bool = True,
-        grad_clip_value: float = 5,
+        grad_clip_value: Optional[float] = 2.0,
         checkpointing: bool = False,
         checkpoint_interval: int = 10,
         load_best_state_dict: bool = True,
@@ -90,8 +344,14 @@ class Trainer:
         analysis_manager: Optional[object] = None,
         **kwargs,
     ):
+        reject_unknown_options(type(self), kwargs)
+        reject_unapplied_options(type(self), kwargs)
         self.optimizer = optimizer
         self.loss_function: LossFunction = get_loss_function(loss_function)
+        if self.checks_task_loss:
+            validate_task_loss(
+                kwargs.get("task"), self.loss_function, owner=type(self).__name__
+            )
         self.epochs = epochs
         self.early_stopping = early_stopping
         self.patience = patience
@@ -107,6 +367,28 @@ class Trainer:
         self.print_every = print_every
         self.analysis_manager = analysis_manager
         self.seed = int(kwargs.get("seed", 0) or 0)
+        self.best_state_device = normalize_choice(
+            kwargs.get("best_state_device", "model"),
+            BEST_STATE_DEVICES,
+            field="best_state_device",
+        )
+        self.save_best_checkpoint = normalize_choice(
+            kwargs.get("save_best_checkpoint", "every_improvement"),
+            BEST_CHECKPOINT_SAVES,
+            field="save_best_checkpoint",
+        )
+        # Training-time gate updates, in canonical spelling, checked here.
+        (
+            self.reactivation_update_mode,
+            self.reactivation_recalibration_mode,
+        ) = validate_reactivation_updates(
+            update_mode=kwargs.get("reactivation_update_mode"),
+            recalibration_mode=kwargs.get("reactivation_recalibration_mode"),
+            recalibrate_every=kwargs.get("recalibrate_reactivation_every"),
+            start_epoch=kwargs.get("reactivation_recalibration_start_epoch"),
+            num_batches=kwargs.get("reactivation_recalibration_num_batches"),
+            ema_alpha=kwargs.get("reactivation_recalibration_ema_alpha"),
+        )
         configured_loader_seed = kwargs.get("loader_seed", None)
         self.loader_seed = int(
             self.seed if configured_loader_seed is None else configured_loader_seed
@@ -114,12 +396,16 @@ class Trainer:
 
         regularization_config = kwargs.get("regularization_config")
         pruning_config = kwargs.get("pruning_config")
-        reporting_config = kwargs.get("reporting_config")
 
         # Initialize enhanced feature configs with safe defaults
         self.regularization_config = regularization_config or RegularizationConfig()
         self.pruning_config = pruning_config or PruningConfig()
-        self.reporting_config = reporting_config or ReportingConfig()
+        if (
+            self.pruning_config.enabled
+            and self.pruning_config.save_pruning_stats
+            and not self.save_path
+        ):
+            raise ValueError("pruning.save_pruning_stats requires a save_path")
 
         # Initialize RegularizationManager
         self.regularization_manager = RegularizationManager(self.regularization_config)
@@ -154,68 +440,39 @@ class Trainer:
 
         # Performance optimization flags (disabled by default for speed)
         self.enable_nan_checking = kwargs.get("enable_nan_checking", False)
-        self.enable_adaptive_clipping = kwargs.get("enable_adaptive_clipping", False)
+        configured_mode = kwargs.get("grad_clip_mode")
+        self.grad_clip_mode = (
+            type(self).default_grad_clip_mode
+            if configured_mode is None
+            else normalize_choice(
+                configured_mode, GRAD_CLIP_MODES, field="grad_clip_mode"
+            )
+        )
         self.profile_dataloader = kwargs.get("profile_dataloader", False)
 
         self.enable_amp = kwargs.get("use_amp", False)
         if self.enable_amp and torch.cuda.is_available():
             try:
-                self.scaler = GradScaler()
+                self.scaler = GradScaler("cuda")
                 logger.info("Mixed precision training enabled")
             except ImportError:
                 logger.warning("AMP not available, falling back to standard precision")
                 self.enable_amp = False
         else:
-            self.enable_amp = False
-
-        self.enable_profiling = kwargs.get("enable_profiling", False)
-        self.profiler = None
-
-        if self.enable_profiling:
-            # Auto-disable profiling for small-scale/CPU runs to improve speed
-            if not torch.cuda.is_available():
-                logger.info("Profiling auto-disabled for CPU run to improve speed")
-                self.enable_profiling = False
-            elif self.batch_size < 32:
-                logger.info(
-                    "Profiling auto-disabled for small batch size to reduce overhead"
+            if self.enable_amp:
+                logger.warning(
+                    "%s: use_amp=true requests CUDA mixed precision, but CUDA is "
+                    "not available, so this run trains in full precision.",
+                    type(self).__name__,
                 )
-                self.enable_profiling = False
-            else:
-                try:
-                    import torch.profiler as torch_profiler
-
-                    profiling_output_dir = kwargs.get(
-                        "profiling_output_dir", "outputs/profiling/"
-                    )
-                    os.makedirs(profiling_output_dir, exist_ok=True)
-
-                    self.profiler = torch_profiler.profile(
-                        activities=[
-                            torch_profiler.ProfilerActivity.CPU,
-                            torch_profiler.ProfilerActivity.CUDA,
-                        ],
-                        schedule=torch_profiler.schedule(
-                            wait=1, warmup=1, active=3, repeat=2
-                        ),
-                        on_trace_ready=torch_profiler.tensorboard_trace_handler(
-                            profiling_output_dir
-                        ),
-                        record_shapes=True,
-                        with_stack=True,
-                    )
-                    logger.info(
-                        f"Profiling enabled - output directory: {profiling_output_dir}"
-                    )
-                except ImportError:
-                    logger.warning("torch.profiler not available, profiling disabled")
-                    self.enable_profiling = False
+            self.enable_amp = False
 
         self.filename_prefix = "standard_"
         self._train_sampler: DistributedSampler | None = None
         self._valid_sampler: Sampler | None = None
         for k, v in kwargs.items():
-            setattr(self, k, v)
+            if k not in _NORMALIZED_OPTIONS:
+                setattr(self, k, v)
 
     # ------------------------------------------------------------------
     # DDP helpers
@@ -234,14 +491,96 @@ class Trainer:
         """Return the underlying model, stripping DDP wrapper if present."""
         return model.module if hasattr(model, "module") else model
 
+    def _require_single_process(self, reason: str) -> None:
+        """Raise under distributed training, which ``reason`` rules out."""
+        if self._is_distributed:
+            raise NotImplementedError(
+                f"{type(self).__name__} does not support distributed training: "
+                f"{reason}. Run it in a single process."
+            )
+
+    def _reject_trainability_change_under_ddp(self, model, change: str) -> None:
+        """Raise when ``change`` would starve a DistributedDataParallel reducer.
+
+        DDP registers the parameters that require gradients when it wraps the
+        model and waits for a gradient of each from every ``backward()``.
+        Freezing a registered parameter afterwards, or a loss that reaches
+        only some of them, stops training with a reduction error at the next
+        step.
+        """
+        if self.ddp_reduces_gradients and isinstance(model, DistributedDataParallel):
+            raise NotImplementedError(
+                f"{type(self).__name__}: {change}, which DistributedDataParallel "
+                "does not support: it waits for a gradient of every parameter "
+                "that required one when it wrapped the model. Run it in a single "
+                "process."
+            )
+
+    # ------------------------------------------------------------------
+    # Learning-rate schedule (per epoch)
+    # ------------------------------------------------------------------
+
+    def _get_torch_optimizer(self):
+        """Unwrap CustomWeightDecayOptimizer to get the real torch.optim.Optimizer."""
+        opt = self.optimizer
+        # CustomWeightDecayOptimizer stores the real optimizer as .optimizer
+        if hasattr(opt, "optimizer") and isinstance(
+            opt.optimizer, torch.optim.Optimizer
+        ):
+            return opt.optimizer
+        return opt
+
+    def _resolve_lr_schedule(self) -> tuple[str, float]:
+        """Return the validated ``(lr_schedule, lr_warmup_epochs)`` pair."""
+        return validate_lr_schedule(
+            getattr(self, "lr_schedule", "none"),
+            getattr(self, "lr_warmup_epochs", 0),
+            supported=bool(type(self).supports_lr_schedule),
+            owner=type(self).__name__,
+        )
+
+    def _build_scheduler(self, n_epochs: int) -> None:
+        """Create the per-epoch LR scheduler once the epoch count is known.
+
+        ``lr_schedule='cosine'`` scales every parameter group's learning rate
+        by ``(e + 1) / warmup`` for epochs ``e < warmup`` and by
+        ``0.5 * (1 + cos(pi * (e - warmup) / (n_epochs - warmup)))`` after it.
+        ``_run_epoch`` steps the scheduler once after each training epoch.
+        ``lr_schedule='none'`` leaves the optimizer untouched.
+        """
+        schedule, warmup = self._resolve_lr_schedule()
+        if schedule == "none":
+            self.scheduler = None
+            return
+
+        torch_opt = self._get_torch_optimizer()
+        base_lrs = [pg["lr"] for pg in torch_opt.param_groups]
+
+        def lr_lambda(epoch: int) -> float:
+            if epoch < warmup:
+                return (epoch + 1) / max(warmup, 1)
+            progress = (epoch - warmup) / max(n_epochs - warmup, 1)
+            return 0.5 * (1.0 + math.cos(math.pi * progress))
+
+        self.scheduler = torch.optim.lr_scheduler.LambdaLR(torch_opt, lr_lambda)
+        logger.info(
+            f"Cosine LR schedule: warmup={warmup}, total={n_epochs}, "
+            f"base_lr={base_lrs}"
+        )
+
     def _dataloaders(
         self, train_data: torch.utils.data.Dataset, valid_data: torch.utils.data.Dataset
     ) -> tuple[DataLoader, DataLoader]:
+        # The device is resolved first so pin_memory: null pins host batches
+        # for a GPU run (it had resolved against "cpu" before the device was
+        # set). Pinning changes neither values nor batch order.
         tuning = resolve_dataloader_tuning_from_config(
             train_data,
-            device=getattr(self, "device", "cpu"),
+            device=self._resolve_device(),
             config=self,
         )
+        # The resolved loader settings are part of the run record.
+        self.dataloader_tuning = asdict(tuning)
         if not self.suppress_prints and tuning.auto_num_workers:
             total_cpus = os.cpu_count() or tuning.available_cpus
             logger.info(
@@ -306,18 +645,32 @@ class Trainer:
             **valid_seed_kwargs,
             **tuning.as_kwargs(),
         )
+        self.data_parallel = data_parallel_layout(
+            train_loader, dist.get_world_size() if self._is_distributed else 1
+        )
         return train_loader, valid_loader
 
-    def _initialize_attributes(self, model: BaseModel, total_epochs: int) -> None:
+    def _resolve_device(self):
+        """The training device: as set, else this rank's GPU, the GPU or the CPU."""
         if not hasattr(self, "device"):
             if self._is_distributed:
                 local_rank = int(os.environ.get("LOCAL_RANK", 0))
                 self.device = f"cuda:{local_rank}"
             else:
                 self.device = "cuda" if torch.cuda.is_available() else "cpu"
-            model.to(self.device)
-        if not hasattr(self, "best_state_dict"):
-            self.best_state_dict = deepcopy(model.state_dict())
+        return self.device
+
+    def _initialize_attributes(
+        self, model: BaseModel, total_epochs: int, *, snapshot_best: bool = True
+    ) -> None:
+        """Prepare a training phase; ``snapshot_best=False`` skips the best-state copy."""
+        model.to(self._resolve_device())
+        if snapshot_best and not hasattr(self, "best_state_dict"):
+            # Unwrapped, so a DDP run restores it into the unwrapped model.
+            self.best_state_dict = self._snapshot_state(model)
+            # Until a validation loss improves on inf, the best state is the
+            # pre-training snapshot.
+            self.best_state_is_initial = True
         if not hasattr(self, "best_loss"):
             self.best_loss = float("inf")
         if not hasattr(self, "best_epoch"):
@@ -326,19 +679,43 @@ class Trainer:
             self.start_time = time.time()
         if not hasattr(self, "logger_info_prefix"):
             self.logger_info_prefix = "[Standard] "
-        self.epoch_counter = 0
-        self.total_epochs = total_epochs
+        if not getattr(self, "_counting_run_epochs", False):
+            self.epoch_counter = 0
+            self.total_epochs = total_epochs
         self.patience_counter = 0
         self._capture_reactivation_param_states(model)
         self._configure_reactivation_update_mode(model)
+        self._warn_if_recalibration_updates_no_gate(model)
+
+    def _reject_unapplied_gradient_scaling(self, model: BaseModel) -> None:
+        """Fail when gradient scaling cannot act on this trainer's gradients.
+
+        ``gradient_scaling`` strategies are backward hooks on dendritic
+        modules. Trainers that assign ``param.grad`` directly (FA/DFA and the
+        local rules) never run those hooks, so the configured scaling would
+        be silently skipped.
+        """
+        configured = configured_gradient_scaling(model)
+        if configured:
+            raise ValueError(
+                f"{type(self).__name__} assigns gradients directly, so the "
+                f"configured gradient scaling ({', '.join(configured)}) would "
+                "never be applied. Set model.core.sparsity/reactivation/"
+                "blocklinear.gradient_scaling to 'none', or use a "
+                "backpropagation strategy (standard, recurrent, soma_dfa)."
+            )
 
     def _iter_reactivation_params(
         self, model: BaseModel
     ) -> list[tuple[torch.nn.Parameter, bool]]:
         """Return reactivation params with their original trainability."""
+        from dendritic_modeling.networks.activations.endpoint_tanh import (
+            EndpointNormalizedTanh,
+        )
+
         params: list[tuple[torch.nn.Parameter, bool]] = []
         for module in iter_modules_of_type(
-            self._unwrap_model(model), ParametricActivation
+            self._unwrap_model(model), (ParametricActivation, EndpointNormalizedTanh)
         ):
             for param in module.parameters(recurse=False):
                 params.append((param, bool(param.requires_grad)))
@@ -353,29 +730,9 @@ class Trainer:
         self._reactivation_param_states = self._iter_reactivation_params(model)
 
     def _normalize_reactivation_update_mode(self) -> str:
-        mode = (
-            str(getattr(self, "reactivation_update_mode", "backprop") or "backprop")
-            .strip()
-            .lower()
+        return normalize_reactivation_update_mode(
+            getattr(self, "reactivation_update_mode", None)
         )
-        aliases = {
-            "bp": "backprop",
-            "backprop": "backprop",
-            "backpropagation": "backprop",
-            "quantile": "quantile",
-            "quantile_only": "quantile",
-            "quantile-rule": "quantile",
-            "quantile_rule": "quantile",
-            "frozen": "frozen",
-            "freeze": "frozen",
-        }
-        normalized = aliases.get(mode)
-        if normalized is None:
-            raise ValueError(
-                "Unknown reactivation_update_mode "
-                f"{mode!r} (expected 'backprop', 'quantile', or 'frozen')"
-            )
-        return normalized
 
     def _set_reactivation_trainability(self, requires_grad: bool) -> None:
         """Apply trainability while preserving originally fixed parameters."""
@@ -396,49 +753,18 @@ class Trainer:
             self._set_reactivation_trainability(True)
             return
 
-        self._set_reactivation_trainability(False)
-        if (
-            mode == "quantile"
-            and getattr(self, "recalibrate_reactivation_every", 0) <= 0
-            and self._is_main_process
-        ):
-            logger.warning(
-                "%sreactivation_update_mode='quantile' but "
-                "recalibrate_reactivation_every<=0, so (m, b) will stay frozen.",
-                getattr(self, "logger_info_prefix", "[Standard] "),
+        if any(trainable for _, trainable in self._reactivation_param_states):
+            self._reject_trainability_change_under_ddp(
+                model,
+                f"reactivation_update_mode={mode!r} freezes the reactivation "
+                "parameters",
             )
+        self._set_reactivation_trainability(False)
 
     def _normalize_reactivation_recalibration_mode(self) -> str:
-        mode = (
-            str(
-                getattr(
-                    self,
-                    "reactivation_recalibration_mode",
-                    "from_init_policy",
-                )
-                or "from_init_policy"
-            )
-            .strip()
-            .lower()
+        return normalize_reactivation_recalibration_mode(
+            getattr(self, "reactivation_recalibration_mode", None)
         )
-        aliases = {
-            "auto": "from_init_policy",
-            "from_init_policy": "from_init_policy",
-            "init_policy": "from_init_policy",
-            "quantile": "occupancy_quantile",
-            "occupancy_quantile": "occupancy_quantile",
-            "empirical": "median_mad",
-            "median_mad": "median_mad",
-            "mean_std": "mean_std",
-        }
-        normalized = aliases.get(mode)
-        if normalized is None:
-            raise ValueError(
-                "Unknown reactivation_recalibration_mode "
-                f"{mode!r} (expected 'from_init_policy', 'occupancy_quantile', "
-                "'median_mad', or 'mean_std')"
-            )
-        return normalized
 
     def _resolve_reactivation_recalibration_mode(
         self, model: BaseModel
@@ -465,12 +791,61 @@ class Trainer:
 
         return None if saw_layer_policy else "occupancy_quantile"
 
+    def _warn_if_recalibration_updates_no_gate(self, model: BaseModel) -> None:
+        """Warn once when periodic reactivation recalibration calibrates no gate.
+
+        With ``reactivation_recalibration_mode: from_init_policy`` only gates
+        with a data-driven ``init_policy`` are recalibrated, so a model whose
+        gates are all initialized analytically or fixed is left unchanged;
+        a model without calibratable gates is left unchanged by every mode.
+        Each scheduled recalibration still draws training batches, which
+        advances the training loader's random stream, so removing the setting
+        can change the data order of later epochs.
+        """
+        every = int(getattr(self, "recalibrate_reactivation_every", 0) or 0)
+        if every <= 0 or getattr(self, "_warned_recalibration_updates_no_gate", False):
+            return
+        from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize import (
+            reactivation_calibration_targets,
+        )
+
+        mode = self._resolve_reactivation_recalibration_mode(model)
+        if reactivation_calibration_targets(self._unwrap_model(model), mode):
+            return
+        self._warned_recalibration_updates_no_gate = True
+        if not self._is_main_process:
+            return
+        if mode is None:
+            reason = (
+                "reactivation_recalibration_mode 'from_init_policy' recalibrates "
+                "only gates with a data-driven init_policy, and the gates of this "
+                "model are initialized analytically or fixed (a calibration rule "
+                "such as occupancy_quantile would recalibrate them)"
+            )
+        else:
+            reason = "the model has no reactivation gate that calibration can set"
+        logger.warning(
+            "%srecalibrate_reactivation_every=%d requests periodic reactivation "
+            "recalibration, but no gate will be recalibrated: %s. Each scheduled "
+            "recalibration still draws training batches, which advances the "
+            "training data loader's random stream, so setting "
+            "recalibrate_reactivation_every to 0 can change the data order of "
+            "later epochs; keep the setting to reproduce an earlier run.",
+            getattr(self, "logger_info_prefix", ""),
+            every,
+            reason,
+        )
+
     def train(
         self,
         model: BaseModel,
         train_data: torch.utils.data.Dataset,
         valid_data: torch.utils.data.Dataset,
     ) -> dict:
+        self._recurrent_model = bool(
+            getattr(self._unwrap_model(model), "_is_recurrent_core", False)
+        )
+        self._build_scheduler(self.epochs)
         train_loader, valid_loader = self._dataloaders(train_data, valid_data)
 
         train_losses = []
@@ -492,7 +867,6 @@ class Trainer:
                 train_losses_base=train_losses_base,
                 train_losses_reg=train_losses_reg,
                 logger_info=self.logger_info_prefix,
-                wandb_info={},
             )
         )
 
@@ -500,10 +874,7 @@ class Trainer:
             logger.info(
                 f"Best epoch: {self.best_epoch}, Best loss: {self.best_loss:.4f}"
             )
-        if self.load_best_state_dict:
-            self._unwrap_model(model).load_state_dict(self.best_state_dict)
-            if self._is_main_process:
-                logger.info("Final model loaded from best checkpoint")
+        self._restore_best_state(model, valid_losses)
 
         results = {
             "best_epoch": self.best_epoch,
@@ -513,6 +884,8 @@ class Trainer:
             "valid_losses": valid_losses,
             "train_losses_base": train_losses_base,
             "train_losses_reg": train_losses_reg,
+            "dataloader_tuning": getattr(self, "dataloader_tuning", None),
+            "data_parallel": getattr(self, "data_parallel", None),
         }
 
         self._loss_plotting(
@@ -532,10 +905,7 @@ class Trainer:
         train_losses_base: list[float],
         train_losses_reg: list[float],
         logger_info: str = "",
-        wandb_info: dict | None = None,
     ) -> tuple[list[float], list[float], list[float], list[float]]:
-        if wandb_info is None:
-            wandb_info = {}
         for _ in range(1, n_epochs + 1):
             train_losses, valid_losses, train_losses_base, train_losses_reg = (
                 self._run_epoch(
@@ -547,7 +917,6 @@ class Trainer:
                     train_losses_base=train_losses_base,
                     train_losses_reg=train_losses_reg,
                     logger_info=logger_info,
-                    wandb_info=wandb_info,
                 )
             )
 
@@ -566,10 +935,7 @@ class Trainer:
         train_losses_base: list[float],
         train_losses_reg: list[float],
         logger_info: str = "",
-        wandb_info: dict | None = None,
     ) -> tuple[list[float], list[float], list[float], list[float]]:
-        if wandb_info is None:
-            wandb_info = {}
         self.epoch_counter += 1
 
         # Tell DistributedSampler which epoch we're in so each rank
@@ -581,10 +947,8 @@ class Trainer:
         # current voltage distribution every N epochs using the same
         # quantile formula as the init calibration. This keeps the gate
         # matched to the evolving V distribution and eliminates drift.
-        recalib_every = getattr(self, "recalibrate_reactivation_every", 0)
-        recalib_start = max(
-            1, int(getattr(self, "reactivation_recalibration_start_epoch", 1))
-        )
+        recalib_every = int(getattr(self, "recalibrate_reactivation_every", 0) or 0)
+        recalib_start = int(getattr(self, "reactivation_recalibration_start_epoch", 1))
         if (
             recalib_every > 0
             and self.epoch_counter >= recalib_start
@@ -595,6 +959,10 @@ class Trainer:
         train_loss_total, train_loss_base, train_loss_reg = self._epoch_train(
             model, train_loader
         )
+        # Step the per-epoch LR schedule once, after the training epoch.
+        scheduler = getattr(self, "scheduler", None)
+        if scheduler is not None:
+            scheduler.step()
         train_losses.append(train_loss_total)
         train_losses_base.append(train_loss_base)
         train_losses_reg.append(train_loss_reg)
@@ -615,7 +983,6 @@ class Trainer:
             train_loss_total,
             valid_loss,
             logger_info,
-            wandb_info,
             train_loss_base=train_loss_base,
             train_loss_reg=train_loss_reg,
         )
@@ -635,9 +1002,7 @@ class Trainer:
         )
 
         mode = self._resolve_reactivation_recalibration_mode(model)
-        n_batches = max(
-            1, int(getattr(self, "reactivation_recalibration_num_batches", 3))
-        )
+        n_batches = int(getattr(self, "reactivation_recalibration_num_batches", 3))
         ema_alpha = float(getattr(self, "reactivation_recalibration_ema_alpha", 1.0))
 
         # Collect a few batches from the current train loader
@@ -659,6 +1024,8 @@ class Trainer:
             mode=mode,
             ema_alpha=ema_alpha,
         )
+        # Each DDP rank calibrated on its own shard; adopt rank 0's result.
+        self._broadcast_reactivation_state_from_rank0(model)
 
         if self._is_main_process and diag:
             m_values = [d["m"] for d in diag.values()]
@@ -668,16 +1035,27 @@ class Trainer:
                 f"{self.epoch_counter}: {len(diag)} layers, "
                 f"m target range [{min(m_values):.3f}, {max(m_values):.3f}], "
                 f"applied m range [{min(applied_m_values):.3f}, {max(applied_m_values):.3f}], "
-                f"batches={n_batches}, ema_alpha={max(0.0, min(1.0, ema_alpha)):.3f}"
+                f"batches={n_batches}, ema_alpha={ema_alpha:.3f}"
             )
+
+    def _broadcast_reactivation_state_from_rank0(self, model: BaseModel) -> None:
+        """Make every DDP rank use the reactivation state calibrated on rank 0.
+
+        Parameters and buffers of each reactivation gate are broadcast in
+        module order and loaded through ``load_state_dict`` so Python-side
+        calibrated values (``fixed_b``) follow the broadcast buffers.
+        """
+        if self._is_distributed:
+            broadcast_reactivation_state(self._unwrap_model(model))
 
     def _epoch_train(
         self, model: BaseModel, train_loader: DataLoader
     ) -> tuple[float, float, float]:
         model.train()
-        train_loss_total = 0
-        train_loss_base = 0
-        train_loss_reg = 0
+        # (total, base, regularization) sums stay on the device and are read
+        # once per epoch; float64 additions in step order reproduce host sums.
+        loss_sums = torch.zeros(3, dtype=torch.float64, device=self.device)
+        no_regularization = torch.zeros((), device=self.device)
         n_batches = 0
 
         # Check once if regularization is enabled to avoid repeated checks
@@ -707,7 +1085,7 @@ class Trainer:
 
             if self.enable_amp:
                 # Mixed precision forward pass
-                with autocast():
+                with autocast("cuda"):
                     base_loss = self.loss_function(model, x_batch, y_batch)
 
                     # Add all regularization losses only if regularization is enabled
@@ -721,31 +1099,16 @@ class Trainer:
                             )
                         )
                         total_loss = base_loss + reg_loss
-                        reg_loss_item = reg_loss.item()
                     else:
                         total_loss = base_loss
-                        reg_loss_item = 0.0
+                        reg_loss = no_regularization
 
                 self.optimizer.zero_grad()
                 self.scaler.scale(total_loss).backward()
-
-                # Optional expensive operations (configurable for performance)
-                if self.enable_nan_checking:
-                    nan_detected = self._check_and_handle_nan_gradients(model)
-                    if nan_detected:
-                        logger.warning(
-                            "NaNs detected and handled in gradients during AMP training"
-                        )
-
-                # Gradient clipping with AMP
-                if self.grad_clip_value:
-                    # Unscale gradients before clipping
-                    self.scaler.unscale_(self.optimizer)
-                    if self.enable_adaptive_clipping:
-                        self._apply_adaptive_gradient_clipping(model)
-                    else:
-                        clip_grad_value_(model.parameters(), self.grad_clip_value)
-
+                # Unscale before inspecting or clipping gradients; the scaler has
+                # then recorded any overflow and still skips that step.
+                self.scaler.unscale_(self.optimizer)
+                self._finalize_gradients(model)
                 self.scaler.step(self.optimizer)
                 self.scaler.update()
             else:
@@ -761,68 +1124,59 @@ class Trainer:
                         param_groups=self.optimizer.param_groups,
                     )
                     total_loss = base_loss + reg_loss
-                    reg_loss_item = reg_loss.item()
                 else:
                     total_loss = base_loss
-                    reg_loss_item = 0.0
+                    reg_loss = no_regularization
 
                 self.optimizer.zero_grad()
                 total_loss.backward()
-
-                # Optional expensive operations (configurable for performance)
-                if self.enable_nan_checking:
-                    nan_detected = self._check_and_handle_nan_gradients(model)
-                    if nan_detected:
-                        logger.warning("NaNs detected and handled in gradients")
-
-                # Gradient clipping: adaptive (expensive) vs simple (fast)
-                if self.enable_adaptive_clipping:
-                    self._apply_adaptive_gradient_clipping(model)
-                else:
-                    # Use simple, fast gradient clipping (default)
-                    clip_grad_value_(model.parameters(), self.grad_clip_value)
+                self._finalize_gradients(model)
                 self.optimizer.step()
 
-            train_loss_total += total_loss.item()
-            train_loss_base += base_loss.item()
-            train_loss_reg += reg_loss_item
+            loss_sums += torch.stack(
+                [total_loss.detach(), base_loss.detach(), reg_loss.detach()]
+            ).double()
             n_batches += 1
             if profile_loader:
-                step_time_total += time.perf_counter() - step_start
-
-        local_n_batches = n_batches
-        if self._is_distributed:
-            stats = torch.tensor(
-                [
-                    float(train_loss_total),
-                    float(train_loss_base),
-                    float(train_loss_reg),
-                    float(n_batches),
-                ],
-                device=self.device,
-                dtype=torch.float64,
-            )
-            dist.all_reduce(stats, op=dist.ReduceOp.SUM)
-            train_loss_total, train_loss_base, train_loss_reg, n_batches = (
-                stats[0].item(),
-                stats[1].item(),
-                stats[2].item(),
-                int(stats[3].item()),
-            )
+                step_time_total += _step_seconds(step_start, loss_sums)
 
         if profile_loader and self._is_main_process:
             self._log_dataloader_profile(
-                n_batches=local_n_batches,
+                n_batches=n_batches,
                 data_wait_total=data_wait_total,
                 step_time_total=step_time_total,
                 max_data_wait=max_data_wait,
             )
+        return self._mean_epoch_losses(loss_sums, n_batches)
 
+    def _mean_epoch_losses(
+        self, loss_sums: torch.Tensor, n_batches: int
+    ) -> tuple[float, float, float]:
+        """Mean (total, base, regularization) step losses of an epoch.
+
+        ``loss_sums`` holds this rank's float64 step sums; under DDP the sums
+        and batch counts of all ranks are added first. One host read.
+        """
+        if self._is_distributed:
+            stats = torch.cat(
+                [
+                    loss_sums,
+                    torch.full(
+                        (1,),
+                        float(n_batches),
+                        dtype=torch.float64,
+                        device=loss_sums.device,
+                    ),
+                ]
+            )
+            dist.all_reduce(stats, op=dist.ReduceOp.SUM)
+            *sums, count = stats.tolist()
+            n_batches = int(count)
+        else:
+            sums = loss_sums.tolist()
         denom = max(n_batches, 1)
-        train_loss_total /= denom
-        train_loss_base /= denom
-        train_loss_reg /= denom
-        return train_loss_total, train_loss_base, train_loss_reg
+        total, base, regularization = sums
+        return total / denom, base / denom, regularization / denom
 
     def _loader_uses_non_blocking_transfer(self, loader: DataLoader) -> bool:
         """Return whether batch copies can be issued asynchronously."""
@@ -837,7 +1191,18 @@ class Trainer:
         batch,
         loader: DataLoader,
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        """Move the input/target tensors using the loader's transfer policy."""
+        """Move the input/target tensors using the loader's transfer policy.
+
+        A recurrent model reads per-sample sequence lengths; a batch that
+        carries them would be run at its padded length, so it raises.
+        """
+        if len(batch) > 2 and getattr(self, "_recurrent_model", False):
+            raise ValueError(
+                f"{type(self).__name__} trains on (inputs, targets) and would "
+                "drop the per-sample sequence lengths this dataset provides; "
+                "train recurrent models on variable-length data with "
+                "training.main.strategy: recurrent"
+            )
         non_blocking = self._loader_uses_non_blocking_transfer(loader)
         return (
             batch[0].to(self.device, non_blocking=non_blocking),
@@ -876,10 +1241,7 @@ class Trainer:
     ) -> _ValidationLossStats:
         """Collect explicit batch- and sample-level validation aggregates."""
         model.eval()
-        batch_loss_sum = 0.0
-        n_batches = 0
-        sample_weighted_loss_sum = 0.0
-        n_samples = 0
+        sums = _ValidationSums(self.device)
         with torch.no_grad():
             for batch in valid_loader:
                 x_batch, y_batch = self._move_training_batch_to_device(
@@ -887,18 +1249,8 @@ class Trainer:
                     valid_loader,
                 )
                 loss: torch.Tensor = self.loss_function(model, x_batch, y_batch)
-                loss_value = loss.item()
-                batch_size = y_batch.size(0)
-                batch_loss_sum += loss_value
-                n_batches += 1
-                sample_weighted_loss_sum += loss_value * batch_size
-                n_samples += batch_size
-        return _ValidationLossStats(
-            batch_loss_sum=batch_loss_sum,
-            batch_count=n_batches,
-            sample_weighted_loss_sum=sample_weighted_loss_sum,
-            sample_count=n_samples,
-        )
+                sums.add(loss, y_batch.size(0))
+        return sums.stats()
 
     def _epoch_valid(
         self, model: BaseModel, valid_loader: DataLoader
@@ -937,8 +1289,7 @@ class Trainer:
         reduced sample-weighted loss.
         """
         model.eval()
-        weighted_loss_sum = 0.0
-        total_examples = 0
+        sums = _ValidationSums(self.device)
         sampler = valid_loader.sampler
         if isinstance(sampler, PaddedDistributedEvalSampler):
             real_count = len(sampler.real_indices)
@@ -964,15 +1315,8 @@ class Trainer:
                         batch_size = real_in_batch
                     seen += batch_size
                 loss: torch.Tensor = self.loss_function(model, x_batch, y_batch)
-                weighted_loss_sum += loss.item() * batch_size
-                total_examples += batch_size
-        stats = torch.tensor(
-            [weighted_loss_sum, float(total_examples)],
-            device=self.device,
-            dtype=torch.float64,
-        )
-        dist.all_reduce(stats, op=dist.ReduceOp.SUM)
-        return stats[0].item() / max(stats[1].item(), 1.0)
+                sums.add(loss, batch_size)
+        return sums.distributed_sample_mean()
 
     def _evaluate_loader_loss(self, model: BaseModel, loader: DataLoader) -> float:
         if self._is_distributed:
@@ -989,44 +1333,121 @@ class Trainer:
         if not hasattr(self, "device"):
             self._initialize_attributes(model, self.epochs)
 
-        train_loader, valid_loader = self._dataloaders(train_data, valid_data)
         unwrapped = self._unwrap_model(model)
-
-        pre_train_loss = self._evaluate_loader_loss(model, train_loader)
-        pre_valid_loss = self._evaluate_loader_loss(model, valid_loader)
+        self.pruning_manager.validate_model(unwrapped)
+        evaluate = self.pruning_config.re_evaluate_after
+        if evaluate:
+            train_loader, valid_loader = self._dataloaders(train_data, valid_data)
+            pre_train_loss = self._evaluate_loader_loss(model, train_loader)
+            pre_valid_loss = self._evaluate_loader_loss(model, valid_loader)
         pruning_stats = self.pruning_manager.prune_model(unwrapped)
-        post_train_loss = self._evaluate_loader_loss(model, train_loader)
-        post_valid_loss = self._evaluate_loader_loss(model, valid_loader)
-
-        return {
-            "pruning_stats": pruning_stats,
-            "pre_pruning_performance": {
+        if self._is_main_process:
+            if self.pruning_config.report_non_pruned:
+                self.pruning_manager.print_pruning_report()
+            if self.pruning_config.save_pruning_stats:
+                self.pruning_manager.save_pruning_stats(
+                    os.path.join(self.save_path, "pruning_stats.json")
+                )
+        result = {"pruning_stats": pruning_stats}
+        if evaluate:
+            post_train_loss = self._evaluate_loader_loss(model, train_loader)
+            post_valid_loss = self._evaluate_loader_loss(model, valid_loader)
+            result["pre_pruning_performance"] = {
                 "train_loss": pre_train_loss,
                 "valid_loss": pre_valid_loss,
-            },
-            "post_pruning_performance": {
+            }
+            result["post_pruning_performance"] = {
                 "train_loss": post_train_loss,
                 "valid_loss": post_valid_loss,
-            },
-        }
+            }
+        return result
+
+    def _restore_best_state(self, model: BaseModel, valid_losses: list) -> None:
+        """Load the best validation epoch's weights when ``load_best_state_dict``.
+
+        Raises when no epoch had a finite validation loss: the best state is
+        then the untrained snapshot, and restoring it would report an untrained
+        network as the trained result.
+        """
+        if self.save_best_checkpoint == "end" and not getattr(
+            self, "best_state_is_initial", False
+        ):
+            self._write_best_checkpoint()
+        if not self.load_best_state_dict:
+            return
+        if getattr(self, "best_state_is_initial", False):
+            raise RuntimeError(
+                f"{self.logger_info_prefix}no epoch had a finite validation loss "
+                f"(validation losses: {valid_losses}), so load_best_state_dict "
+                "would restore the untrained weights. The run failed; set "
+                "load_best_state_dict: false to keep the final weights."
+            )
+        self._unwrap_model(model).load_state_dict(self.best_state_dict)
+        if self._is_main_process:
+            logger.info("Final model loaded from best checkpoint")
+
+    @contextmanager
+    def _run_epoch_count(self, total_epochs: int):
+        """Number the epochs of all phases inside this block consecutively.
+
+        Multi-phase trainers call ``Trainer.train`` once per phase. Inside the
+        block those calls continue the epoch count instead of restarting it,
+        so epoch files, logs and ``best_epoch`` index the run's concatenated
+        loss histories, and ``total_epochs`` is the run's total.
+        """
+        self.epoch_counter = 0
+        self.total_epochs = int(total_epochs)
+        self._counting_run_epochs = True
+        try:
+            yield
+        finally:
+            self._counting_run_epochs = False
+
+    def _snapshot_state(self, model: BaseModel) -> dict:
+        """Copy the (unwrapped) model state where ``best_state_device`` says."""
+        state = self._unwrap_model(model).state_dict()
+        if self.best_state_device == "model":
+            return deepcopy(state)
+        copied = OrderedDict(
+            (
+                name,
+                (
+                    value.detach().to("cpu", copy=True)
+                    if torch.is_tensor(value)
+                    else deepcopy(value)
+                ),
+            )
+            for name, value in state.items()
+        )
+        return copy_state_metadata(state, copied)
+
+    def _write_best_checkpoint(self) -> None:
+        if self._is_main_process and self.save_path and os.path.exists(self.save_path):
+            atomic_torch_save(
+                self.best_state_dict,
+                os.path.join(self.save_path, f"{self.filename_prefix}best_model.pt"),
+            )
+
+    def _restart_best_state_selection(self, model: BaseModel) -> None:
+        """Select the best state among the epochs that follow.
+
+        Multi-phase trainers call this when a phase with another objective or
+        estimator ends, so the result is never a state chosen by that phase.
+        """
+        self.best_loss = float("inf")
+        self.best_epoch = self.epoch_counter
+        self.best_state_dict = self._snapshot_state(model)
+        self.best_state_is_initial = True
 
     def _update_best(self, model: BaseModel, valid_loss: float) -> None:
         if valid_loss < self.best_loss:
             self.best_loss = valid_loss
             self.best_epoch = self.epoch_counter
-            self.best_state_dict = deepcopy(self._unwrap_model(model).state_dict())
+            self.best_state_is_initial = False
+            self.best_state_dict = self._snapshot_state(model)
             self.patience_counter = 0
-            if (
-                self._is_main_process
-                and self.save_path
-                and os.path.exists(self.save_path)
-            ):
-                torch.save(
-                    self.best_state_dict,
-                    os.path.join(
-                        self.save_path, f"{self.filename_prefix}best_model.pt"
-                    ),
-                )
+            if self.save_best_checkpoint == "every_improvement":
+                self._write_best_checkpoint()
         else:
             self.patience_counter += 1
 
@@ -1039,7 +1460,7 @@ class Trainer:
             )
             if not os.path.exists(checkpoint_path):
                 os.makedirs(checkpoint_path, exist_ok=True)
-            torch.save(
+            atomic_torch_save(
                 self._unwrap_model(model).state_dict(),
                 os.path.join(checkpoint_path, f"epoch_{self.epoch_counter}.pt"),
             )
@@ -1061,12 +1482,9 @@ class Trainer:
         train_loss: float,
         valid_loss: float,
         logger_info: str = "",
-        wandb_info: dict | None = None,
         train_loss_base: Optional[float] = None,
         train_loss_reg: Optional[float] = None,
     ) -> None:
-        if wandb_info is None:
-            wandb_info = {}
         elapsed = time.time() - self.start_time
         if not self.suppress_prints and (self.epoch_counter % self.print_every == 0):
             if train_loss_base is not None and train_loss_reg is not None:
@@ -1086,17 +1504,6 @@ class Trainer:
                     + f"elapsed={elapsed:.1f}s"
                 )
             logger.info(logger_info)
-
-        if wandb.run is not None:
-            wandb_info["epoch"] = self.epoch_counter
-            wandb_info["train_loss"] = train_loss
-            wandb_info["valid_loss"] = valid_loss
-            wandb_info["elapsed"] = elapsed
-            if train_loss_base is not None:
-                wandb_info["train_loss_base"] = train_loss_base
-            if train_loss_reg is not None:
-                wandb_info["train_loss_reg"] = train_loss_reg
-            wandb.log(wandb_info)
 
     def _check_early_stopping(self) -> bool:
         if self.early_stopping and self.patience_counter >= self.patience:
@@ -1129,51 +1536,11 @@ class Trainer:
                     train_losses_reg=train_losses_reg,
                 )
 
-    def _check_and_handle_nan_gradients(self, model: BaseModel) -> bool:
-        """
-        Check for NaN values in gradients and handle them to prevent training crashes.
-
-
-        Args:
-            model: The model to check gradients for
-
-        Returns:
-            bool: True if NaNs were detected and handled, False otherwise
-        """
-        nan_detected = False
-
-        for name, param in model.named_parameters():
-            if param.grad is not None:
-                if torch.isnan(param.grad).any():
-                    nan_detected = True
-                    # Replace NaNs with zeros to prevent propagation
-                    param.grad = torch.nan_to_num(
-                        param.grad, nan=0.0, posinf=1.0, neginf=-1.0
-                    )
-
-                    logger.warning(f"NaNs detected in gradients for parameter: {name}")
-
-        return nan_detected
-
-    def _apply_adaptive_gradient_clipping(self, model: BaseModel) -> float:
-        """
-        Apply adaptive gradient clipping with dynamic learning rate adjustment.
-
-
-        Args:
-            model: The model to apply gradient clipping to
-
-        Returns:
-            float: The gradient norm before clipping
-        """
-        if not self.grad_clip_value:
-            return 0.0
-
-        # Calculate gradient norm for adaptive clipping (iterates all parameters)
-        grad_norm = torch.nn.utils.clip_grad_norm_(
-            model.parameters(), max_norm=self.grad_clip_value
-        )
-        return grad_norm
+    def _finalize_gradients(self, model: BaseModel) -> None:
+        """Zero non-finite gradients when requested, then clip."""
+        if self.enable_nan_checking and zero_nonfinite_gradients(model.parameters()):
+            logger.warning("Non-finite gradient entries were set to zero")
+        clip_gradients(model.parameters(), self.grad_clip_value, self.grad_clip_mode)
 
 
 __all__ = ["Trainer"]

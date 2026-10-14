@@ -37,11 +37,6 @@ def _scale_reactivation_error(
     return scaled
 
 
-def _reactivation_output_slope(output: torch.Tensor) -> torch.Tensor:
-    """Derivative factor for the normalized tanh-style reactivation output."""
-    return 1 - (2 * output - 1) ** 2
-
-
 def _apply_optional_alignment(
     grad: torch.Tensor,
     alignment: torch.Tensor | None,
@@ -79,6 +74,36 @@ def _factor_pre_weight_grad(
     )
 
 
+def _factor_synapse_weight_grad(
+    layer: Any,
+    factor: torch.Tensor,
+    x_pre: torch.Tensor,
+    *,
+    normalize_by_batch: bool,
+    batch_size: int,
+) -> torch.Tensor:
+    """Compute a dense or compact synaptic conductance gradient."""
+
+    compact_gradient = getattr(layer, "local_weight_gradient", None)
+    if callable(compact_gradient):
+        if int(batch_size) != int(factor.shape[0]):
+            raise ValueError(
+                "Configured batch size does not match the local factor batch: "
+                f"{batch_size} vs {factor.shape[0]}"
+            )
+        return compact_gradient(
+            factor,
+            x_pre,
+            normalize_by_batch=normalize_by_batch,
+        )
+    return _factor_pre_weight_grad(
+        factor,
+        x_pre,
+        normalize_by_batch=normalize_by_batch,
+        batch_size=batch_size,
+    )
+
+
 def _reduce_batch_mean_gradient(
     factor: torch.Tensor,
     *,
@@ -108,8 +133,8 @@ __all__ = [
     "_accumulate_parameter_grad",
     "_apply_optional_alignment",
     "_factor_pre_weight_grad",
+    "_factor_synapse_weight_grad",
     "_normalize_batch_gradient",
-    "_reactivation_output_slope",
     "_reduce_batch_mean_gradient",
     "_scale_reactivation_error",
     "_topk_pre_weight_grad",

@@ -1,3 +1,4 @@
+import dataclasses
 import logging
 import math
 from collections.abc import Callable
@@ -6,9 +7,17 @@ from typing import Any, Optional, Union
 import torch.nn as nn
 from omegaconf import DictConfig
 
+from dendritic_modeling.config.affine_mlp import AffineMLPConfig
+from dendritic_modeling.config.biological import resolve_biological_neuron
 from dendritic_modeling.config.conversion import to_plain_dict as _to_plain_mapping
+from dendritic_modeling.config.core_sections import BUILTIN_CORE_TYPES
 from dendritic_modeling.config.model_aliases import get_core_morphology_alias_overrides
+from dendritic_modeling.config.recurrence import _STRUCTURED_EI_TYPES, _UNIFIED_EI_TYPES
+from dendritic_modeling.networks.architectures.biological_constraints import (
+    enforce_biological_neuron,
+)
 from dendritic_modeling.networks.architectures.classical.autoencoder import (
+    BaseAutoencoder,
     CNNAutoencoder,
     CNNVariationalAutoencoder,
     MLPAutoencoder,
@@ -29,6 +38,7 @@ from dendritic_modeling.networks.architectures.classical.mlp import (
     PointMatchedParamMLP,
     SparseActiveMatchedPointAffine,
     SparseStructuredMLP,
+    build_affine_mlp,
 )
 from dendritic_modeling.networks.architectures.classical.pathway_router import (
     PathwayRouter,
@@ -38,21 +48,28 @@ from dendritic_modeling.networks.architectures.excitation_inhibition import (
 )
 from dendritic_modeling.networks.architectures.factory_recurrent import (
     _BASELINE_RNN_TYPES,
+    _HETEROGENEOUS_LEAK_CTRNN_TYPES,
+    _LEGENDRE_MEMORY_TYPES,
     _POPULATION_NETWORK_TYPES,
     _build_baseline_rnn_architecture,
+    _build_heterogeneous_leak_ctrnn_architecture,
+    _build_legendre_memory_architecture,
     _build_population_network_architecture,
 )
 from dendritic_modeling.networks.architectures.factory_spatial import (
-    _SPATIAL_DENDRITIC_CONV_TYPES,
-    _SPATIAL_DENDRITIC_TYPES,
+    SPATIAL_DENDRITIC_CONV_TYPES,
+    SPATIAL_DENDRITIC_TYPES,
+    SPATIAL_PATCH_POINT_TYPES,
     _build_spatial_dendritic_architecture,
     _build_spatial_dendritic_conv_architecture,
+    _build_spatial_patch_point_architecture,
 )
 from dendritic_modeling.networks.architectures.factory_unified import (
     _build_unified_ei_architecture,
 )
 from dendritic_modeling.networks.architectures.recurrent.structured_einet_factory import (
     _build_recurrent_einet_from_structured_config,
+    reject_recurrent_request_for_feedforward_core,
 )
 from dendritic_modeling.networks.architectures.registry import (
     build_registered_architecture,
@@ -62,76 +79,14 @@ from dendritic_modeling.networks.architectures.registry import (
 
 logger = logging.getLogger(__name__)
 
-# All EINet type strings handled via ConfigurableEINetwork (+ dendritic_mlp special-cased)
-_EINET_TYPES: set[str] = {
-    "einet",
-    "dendritic_shunting",
-    "dendritic_additive",
-    "dendritic_normalized_additive",
-    "dendritic_mlp",
-    "dendritic_signed",
-    "flat_shunting",
-    "flat_additive",
-    "flat_normalized_additive",
-    "flat_mlp",
-    "flat_signed",
-}
+# Structured EINet types (ConfigurableEINetwork, or the recurrent EINetwork
+# when connectivity.rec_* counts are set) and unified E/I types. The registries
+# live in config.recurrence so configuration code can use them without torch.
+_EINET_TYPES = _STRUCTURED_EI_TYPES
 
-_UNIFIED_EI_TYPES: set[str] = {
-    "ei_unified",
-    "unified_ei",
-    "ei_net",
-    "unified_einet",
-    # Parallel aliases that mirror the BP / feedforward vocabulary
-    # (`dendritic_shunting`, `dendritic_additive`, `flat_shunting`,
-    # `flat_additive`). An `rnn_` prefix disambiguates them from the
-    # non-recurrent BP types. The factory below canonicalizes each alias
-    # to the appropriate `use_shunting` / `use_additive_normalization`
-    # pair on every configured population, leaving the `ei_unified` path
-    # unchanged for backward compatibility.
-    "rnn_dendritic_shunting",
-    "rnn_dendritic_additive",
-    "rnn_dendritic_normalized_additive",
-    "rnn_flat_shunting",
-    "rnn_flat_additive",
-    "rnn_flat_normalized_additive",
-}
-
-_BUILTIN_ARCHITECTURE_TYPES: frozenset[str] = frozenset(
-    set(_EINET_TYPES)
-    | set(_UNIFIED_EI_TYPES)
-    | set(_BASELINE_RNN_TYPES)
-    | set(_POPULATION_NETWORK_TYPES)
-    | set(_SPATIAL_DENDRITIC_TYPES)
-    | set(_SPATIAL_DENDRITIC_CONV_TYPES)
-    | {
-        "active_param_mlp",
-        "alexnet",
-        "cnn",
-        "cnn_down",
-        "cnn_downsample",
-        "cnn_up",
-        "cnn_upsample",
-        "cnnautoencoder",
-        "cnnvariationalautoencoder",
-        "cnndownsample",
-        "cnnupsample",
-        "direct_active_matched_point",
-        "effectivematchedparammlp",
-        "identity",
-        "mlp",
-        "mlpautoencoder",
-        "mlpvariationalautoencoder",
-        "none",
-        "pathway_router",
-        "point_mlp",
-        "router",
-        "sparse_active_matched_point",
-        "ss_mlp",
-        "ss_mlp_flat",
-        "total_param_mlp",
-    }
-)
+# The configuration package lists the built-in names without importing torch;
+# every one of them has a builder below.
+_BUILTIN_ARCHITECTURE_TYPES: frozenset[str] = BUILTIN_CORE_TYPES
 
 reserve_architecture_names(_BUILTIN_ARCHITECTURE_TYPES)
 
@@ -362,7 +317,29 @@ def _ensure_flat_parameters(
         raise ValueError(
             f"Architecture {type} expects flat parameters, not structured config"
         )
+    if dataclasses.is_dataclass(parameters):
+        raise ValueError(
+            f"Architecture {type!r} is an encoder/decoder building block built "
+            "from flat parameters; model.core cannot configure it. Use it as "
+            "model.encoder.type or model.decoder.type, or choose a core type "
+            "(affine_mlp builds a plain dense or sparse MLP core)."
+        )
     return parameters
+
+
+def _build_affine_mlp_architecture(type, parameters, input_dim, suffix_input_dim):
+    del type
+    raw = _to_plain_mapping(parameters)
+    payload = raw.get("affine_mlp", raw)
+    if payload is None:
+        raise ValueError("affine_mlp requires an explicit configuration")
+    config = AffineMLPConfig(**payload)
+    config.validate()
+    if input_dim is not None and input_dim != config.dimensions[0]:
+        raise ValueError("affine_mlp input dimension does not match the encoder")
+    if suffix_input_dim is not None and suffix_input_dim != config.dimensions[-1]:
+        raise ValueError("affine_mlp output dimension does not match the decoder")
+    return build_affine_mlp(config)
 
 
 def _build_flat_mlp_architecture(
@@ -371,11 +348,16 @@ def _build_flat_mlp_architecture(
     input_dim: Optional[int],
     suffix_input_dim: Optional[int],
 ) -> nn.Module:
-    """Build flat MLP, or point-MLP when passed structured config."""
-    del suffix_input_dim
+    """Build a plain MLP from flat parameters (decoders and direct calls)."""
+    del input_dim, suffix_input_dim
     raw_params = _to_plain_mapping(parameters)
     if "architecture" in raw_params and "connectivity" in raw_params:
-        return _build_point_mlp_architecture(type, parameters, input_dim, None)
+        raise ValueError(
+            "type 'mlp' takes flat MLP parameters, not a structured core config "
+            "(which used to be replaced silently by the parameter-matched point "
+            "MLP). Use type: point_mlp for that control, or type: affine_mlp "
+            "with model.core.affine_mlp for a plain dense or sparse MLP."
+        )
     return MLP(**_ensure_flat_parameters(type, parameters))
 
 
@@ -391,6 +373,8 @@ def _build_flat_architecture(
         del input_dim, suffix_input_dim
         return cls(**_ensure_flat_parameters(type, parameters))
 
+    # Every build returns this class (see builtin_architecture_class).
+    _builder.architecture_class = cls  # type: ignore[attr-defined]
     return _builder
 
 
@@ -434,13 +418,28 @@ def _build_active_param_mlp(
     return MatchedActiveParamMLP(parameters, input_dim)
 
 
+def _reject_feedforward_core_options(
+    type: str, parameters: Union[dict[str, Any], DictConfig]
+) -> None:
+    raw_params = _to_plain_mapping(parameters)
+    reject_recurrent_request_for_feedforward_core(type, raw_params)
+    if raw_params.get("initialization_seed") is not None:
+        # ss_mlp copies only shapes from a reference EINet; its own layers are
+        # initialized from the global stream, so a keyed seed cannot apply.
+        raise ValueError(
+            f"core type {type!r} does not support initialization_seed; its "
+            "sparse-structured layers use the global torch RNG"
+        )
+
+
 def _build_sparse_structured_mlp(
     type: str,
     parameters: Union[dict[str, Any], DictConfig],
     input_dim: Optional[int],
     suffix_input_dim: Optional[int],
 ) -> nn.Module:
-    del type, suffix_input_dim
+    del suffix_input_dim
+    _reject_feedforward_core_options(type, parameters)
     return SparseStructuredMLP(parameters, input_dim)
 
 
@@ -450,7 +449,8 @@ def _build_sparse_structured_flat_mlp(
     input_dim: Optional[int],
     suffix_input_dim: Optional[int],
 ) -> nn.Module:
-    del type, suffix_input_dim
+    del suffix_input_dim
+    _reject_feedforward_core_options(type, parameters)
     return SparseStructuredMLP(parameters, input_dim, flatten_dendrites=True)
 
 
@@ -470,8 +470,34 @@ def _build_identity(
     input_dim: Optional[int],
     suffix_input_dim: Optional[int],
 ) -> nn.Module:
-    del input_dim, suffix_input_dim
+    del suffix_input_dim
+    if dataclasses.is_dataclass(parameters):
+        # An identity core passes the encoder output to the decoder.
+        if input_dim is None:
+            raise ValueError(f"core type {type!r} needs the encoder output size")
+        return Identity(input_dim=input_dim)
     return Identity(**_ensure_flat_parameters(type, parameters))
+
+
+def _build_dendritic_alexnet_architecture(
+    type: str,
+    parameters: Union[dict[str, Any], DictConfig],
+    input_dim: Optional[int],
+    suffix_input_dim: Optional[int],
+) -> nn.Module:
+    """Build an end-to-end AlexNet-shaped dendritic vision network."""
+
+    del suffix_input_dim
+    from dendritic_modeling.networks.architectures.vision import DendriticAlexNet
+
+    raw_params = _to_plain_mapping(parameters)
+    reject_recurrent_request_for_feedforward_core(type, raw_params)
+    input_channels = int(
+        raw_params.get("vision", {}).get(
+            "input_channels", 3 if input_dim is None else input_dim
+        )
+    )
+    return DendriticAlexNet(raw_params, input_channels=input_channels)
 
 
 def _build_builtin_architecture_registry() -> dict[str, ArchitectureBuilder]:
@@ -481,14 +507,28 @@ def _build_builtin_architecture_registry() -> dict[str, ArchitectureBuilder]:
         dict.fromkeys(_BASELINE_RNN_TYPES, _build_baseline_rnn_architecture)
     )
     builders.update(
+        dict.fromkeys(
+            _HETEROGENEOUS_LEAK_CTRNN_TYPES,
+            _build_heterogeneous_leak_ctrnn_architecture,
+        )
+    )
+    builders.update(
+        dict.fromkeys(_LEGENDRE_MEMORY_TYPES, _build_legendre_memory_architecture)
+    )
+    builders.update(
         dict.fromkeys(_POPULATION_NETWORK_TYPES, _build_population_network_architecture)
     )
     builders.update(
-        dict.fromkeys(_SPATIAL_DENDRITIC_TYPES, _build_spatial_dendritic_architecture)
+        dict.fromkeys(SPATIAL_DENDRITIC_TYPES, _build_spatial_dendritic_architecture)
     )
     builders.update(
         dict.fromkeys(
-            _SPATIAL_DENDRITIC_CONV_TYPES, _build_spatial_dendritic_conv_architecture
+            SPATIAL_DENDRITIC_CONV_TYPES, _build_spatial_dendritic_conv_architecture
+        )
+    )
+    builders.update(
+        dict.fromkeys(
+            SPATIAL_PATCH_POINT_TYPES, _build_spatial_patch_point_architecture
         )
     )
     builders.update(dict.fromkeys(_EINET_TYPES, _build_einet_architecture))
@@ -497,11 +537,13 @@ def _build_builtin_architecture_registry() -> dict[str, ArchitectureBuilder]:
             "direct_active_matched_point": (
                 _build_direct_active_matched_point_architecture
             ),
+            "dendritic_alexnet": _build_dendritic_alexnet_architecture,
             "sparse_active_matched_point": (
                 _build_sparse_active_matched_point_architecture
             ),
             "point_mlp": _build_point_mlp_architecture,
             "mlp": _build_flat_mlp_architecture,
+            "affine_mlp": _build_affine_mlp_architecture,
             "total_param_mlp": _build_total_param_mlp,
             "active_param_mlp": _build_active_param_mlp,
             "ss_mlp": _build_sparse_structured_mlp,
@@ -568,15 +610,47 @@ def get_architecture(
         )
     builder = _BUILTIN_ARCHITECTURE_BUILDERS.get(type)
     if builder is not None:
-        return builder(type, parameters, input_dim, suffix_input_dim)
+        network = builder(type, parameters, input_dim, suffix_input_dim)
+    else:
+        network = build_registered_architecture(
+            type,
+            parameters,
+            input_dim=input_dim,
+            suffix_input_dim=suffix_input_dim,
+        )
+        if network is None:
+            raise ValueError(f"Invalid architecture type: {type}")
+    if resolve_biological_neuron(type, _declared_biological_neuron(parameters)):
+        enforce_biological_neuron(type, network)
+    return network
 
-    registered = build_registered_architecture(
-        type,
-        parameters,
-        input_dim=input_dim,
-        suffix_input_dim=suffix_input_dim,
-    )
-    if registered is not None:
-        return registered
 
-    raise ValueError(f"Invalid architecture type: {type}")
+def builtin_architecture_class(name: str) -> Optional[type[nn.Module]]:
+    """The class that built-in architecture ``name`` always builds, or None.
+
+    None means that only building the architecture tells its class: the name
+    is not built in (an extension registers it), or its builder chooses among
+    classes from the parameters.
+    """
+    builder = _BUILTIN_ARCHITECTURE_BUILDERS.get((name or "").lower())
+    return getattr(builder, "architecture_class", None)
+
+
+def builds_autoencoder(name: str) -> Optional[bool]:
+    """Whether architecture ``name`` builds an autoencoder (``BaseAutoencoder``).
+
+    Answers for every built-in architecture from its name alone, so a run can
+    reject an autoencoder request before it builds anything. None for a name
+    an extension registers, whose class is known only once it is built.
+    """
+    if (name or "").lower() not in _BUILTIN_ARCHITECTURE_BUILDERS:
+        return None
+    cls = builtin_architecture_class(name)
+    return cls is not None and issubclass(cls, BaseAutoencoder)
+
+
+def _declared_biological_neuron(parameters: Any) -> Any:
+    """Return the core's ``biological_neuron`` declaration, or None."""
+    if isinstance(parameters, (dict, DictConfig)):
+        return parameters.get("biological_neuron")
+    return getattr(parameters, "biological_neuron", None)

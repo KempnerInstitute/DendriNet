@@ -21,7 +21,6 @@ from dendritic_modeling.config import (
     ConnectivityConfig,
     CoreConfig,
     DataConfig,
-    DatasetParamsConfig,
     FSDPConfig,
     InformationAnalysisConfig,
     LocalRuleComponentAnalysisConfig,
@@ -37,16 +36,15 @@ from dendritic_modeling.config import (
     StructuredConnectivityConfig,
     TrainingConfig,
     TransferFunctionConfig,
-    WandbConfig,
     load_config,
 )
 from dendritic_modeling.config.config import (
     _analysis_field_mapping,
     _build_data_config,
-    _build_filtered_config,
     _map_analysis_config,
     _map_training_config,
 )
+from dendritic_modeling.config.keys import UnknownConfigKeyError, build_section
 
 
 def _get_field(obj, key):
@@ -56,9 +54,14 @@ def _get_field(obj, key):
     return getattr(obj, key)
 
 
-def test_fsdp_launcher_exposes_rnn_alias_canonicalizer():
-    from dendritic_modeling.scripts.training import train_experiments_fsdp
+def test_both_launchers_record_canonical_rnn_alias_flags():
+    from dendritic_modeling.scripts.training import (
+        train_experiments,
+        train_experiments_fsdp,
+    )
 
+    # Both entry points write config.json with the same function.
+    assert train_experiments_fsdp._save_run_config is train_experiments._save_run_config
     payload = {
         "model": {
             "core": {
@@ -68,7 +71,7 @@ def test_fsdp_launcher_exposes_rnn_alias_canonicalizer():
         }
     }
 
-    canonical = train_experiments_fsdp.canonicalize_rnn_core_flags(payload)
+    canonical = train_experiments.canonicalize_rnn_core_flags(payload)
     layer = canonical["model"]["core"]["unified_ei"]["layers"][0]
     exc = layer["excitatory"]
     inh = layer["inhibitory"]
@@ -134,8 +137,7 @@ class TestConfigDataclasses(unittest.TestCase):
             ii_synapses_per_branch_per_layer=[1, 1],
         )
         transfer = TransferFunctionConfig(
-            input_mode=1,
-            independent_pathways=False,
+            independent_pathways=True,
             excitatory_dim=128,
             inhibitory_dim=128,
         )
@@ -149,7 +151,7 @@ class TestConfigDataclasses(unittest.TestCase):
         self.assertEqual(core.type, "EINet")
         self.assertEqual(core.architecture.excitatory_layer_sizes, [64, 32])
         self.assertEqual(core.connectivity.ee_synapses_per_branch_per_layer, [24, 24])
-        self.assertEqual(core.transfer.input_mode, 1)
+        self.assertTrue(core.transfer.independent_pathways)
 
     def test_model_config_creation(self):
         model_config = ModelConfig(
@@ -172,7 +174,6 @@ class TestConfigDataclasses(unittest.TestCase):
             model=ModelConfig(task="classification"),
             training=TrainingConfig(),
             data=DataConfig(dataset_name="mnist"),
-            wandb=WandbConfig(use_wandb=False),
             outputs=OutputsConfig(results_dir="/tmp/outputs"),
             analysis=AnalysisConfig(),
         )
@@ -195,18 +196,18 @@ class TestConfigDataclasses(unittest.TestCase):
             )
         self.assertFalse(analysis.any_enabled())
 
-        analysis.information_analysis.enabled = True
+        analysis.information.enabled = True
         self.assertTrue(analysis.any_enabled())
 
-        analysis.information_analysis.enabled = False
-        analysis.spike_train_analysis.enabled = True
+        analysis.information.enabled = False
+        analysis.spike_train.enabled = True
         self.assertTrue(analysis.any_enabled())
 
-        analysis.spike_train_analysis.enabled = False
-        analysis.compartment_snr_analysis.enabled = True
+        analysis.spike_train.enabled = False
+        analysis.compartment_snr.enabled = True
         self.assertTrue(analysis.any_enabled())
 
-        analysis.compartment_snr_analysis.enabled = False
+        analysis.compartment_snr.enabled = False
         self.assertFalse(analysis.any_enabled())
 
     def test_analysis_field_mapping_tracks_registered_analyzers(self):
@@ -215,7 +216,7 @@ class TestConfigDataclasses(unittest.TestCase):
 
         for name, spec in get_registered_analyzers().items():
             self.assertEqual(mapping[name], spec.config_field)
-        self.assertEqual(mapping["spike_trains"], "spike_train_analysis")
+        self.assertEqual(mapping["spike_trains"], "spike_train")
 
     def test_map_analysis_config_preserves_registry_and_legacy_aliases(self):
         """Config mapping should preserve registered names and legacy aliases."""
@@ -227,15 +228,15 @@ class TestConfigDataclasses(unittest.TestCase):
             }
         )
 
-        self.assertIsInstance(mapped["information_analysis"], InformationAnalysisConfig)
-        self.assertFalse(mapped["information_analysis"].enabled)
-        self.assertTrue(mapped["spike_train_analysis"].enabled)
-        self.assertTrue(mapped["spike_train_analysis"].training)
+        self.assertIsInstance(mapped["information"], InformationAnalysisConfig)
+        self.assertFalse(mapped["information"].enabled)
+        self.assertTrue(mapped["spike_train"].enabled)
+        self.assertTrue(mapped["spike_train"].training)
         self.assertIsInstance(
-            mapped["adversarial_robustness_analysis"],
+            mapped["adversarial_robustness"],
             AdversarialRobustnessAnalysisConfig,
         )
-        self.assertTrue(mapped["adversarial_robustness_analysis"].enabled)
+        self.assertTrue(mapped["adversarial_robustness"].enabled)
 
     def test_map_analysis_config_builds_registered_snr_and_rf_params(self):
         mapped = _map_analysis_config(
@@ -260,14 +261,14 @@ class TestConfigDataclasses(unittest.TestCase):
             }
         )
 
-        snr_config = mapped["compartment_snr_analysis"]
+        snr_config = mapped["compartment_snr"]
         self.assertIsInstance(snr_config, CompartmentSNRAnalysisConfig)
         self.assertIsInstance(snr_config.params, CompartmentSNRAnalysisParams)
         self.assertTrue(snr_config.enabled)
         self.assertEqual(snr_config.params.input_capture_mode, "network")
         self.assertFalse(snr_config.params.branch_aggregation)
 
-        rf_config = mapped["receptive_field_analysis"]
+        rf_config = mapped["receptive_field"]
         self.assertIsInstance(rf_config, ReceptiveFieldAnalysisConfig)
         self.assertIsInstance(rf_config.params, ReceptiveFieldAnalysisParams)
         self.assertTrue(rf_config.enabled)
@@ -292,7 +293,7 @@ class TestConfigDataclasses(unittest.TestCase):
             }
         )
 
-        config = mapped["local_rule_component_analysis"]
+        config = mapped["local_rule_components"]
         self.assertIsInstance(config, LocalRuleComponentAnalysisConfig)
         self.assertIsInstance(config.params, LocalRuleComponentAnalysisParams)
         self.assertTrue(config.enabled)
@@ -315,7 +316,7 @@ class TestConfigDataclasses(unittest.TestCase):
             }
         )
 
-        config = mapped["spike_train_analysis"]
+        config = mapped["spike_train"]
         self.assertIsInstance(config, SpikeTrainAnalysisConfig)
         self.assertIsInstance(config.params, SpikeTrainAnalysisParams)
         self.assertTrue(config.enabled)
@@ -350,49 +351,45 @@ class TestConfigDataclasses(unittest.TestCase):
         with self.assertRaises(ValueError):
             LocalRuleConfig(explicit_inhibitory_update_mode="graph_local")
 
-    def test_build_filtered_config_drops_unknown_mapping_keys(self):
-        config = _build_filtered_config(
-            FSDPConfig,
-            {
-                "mixed_precision": False,
-                "limit_all_gathers": False,
-                "unknown_field": "ignored",
-            },
+    def test_build_section_rejects_unknown_mapping_keys(self):
+        with self.assertRaisesRegex(
+            UnknownConfigKeyError,
+            r"Unknown distributed.fsdp option\(s\): cpu_ofload "
+            r"\(did you mean 'cpu_offload'\?\)",
+        ):
+            build_section(
+                FSDPConfig,
+                {"mixed_precision": False, "cpu_ofload": True},
+                section="distributed.fsdp",
+            )
+
+    def test_build_section_accepts_omegaconf_payload(self):
+        payload = OmegaConf.create({"epochs": 7, "batch_size": 32})
+
+        config = build_section(
+            CommonTrainerConfig, payload, section="training.main.common"
         )
-
-        self.assertFalse(config.mixed_precision)
-        self.assertFalse(config.limit_all_gathers)
-        self.assertEqual(config.sharding_strategy, "FULL_SHARD")
-        self.assertFalse(hasattr(config, "unknown_field"))
-
-    def test_build_filtered_config_accepts_omegaconf_payload(self):
-        payload = OmegaConf.create(
-            {
-                "epochs": 7,
-                "batch_size": 32,
-                "not_a_trainer_field": "ignored",
-            }
-        )
-
-        config = _build_filtered_config(CommonTrainerConfig, payload)
 
         self.assertEqual(config.epochs, 7)
         self.assertEqual(config.batch_size, 32)
-        self.assertFalse(hasattr(config, "not_a_trainer_field"))
 
-    def test_build_filtered_config_defaults_for_non_mapping_payload(self):
-        config = _build_filtered_config(WandbConfig, object())
+    def test_build_section_rejects_non_mapping_payload(self):
+        with self.assertRaisesRegex(ValueError, "outputs must be a mapping"):
+            build_section(OutputsConfig, ["not", "a", "mapping"], section="outputs")
 
-        self.assertFalse(config.use_wandb)
-        self.assertEqual(config.project, "dendritic-sweeps")
-
-    def test_build_data_config_defaults_dataset_params_to_typed_config(self):
+    def test_build_data_config_defaults_dataset_params_to_an_empty_mapping(self):
         config = _build_data_config({"dataset_name": "mnist"})
 
         self.assertEqual(config.dataset_name, "mnist")
         self.assertEqual(config.base_dir, "")
-        self.assertTrue(config.processing.flatten)
-        self.assertIsInstance(config.dataset_params, DatasetParamsConfig)
+        self.assertIsNone(config.processing.flatten)  # each loader's default
+        self.assertEqual(config.dataset_params, {})
+
+    def test_build_data_config_rejects_a_non_mapping_dataset_block(self):
+        with self.assertRaisesRegex(
+            ValueError, r"data\.dataset_params\.mnist must be a mapping"
+        ):
+            _build_data_config({"dataset_params": {"mnist": [1, 2]}})
 
     def test_build_data_config_preserves_custom_dataset_param_sections(self):
         config = _build_data_config(
@@ -466,7 +463,7 @@ class TestConfigDataclasses(unittest.TestCase):
         self.assertEqual(main["learning_strategy_config"].rule_variant, "4f")
         self.assertEqual(main["learning_strategy_config"].error_mode, "mse")
 
-    def test_map_training_config_prefers_explicit_main_learning_strategy_config(self):
+    def test_map_training_config_rejects_learning_strategy_config_twice(self):
         training = {
             "main": {
                 "learning_strategy_config": {"rule_variant": "5f"},
@@ -476,12 +473,8 @@ class TestConfigDataclasses(unittest.TestCase):
             }
         }
 
-        mapped = _map_training_config(training)
-
-        main = mapped["main"]
-        self.assertNotIn("learning_strategy_config", main["common"])
-        self.assertIsInstance(main["learning_strategy_config"], LocalRuleConfig)
-        self.assertEqual(main["learning_strategy_config"].rule_variant, "5f")
+        with self.assertRaisesRegex(ValueError, "set under both training.main"):
+            _map_training_config(training)
 
     def test_map_training_config_builds_main_optimizer_config(self):
         mapped = _map_training_config(
@@ -531,7 +524,7 @@ class TestConfigLoading(unittest.TestCase):
                         "ie_synapses_per_branch_per_layer": [2, 2],
                         "ii_synapses_per_branch_per_layer": [1, 1],
                     },
-                    "transfer": {"input_mode": 1, "independent_pathways": False},
+                    "transfer": {"independent_pathways": False},
                 },
             },
             "training": {
@@ -544,7 +537,6 @@ class TestConfigLoading(unittest.TestCase):
                     },
                 }
             },
-            "wandb": {"use_wandb": False, "project": "test_project"},
             "outputs": {"run_name": "test_run", "results_dir": "/tmp/outputs"},
             "analysis": {},
         }
@@ -558,7 +550,6 @@ class TestConfigLoading(unittest.TestCase):
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_load_config_from_file(self):
-        load_config.cache_clear()
         config = load_config(self.config_file)
 
         self.assertIsInstance(config, Config)
@@ -584,9 +575,64 @@ class TestConfigLoading(unittest.TestCase):
             StructuredConnectivityConfig,
         )
 
+    def test_load_config_preserves_sparse_point_parameter_budget(self):
+        configured = {
+            **self.sample_config,
+            "model": {
+                **self.sample_config["model"],
+                "core": {
+                    **self.sample_config["model"]["core"],
+                    "type": "sparse_active_matched_point",
+                    "target_active_parameters": 86_016,
+                },
+            },
+        }
+        with open(self.config_file, "w") as f:
+            yaml.safe_dump(configured, f)
+
+        config = load_config(self.config_file)
+
+        self.assertEqual(config.model.core.target_active_parameters, 86_016)
+
+    def test_strategy_settings_of_an_uninstalled_plugin_are_unknown(self):
+        configured = {
+            **self.sample_config,
+            "training": {
+                "main": {
+                    **self.sample_config["training"]["main"],
+                    "strategies": {"vision_distillation": {"setting": 1}},
+                }
+            },
+        }
+        with open(self.config_file, "w") as f:
+            yaml.safe_dump(configured, f)
+
+        with self.assertRaisesRegex(
+            ValueError, "Unknown training.main.strategies block"
+        ):
+            load_config(self.config_file)
+
+    def test_load_config_preserves_initial_checkpoint_contract(self):
+        configured = {
+            **self.sample_config,
+            "model": {
+                **self.sample_config["model"],
+                "initial_checkpoint": "/tmp/model.pt",
+                "initial_checkpoint_sha256": "a" * 64,
+                "initial_checkpoint_strict": False,
+            },
+        }
+        with open(self.config_file, "w") as f:
+            yaml.safe_dump(configured, f)
+
+        config = load_config(self.config_file)
+
+        self.assertEqual(config.model.initial_checkpoint, "/tmp/model.pt")
+        self.assertEqual(config.model.initial_checkpoint_sha256, "a" * 64)
+        self.assertFalse(config.model.initial_checkpoint_strict)
+
     def test_load_config_returns_independent_objects(self):
         """Cached config parsing must not leak runtime mutations."""
-        load_config.cache_clear()
         config1 = load_config(self.config_file)
         config1.training.main.common.batch_size = 12345
 
@@ -597,7 +643,6 @@ class TestConfigLoading(unittest.TestCase):
 
     def test_training_dataloader_fields_are_preserved(self):
         """Large-data loader controls should survive typed config loading."""
-        load_config.cache_clear()
         dataloader_config = {
             **self.sample_config,
             "training": {
@@ -632,7 +677,6 @@ class TestConfigLoading(unittest.TestCase):
 
     def test_additive_alias_defaults_to_occupancy_quantile_when_policy_omitted(self):
         """Additive configs should not silently use weak analytical gates."""
-        load_config.cache_clear()
         additive_config = {
             **self.sample_config,
             "model": {
@@ -656,7 +700,6 @@ class TestConfigLoading(unittest.TestCase):
 
     def test_explicit_additive_init_policy_is_preserved(self):
         """Users can still reproduce analytical/fixed additive experiments."""
-        load_config.cache_clear()
         additive_config = {
             **self.sample_config,
             "model": {
@@ -677,8 +720,7 @@ class TestConfigLoading(unittest.TestCase):
 
         self.assertEqual(config.model.core.reactivation.init_policy, "analytical")
 
-    def test_transfer_legacy_aliases_load_as_canonical_fields(self):
-        load_config.cache_clear()
+    def test_retired_transfer_routing_keys_load_without_fields(self):
         alias_config = {
             **self.sample_config,
             "model": {
@@ -697,18 +739,67 @@ class TestConfigLoading(unittest.TestCase):
         with open(alias_file, "w") as f:
             yaml.safe_dump(alias_config, f)
 
-        config = load_config(alias_file)
+        with self.assertLogs("dendritic_modeling.config.keys", "WARNING") as logs:
+            config = load_config(alias_file)
         transfer = config.model.core.transfer
 
-        self.assertTrue(transfer.allow_direct_inhibitory_stream)
-        self.assertTrue(transfer.input_mode1_build_inhibitory_population)
-        self.assertFalse(hasattr(transfer, "allow_direct_inhibitory_input"))
-        self.assertFalse(
-            hasattr(transfer, "build_inhibitory_population_for_input_mode1")
-        )
+        self.assertIn("model.core.transfer.input_mode", "\n".join(logs.output))
+        for retired in (
+            "input_mode",
+            "allow_direct_inhibitory_stream",
+            "allow_direct_inhibitory_input",
+            "input_mode1_build_inhibitory_population",
+            "build_inhibitory_population_for_input_mode1",
+        ):
+            self.assertFalse(hasattr(transfer, retired))
+
+    def test_enabled_plugin_model_section_without_plugin_is_rejected(self):
+        legacy_config = {
+            **self.sample_config,
+            "model": {
+                **self.sample_config["model"],
+                "core": {
+                    **self.sample_config["model"]["core"],
+                    "transfer": {
+                        "force_projection": False,
+                        "zero_pad_output": True,
+                    },
+                },
+                "pretrained_replacement": {"enabled": True},
+            },
+        }
+        legacy_file = os.path.join(self.temp_dir, "legacy_vision_zero_pad.yaml")
+        with open(legacy_file, "w") as f:
+            yaml.safe_dump(legacy_config, f)
+
+        with self.assertRaisesRegex(ValueError, "DendriNet plugin"):
+            load_config(legacy_file)
+
+    def test_legacy_forced_projection_fails_closed(self):
+        legacy_config = {
+            **self.sample_config,
+            "model": {
+                **self.sample_config["model"],
+                "core": {
+                    **self.sample_config["model"]["core"],
+                    "transfer": {
+                        "force_projection": True,
+                    },
+                },
+                "pretrained_replacement": {
+                    "enabled": True,
+                    "backbone": "alexnet",
+                },
+            },
+        }
+        legacy_file = os.path.join(self.temp_dir, "legacy_forced_projection.yaml")
+        with open(legacy_file, "w") as f:
+            yaml.safe_dump(legacy_config, f)
+
+        with self.assertRaisesRegex(ValueError, "cannot be migrated losslessly"):
+            load_config(legacy_file)
 
     def test_load_config_with_structured_connectivity(self):
-        load_config.cache_clear()
         structured_config = {
             **self.sample_config,
             "model": {
@@ -743,7 +834,6 @@ class TestConfigLoading(unittest.TestCase):
         self.assertEqual(structured.pathways["ee"]["method"], "fixed_indegree")
 
     def test_load_config_with_structured_connectivity_alias_warns(self):
-        load_config.cache_clear()
         structured_config = {
             **self.sample_config,
             "model": {
@@ -781,7 +871,6 @@ class TestConfigLoading(unittest.TestCase):
         self.assertEqual(structured.seed, 123)
 
     def test_load_config_with_annealed_topk_block_alias_warns(self):
-        load_config.cache_clear()
         sparse_config = {
             **self.sample_config,
             "model": {
@@ -814,7 +903,6 @@ class TestConfigLoading(unittest.TestCase):
         )
 
     def test_load_config_preserves_synapse_types(self):
-        load_config.cache_clear()
         synapse_config = {
             **self.sample_config,
             "model": {
@@ -844,7 +932,6 @@ class TestConfigLoading(unittest.TestCase):
         self.assertEqual(synapse_types["inhibitory"][0]["tau"], 7.0)
 
     def test_load_config_preserves_soma_feedback(self):
-        load_config.cache_clear()
         feedback_config = {
             **self.sample_config,
             "model": {
@@ -872,7 +959,6 @@ class TestConfigLoading(unittest.TestCase):
         self.assertAlmostEqual(feedback["strength"], 0.2)
 
     def test_load_config_preserves_dendritic_spikes(self):
-        load_config.cache_clear()
         spikes_config = {
             **self.sample_config,
             "model": {
@@ -900,7 +986,6 @@ class TestConfigLoading(unittest.TestCase):
         self.assertAlmostEqual(dendritic_spikes["threshold"], 0.6)
 
     def test_load_config_preserves_sparsity_ultrafast(self):
-        load_config.cache_clear()
         ultrafast_config = {
             **self.sample_config,
             "model": {
@@ -923,7 +1008,6 @@ class TestConfigLoading(unittest.TestCase):
         self.assertTrue(config.model.core.sparsity.ultrafast)
 
     def test_load_config_preserves_spiking_dynamics(self):
-        load_config.cache_clear()
         dynamics_config = {
             **self.sample_config,
             "model": {
@@ -952,14 +1036,13 @@ class TestConfigLoading(unittest.TestCase):
         self.assertEqual(dynamics["refractory_steps"], 2)
 
     def test_load_config_preserves_transformer_replacement(self):
-        load_config.cache_clear()
         transformer_config = {
             **self.sample_config,
             "model": {
                 **self.sample_config["model"],
                 "transformer_replacement": {
                     "enabled": True,
-                    "model_name": "deepseek-ai/DeepSeek-V3",
+                    "model_name": "my-org/my-causal-lm",
                     "layers": [0, 1, 2],
                     "target_module": "mlp",
                     "layers_attr": "model.layers",
@@ -978,33 +1061,15 @@ class TestConfigLoading(unittest.TestCase):
 
         replacement = config.model.transformer_replacement
         self.assertTrue(replacement.enabled)
-        self.assertEqual(replacement.model_name, "deepseek-ai/DeepSeek-V3")
+        self.assertEqual(replacement.model_name, "my-org/my-causal-lm")
         self.assertEqual(replacement.layers, [0, 1, 2])
         self.assertEqual(replacement.layers_attr, "model.layers")
         self.assertEqual(replacement.model_kwargs["torch_dtype"], "auto")
 
-    def test_load_config_preserves_transformer_replacement_training(self):
-        load_config.cache_clear()
+    def test_enabled_plugin_transformer_training_without_plugin_is_rejected(self):
         transformer_training_config = {
             **self.sample_config,
-            "training": {
-                "transformer_replacement": {
-                    "enabled": True,
-                    "mode": "layerwise_distillation",
-                    "teacher_source": "synthetic_mlp",
-                    "train_target": "replacement_only",
-                    "layers": [0],
-                    "hidden_size": 8,
-                    "intermediate_size": 32,
-                    "max_steps": 25,
-                    "num_workers": 3,
-                    "pin_memory": False,
-                    "persistent_workers": True,
-                    "prefetch_factor": 2,
-                    "in_order": False,
-                    "synthetic_teacher": {"kind": "linear"},
-                }
-            },
+            "training": {"transformer_replacement": {"enabled": True, "max_steps": 25}},
         }
         transformer_training_file = os.path.join(
             self.temp_dir, "transformer_replacement_training_config.yaml"
@@ -1012,40 +1077,13 @@ class TestConfigLoading(unittest.TestCase):
         with open(transformer_training_file, "w") as f:
             yaml.safe_dump(transformer_training_config, f)
 
-        config = load_config(transformer_training_file)
+        with self.assertRaisesRegex(ValueError, "DendriNet plugin"):
+            load_config(transformer_training_file)
 
-        training = config.training.transformer_replacement
-        self.assertTrue(training.enabled)
-        self.assertEqual(training.teacher_source, "synthetic_mlp")
-        self.assertEqual(training.train_target, "replacement_only")
-        self.assertEqual(training.layers, [0])
-        self.assertEqual(training.hidden_size, 8)
-        self.assertEqual(training.num_workers, 3)
-        self.assertFalse(training.pin_memory)
-        self.assertTrue(training.persistent_workers)
-        self.assertEqual(training.prefetch_factor, 2)
-        self.assertFalse(training.in_order)
-        self.assertEqual(training.synthetic_teacher["kind"], "linear")
-
-    def test_load_config_preserves_vision_replacement_training(self):
-        load_config.cache_clear()
+    def test_enabled_plugin_vision_training_without_plugin_is_rejected(self):
         vision_training_config = {
             **self.sample_config,
-            "training": {
-                "vision_replacement": {
-                    "enabled": True,
-                    "mode": "blockwise_distillation",
-                    "teacher_source": "tensor_cache",
-                    "train_target": "replacement_only",
-                    "max_steps": 25,
-                    "num_workers": 4,
-                    "pin_memory": False,
-                    "persistent_workers": True,
-                    "prefetch_factor": 3,
-                    "in_order": False,
-                    "tensor_cache": {"train_inputs": "train_x.pt"},
-                }
-            },
+            "training": {"vision_replacement": {"enabled": True, "max_steps": 25}},
         }
         vision_training_file = os.path.join(
             self.temp_dir, "vision_replacement_training_config.yaml"
@@ -1053,22 +1091,10 @@ class TestConfigLoading(unittest.TestCase):
         with open(vision_training_file, "w") as f:
             yaml.safe_dump(vision_training_config, f)
 
-        config = load_config(vision_training_file)
-
-        training = config.training.vision_replacement
-        self.assertTrue(training.enabled)
-        self.assertEqual(training.teacher_source, "tensor_cache")
-        self.assertEqual(training.train_target, "replacement_only")
-        self.assertEqual(training.max_steps, 25)
-        self.assertEqual(training.num_workers, 4)
-        self.assertFalse(training.pin_memory)
-        self.assertTrue(training.persistent_workers)
-        self.assertEqual(training.prefetch_factor, 3)
-        self.assertFalse(training.in_order)
-        self.assertEqual(training.tensor_cache["train_inputs"], "train_x.pt")
+        with self.assertRaisesRegex(ValueError, "DendriNet plugin"):
+            load_config(vision_training_file)
 
     def test_load_config_maps_spike_train_analysis(self):
-        load_config.cache_clear()
         spike_config = {
             **self.sample_config,
             "analysis": {
@@ -1089,13 +1115,12 @@ class TestConfigLoading(unittest.TestCase):
 
         config = load_config(spike_file)
 
-        self.assertTrue(config.analysis.spike_train_analysis.enabled)
-        self.assertEqual(config.analysis.spike_train_analysis.params.max_samples, 32)
-        self.assertFalse(config.analysis.spike_train_analysis.params.include_raster)
-        self.assertEqual(config.analysis.spike_train_analysis.params.dt, 0.001)
+        self.assertTrue(config.analysis.spike_train.enabled)
+        self.assertEqual(config.analysis.spike_train.params.max_samples, 32)
+        self.assertFalse(config.analysis.spike_train.params.include_raster)
+        self.assertEqual(config.analysis.spike_train.params.dt, 0.001)
 
     def test_load_config_preserves_recurrent_strategy_config(self):
-        load_config.cache_clear()
         recurrent_config = {
             **self.sample_config,
             "training": {
@@ -1124,7 +1149,10 @@ class TestConfigLoading(unittest.TestCase):
         config = load_config(recurrent_file)
 
         self.assertEqual(config.training.main.strategy, "recurrent")
-        self.assertEqual(config.training.main.strategies.recurrent.grad_clip, 0.25)
+        # The pre-2026-10-10 name loads under grad_clip_value.
+        self.assertEqual(
+            config.training.main.strategies.recurrent.grad_clip_value, 0.25
+        )
         self.assertTrue(config.training.main.strategies.recurrent.use_amp)
         self.assertEqual(
             config.training.main.strategies.recurrent.lr_schedule, "cosine"
@@ -1132,12 +1160,10 @@ class TestConfigLoading(unittest.TestCase):
         self.assertEqual(config.training.main.strategies.recurrent.lr_warmup_epochs, 3)
 
     def test_load_config_invalid_file(self):
-        load_config.cache_clear()
         with self.assertRaises(FileNotFoundError):
             load_config("/nonexistent/config.yaml")
 
     def test_load_config_invalid_yaml(self):
-        load_config.cache_clear()
         invalid_yaml_file = os.path.join(self.temp_dir, "invalid.yaml")
         with open(invalid_yaml_file, "w") as f:
             f.write("invalid: yaml: content: [")
@@ -1208,7 +1234,6 @@ class TestConfigSerialization(unittest.TestCase):
         with open(config_path, "w") as f:
             yaml.safe_dump(payload, f)
 
-        load_config.cache_clear()
         restored = load_config(config_path)
         self.assertEqual(restored.experiment.seed, 7)
         self.assertEqual(_get_field(restored.training.main.common, "epochs"), 150)
@@ -1266,7 +1291,6 @@ class TestStrategyPrecedence(unittest.TestCase):
         with open(config_path, "w") as f:
             yaml.safe_dump(payload, f)
 
-        load_config.cache_clear()
         config = load_config(config_path)
         return prepare_trainer_config(
             config.training.main, config.experiment, "/tmp/test"
@@ -1311,7 +1335,7 @@ class TestStrategyPrecedence(unittest.TestCase):
         self.assertEqual(recurrent_cfg.get("lr_schedule"), "cosine")
 
     def test_explicit_default_valued_override(self):
-        """Common sets grad_clip=5.0; strategy explicitly sets grad_clip=1.0 (the default).
+        """Common sets grad_clip_value=5.0; the strategy explicitly sets 1.0.
 
         The user intentionally chose 1.0 in the strategy block.  Even though
         1.0 equals the dataclass default, the explicit override path must
@@ -1319,13 +1343,13 @@ class TestStrategyPrecedence(unittest.TestCase):
         """
         trainer_cfg = self._make_config_and_prepare(
             common_overrides={"grad_clip_value": 5.0},
-            strategy_overrides={"grad_clip": 1.0},
+            strategy_overrides={"grad_clip_value": 1.0},
         )
         recurrent_cfg = trainer_cfg.get("recurrent_config", {})
-        # The explicit-override path reads the raw YAML, so grad_clip=1.0
+        # The explicit-override path reads the raw YAML, so grad_clip_value=1.0
         # should be forwarded even though it matches the dataclass default.
-        self.assertIn("grad_clip", recurrent_cfg)
-        self.assertEqual(recurrent_cfg["grad_clip"], 1.0)
+        self.assertIn("grad_clip_value", recurrent_cfg)
+        self.assertEqual(recurrent_cfg["grad_clip_value"], 1.0)
 
     def test_explicit_default_runtime_fields_are_preserved(self):
         """Explicit default-valued recurrent fields must override common values.
@@ -1368,14 +1392,14 @@ class TestStrategyPrecedence(unittest.TestCase):
                 "use_amp": False,
                 "lr_schedule": "none",
                 "lr_warmup_epochs": 0,
-                "grad_clip": 1.0,
+                "grad_clip_value": 1.0,
             },
         )
         self.assertEqual(type(trainer).__name__, "RecurrentTrainer")
         self.assertFalse(trainer.recurrent_amp)
         self.assertEqual(trainer.lr_schedule, "none")
         self.assertEqual(trainer.lr_warmup_epochs, 0)
-        self.assertEqual(trainer.grad_clip, 1.0)
+        self.assertEqual(trainer.grad_clip_value, 1.0)
 
 
 class TestConfigIntegration(unittest.TestCase):
@@ -1399,9 +1423,9 @@ class TestConfigIntegration(unittest.TestCase):
 
     def test_analysis_compatibility_fields(self):
         analysis = self.config.analysis
-        self.assertTrue(hasattr(analysis, "performance_analysis"))
-        self.assertTrue(hasattr(analysis, "information_analysis"))
-        self.assertTrue(hasattr(analysis, "ablation_analysis"))
+        self.assertTrue(hasattr(analysis, "performance"))
+        self.assertTrue(hasattr(analysis, "information"))
+        self.assertTrue(hasattr(analysis, "ablation"))
 
 
 if __name__ == "__main__":

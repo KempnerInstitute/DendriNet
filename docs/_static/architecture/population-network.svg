@@ -66,7 +66,7 @@
   <text class="nodeSub" x="114" y="411" text-anchor="middle">input_e, input_i</text>
 
   <rect class="layer" x="245" y="132" width="390" height="450"/>
-  <text class="layerTitle" x="272" y="166">layer0: feedforward E/I circuit</text>
+  <text class="layerTitle" x="272" y="166">layer0: E/I circuit, recurrent: true</text>
   <text class="small" x="272" y="190">readout_population: e0</text>
   <rect class="eNode" x="286" y="228" width="150" height="90"/>
   <text class="nodeText" x="361" y="260" text-anchor="middle">e0</text>
@@ -89,7 +89,7 @@
   <rect class="eNode" x="817" y="228" width="170" height="90"/>
   <text class="nodeText" x="902" y="260" text-anchor="middle">e1</text>
   <text class="nodeSub" x="902" y="282" text-anchor="middle">source: layer0.e0</text>
-  <text class="nodeSub" x="902" y="301" text-anchor="middle">and layer0.i0</text>
+  <text class="nodeSub" x="902" y="301" text-anchor="middle">and layer0.pv0</text>
   <rect class="iNode" x="817" y="378" width="170" height="82"/>
   <text class="nodeText" x="902" y="410" text-anchor="middle">i1</text>
   <text class="nodeSub" x="902" y="432" text-anchor="middle">source: layer0.e0</text>
@@ -102,6 +102,7 @@
   <text class="nodeSub" x="1303" y="303" text-anchor="middle">final readout</text>
 
   <path class="eEdge" d="M182,260 C218,252 238,260 284,268"/>
+  <path class="eEdge" d="M182,244 C250,200 470,200 520,226"/>
   <path class="eEdge" d="M182,388 C222,378 236,404 284,416"/>
   <path class="eEdge" d="M182,382 C230,350 237,286 284,280"/>
   <path class="iEdge" d="M356,378 C348,350 350,336 358,319"/>
@@ -118,7 +119,8 @@
   <text class="small" x="1012" y="124">timing: delayed</text>
   <text class="small" x="1012" y="143">uses previous state</text>
   <path class="dEdge" d="M902,318 C898,682 394,680 360,319"/>
-  <text class="small" x="540" y="704">delayed cross-layer feedback is allowed; same-step feedback is rejected</text>
+  <text class="small" x="880" y="548">delayed feedback may cross layers;</text>
+  <text class="small" x="880" y="566">same-step feedback is rejected</text>
 
   <rect class="callout" x="54" y="602" width="316" height="188"/>
   <text class="callTitle" x="78" y="632">Connection contract</text>
@@ -145,16 +147,16 @@
   <text class="code" x="826" y="704">probability: eligible pairs</text>
   <text class="code" x="826" y="726">topk_type: indexed_rewire | indexed_dynamic</text>
   <text class="small" x="826" y="754">Masks decide which pairs can connect;</text>
-  <text class="small" x="826" y="774">TopK decides how many are active per branch.</text>
+  <text class="small" x="826" y="774">Top-K decides how many are active per branch.</text>
 
   <rect class="callout" x="1144" y="602" width="292" height="188"/>
-  <text class="callTitle" x="1168" y="632">Recommended initialization</text>
+  <text class="callTitle" x="1168" y="632">Common population settings</text>
   <text class="code" x="1168" y="660">reactivation_init_policy:</text>
   <text class="code" x="1168" y="682">  occupancy_quantile</text>
   <text class="code" x="1168" y="704">weight_transform: softplus</text>
-  <text class="code" x="1168" y="726">weight_boosting: true</text>
-  <text class="small" x="1168" y="754">Use normalized additive only when that</text>
-  <text class="small" x="1168" y="774">model is intended explicitly.</text>
+  <text class="code" x="1168" y="726">topk_type: indexed_rewire</text>
+  <text class="small" x="1168" y="754">Defaults and other values are listed</text>
+  <text class="small" x="1168" y="774">with the population options.</text>
 
   <line class="eEdge" x1="1215" y1="78" x2="1260" y2="78"/>
   <text class="legendTitle" x="1272" y="83">excitatory source</text>

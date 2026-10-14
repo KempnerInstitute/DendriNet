@@ -37,6 +37,7 @@ import sys
 from pathlib import Path
 
 from dendritic_modeling.utils.gpu_estimation import estimate_from_config
+from dendritic_modeling.utils.logging_config import setup_logging
 
 # Configure module logger
 logger = logging.getLogger(__name__)
@@ -116,15 +117,8 @@ def validate_config_file(config_path: Path) -> None:
 
 
 def configure_logging(verbose: bool) -> None:
-    """Configure logging based on verbosity level."""
-    log_level = logging.DEBUG if verbose else logging.INFO
-    log_format = (
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        if verbose
-        else "%(levelname)s: %(message)s"
-    )
-
-    logging.basicConfig(level=log_level, format=log_format, datefmt="%Y-%m-%d %H:%M:%S")
+    """Print the package's records, DEBUG ones too when ``verbose``."""
+    setup_logging(debug=verbose)
 
 
 def main():
@@ -205,4 +199,5 @@ def main():
 
 
 if __name__ == "__main__":
+    setup_logging()
     sys.exit(main())

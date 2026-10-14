@@ -51,7 +51,9 @@ def _pearson_proxy_from_samples(a: torch.Tensor, b: torch.Tensor) -> float:
     a_centered = a - a.mean()
     b_centered = b - b.mean()
     denom = a_centered.std(unbiased=False) * b_centered.std(unbiased=False) + _RHO_EPS
-    return float((a_centered * b_centered).mean().item() / denom.item())
+    # One host read; the division stays in Python floats.
+    covariance, scale = torch.stack([(a_centered * b_centered).mean(), denom]).tolist()
+    return float(covariance / scale)
 
 
 def _noisy_mean_samples(
@@ -62,8 +64,7 @@ def _noisy_mean_samples(
     noise_sigma: float,
 ) -> tuple[list[float], list[float]]:
     """Return noisy scalar sample means while preserving RNG call order."""
-    a_samples = []
-    b_samples = []
+    means = []
     a_orig = a.clone()
     b_orig = b.clone()
 
@@ -72,10 +73,13 @@ def _noisy_mean_samples(
         noise_b = torch.randn_like(b_orig) * noise_sigma
         a_noisy = a_orig + noise_a
         b_noisy = b_orig + noise_b
-        a_samples.append(a_noisy.mean().item())
-        b_samples.append(b_noisy.mean().item())
+        means.append(torch.stack([a_noisy.mean(), b_noisy.mean()]))
 
-    return a_samples, b_samples
+    if not means:
+        return [], []
+    # All samples are read from the device at once.
+    pairs = torch.stack(means).tolist()
+    return [pair[0] for pair in pairs], [pair[1] for pair in pairs]
 
 
 def _mean_augmented_activity_pair(
@@ -176,6 +180,9 @@ class LocalLearningRhoMixin(LocalLearningPhiMixin):
         if rho_mode == "none":
             return 1.0
 
+        if rho_mode != "pearson":
+            raise ValueError(f"Unknown four_factor.rho_mode {rho_mode!r}")
+
         if batch_size >= 2:
             rho_batch = _pearson_proxy_from_samples(a, b)
             stats.rho_ema = _ema_update(
@@ -197,8 +204,7 @@ class LocalLearningRhoMixin(LocalLearningPhiMixin):
                     noise_sigma=self.local_cfg.four_factor.augment_noise_sigma,
                 )
             else:
-                a_sample = a.mean().item()
-                b_sample = b.mean().item()
+                a_sample, b_sample = torch.stack([a.mean(), b.mean()]).tolist()
 
             rho_ema = _update_single_sample_ema_rho(
                 stats,
@@ -224,8 +230,7 @@ class LocalLearningRhoMixin(LocalLearningPhiMixin):
             )
             return _clamp_rho(rho_augment)
 
-        logger.warning(f"Unknown rho_estimator '{estimator}'; returning 1.0")
-        return 1.0
+        raise ValueError(f"Unknown four_factor.rho_estimator {estimator!r}")
 
 
 __all__ = ["LocalLearningRhoMixin"]

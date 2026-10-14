@@ -1,0 +1,178 @@
+{
+  "legacy": {
+    "rows": [
+      {
+        "seed": 0,
+        "arm": "reference",
+        "metric": 0.2,
+        "group": "example"
+      },
+      {
+        "seed": 0,
+        "arm": "comparison",
+        "metric": 0.3,
+        "group": "example"
+      },
+      {
+        "seed": 1,
+        "arm": "reference",
+        "metric": 0.4,
+        "group": "example"
+      },
+      {
+        "seed": 1,
+        "arm": "comparison",
+        "metric": 0.6,
+        "group": "example"
+      },
+      {
+        "seed": 2,
+        "arm": "reference",
+        "metric": 0.9,
+        "group": "example"
+      },
+      {
+        "seed": 2,
+        "arm": "comparison",
+        "metric": 0.5,
+        "group": "example"
+      },
+      {
+        "seed": 3,
+        "arm": "reference",
+        "metric": 0.3,
+        "group": "example"
+      },
+      {
+        "seed": 3,
+        "arm": "comparison",
+        "metric": 0.7,
+        "group": "example"
+      },
+      {
+        "seed": 4,
+        "arm": "reference",
+        "metric": 0.6,
+        "group": "example"
+      },
+      {
+        "seed": 4,
+        "arm": "comparison",
+        "metric": 0.65,
+        "group": "example"
+      }
+    ],
+    "paired_csv": "group,seed,metric__reference,metric__comparison,delta__comparison_minus_reference\nexample,0,0.2,0.3,0.09999999999999998\nexample,1,0.4,0.6,0.19999999999999996\nexample,2,0.9,0.5,-0.4\nexample,3,0.3,0.7,0.39999999999999997\nexample,4,0.6,0.65,0.050000000000000044\n",
+    "summaries": [
+      {
+        "group": "example",
+        "arm_column": "arm",
+        "reference": "reference",
+        "comparison": "comparison",
+        "metric": "metric",
+        "delta_definition": "comparison - reference",
+        "mean": 0.06999999999999998,
+        "lower": -0.19024999999999997,
+        "upper": 0.26075000000000015,
+        "standard_deviation": 0.2949576240750525,
+        "n_units": 5,
+        "draws": 200,
+        "seed": 6113544999792973785,
+        "confidence": 0.95,
+        "interval_method": "experimental_unit_percentile"
+      }
+    ]
+  },
+  "current": {
+    "rows": [
+      {
+        "seed": 0,
+        "arm": "reference",
+        "metric": 0.2,
+        "group": "example"
+      },
+      {
+        "seed": 0,
+        "arm": "comparison",
+        "metric": 0.3,
+        "group": "example"
+      },
+      {
+        "seed": 1,
+        "arm": "reference",
+        "metric": 0.4,
+        "group": "example"
+      },
+      {
+        "seed": 1,
+        "arm": "comparison",
+        "metric": 0.6,
+        "group": "example"
+      },
+      {
+        "seed": 2,
+        "arm": "reference",
+        "metric": 0.9,
+        "group": "example"
+      },
+      {
+        "seed": 2,
+        "arm": "comparison",
+        "metric": 0.5,
+        "group": "example"
+      },
+      {
+        "seed": 3,
+        "arm": "reference",
+        "metric": 0.3,
+        "group": "example"
+      },
+      {
+        "seed": 3,
+        "arm": "comparison",
+        "metric": 0.7,
+        "group": "example"
+      },
+      {
+        "seed": 4,
+        "arm": "reference",
+        "metric": 0.6,
+        "group": "example"
+      },
+      {
+        "seed": 4,
+        "arm": "comparison",
+        "metric": 0.65,
+        "group": "example"
+      }
+    ],
+    "paired_csv": "group,seed,metric__reference,metric__comparison,delta__comparison_minus_reference\nexample,0,0.2,0.3,0.09999999999999998\nexample,1,0.4,0.6,0.19999999999999996\nexample,2,0.9,0.5,-0.4\nexample,3,0.3,0.7,0.39999999999999997\nexample,4,0.6,0.65,0.050000000000000044\n",
+    "summaries": [
+      {
+        "group": "example",
+        "arm_column": "arm",
+        "reference": "reference",
+        "comparison": "comparison",
+        "metric": "metric",
+        "contrast_operation": "difference",
+        "delta_definition": "comparison - reference",
+        "mean": 0.06999999999999998,
+        "lower": -0.18000000000000002,
+        "upper": 0.25025000000000003,
+        "standard_deviation": 0.2949576240750525,
+        "n_units": 5,
+        "draws": 200,
+        "seed": 5867165247931935598,
+        "confidence": 0.95,
+        "interval_method": "experimental_unit_percentile"
+      }
+    ]
+  },
+  "provenance": {
+    "legacy": "c39fa57987e5f5f702274482bdd9a7a6c9e3382b",
+    "current": "5c2c27d317d806cbfb567d7e8bffdbac189e1eb5",
+    "numpy": "1.26.4",
+    "pandas": "2.3.3",
+    "note": "Executed unchanged paired_arm_comparison from each real source checkout on five synthetic pairs; bootstrap draws=200, seed=17."
+  }
+}

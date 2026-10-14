@@ -58,7 +58,11 @@ class LocalLearningModulatorMixin(LocalLearningPostFactorsMixin):
             return self._compute_branch_depth_modulator(rec, rho)
         if morphology_mode == "centrality":
             return self._compute_branch_centrality_modulator(rec, rho)
-        return rho
+        if morphology_mode == "none":
+            return rho
+        raise ValueError(
+            f"Unknown morphology_aware.morphology_modulator_mode {morphology_mode!r}"
+        )
 
     def _compute_local_phi_modulator(
         self,
@@ -83,11 +87,15 @@ class LocalLearningModulatorMixin(LocalLearningPostFactorsMixin):
         """Compute the unscaled phi value using the configured estimator."""
         phi_mode = self.local_cfg.five_factor.phi_mode.lower()
         phi_estimator = self.local_cfg.five_factor.phi_estimator.lower()
+        if phi_estimator not in {"conditional_ema", "variance_ema"}:
+            raise ValueError(f"Unknown five_factor.phi_estimator {phi_estimator!r}")
         if phi_mode == "conditional":
             if phi_estimator == "variance_ema":
                 return self._compute_layer_phi(rec)
             return self._compute_layer_phi_conditional(rec)
-        return self._compute_layer_phi(rec)
+        if phi_mode == "variance":
+            return self._compute_layer_phi(rec)
+        raise ValueError(f"Unknown five_factor.phi_mode {phi_mode!r}")
 
     def _compute_local_branch_scales(
         self,

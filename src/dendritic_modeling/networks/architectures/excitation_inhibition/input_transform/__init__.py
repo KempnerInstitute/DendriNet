@@ -1,3 +1,6 @@
+from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.divisive import (
+    DivisiveInputNormalizer,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.identity import (
     IdentityInputTransform,
 )
@@ -8,4 +11,9 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.input_trans
     TransferLayer,
 )
 
-__all__ = ["IdentityInputTransform", "IndexInputTransform", "TransferLayer"]
+__all__ = [
+    "DivisiveInputNormalizer",
+    "IdentityInputTransform",
+    "IndexInputTransform",
+    "TransferLayer",
+]

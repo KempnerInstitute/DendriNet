@@ -27,6 +27,7 @@ class InformationMetricsMixin(InformationMutualInformationMixin):
         C: np.ndarray,
         Vinf: np.ndarray | None,
         Vb: np.ndarray | None,
+        S: np.ndarray | None,
     ) -> tuple[tuple[bool, str, str, Callable[[], Any]], ...]:
         return (
             (
@@ -54,10 +55,16 @@ class InformationMetricsMixin(InformationMutualInformationMixin):
                 lambda: self._compute_gaussian_fisher(E, I_var, Vout, C, Vinf, Vb),
             ),
             (
-                self.compute_pid and self.pid_available,
+                self.compute_pid,
                 "pid",
                 "Computing PID metrics...",
                 lambda: self._compute_pid(E, I_var, Vout, C),
+            ),
+            (
+                getattr(self, "compute_soma_coupling_mi", False) and S is not None,
+                "soma_coupling_mi",
+                "Computing branch-to-parent-soma MI metrics...",
+                lambda: self._compute_soma_coupling_mi(E, I_var, Vout, C, S),
             ),
         )
 
@@ -69,6 +76,7 @@ class InformationMetricsMixin(InformationMutualInformationMixin):
         C: np.ndarray,
         Vinf: np.ndarray | None = None,
         Vb: np.ndarray | None = None,
+        S: np.ndarray | None = None,
     ) -> dict[str, Any]:
         """Compute all requested information metrics.
 
@@ -86,6 +94,8 @@ class InformationMetricsMixin(InformationMutualInformationMixin):
             Soma activation (Vinf), shape (n_samples,) or (n_samples, n_features)
         Vb : np.ndarray, optional
             Branch input (upstream dendritic input), shape (n_samples,) or (n_samples, n_features)
+        S : np.ndarray, optional
+            Parent soma output corresponding to the analyzed branch.
 
         Returns
         -------
@@ -106,6 +116,12 @@ class InformationMetricsMixin(InformationMutualInformationMixin):
 
         if Vb is not None:
             Vb = self._ensure_2d(Vb)
+        if S is not None:
+            S = self._ensure_2d(S)
+            if len(S) != len(E):
+                raise ValueError(
+                    f"S must have same number of samples as E: {len(S)} vs {len(E)}"
+                )
 
         results = {
             "method": self.method,
@@ -113,7 +129,7 @@ class InformationMetricsMixin(InformationMutualInformationMixin):
         }
 
         for enabled, result_key, log_message, compute_fn in self._metric_compute_jobs(
-            E, I_var, Vout, C, Vinf, Vb
+            E, I_var, Vout, C, Vinf, Vb, S
         ):
             if enabled:
                 self.logger.info(log_message)

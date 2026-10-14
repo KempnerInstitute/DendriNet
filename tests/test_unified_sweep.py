@@ -12,7 +12,7 @@ from omegaconf import DictConfig, OmegaConf
 from dendritic_modeling.scripts.sweeps.unified.sweep_types import unified_sweep
 from dendritic_modeling.scripts.sweeps.unified.sweep_types.unified_sweep import (
     UnifiedSweepGenerator,
-    expand_ranges,
+    expand_axis,
 )
 
 
@@ -23,6 +23,7 @@ def _build_sweep_request(
     return OmegaConf.create(
         {
             "sweep_config": sweep_definition.get("sweep_config", {}),
+            "sweep_variants": sweep_definition.get("sweep_variants", []),
             "filter_config": sweep_definition.get("filter_config", {}),
             "experiment_settings": sweep_definition.get("experiment_settings", {}),
             "base_config": base_training_config,
@@ -30,62 +31,76 @@ def _build_sweep_request(
     )
 
 
-class TestExpandRanges:
-    """Test the expand_ranges utility function."""
+class TestExpandAxis:
+    """Sweep axes: literal lists and explicit range mappings."""
 
-    def test_integer_range(self):
-        """Test expanding integer ranges."""
-        result = expand_ranges([1, 10, 2])
-        expected = [1, 3, 5, 7, 9]
-        assert result == expected
+    def test_lists_are_literal(self):
+        assert expand_axis([1, 2, 5, 10]) == [1, 2, 5, 10]
+        assert expand_axis([0.5, 1.0, 2.0]) == [0.5, 1.0, 2.0]
+        assert expand_axis([[4, 8], [8, 16]]) == [[4, 8], [8, 16]]
 
-    def test_float_range(self):
-        """Test expanding float ranges."""
-        result = expand_ranges([0.0, 1.0, 0.25])
-        assert len(result) == 5  # [0.0, 0.25, 0.5, 0.75, 1.0]
-        assert result == [0.0, 0.25, 0.5, 0.75, 1.0]
-        assert abs(result[0] - 0.0) < 1e-10
-        assert abs(result[1] - 0.25) < 1e-10
+    def test_scalar_is_a_one_value_axis(self):
+        assert expand_axis(42) == [42]
+        assert expand_axis("hello") == ["hello"]
 
-    def test_non_range_list(self):
-        """Test that non-range lists are returned as-is."""
-        test_list = [1, 2, 5, 10]
-        result = expand_ranges(test_list)
-        assert result == test_list
+    def test_integer_range_includes_the_stop(self):
+        assert expand_axis({"range": {"start": 1, "stop": 10, "step": 3}}) == [
+            1,
+            4,
+            7,
+            10,
+        ]
+        assert expand_axis({"range": {"start": 10, "stop": 1, "step": -3}}) == [
+            10,
+            7,
+            4,
+            1,
+        ]
 
-    def test_non_list_input(self):
-        """Test that non-list inputs are returned as-is."""
-        assert expand_ranges(42) == 42
-        assert expand_ranges("hello") == "hello"
-        assert expand_ranges({"key": "value"}) == {"key": "value"}
+    def test_float_range_has_no_representation_noise(self):
+        assert expand_axis({"range": {"start": 0.0, "stop": 1.0, "step": 0.25}}) == [
+            0.0,
+            0.25,
+            0.5,
+            0.75,
+            1.0,
+        ]
+        assert expand_axis({"range": {"start": 0.1, "stop": 0.3, "step": 0.1}}) == [
+            0.1,
+            0.2,
+            0.3,
+        ]
+
+    def test_linspace_geomspace_and_values(self):
+        assert expand_axis({"linspace": {"start": 0, "stop": 1, "num": 3}}) == [
+            0.0,
+            0.5,
+            1.0,
+        ]
+        assert expand_axis({"geomspace": {"start": 1e-3, "stop": 1e-1, "num": 3}}) == [
+            0.001,
+            0.01,
+            0.1,
+        ]
+        assert expand_axis({"values": [1, 10, 3]}) == [1, 10, 3]
 
     def test_omegaconf_input(self):
-        """Test with OmegaConf ListConfig input."""
-        omega_list = OmegaConf.create([1, 10, 2])
-        result = expand_ranges(omega_list)
-        expected = [1, 3, 5, 7, 9]
-        assert result == expected
+        assert expand_axis(OmegaConf.create([1, 2, 5])) == [1, 2, 5]
 
-    def test_wrong_length_list(self):
-        """Test that lists with wrong length are returned as-is."""
-        # Not length 3
-        assert expand_ranges([1, 2]) == [1, 2]
-        assert expand_ranges([1, 2, 3, 4]) == [1, 2, 3, 4]
+    @pytest.mark.parametrize(
+        "value", [[1, 10, 2], [0.001, 0.01, 0.005], [-1, 0, 1], [10, 1, -2]]
+    )
+    def test_triples_read_as_ranges_by_older_versions_raise(self, value):
+        with pytest.raises(ValueError, match="ambiguous"):
+            expand_axis(value, name="sweep_config.x")
 
-    def test_edge_cases(self):
-        """Test edge cases for range expansion."""
-        # Same start and end: not treated as a range by current logic.
-        result = expand_ranges([5, 5, 1])
-        assert result == [5, 5, 1]
-
-        # Step larger than range: treated as a regular list, not a range.
-        result = expand_ranges([1, 3, 5])
-        assert result == [1, 3, 5]
-
-        # Negative step (should work backwards)
-        result = expand_ranges([10, 1, -2])
-        expected = [10, 8, 6, 4]  # Stops at 4, doesn't include 2
-        assert result == expected
+    @pytest.mark.parametrize(
+        "value",
+        [[], {"range": {"start": 5, "stop": 1, "step": 1}}, {"range": {"start": 1}}],
+    )
+    def test_empty_or_malformed_axes_raise(self, value):
+        with pytest.raises(ValueError):
+            expand_axis(value)
 
 
 class TestUnifiedSweepGenerator:
@@ -132,7 +147,6 @@ class TestUnifiedSweepGenerator:
                     "base_dir": "",
                     "processing": {"flatten": True, "normalize": False},
                 },
-                "wandb": {"use_wandb": False},
                 "analysis": {},
                 "outputs": {},
                 "experiment": {"seed": 42},
@@ -152,7 +166,7 @@ class TestUnifiedSweepGenerator:
         config = OmegaConf.create({"filter_config": {}, "experiment_settings": {}})
         # Should raise ValueError when validation fails
         with pytest.raises(
-            ValueError, match="Either sweep_config must have parameters"
+            ValueError, match="At least one of sweep_config, sweep_variants"
         ):
             generator.validate_config(config)
 
@@ -161,8 +175,100 @@ class TestUnifiedSweepGenerator:
         config = OmegaConf.create({"sweep_config": {}, "filter_config": {}})
         # Should raise ValueError when validation fails
         with pytest.raises(
-            ValueError, match="Either sweep_config must have parameters"
+            ValueError, match="At least one of sweep_config, sweep_variants"
         ):
+            generator.validate_config(config)
+
+    def test_named_sweep_variants_apply_correlated_overrides_before_grid(
+        self, generator, base_model_config
+    ):
+        """A named recipe remains one axis and is exported in every config."""
+
+        request = OmegaConf.create(
+            {
+                "sweep_variants": [
+                    {
+                        "name": "indexed_dendritic",
+                        "overrides": {
+                            "model.network.kind": "dendritic",
+                            "model.network.sparsity": "indexed",
+                        },
+                    },
+                    {
+                        "name": "matched_dense_mlp",
+                        "overrides": {
+                            "model.network.kind": "mlp",
+                            "model.network.sparsity": "dense",
+                        },
+                    },
+                ],
+                "sweep_config": {"training.main.trainer.learning_rate": [0.01, 0.02]},
+                "filter_config": {},
+                "experiment_settings": {
+                    "seeds_per_condition": 2,
+                    "base_seed": 51,
+                    "seed_paths": ["model.network.topology_seed"],
+                },
+                "base_config": base_model_config,
+            }
+        )
+
+        assert generator.validate_config(request)
+        configs = generator.generate_configs(request)
+
+        assert len(configs) == 8
+        observed = {
+            (
+                cfg._sweep_variant,
+                cfg.model.network.kind,
+                cfg.model.network.sparsity,
+                cfg.training.main.trainer.learning_rate,
+                cfg.experiment.seed,
+                cfg.model.network.topology_seed,
+            )
+            for cfg in configs
+        }
+        assert observed == {
+            (name, kind, sparsity, learning_rate, seed, seed)
+            for name, kind, sparsity in (
+                ("indexed_dendritic", "dendritic", "indexed"),
+                ("matched_dense_mlp", "mlp", "dense"),
+            )
+            for learning_rate in (0.01, 0.02)
+            for seed in (51, 52)
+        }
+
+    @pytest.mark.parametrize(
+        ("variants", "error", "message"),
+        [
+            ({"name": "x", "overrides": {}}, TypeError, "must be a list"),
+            ([{"name": "", "overrides": {}}], ValueError, "name cannot be empty"),
+            (
+                [
+                    {"name": "same", "overrides": {}},
+                    {"name": "same", "overrides": {}},
+                ],
+                ValueError,
+                "Duplicate sweep variant name",
+            ),
+            (
+                [{"name": "bad", "overrides": []}],
+                TypeError,
+                "overrides must be a dot-path mapping",
+            ),
+        ],
+    )
+    def test_named_sweep_variants_fail_closed(
+        self, generator, variants, error, message
+    ):
+        config = OmegaConf.create(
+            {
+                "sweep_variants": variants,
+                "sweep_config": {},
+                "filter_config": {},
+            }
+        )
+        with pytest.raises(error, match=message):
             generator.validate_config(config)
 
     def test_apply_ei_filter_maintain_ratio(self, generator):
@@ -182,7 +288,7 @@ class TestUnifiedSweepGenerator:
         """Test EI filter with ei-sum mode."""
         ee_values = [4, 8]
         ie_values = [2, 4]
-        filter_config = {"mode": "ei-sum", "value": 10}  # Sum should equal 10
+        filter_config = {"mode": "ei-sum", "value": 10, "tolerance": 0}
 
         result = generator._apply_ei_filter(ee_values, ie_values, filter_config)
 
@@ -204,78 +310,54 @@ class TestUnifiedSweepGenerator:
         assert isinstance(result, list)
         assert all(item[0] == 4 for item in result)  # First element (ee) should be 4
 
-    def test_generate_branch_combinations_basic(self, generator):
-        """Test basic branch combination generation."""
-        filter_config = {
-            "branch_mode": "manual",
-            "excitatory_branch_factors": [[2, 4], [4, 8]],
-            "inhibitory_branch_factors": [[1, 2], [2, 4]],
-        }
-
-        result = generator._generate_branch_combinations(filter_config)
-
-        # Check for the actual keys that are generated
-        assert "model.core_network.parameters.dendrite_branches_per_layer" in result
-        assert "model.core_network.parameters.dendrite_tree_depth" in result
-        assert (
-            len(result["model.core_network.parameters.dendrite_branches_per_layer"]) > 0
-        )
-        assert len(result["model.core_network.parameters.dendrite_tree_depth"]) > 0
-
-    def test_generate_branch_combinations_from_layers(self, generator):
-        """Test branch combination generation from layer sizes."""
-        filter_config = {
-            "branch_mode": "from_layers",
-            "base_excitatory_layers": [4, 8],
-            "base_inhibitory_layers": [2, 4],
-            "min_branches_per_neuron": 2,
-            "max_branches_per_neuron": 4,
-        }
-
-        result = generator._generate_branch_combinations(filter_config)
-
-        # Check for the actual keys that are generated
-        assert "model.core_network.parameters.dendrite_branches_per_layer" in result
-        assert "model.core_network.parameters.dendrite_tree_depth" in result
-        assert (
-            len(result["model.core_network.parameters.dendrite_branches_per_layer"]) > 0
-        )
-        assert len(result["model.core_network.parameters.dendrite_tree_depth"]) > 0
-
-    def test_generate_branch_combinations_adaptive(self, generator):
-        """Test adaptive branch combination generation."""
-        filter_config = {
-            "branch_mode": "adaptive",
-            "target_total_branches": [16, 32],
-            "base_excitatory_layers": [4, 8],
-            "base_inhibitory_layers": [2, 4],
-        }
-
-        result = generator._generate_branch_combinations(filter_config)
-
-        # Check for the actual keys that are generated
-        assert "model.core_network.parameters.dendrite_branches_per_layer" in result
-        assert "model.core_network.parameters.dendrite_tree_depth" in result
+    @pytest.mark.parametrize(
+        "filter_config, message",
+        [
+            ({"mode": "ei-sum", "tolerance": 0}, "needs filter_config.value"),
+            ({"mode": "ei-ratio", "value": 2}, "needs filter_config.tolerance"),
+            ({"mode": "e-const", "value": 5}, "not on the E axis"),
+            ({"mode": "ei-sum", "value": 100, "tolerance": 0}, "selects no E/I"),
+        ],
+    )
+    def test_apply_ei_filter_rejects_incomplete_or_empty_filters(
+        self, generator, filter_config, message
+    ):
+        with pytest.raises(ValueError, match=message):
+            generator._apply_ei_filter([4, 8], [2, 4], filter_config)
 
     def test_generate_branch_configurations(self, generator):
         """Test branch configuration generation."""
         filter_config = {
-            "branch_mode": "manual",
-            "excitatory_branch_factors": [[2, 4]],
-            "inhibitory_branch_factors": [[1, 2]],
-            "ee_synapses_per_branch_per_layer": [1, 2],
-            "ei_synapses_per_branch_per_layer": [1],
-            "ie_synapses_per_branch_per_layer": [1],
-            "ii_synapses_per_branch_per_layer": [1],
+            "branch_sweep_mode": "uniform_sweep",
+            "dendrite_tree_depth": {"range": {"start": 1, "stop": 2, "step": 1}},
+            "dendrite_branches_per_layer": [2, 4],
         }
 
         result = generator._generate_branch_configurations(filter_config)
 
-        assert len(result) > 0
-        for config in result:
-            # Check for the actual keys that are generated
-            assert "dendrite_branches_per_layer" in config
-            assert "dendrite_tree_depth" in config
+        assert result == [
+            {"dendrite_tree_depth": 1, "dendrite_branches_per_layer": 2},
+            {"dendrite_tree_depth": 1, "dendrite_branches_per_layer": 4},
+            {"dendrite_tree_depth": 2, "dendrite_branches_per_layer": 2},
+            {"dendrite_tree_depth": 2, "dendrite_branches_per_layer": 4},
+        ]
+
+    def test_branch_configurations_need_explicit_axes(self, generator):
+        with pytest.raises(
+            ValueError, match=r"needs filter_config\.dendrite_tree_depth"
+        ):
+            generator._generate_branch_configurations(
+                {"branch_sweep_mode": "depth_sweep", "uniform_branches_per_layer": 2}
+            )
+        with pytest.raises(ValueError, match=r"Unknown filter_config\.branch_patterns"):
+            generator._generate_branch_configurations(
+                {
+                    "branch_sweep_mode": "pattern_sweep",
+                    "branch_patterns": ["spiral"],
+                    "dendrite_tree_depth": [2],
+                    "base_branches": 2,
+                }
+            )
 
     def test_generate_configs_basic(self, generator, basic_config, base_model_config):
         """Test basic config generation."""
@@ -312,15 +394,13 @@ class TestUnifiedSweepGenerator:
             print(f"Generated {len(configs)} config - sweep may need debugging")
 
     def test_generate_configs_with_range_expansion(self, generator, base_model_config):
-        """Test config generation with range expansion."""
+        """An explicit range axis expands into one config per value."""
         config_with_ranges = OmegaConf.create(
             {
                 "sweep_config": {
-                    "training.main.trainer.learning_rate": [
-                        0.001,
-                        0.01,
-                        0.002,
-                    ]  # Range format
+                    "training.main.trainer.learning_rate": {
+                        "geomspace": {"start": 0.001, "stop": 0.1, "num": 3}
+                    }
                 },
                 "filter_config": {},
                 "experiment_settings": {"seeds_per_condition": 1, "base_seed": 42},
@@ -330,23 +410,17 @@ class TestUnifiedSweepGenerator:
         request_config = _build_sweep_request(config_with_ranges, base_model_config)
         configs = generator.generate_configs(request_config)
 
-        assert len(configs) > 0
+        assert [c.training.main.trainer.learning_rate for c in configs] == [
+            0.001,
+            0.01,
+            0.1,
+        ]
 
-        # Check that learning rates were expanded
-        learning_rates = []
-        for config in configs:
-            if "training" in config and "main" in config.training:
-                lr = config.training.main.trainer.learning_rate
-                learning_rates.append(lr)
-
-        # Check if range expansion is working
-        if len(set(learning_rates)) > 1:
-            print(f"Range expansion working: {set(learning_rates)}")
-        else:
-            print(
-                f"Single learning rate used: {set(learning_rates)} - range expansion may need debugging"
+    def test_generate_configs_requires_base_config(self, generator):
+        with pytest.raises(ValueError, match="need a base_config"):
+            generator.generate_configs(
+                OmegaConf.create({"sweep_config": {"a.b": [1, 2]}})
             )
-        assert len(learning_rates) > 0  # At least one learning rate should be present
 
     def test_generate_configs_with_population_network_list_paths(self, generator):
         """Population-network sweeps can address layers by numeric dot-path index."""
@@ -412,7 +486,7 @@ class TestUnifiedSweepGenerator:
                         20,
                     ],
                 },
-                "filter_config": {"mode": "ei-sum", "value": 40},
+                "filter_config": {"mode": "ei-sum", "value": 40, "tolerance": 0},
                 "experiment_settings": {
                     "seeds_per_condition": 1,
                     "base_seed": 123,
@@ -447,7 +521,9 @@ class TestUnifiedSweepGenerator:
                 "filter_config": {
                     "mode": "branch_sweep",
                     "branch_sweep_mode": "depth_sweep",
-                    "dendrite_tree_depth": [1, 2, 1],
+                    "dendrite_tree_depth": {
+                        "range": {"start": 1, "stop": 2, "step": 1}
+                    },
                     "uniform_branches_per_layer": 3,
                 },
                 "experiment_settings": {
@@ -641,7 +717,6 @@ class TestUnifiedSweepGenerator:
                 },
                 "model": {},
                 "data": {},
-                "wandb": {},
                 "analysis": {},
                 "outputs": {},
             }
@@ -689,7 +764,6 @@ class TestUnifiedSweepGenerator:
                 },
                 "model": {},
                 "data": {},
-                "wandb": {},
                 "analysis": {},
                 "outputs": {},
             }
@@ -733,7 +807,6 @@ class TestUnifiedSweepGenerator:
                 },
                 "model": {},
                 "data": {},
-                "wandb": {},
                 "analysis": {},
                 "outputs": {},
             }
@@ -796,7 +869,6 @@ class TestUnifiedSweepIntegration:
                     "base_dir": "",
                     "processing": {"flatten": True, "normalize": False},
                 },
-                "wandb": {"use_wandb": False},
                 "analysis": {},
                 "outputs": {},
             }
@@ -861,7 +933,6 @@ class TestUnifiedSweepIntegration:
                     "base_dir": "",
                     "processing": {"flatten": True, "normalize": False},
                 },
-                "wandb": {"use_wandb": False},
                 "analysis": {},
                 "outputs": {},
             }
@@ -940,7 +1011,6 @@ class TestUnifiedSweepIntegration:
                     "base_dir": "/data",
                     "processing": {"flatten": True, "normalize": False},
                 },
-                "wandb": {"use_wandb": False},
                 "analysis": {},
                 "outputs": {},
             }

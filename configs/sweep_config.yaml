@@ -1,115 +1,198 @@
 # ============================================================================
-# SWEEP CONFIGURATION REFERENCE
+# SWEEP CONFIGURATION TEMPLATE
 # ============================================================================
-# Comprehensive reference for running parameter sweeps with the dendritic
-# modeling framework.
+# Annotated template for parameter sweeps with DendriNet. docs/sweeps.rst
+# describes every section, option and command.
 #
 # USAGE:
-#   Generate sweep configs only (no SLURM submission):
-#     python src/dendritic_modeling/scripts/sweeps/sweep_manager.py \
-#       --config configs/sweep_config.yaml --generate-only
+#   Generate the configs and job scripts without submitting (an empty account
+#   or partition becomes PLACEHOLDER):
+#     dendritic-sweep --config configs/sweep_config.yaml --generate-only
 #
-#   Generate configs and submit SLURM jobs:
-#     python src/dendritic_modeling/scripts/sweeps/sweep_manager.py \
-#       --config configs/sweep_config.yaml
+#   Generate the configs and submit the Slurm jobs (account and partition are
+#   required, here or in slurm_config):
+#     dendritic-sweep --config configs/sweep_config.yaml \
+#       --slurm-account ACCOUNT --slurm-partition PARTITION
 #
-#   Analyze completed sweep results:
-#     python src/dendritic_modeling/scripts/sweeps/result_analyzer.py \
-#       /path/to/sweep/results/
+#   Train one generated config without Slurm:
+#     dendritic-train <sweep_dir>/configs/unified_config_0.yaml
 #
-# SWEEP TYPES SUPPORTED:
-#   - General hyperparameter sweeps: Any config key via dot-notation
-#   - EI connectivity sweeps: Excitatory/inhibitory synapse ratios
-#   - Branch architecture sweeps: Dendritic tree depth and branching patterns
-#   - Mixed sweeps: Combine any of the above simultaneously
-#   - Noise sweeps: Robustness testing across noise levels
+#   Tabulate and plot the finished runs (pass the sweep directory, not its
+#   results/ subdirectory):
+#     dendritic-analyze <sweep_dir>
+#
+# WHAT CAN BE SWEPT:
+#   - Any option of base_config, through its dot path (sweep_config)
+#   - E/I synapse-count pairs that satisfy a constraint (filter_config, A)
+#   - Dendritic tree depths and branching patterns (filter_config, B)
+#   - Named conditions that change several options together (sweep_variants)
+#   All of these combine in one grid.
 #
 # HOW IT WORKS:
-#   The sweep manager takes the Cartesian product of all values listed in
-#   sweep_config, applies any filter_config constraints, then generates one
-#   individual training config per combination x seed. Each config is a
-#   standalone YAML that can be trained with:
-#     python src/dendritic_modeling/scripts/training/train_experiments.py <path>
+#   The sweep manager takes the Cartesian product of the sweep_config axes and
+#   the sweep_variants, applies filter_config, and writes one training config
+#   per condition and replicate seed to <sweep_dir>/configs. Every generated
+#   config is loaded with the strict config loader before any job script is
+#   written; the models are not built. The sections of this file are checked
+#   when it loads: an unknown key in slurm_config, experiment_settings,
+#   filter_config or outputs raises with the closest valid key, and so does a
+#   top-level key that nearly matches a section name. Other top-level keys are
+#   reported in a warning and ignored; put annotations under metadata:.
 #
 # TOP-LEVEL SECTIONS:
-#   1. slurm_config          - SLURM job scheduler settings
-#   2. experiment_settings   - Seeds and reproducibility
-#   3. sweep_config          - Parameter grid (dot-notation -> value lists)
-#   4. filter_config         - EI filtering and branch sweep modes
-#   5. base_config           - Base training config shared by all conditions
+#   slurm_config          - Slurm resources, environment and launcher
+#   experiment_settings   - Replicate seeds (seeds_per_condition, base_seed, seed_paths)
+#   sweep_config          - Axes: dot paths into base_config -> values or ranges
+#   sweep_variants        - Optional named conditions that change several paths together
+#   filter_config         - E/I pair filter and branch sweeps
+#   base_config           - Complete training config shared by all conditions
+#   execution_results_dir - Optional separate root for the run outputs
+#   sweep_contract        - Optional expected_config_count, checked at generation
+#   output_dir, outputs   - Optional base directory (output_dir or outputs.dir;
+#                           default base_config.outputs.results_dir) and name
+#                           prefix (outputs.run_name; default
+#                           base_config.outputs.run_name) of the sweep directory
+#   extends               - Optional parent sweep file, relative to this file
+#                           (mappings are merged, lists are replaced)
 # ============================================================================
 
 
 # ============================================================================
 # 1. SLURM CONFIGURATION
 # ============================================================================
-# Controls how sweep jobs are submitted to the cluster. Each parameter
-# combination x seed becomes one element of a SLURM job array.
+# The #SBATCH header, environment and launch command of every job script of
+# the sweep. By default all configs run as one array job, one config per array
+# task (--split-jobs N writes N sequential jobs instead). The job name is the
+# sweep's prefix (base_config.outputs.run_name here).
+#
+# account, partition: required to submit; set them here or pass
+#   --slurm-account and --slurm-partition. They become PLACEHOLDER only with
+#   --generate-only or --dry-run. A site policy file
+#   (DENDRITIC_SCHEDULER_PROFILES, or
+#   $XDG_CONFIG_HOME/dendritic_modeling/scheduler_profiles.yaml) may restrict
+#   the allowed account/partition pairs.
+# launcher: "torchrun" runs torch.distributed.run --standalone with
+#   gpus_per_node processes, one node per config. Use it with
+#   base_config.distributed.mode: ddp, or with
+#   training_script: src/dendritic_modeling/scripts/training/train_experiments_fsdp.py
+#   and distributed.mode: fsdp.
+# Every job runs "module purge" and then "module load" for modules_to_load.
+# Two more optional keys, qos and constraint, add --qos and --constraint.
+# An unknown slurm_config key raises when the sweep loads, naming the closest
+# valid key.
 
 slurm_config:
-  account: ""                                # SLURM account (set locally for your cluster)
-  partition: ""                              # SLURM partition / queue (set locally)
-  time: "12:00:00"                           # Wall-clock time limit (HH:MM:SS)
-  nodes: 1                                   # Nodes per job
+  account: ""                                # Slurm account (required to submit)
+  partition: ""                              # Slurm partition (required to submit)
+  time: "12:00:00"                           # Per job or array task: quoted HH:MM:SS or D-HH:MM:SS (default 02:00:00)
+  nodes: 1                                   # Nodes per job; keep 1
   ntasks_per_node: 1                         # Tasks per node
-  cpus_per_task: 12                          # CPU cores per task
-  mem: 200GB                                 # Memory per node
-  max_concurrent_jobs: 32                    # Max simultaneous array elements
-  exclude_nodes: []                          # Nodes to exclude (e.g., ["holygpu8a10101"])
-  modules_to_load: []                        # Optional environment modules to load
-  conda_env_path: ""                         # Conda env path (empty = current env)
-  training_script: "src/dendritic_modeling/scripts/training/train_experiments.py"
+  gpus_per_node: 1                           # --gres=gpu:N; also the torchrun process count
+  launcher: "python"                         # "python" or "torchrun" (see above)
+  cpus_per_task: 12                          # CPU cores per array task (default 4)
+  mem: 200GB                                 # Memory per node, passed to Slurm as written (default 32G)
+  max_concurrent_jobs: 32                    # Max array tasks running at once (default 10)
+  exclude_nodes: []                          # Nodes to exclude (e.g., ["node001"]); --exclude-nodes replaces it
+  modules_to_load: []                        # Environment modules loaded after "module purge"
+  conda_env_path: ""                         # Environment root whose bin/python trains; empty = the "python" on PATH after "module purge"
+  training_script: "src/dendritic_modeling/scripts/training/train_experiments.py"  # Relative to the library checkout
 
 
 # ============================================================================
 # 2. EXPERIMENT SETTINGS
 # ============================================================================
-# Controls how many random seeds are run per parameter combination and the
-# starting seed value. Total jobs = |sweep_config grid| x seeds_per_condition.
+# Replicate seeds. Replicate r of every condition gets
+# experiment.seed = base_seed + r, so all conditions use the same seeds.
+# Total configs = conditions x seeds_per_condition (here 8 x 5 = 40); they run
+# as one array job.
 
 experiment_settings:
-  seeds_per_condition: 5                     # Random seeds per parameter combo
-  base_seed: 0                               # First seed value (seeds: 0,1,...,N-1)
+  seeds_per_condition: 5                     # Replicates per condition (default 1)
+  base_seed: 0                               # Seeds 0, 1, ..., 4 (default base_seed 42)
+  # Random streams the base config leaves unset (data split, initialization,
+  # topology, data order) follow experiment.seed, so replicates also differ in
+  # connectivity. Set base_config.experiment.topology_seed to hold the
+  # connection masks and indexed-synapse indices fixed. seed_paths writes the
+  # replicate seed into further paths, e.g. a component seed the base config
+  # pins:
+  # seed_paths:
+  #   - model.core.population_network.layers.0.population_defaults.indexed_seed
+
+# Optional: keep the sweep files (configs, job scripts, logs) in the sweep
+# directory and write the run outputs under this separate root. Each generated
+# config writes to <execution_results_dir>/config_<index>, and
+# <sweep_dir>/results links to the root. Generation does not create the root.
+# execution_results_dir: "/project/results/my_sweep"
+
+# Optional named conditions. Each variant is one condition whose overrides are
+# applied together; every variant is crossed with the sweep_config axes. A
+# variant may change only paths the base core type reads: a
+# population_network base takes overrides under model.core.population_network.
+# This pair doubles the grid (2 x 8 = 16 conditions):
+# sweep_variants:
+#   - name: shunting
+#     overrides:
+#       model.core.population_network.layers.0.population_defaults.use_shunting: true
+#       model.core.population_network.layers.0.population_defaults.use_additive_normalization: false
+#   - name: normalized_additive
+#     overrides:
+#       model.core.population_network.layers.0.population_defaults.use_shunting: false
+#       model.core.population_network.layers.0.population_defaults.use_additive_normalization: true
 
 
 # ============================================================================
 # 3. SWEEP CONFIG -- Parameter Grid
 # ============================================================================
-# Each key is a dot-notation path into base_config. Each value is a list of
-# values to sweep over. The sweep manager computes the full Cartesian product.
+# Each key is a dot path into base_config. Each value is a list of literal
+# values, a scalar (one value), or an explicit range:
+#   {range: {start, stop, step}}     start, start + step, ..., up to and including stop
+#   {linspace: {start, stop, num}}   num evenly spaced values, both ends included
+#   {geomspace: {start, stop, num}}  num geometrically spaced values, both ends included
+#   {values: [...]}                  the literal values
+# A plain three-number list that reads as [start, stop, step], such as
+# [1, 10, 2], is rejected as ambiguous. The sweep manager computes the full
+# Cartesian product of the axes.
 #
 # SYNTAX:
 #   dot.path.to.param: [val1, val2, val3]
 #
-# The dot-notation path mirrors the YAML hierarchy in base_config. For example:
-#   model.core.type                          -> base_config.model.core.type
-#   training.main.common.param_groups.lr     -> base_config.training.main.common.param_groups.lr
-#   data.processing.flatten                  -> base_config.data.processing.flatten
+# The dot path mirrors the YAML hierarchy of base_config; numeric components
+# index lists. For example:
+#   training.main.common.param_groups.topk_lr -> base_config.training.main.common.param_groups.topk_lr
+#   data.processing.flatten                   -> base_config.data.processing.flatten
+#   model.core.population_network.layers.0.populations.1.n_neurons
+#                                             -> n_neurons of population "e" in layer "layer0"
 #
-# VALUE TYPES:
-#   Scalars:    training.main.common.param_groups.lr: [0.001, 0.01, 0.1]
-#   Strings:    model.core.type: ["dendritic_shunting", "dendritic_additive"]
-#   Booleans:   model.core.morphology.somatic_synapses: [true, false]
+# VALUE TYPES (each line works with this file's base_config):
+#   Numbers:    training.main.common.param_groups.topk_lr: [0.001, 0.01, 0.1]
+#   Strings:    model.core.population_network.layers.0.population_defaults.weight_transform: ["softplus", "exp"]
+#   Booleans:   model.core.population_network.layers.0.population_defaults.somatic_synapses: [true, false]
 #   Lists:      model.core.population_network.layers.0.populations.1.branch_factors: [[3, 3], [4, 4]]
-#   Nested:     model.core.population_network.layers.0.population_defaults.ff_excitatory_synapses: [20, 30, 40]
+#   Ranges:     training.main.common.batch_size: {range: {start: 128, stop: 512, step: 128}}
 #
-# EXAMPLES:
-#   # Sweep learning rate and batch size (2 x 3 = 6 conditions):
-#   # training.main.common.param_groups.lr: [0.001, 0.01]
+# LEARNING RATES: with split_params: true (see base_config), the sparse
+# synapses, BlockLinear couplings, reactivation gates and decoder train at
+# topk_lr, blocklinear_lr, reactivation_lr and decoder_lr. param_groups.lr
+# sets no parameter of this model, so sweep the group rates instead.
+#
+# EXAMPLES (each replaces the axes below; counts are conditions):
+#   # Sweep the sparse-synapse learning rate and batch size (2 x 3 = 6 conditions):
+#   # training.main.common.param_groups.topk_lr: [0.001, 0.01]
 #   # training.main.common.batch_size: [128, 256, 512]
 #
 #   # Sweep population size and morphology (2 x 2 = 4 conditions):
 #   # model.core.population_network.layers.0.populations.1.n_neurons: [64, 128]
 #   # model.core.population_network.layers.0.populations.1.branch_factors: [[3, 3], [4, 4]]
 #
-#   # Sweep E/I synapse counts in population-network defaults:
+#   # Sweep E/I synapse counts in population-network defaults (3 x 3 = 9 conditions):
 #   # model.core.population_network.layers.0.population_defaults.ff_excitatory_synapses: [20, 30, 40]
 #   # model.core.population_network.layers.0.population_defaults.ff_inhibitory_synapses: [10, 15, 20]
 
 sweep_config:
-  # Population-network synapse counts and morphology. Numeric path components
-  # index YAML lists, so layers.0 is the first population-network layer and
-  # populations.1 is the excitatory/readout population in the base example.
+  # Population-network synapse counts and morphology (2 x 2 x 2 = 8
+  # conditions). Numeric path components index YAML lists, so layers.0 is the
+  # first population-network layer and populations.1 is the excitatory
+  # readout population "e" of the base config.
   model.core.population_network.layers.0.population_defaults.ff_excitatory_synapses:
     - 20
     - 30
@@ -124,127 +207,137 @@ sweep_config:
 
 
 # ============================================================================
-# 4. FILTER CONFIG -- EI Filtering and Branch Sweeps
+# 4. FILTER CONFIG -- E/I Filtering and Branch Sweeps
 # ============================================================================
-# Optional constraints applied AFTER the Cartesian product. Two independent
-# mechanisms can be used alone or combined:
+# Two independent mechanisms that can be used alone or combined:
 #
-# A) EI FILTERING -- constrain excitatory/inhibitory synapse combinations
-# B) BRANCH SWEEP -- generate dendritic architecture variants
+# A) E/I FILTERING -- keep only some excitatory/inhibitory synapse-count pairs
+# B) BRANCH SWEEP  -- add a dimension of dendritic trees to the grid
 #
 # --------------------------------------------------------------------------
-# A) EI FILTERING
+# A) E/I FILTERING
 # --------------------------------------------------------------------------
-# When sweeping over ee and ie synapse counts, filtering reduces the grid to
-# only combinations that satisfy a constraint. Requires that sweep_config
-# includes ee_synapses_per_branch_per_layer and ie_synapses_per_branch_per_layer.
+# sweep_config must contain both E/I axes: the population_defaults
+# ff_excitatory_synapses and ff_inhibitory_synapses paths (population
+# networks) or model.core.connectivity.ee_synapses_per_branch_per_layer and
+# ie_synapses_per_branch_per_layer (structured E/I cores). The other axes are
+# crossed with the pairs that remain.
 #
-#   mode: "all"       - No filtering, keep all combinations (default)
-#   mode: "ei-sum"    - Keep only combos where E + I = value (+/- tolerance)
-#   mode: "e-const"   - Keep only combos where E = value (+/- tolerance)
-#   mode: "i-const"   - Keep only combos where I = value (+/- tolerance)
-#   mode: "ei-ratio"  - Keep only combos where E / I = value (+/- tolerance)
+#   mode: "all"          - No filtering (the default; "default" is the same)
+#   mode: "ei-sum"       - Keep pairs with |E + I - value| <= tolerance
+#   mode: "ei-ratio"     - Keep pairs with I > 0 and |E / I - value| <= tolerance
+#   mode: "e-const"      - Keep E = value with every I (value must be on the E axis)
+#   mode: "i-const"      - Keep I = value with every E (value must be on the I axis)
+#   mode: "branch_sweep" - No filtering; required for a branch sweep without
+#                          sweep_config axes or sweep_variants
 #
-#   value: <number>   - Target value for the constraint
-#   tolerance: 0      - Allowed deviation from value (default: 0 = exact match)
+#   value: <number>      - Target value; required by the four E/I modes
+#   tolerance: <number>  - Required by ei-sum and ei-ratio (0 = exact match)
+#   A filter that keeps no pair raises.
 #
-# EXAMPLES:
-#   # Keep only E+I=50 (exact):
+# EXAMPLES (with E and I axes of [10, 20, 30, 40] each):
+#   # Keep the pairs with E + I = 50 (4 pairs):
 #   # mode: "ei-sum"
 #   # value: 50
 #   # tolerance: 0
 #
-#   # Keep only E/I ratios near 4.0 (within 0.5):
+#   # Keep the E/I ratios within 0.5 of 2.0 (3 pairs):
 #   # mode: "ei-ratio"
-#   # value: 4.0
+#   # value: 2.0
 #   # tolerance: 0.5
 #
-#   # Hold inhibition constant at 10:
+#   # Hold inhibition at 10 (4 pairs):
 #   # mode: "i-const"
 #   # value: 10
 #
 # --------------------------------------------------------------------------
 # B) BRANCH SWEEP
 # --------------------------------------------------------------------------
-# Generates dendritic tree architectures by varying depth and branching.
-# The branch sweep adds its own dimension to the grid (multiplied with
-# sweep_config and EI filter results).
+# Each generated tree replaces branch_factors of every excitatory population
+# (polarity "excitatory" or no polarity) in every population_network layer
+# (model.core.architecture.excitatory_branch_factors for structured E/I
+# cores). Remove any sweep_config axis on those branch_factors first: the tree
+# overwrites it, and conditions that differ only in that axis become
+# identical runs. A factor b at depth d gives d levels of b branches. Depths
+# and factors are axis values: literal lists or explicit ranges (section 3).
 #
 # branch_sweep_mode options:
 #
-#   "uniform_sweep"   - Uniform branches at each depth level
-#     dendrite_tree_depth: [min, max, step]       # Range of tree depths
-#     uniform_branches_per_layer: <int>           # Same branch factor at every level
-#     Example: depth [1,4,1], branches 3 -> depths 1,2,3,4 each with factor 3
+#   "uniform_sweep"   - Every depth with every branch factor (default mode)
+#     dendrite_tree_depth: {range: {start: 1, stop: 4, step: 1}}
+#     dendrite_branches_per_layer: {values: [2, 3]}
+#     Example: depths 1-4 x factors 2, 3 -> 8 trees ([2], [3], [2, 2], ...)
 #
-#   "depth_sweep"     - Vary depth only, keeping branch factor constant
-#     dendrite_tree_depth: [min, max, step]       # Range of tree depths
-#     uniform_branches_per_layer: <int>           # Fixed branch factor at every level
-#     Example: depth [2,5,1], branches 4 -> depths 2,3,4,5 each with factor 4
+#   "depth_sweep"     - Vary the depth with one branch factor at every level
+#     dendrite_tree_depth: {range: {start: 2, stop: 5, step: 1}}
+#     uniform_branches_per_layer: 4
+#     Example: [4, 4], [4, 4, 4], [4, 4, 4, 4], [4, 4, 4, 4, 4] -> 4 trees
 #
-#   "width_sweep"     - Vary branch factor at a fixed depth
-#     fixed_dendrite_tree_depth: <int>            # Fixed tree depth
-#     dendrite_branches_per_layer: [min, max, step]  # Range of branch factors
-#     Example: depth 3, branches [2,8,2] -> factor 2,4,6,8 each at depth 3
+#   "width_sweep"     - Vary the branch factor at a fixed depth
+#     fixed_dendrite_tree_depth: 3
+#     dendrite_branches_per_layer: {range: {start: 2, stop: 8, step: 2}}
+#     Example: [2, 2, 2], [4, 4, 4], [6, 6, 6], [8, 8, 8] -> 4 trees
 #
 #   "pattern_sweep"   - Named branching patterns across depths
-#     dendrite_tree_depth: [min, max, step]       # Range of tree depths
-#     base_branches: <int>                        # Base branch factor
-#     branch_patterns:                            # List of pattern names:
-#       - "uniform"      # Same factor at every level
-#       - "decreasing"   # More branches near root, fewer at leaves
-#       - "increasing"   # Fewer branches near root, more at leaves
-#       - "bottleneck"   # Wide-narrow-wide pattern
-#     Example: depth [2,4,1], base 3, patterns [uniform, decreasing]
-#       -> 3 depths x 2 patterns = 6 branch configs
+#     dendrite_tree_depth: {range: {start: 2, stop: 4, step: 1}}
+#     base_branches: 3
+#     branch_patterns:
+#       - "uniform"      # base_branches at every level, e.g. [3, 3, 3]
+#       - "decreasing"   # base_branches, base_branches - 1, ..., at least 1, e.g. [3, 2, 1]
+#     Example: 3 depths x 2 patterns -> 6 trees
+#     Two more patterns ignore base_branches: "increasing" (1, 2, ..., depth)
+#     and "pyramid" (1, 2, ... up to level depth // 2, then depth - level:
+#     [1, 2, 1] at depth 3, [1, 2, 3, 1] at depth 4).
 #
-#   "custom_configs"  - Explicit branch factor lists
-#     custom_branch_configs:                      # List of branch factor lists
-#       - [4, 4, 4]
-#       - [8, 4, 2]
-#       - [2, 4, 8]
-#     Example: 3 explicit configs, each used as excitatory_branch_factors
+#   "custom_configs"  - Explicit trees, each a mapping with depth and branches
+#     custom_branch_configs:
+#       - {depth: 3, branches: [4, 4, 4]}
+#       - {depth: 3, branches: [8, 4, 2]}
+#       - {depth: 3, branches: [2, 4, 8]}
+#     Example: 3 trees, each used as written
 #
-# COMBINING EI FILTER + BRANCH SWEEP:
-#   Both can be specified together. The total grid is:
-#     (sweep_config Cartesian product)
-#       x (EI filter pass)
-#       x (branch sweep configs)
+# COMBINING E/I FILTER + BRANCH SWEEP:
+#   Set the E/I mode and branch_sweep_mode together. The total grid is:
+#     (sweep_config Cartesian product, with the E/I axes reduced to the
+#      pairs the filter keeps)
+#       x (branch sweep trees)
+#       x (sweep_variants)
 #       x seeds_per_condition
 #
 # --------------------------------------------------------------------------
 
 filter_config:
-  # EI filtering (disabled by default)
-  mode: "all"                                # "all" | "ei-sum" | "e-const" | "i-const" | "ei-ratio"
-  # value: 50                                # Target value for constraint
-  # tolerance: 0                             # Allowed deviation (0 = exact)
+  # E/I filtering (disabled by default)
+  mode: "all"                                # "all" | "ei-sum" | "ei-ratio" | "e-const" | "i-const" | "branch_sweep"
+  # value: 50                                # Target value (required by the E/I modes)
+  # tolerance: 0                             # Allowed deviation (required by ei-sum and ei-ratio; 0 = exact)
 
-  # Branch sweep (disabled by default -- uncomment one mode to activate)
-  # branch_sweep_mode: "uniform_sweep"
-  # dendrite_tree_depth: [1, 4, 1]
+  # Branch sweep (disabled by default). Before uncommenting these lines,
+  # delete the populations.1.branch_factors axis in sweep_config, which the
+  # trees replace (2 x 2 E/I conditions x 4 trees = 16 conditions):
+  # branch_sweep_mode: "depth_sweep"
+  # dendrite_tree_depth: {range: {start: 1, stop: 4, step: 1}}
   # uniform_branches_per_layer: 3
 
 
 # ============================================================================
 # 5. BASE CONFIG -- Training Configuration Template
 # ============================================================================
-# Minimal working config shared by all sweep conditions. Swept parameters in
-# sweep_config override the corresponding values here. This uses the same
-# schema as config_exp.yaml.
+# The complete training config shared by all sweep conditions, in the schema
+# of config_exp.yaml. The sweep axes overwrite the values at their paths in
+# each generated config.
 
 base_config:
+  config_version: 3
 
   # ---------- Experiment ----------
   experiment:
-    seed: 42
+    seed: 42                                 # Replaced in each generated config by base_seed + replicate index
     train_valid_split: 0.8
-    enable_hooks: true
 
     checkpointing:
       enabled: false
       save_every_n_epochs: 10
-      checkpoint_dir: "results/checkpoints/"
 
   # ---------- Data ----------
   data:
@@ -261,7 +354,6 @@ base_config:
 
     encoder:
       type: "identity"
-      load_save_root: "./.trained_encoder_networks/"
       params:
         input_dim: 784
         input_shape: [1, 28, 28]
@@ -286,19 +378,16 @@ base_config:
               reactivate: true
               reactivation_type: "param_tanh"
               reactivation_init_policy: "occupancy_quantile"
-              reactivation_init_m: 1.5
-              reactivation_init_b: 0.5
               dbl_init_method: "analytical_expectation"
               weight_transform: "softplus"
               topk_type: "indexed_rewire"
               topk_init_method: "xavier_normal"
-              indexed_seed: 42
               indexed_rewire_frequency: 100
               indexed_rewire_quantile: 0.05
               indexed_rewire_until_step: null
               indexed_output_chunk_size: 2048
-              blocklinear_strategy: "none"
-              reactivation_strategy: "none"
+              blocklinear_gradient_scaling: "none"
+              reactivation_gradient_scaling: "none"
               efficient_blocklinear: true
             populations:
               - name: "i"
@@ -329,23 +418,6 @@ base_config:
 
   # ---------- Training ----------
   training:
-    encoder:
-      strategy: "standard"
-      common:
-        loss_function: "log_mse"
-        epochs: 500
-        early_stopping: true
-        patience: 100
-        batch_size: 512
-        shuffle: true
-        grad_clip_value: 5.0
-        load_best_state_dict: true
-        plot_losses: false
-        suppress_prints: false
-        print_every: 10
-        use_amp: false
-        param_groups:
-          lr: 0.001
 
     main:
       strategy: "standard"
@@ -364,10 +436,13 @@ base_config:
         print_every: 10
         use_amp: false
         enable_nan_checking: false
-        enable_adaptive_clipping: false
-        weight_decay_rate: 0.01
+        synapse_decay_rate: 0.01
         weight_boosting: true
 
+        # With split_params: true the optimizer trains the sparse synapses,
+        # BlockLinear couplings, reactivation gates and decoder at their group
+        # rates; lr covers only the parameters outside those groups (none in
+        # this model).
         param_groups:
           lr: 0.001
           split_params: true
@@ -388,10 +463,9 @@ base_config:
         standard: {}
 
   # ---------- Analysis ----------
-  # NOTE: Inside base_config the analysis keys use the full dataclass field
-  # names with the _analysis suffix (e.g., performance, not just
-  # "performance"). The sweep manager passes these directly to the config
-  # builder without short-name mapping.
+  # Analysis sections use the analyzer names, as in config_exp.yaml. The
+  # performance analyzer writes performance/final.json, which
+  # dendritic-analyze and the rerun tool read; keep it enabled.
   analysis:
     performance:
       enabled: true
@@ -415,7 +489,7 @@ base_config:
       enabled: false
       training: false
 
-    synapse_turnover:
+    synapse_turnover:                        # Enabling it requires training: true (it compares snapshots taken during training)
       enabled: false
       training: false
 
@@ -451,39 +525,35 @@ base_config:
       enabled: false
       training: false
 
-  # ---------- Logging ----------
-  wandb:
-    use_wandb: false
-    entity: ""
-    project: "dendritic-sweeps"
-    group: "sweep"
-    tags: ["sweep"]
-
   # ---------- Outputs ----------
   outputs:
-    run_name: "sweep_run"
-    results_dir: "outputs"
+    run_name: "sweep_run"                    # Prefix of the sweep directory and the Slurm job name
+    results_dir: "outputs"                   # Base directory of the sweep directory; each run writes to <sweep_dir>/results/config_<index>
 
   # ---------- Distributed ----------
   distributed:
-    mode: none
+    mode: none                               # ddp with launcher "torchrun"; fsdp with the FSDP training_script
 
 
 # ============================================================================
 # EXAMPLES -- Common Sweep Configurations
 # ============================================================================
-# Below are commented-out examples showing how to configure common sweeps.
-# Copy the relevant sections and uncomment to use.
+# Each example replaces the sweep_config and filter_config sections above;
+# keep base_config, experiment_settings and slurm_config. Results count
+# conditions; the generated configs are conditions x seeds_per_condition.
+# Examples 5, 6 and 7 need the base_config of the example config they name.
 #
 # --------------------------------------------------------------------------
-# Example 1: Simple hyperparameter sweep (learning rate x batch size)
+# Example 1: Sparse-synapse learning rate x batch size
 # --------------------------------------------------------------------------
 # sweep_config:
-#   training.main.common.param_groups.lr: [0.0001, 0.001, 0.01]
+#   training.main.common.param_groups.topk_lr: [0.0001, 0.001, 0.01]
 #   training.main.common.batch_size: [128, 256, 512]
 # filter_config:
 #   mode: "all"
 # Result: 3 x 3 = 9 conditions
+# (param_groups.lr sets no parameter of this model while split_params is
+#  true; set split_params: false to train every parameter at one rate.)
 #
 # --------------------------------------------------------------------------
 # Example 2: Population-network E/I synapse sweep with sum constraint
@@ -495,7 +565,7 @@ base_config:
 #   mode: "ei-sum"
 #   value: 50
 #   tolerance: 0
-# Result: Only E/I combos where E + I = 50
+# Result: 4 E/I pairs with E + I = 50: (10, 40), (20, 30), (30, 20), (40, 10)
 #
 # --------------------------------------------------------------------------
 # Example 3: Population size and morphology comparison
@@ -507,7 +577,7 @@ base_config:
 #     - [4, 4]
 # filter_config:
 #   mode: "all"
-# Result: 4 conditions
+# Result: 2 x 2 = 4 conditions
 #
 # --------------------------------------------------------------------------
 # Example 4: Population-network branch depth sweep
@@ -517,9 +587,10 @@ base_config:
 # filter_config:
 #   mode: "branch_sweep"
 #   branch_sweep_mode: "depth_sweep"
-#   dendrite_tree_depth: [1, 6, 1]
+#   dendrite_tree_depth: {range: {start: 1, stop: 6, step: 1}}
 #   uniform_branches_per_layer: 3
-# Result: first-layer excitatory population branch_factors become [3], [3,3], ...
+# Result: excitatory branch_factors [3], [3, 3], ..., [3, 3, 3, 3, 3, 3]
+# (6 conditions)
 #
 # --------------------------------------------------------------------------
 # Example 5: Recurrent tau and delay sweep
@@ -530,19 +601,23 @@ base_config:
 #   model.core.population_network.layers.0.connections.3.probability: [0.3, 0.6, 0.9]
 # filter_config:
 #   mode: "all"
-# Use this with a recurrent population-network base config such as
-# configs/examples/population_network_taus_and_delays.yaml.
+# Result: 2 x 3 x 3 = 18 conditions. Use the base_config of
+# configs/examples/population_network_taus_and_delays.yaml: a recurrent layer
+# whose fourth connection (connections.3) is the delayed pyr -> pyr
+# connection. tau_base has no effect in a feedforward layer such as the one
+# above, and connections.3 does not exist there.
 #
 # --------------------------------------------------------------------------
 # Example 6: Spiking population sweep
 # --------------------------------------------------------------------------
 # sweep_config:
-#   model.core.population_network.layers.0.population_defaults.dynamics_mode: ["rate", "spike"]
-#   model.core.population_network.layers.0.population_defaults.spike_threshold: [0.5, 0.7]
+#   model.core.population_network.layers.0.population_defaults.spike_threshold: [0.25, 0.5]
+#   model.core.population_network.layers.0.population_defaults.spike_tau: [12.0, 24.0]
 # filter_config:
 #   mode: "all"
-# Use this with a recurrent/spiking-ready base config. For feedforward image
-# configs, a one-step spiking run is valid but usually less informative.
+# Result: 2 x 2 = 4 conditions. Use the base_config of
+# configs/examples/population_network_spiking.yaml, whose populations spike
+# (population_defaults.dynamics_mode: "spike").
 #
 # --------------------------------------------------------------------------
 # Example 7: Synapse-type kinetics sweep
@@ -552,7 +627,10 @@ base_config:
 #   model.core.population_network.layers.0.population_defaults.synapse_types.excitatory.1.tau_decay: [40.0, 70.0, 100.0]
 # filter_config:
 #   mode: "all"
-# Use this with configs/examples/population_network_synapse_types_ampa_nmda_gaba.yaml.
+# Result: 3 x 3 = 9 conditions. Use the base_config of
+# configs/examples/population_network_synapse_types_ampa_nmda_gaba.yaml, where
+# excitatory.1 is the NMDA type. The fractions of one polarity are normalized
+# to sum to 1, so the NMDA fraction axis also changes the AMPA share.
 #
 # --------------------------------------------------------------------------
 # Example 8: Combined population E/I filter + branch sweep
@@ -565,9 +643,9 @@ base_config:
 #   value: 50
 #   tolerance: 0
 #   branch_sweep_mode: "depth_sweep"
-#   dendrite_tree_depth: [2, 4, 1]
+#   dendrite_tree_depth: {range: {start: 2, stop: 4, step: 1}}
 #   uniform_branches_per_layer: 3
-# Result: EI combos that sum to 50 x 3 branch depths
+# Result: 4 E/I pairs that sum to 50 x 3 branch depths = 12 conditions
 #
 # --------------------------------------------------------------------------
 # Example 9: Dataset comparison sweep
@@ -577,7 +655,7 @@ base_config:
 #   model.core.population_network.layers.0.population_defaults.ff_excitatory_synapses: [20, 30]
 # filter_config:
 #   mode: "all"
-# Result: 3 datasets x 2 types = 6 conditions
+# Result: 2 datasets x 2 synapse counts = 4 conditions
 #
 # --------------------------------------------------------------------------
 # Example 10: Full mixed population-network sweep
@@ -585,11 +663,12 @@ base_config:
 # sweep_config:
 #   model.core.population_network.layers.0.population_defaults.ff_excitatory_synapses: [20, 40]
 #   model.core.population_network.layers.0.population_defaults.ff_inhibitory_synapses: [10, 20]
-#   model.core.population_network.layers.0.population_defaults.tau_base: [20.0, 50.0]
-#   training.main.common.param_groups.lr: [0.001, 0.01]
+#   model.core.population_network.layers.0.populations.1.n_neurons: [64, 128]
+#   training.main.common.param_groups.topk_lr: [0.001, 0.01]
 # filter_config:
 #   mode: "all"
 #   branch_sweep_mode: "depth_sweep"
-#   dendrite_tree_depth: [2, 4, 1]
+#   dendrite_tree_depth: {range: {start: 2, stop: 4, step: 1}}
 #   uniform_branches_per_layer: 3
-# Result: E x I x tau x lr x branch-depth conditions
+# Result: E x I x n_neurons x topk_lr x branch depth = 2 x 2 x 2 x 2 x 3 =
+# 48 conditions

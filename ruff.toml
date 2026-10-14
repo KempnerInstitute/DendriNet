@@ -33,13 +33,11 @@ exclude = [
 ]
 
 [lint]
-# Enable pycodestyle (`E`) and Pyflakes (`F`) codes by default
-# Add isort (`I`), pydocstyle (`D`), and other useful rules
+# Linting only: black formats and isort orders imports (pyproject.toml).
 select = [
     "E",    # pycodestyle errors
     "W",    # pycodestyle warnings
     "F",    # Pyflakes
-    "I",    # isort
     "N",    # pep8-naming
     "UP",   # pyupgrade
     "B",    # flake8-bugbear
@@ -60,7 +58,6 @@ ignore = [
     "N806",   # Variable in function should be lowercase (for mathematical variables)
     "N812",   # Lowercase imported as non-lowercase (e.g., torch.nn.functional as F)
     "N815",   # Variable in class scope should not be mixedCase (domain: E/I/V traces)
-    "I001",   # Import block is un-sorted or un-formatted (handled by isort)
     "UP007",  # Keep Optional[...] annotations for consistency
     "UP045",  # Keep Optional[...] annotations for consistency with current codebase
 ]
@@ -73,33 +70,18 @@ unfixable = []
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
 [lint.per-file-ignores]
-# Tests can use magic values and have longer lines
-"tests/**" = ["PLR2004", "S101", "D"]
 # Config files can have longer lines
 "**/config.py" = ["E501"]
 # __init__.py files can have unused imports
 "__init__.py" = ["F401"]
-
-[lint.mccabe]
-# Cyclomatic complexity threshold
-max-complexity = 10
-
-[lint.isort]
-# Black-compatible isort settings for ruff
-force-single-line = false
-force-wrap-aliases = false
-split-on-trailing-comma = true
-combine-as-imports = true
-known-first-party = ["dendritic_modeling"]
-known-third-party = [
-    "torch",
-    "numpy",
-    "matplotlib",
-    "scipy",
-    "sklearn",
-    "pandas",
-    "pytest",
-    "wandb",
-    "hydra",
-    "omegaconf"
-]
+# Kernel code uses short math-loop names (i, j, l) by convention.
+"src/dendritic_modeling/networks/architectures/excitation_inhibition/synapse/kernels/**" = ["E741"]
+"src/dendritic_modeling/kernels/**" = ["E741"]
+# CLI entry-point scripts set environment/backends before imports by design
+# (matplotlib backend, offline HF env, CUDA config) — the module-level
+# import-position rule does not fit them.
+"src/dendritic_modeling/scripts/training/**" = ["E402"]
+"src/dendritic_modeling/scripts/analysis/**" = ["E402"]
+"src/dendritic_modeling/scripts/benchmarks/**" = ["E402"]
+"src/dendritic_modeling/scripts/script_utils/**" = ["E402"]
+"src/dendritic_modeling/scripts/sweeps/**" = ["E402"]

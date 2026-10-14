@@ -144,14 +144,6 @@ def test_additive_inhibitory_topk_factor_preserves_modes():
         theta=0.25,
         pseudo_R=pseudo_R,
     )
-    learned = _additive_inhibitory_topk_factor(
-        e_v=e_v,
-        v_n=v_n,
-        post_factor_raw=post_factor_raw,
-        additive_mode="learned_gain",
-        theta=0.25,
-        pseudo_R=None,
-    )
     running = _additive_inhibitory_topk_factor(
         e_v=e_v,
         v_n=v_n,
@@ -170,7 +162,6 @@ def test_additive_inhibitory_topk_factor_preserves_modes():
     )
 
     torch.testing.assert_close(input_dependent, e_v * pseudo_R * (0.25 - v_n))
-    torch.testing.assert_close(learned, -post_factor_raw)
     torch.testing.assert_close(running, -post_factor_raw)
     torch.testing.assert_close(neutral, -e_v)
 
@@ -222,17 +213,6 @@ def test_base_inhibitory_topk_factor_preserves_additive_modes():
         layer_dynamics_mode="additive",
     )
     torch.testing.assert_close(input_factor, e_v * pseudo_R * (0.25 - v_n))
-
-    learned = _TopKFactorProbe(additive_mode="learned_gain")
-    learned_factor = learned._compute_base_inhibitory_topk_factor(
-        rec={},
-        e_v=e_v,
-        post_factor_raw=post_factor_raw,
-        v_n=v_n,
-        r_tot=r_tot,
-        layer_dynamics_mode="additive",
-    )
-    torch.testing.assert_close(learned_factor, -post_factor_raw)
 
     running = _TopKFactorProbe(additive_mode="running_stats")
     running_factor = running._compute_base_inhibitory_topk_factor(

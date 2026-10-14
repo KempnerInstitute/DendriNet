@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import replace
+from numbers import Integral
 from typing import Any
 
 import torch
 import torch.nn as nn
 
+from dendritic_modeling.config.keys import config_from_payload
 from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.transfer import (
     TransferLayer,
 )
@@ -42,7 +45,17 @@ from dendritic_modeling.networks.architectures.recurrent.population_sources impo
 from dendritic_modeling.networks.architectures.recurrent.population_state import (
     PopulationLayerState,
 )
+from dendritic_modeling.networks.architectures.replacement.adapters import (
+    NonNegativeInputAdapter,
+    transformed_feature_dim,
+)
 from dendritic_modeling.networks.base import BaseNetwork
+from dendritic_modeling.networks.utils.forward_caches import detach_forward_caches
+from dendritic_modeling.networks.utils.weight_transforms import (
+    POSITIVE_WEIGHT_TRANSFORMS,
+)
+
+logger = logging.getLogger(__name__)
 
 
 class PopulationNetwork(BaseNetwork):
@@ -52,16 +65,25 @@ class PopulationNetwork(BaseNetwork):
         super().__init__()
         self.config = config
         self.input_dim = int(config.input_dim)
+        self.input_transform = str(config.input_transform)
+        self.input_adapter = NonNegativeInputAdapter(
+            self.input_dim,
+            self.input_transform,
+        )
+        self.adapted_input_dim = transformed_feature_dim(
+            self.input_dim,
+            self.input_transform,
+        )
         self.output_mode = config.output_mode
         self._store_routing = bool(config.store_routing)
         self._routing_info: list[dict[str, dict]] = []
         self._use_transfer = bool(config.use_transfer)
         self.transfer_fn: TransferLayer | None = None
 
-        input_dim = self.input_dim
+        input_dim = self.adapted_input_dim
         if self._use_transfer:
             self.transfer_fn = TransferLayer(
-                input_dim=config.input_dim,
+                input_dim=input_dim,
                 transfer_params=config.transfer_params,
             )
             input_dim = self.transfer_fn.excitatory_dim
@@ -81,9 +103,13 @@ class PopulationNetwork(BaseNetwork):
             (
                 layer
                 if isinstance(layer, PopulationLayerConfig)
-                else PopulationLayerConfig(**layer)
+                else config_from_payload(
+                    PopulationLayerConfig,
+                    layer,
+                    section=f"model.core.population_network.layers[{index}]",
+                )
             )
-            for layer in config.layers
+            for index, layer in enumerate(config.layers)
         ]
         layer_names = [layer.name for layer in self.layer_configs]
         if len(set(layer_names)) != len(layer_names):
@@ -102,6 +128,7 @@ class PopulationNetwork(BaseNetwork):
             self._build_population_metadata()
         )
         self._qualified_sources_by_layer_timing = self._resolve_qualified_sources()
+        self._reject_transferred_streams_after_first_layer()
 
         self.layers = nn.ModuleList()
         self.layer_names = layer_names
@@ -137,14 +164,63 @@ class PopulationNetwork(BaseNetwork):
                 layer_cfg,
                 input_dim=layer_external_dims,
                 external_source_polarities=self._layer_external_polarities(layer_idx),
+                layer_index=layer_idx,
             )
             self.layers.append(layer)
             current_external_dims = self._single_stream_external_dims(layer.output_dim)
             self._is_recurrent = self._is_recurrent or layer.is_recurrent
 
+        # First-layer shunting populations with positive weights that read the
+        # external input; signed input can make their conductances negative.
+        first = self.layers[0]
+        self._shunting_external_readers = sorted(
+            {
+                conn.target
+                for conn in first.connections
+                if conn.enabled
+                and _canonical_external_source(conn.source) is not None
+                and first.population_configs[conn.target].use_shunting
+                and str(first.population_configs[conn.target].weight_transform).lower()
+                in POSITIVE_WEIGHT_TRANSFORMS
+            }
+        )
+        self._signed_input_checked = not self._shunting_external_readers
+
+        # Opt-in compiled layer steps. Module.compile compiles each layer's own
+        # call; copies and pickles of the network run the eager layers.
+        self.compile_step = bool(config.compile_step)
+        if self.compile_step:
+            # torch.compile does not compile the conductance-scaled gradient
+            # hooks of shunting layers: their first training step fails.
+            scaled = sorted(
+                {
+                    f"{kind}_gradient_scaling"
+                    for layer in self.branch_layers
+                    if layer.use_shunting
+                    for kind in ("topk", "blocklinear")
+                    if getattr(layer, f"{kind}_strategy") == "conductance_dynamic"
+                }
+            )
+            if scaled:
+                raise ValueError(
+                    "compile_step does not support conductance_dynamic "
+                    f"{' or '.join(scaled)} in shunting populations: compiled "
+                    "steps do not apply its gradient scales; set compile_step: "
+                    "false"
+                )
+            for layer in self.layers:
+                layer.compile()
+
         readout_idx = self.layer_names.index(self.readout_layer)
         readout_layer = self.layers[readout_idx]
         self.output_dim = readout_layer.output_dim
+
+    # Tensors of the last forward pass kept for analyses; copies and pickles
+    # hold them detached (networks.utils.forward_caches).
+    _FORWARD_CACHES = ("_routing_info",)
+
+    def __getstate__(self):
+        return detach_forward_caches(super().__getstate__(), self._FORWARD_CACHES)
 
     @property
     def is_recurrent(self) -> bool:
@@ -197,6 +273,25 @@ class PopulationNetwork(BaseNetwork):
                     continue
                 seen_synapses.add(id(synapse))
                 candidate_params = sum(p.numel() for p in synapse.parameters())
+                counts_fn = getattr(synapse, "connectivity_resource_counts", None)
+                if callable(counts_fn):
+                    counts = counts_fn()
+                    active_synapses = counts.get("active_synapses")
+                    if isinstance(active_synapses, bool) or not isinstance(
+                        active_synapses, Integral
+                    ):
+                        raise TypeError(
+                            "connectivity_resource_counts.active_synapses must "
+                            "be an integer"
+                        )
+                    active_params = int(active_synapses)
+                    if not 0 <= active_params <= candidate_params:
+                        raise ValueError(
+                            "connectivity_resource_counts.active_synapses lies "
+                            "outside the stored synapse parameter count"
+                        )
+                    effective += active_params - candidate_params
+                    continue
                 mask_fn = getattr(synapse, "weight_mask", None)
                 if not callable(mask_fn):
                     continue
@@ -302,6 +397,27 @@ class PopulationNetwork(BaseNetwork):
                 sources_by_layer[target_layer_idx][conn.timing].add(source)
         return sources_by_layer
 
+    def _reject_transferred_streams_after_first_layer(self) -> None:
+        """Fail when a later layer names the network input's E or I stream.
+
+        ``input_e`` and ``input_i`` are the transfer layer's excitatory and
+        inhibitory streams of the network input and reach only the first
+        layer. In a later layer they would silently mean the previous layer's
+        readout population, whatever its polarity.
+        """
+        for layer_cfg in self.layer_configs[1:]:
+            for raw_conn in layer_cfg.connections:
+                conn = _as_projection_config(raw_conn)
+                source = _canonical_external_source(conn.source)
+                if source in {_INPUT_E_SOURCE, _INPUT_I_SOURCE}:
+                    raise ValueError(
+                        f"layer {layer_cfg.name!r} connects source {conn.source!r} "
+                        f"to {conn.target!r}, but {source!r} is a stream of the "
+                        "network input and reaches only the first layer. Use "
+                        "'input' for the previous layer's readout population, or "
+                        "a qualified 'layer.population' source."
+                    )
+
     def _qualified_source_dim(self, source: str) -> int:
         layer_name, population_name = _split_qualified_source(source) or ("", "")
         return self._population_dims_by_layer[layer_name][population_name]
@@ -322,11 +438,20 @@ class PopulationNetwork(BaseNetwork):
         return dims
 
     def _layer_external_polarities(self, layer_idx: int) -> dict[str, str]:
-        polarities = {
-            _INPUT_SOURCE: "excitatory",
-            _INPUT_E_SOURCE: "excitatory",
-            _INPUT_I_SOURCE: "inhibitory",
-        }
+        if layer_idx == 0:
+            polarities = {
+                _INPUT_SOURCE: "excitatory",
+                _INPUT_E_SOURCE: "excitatory",
+                _INPUT_I_SOURCE: "inhibitory",
+            }
+        else:
+            # A later layer's "input" is the previous layer's readout
+            # population, so its synapses take that population's sign.
+            previous = self.layers[layer_idx - 1]
+            readout_polarity = previous._population_by_name[
+                previous.readout_population
+            ].polarity
+            polarities = dict.fromkeys(_EXTERNAL_INPUT_SOURCES, readout_polarity)
         for timing in (_SAME_STEP, _DELAYED):
             for source in self._qualified_sources_by_layer_timing[layer_idx][timing]:
                 polarities[source] = self._qualified_source_polarity(source)
@@ -389,16 +514,42 @@ class PopulationNetwork(BaseNetwork):
                 "PopulationNetwork expected last input dimension "
                 f"{self.input_dim}, got {x.shape[-1]}"
             )
+        x = self.input_adapter(x)
         if self.transfer_fn is not None:
             x_e, x_i = self.transfer_fn(x)
             projected_e = self.input_projection(x_e)
-            return {
+            inputs = {
                 _INPUT_SOURCE: projected_e,
                 _INPUT_E_SOURCE: projected_e,
                 _INPUT_I_SOURCE: x_i,
             }
-        projected = self.input_projection(x)
-        return self._single_stream_external_inputs(projected)
+        else:
+            inputs = self._single_stream_external_inputs(self.input_projection(x))
+        if not self._signed_input_checked:
+            self._warn_on_signed_shunting_input(inputs)
+        return inputs
+
+    @torch.compiler.disable
+    def _warn_on_signed_shunting_input(self, inputs: dict[str, torch.Tensor]) -> None:
+        """Warn once when shunting populations receive signed external input.
+
+        Shunting conductances with positive weights assume non-negative input
+        (rates); a signed input can drive the shunting denominator toward zero.
+        Checked on the first batch only, to avoid a device sync per step.
+        """
+        self._signed_input_checked = True
+        minimum = min(float(tensor.detach().min()) for tensor in inputs.values())
+        if minimum < -1e-5:
+            logger.warning(
+                "PopulationNetwork shunting populations %s read signed external "
+                "input (min %.4g); their conductances can turn negative and the "
+                "shunting denominator approach zero. Use input_transform: relu "
+                "or signed_split, a transfer layer with a non-negative "
+                "output_activation, input_projection_dims, or "
+                "data.processing.normalize: false.",
+                self._shunting_external_readers,
+                minimum,
+            )
 
     def _qualified_tensor(
         self,
@@ -463,10 +614,10 @@ class PopulationNetwork(BaseNetwork):
             return out, hidden
         return out
 
-    def _forward_feedforward(self, x: torch.Tensor) -> torch.Tensor:
+    def _feedforward_layers(self, x: torch.Tensor):
+        """Yield ``(layer_idx, layer, output)`` of a feed-forward pass in order."""
         default_inputs = self._project_external_inputs(x)
         layer_outputs: dict[str, dict[str, torch.Tensor]] = {}
-        readout = None
         for layer_idx, layer in enumerate(self.layers):
             external_inputs = self._same_step_external_inputs_for_layer(
                 layer_idx,
@@ -475,10 +626,36 @@ class PopulationNetwork(BaseNetwork):
             )
             h, _ = layer(external_inputs)
             layer_outputs[layer.config.name] = layer._last_outputs
+            yield layer_idx, layer, h
+            default_inputs = self._single_stream_external_inputs(h)
+
+    def _forward_feedforward(self, x: torch.Tensor) -> torch.Tensor:
+        readout = None
+        for _, layer, h in self._feedforward_layers(x):
             if layer.config.name == self.readout_layer:
                 readout = h
-            default_inputs = self._single_stream_external_inputs(h)
         return h if readout is None else readout
+
+    def forward_until(self, x: torch.Tensor, layer_index: int) -> torch.Tensor:
+        """Readout output of layer ``layer_index``, computed as ``forward`` does.
+
+        The layers before it run with the same external projections and
+        same-step routing as a feed-forward ``forward``; later layers do not
+        run. Recurrent networks raise.
+        """
+        if self.is_recurrent:
+            raise ValueError(
+                "forward_until runs a feed-forward pass; this PopulationNetwork "
+                "is recurrent"
+            )
+        if not 0 <= int(layer_index) < len(self.layers):
+            raise IndexError(
+                f"layer_index {layer_index} outside the {len(self.layers)} layers"
+            )
+        for layer_idx, _, h in self._feedforward_layers(x):
+            if layer_idx == layer_index:
+                return h
+        raise AssertionError("unreachable")
 
     def _forward_recurrent(
         self,

@@ -85,8 +85,12 @@ class LIFSoma(nn.Module):
         if readout_trace is None:
             readout_trace = torch.zeros_like(dendritic_voltage)
 
-        decay = torch.as_tensor(
-            self.decay, device=dendritic_voltage.device, dtype=dendritic_voltage.dtype
+        # Device-side fills: no host-to-device copy (and sync) per step.
+        decay = torch.full(
+            (),
+            self.decay,
+            device=dendritic_voltage.device,
+            dtype=dendritic_voltage.dtype,
         )
         candidate = decay * membrane + (1 - decay) * dendritic_voltage
 
@@ -104,7 +108,8 @@ class LIFSoma(nn.Module):
                 next_refractory,
             )
 
-        readout_decay = torch.as_tensor(
+        readout_decay = torch.full(
+            (),
             self.readout_decay,
             device=dendritic_voltage.device,
             dtype=dendritic_voltage.dtype,

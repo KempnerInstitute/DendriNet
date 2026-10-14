@@ -61,10 +61,25 @@ class TestEIConnectivityMotifs(unittest.TestCase):
             [distal, soma]
         )
 
+        # Weight mass: distal 2 * 0.25, soma 1.0, so f_soma - f_distal = 1/3.
         bias = summary["targeting_index"]
-        self.assertTrue(torch.allclose(bias, torch.full_like(bias, 0.6), atol=1e-6))
+        self.assertTrue(torch.allclose(bias, torch.full_like(bias, 1 / 3), atol=1e-6))
         self.assertEqual(summary["class_counts"]["soma-biased"], n_source)
         self.assertEqual(summary["pair_level"]["strong_soma_pct"], 100.0)
+
+    def test_disconnected_pairs_are_excluded(self) -> None:
+        # Source 0 reaches target 0 only; source 1 reaches no target.
+        distal = torch.zeros(2, 2, 2)
+        soma = torch.zeros(2, 1, 2)
+        soma[0, 0, 0] = 1.0
+        summary = summarize_compartment_targeting_from_compartment_weights(
+            [distal, soma]
+        )
+        self.assertEqual(summary["pair_level"]["n_pairs"], 1)
+        self.assertEqual(summary["pair_level"]["n_disconnected_pairs"], 3)
+        self.assertEqual(summary["pair_level"]["balanced_pct"], 0.0)
+        self.assertEqual(summary["classes"], ["soma-biased", "disconnected"])
+        self.assertEqual(summary["frac_soma_pop"], 1.0)
 
     def test_pair_stats_by_class_reports_expected_balance(self) -> None:
         bias = torch.tensor(

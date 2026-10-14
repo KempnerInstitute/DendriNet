@@ -127,10 +127,9 @@ class DirectActiveMatchedPointBottleneck(nn.Module):
                 ii_synapses_per_branch_per_layer = []
             reference_kwargs = dict(kwargs)
             reference_kwargs["transfer_params"] = {
-                "input_mode": 0,
                 "independent_pathways": False,
-                "excitatory_dim": [],
-                "inhibitory_dim": [],
+                "excitatory_dim": None,
+                "inhibitory_dim": None,
                 "output_activation": "none",
                 **transfer_params,
             }

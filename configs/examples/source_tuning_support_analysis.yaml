@@ -1,0 +1,37 @@
+# Final-only source-coordinate tuning aligned with the exact realized sparse
+# support of a feedforward PopulationNetwork checkpoint. Preferred classes are
+# selected on train; tuning is evaluated independently on validation.
+analysis:
+  runtime:
+    final:
+      mode: stream
+      batch_size: 512
+      num_workers: 0
+      pin_memory: true
+
+  source_tuning_support:
+    enabled: true
+    training: false
+    params:
+      reference_split: train
+      evaluation_split: validation
+      pathways: [ff_excitatory, ff_inhibitory]
+      target_polarities: [excitatory, inhibitory]
+
+      # Image semantics are opt-in. Only declared source layers and names are
+      # interpreted as pixels; later layers retain native neuron coordinates.
+      image_shape: [28, 28]
+      image_source_layers: [0]
+      image_source_names: [input, input_e, input_i]
+      image_binarization_threshold: 0.5
+      continuous_activity_threshold: 0.0
+
+      input_batch_index: 0
+      label_batch_index: 1
+      max_reference_samples: null
+      max_evaluation_samples: null
+      require_independent_splits: true
+      # Keep cohort artifacts scalar by default. Enable only for a small,
+      # explicitly selected checkpoint when coordinate-level maps are needed.
+      retain_coordinate_profiles: false
+      epsilon: 1.0e-12

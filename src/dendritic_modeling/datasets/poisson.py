@@ -1,11 +1,31 @@
 """Poisson-noise dataset wrappers."""
 
+import copy
 from math import log
+from types import MappingProxyType
 from typing import Optional
 
 import numpy as np
 import torch
 from torch.utils.data import Dataset
+
+#: What the ``poisson_generator`` loader uses for each key left out of
+#: ``data.dataset_params.poisson_generator``. The training pipeline and the
+#: tools that check a Poisson-trained checkpoint read these values, so an
+#: omitted key means the same in both.
+POISSON_GENERATOR_DEFAULTS = MappingProxyType(
+    {
+        "base_dataset": "mnist",
+        "poisson_sampling": True,
+        "stimulus_duration": 1.0,
+        "multiplicative_gain": True,
+        "fixed_gain_factor": None,
+        "max_gain_factor": None,
+        "max_gain_tau_ratio": None,
+        "uniform_gain": True,
+        "gain_sampling": "log_uniform",
+    }
+)
 
 
 class PoissonGeneratorDataset(Dataset):
@@ -79,14 +99,50 @@ class PoissonGeneratorDataset(Dataset):
         self.stimulus_duration = stimulus_duration
         self.tau = stimulus_duration
 
-        self._fixed_gf = None
-        self._max_gf = None
+        # Analysis gain override applied to every item, set on copies made by
+        # with_gain_override: ("fixed", g) or ("max", g).
+        self._gain_override: Optional[tuple[str, float | torch.Tensor]] = None
 
-    def _set_gain_factor(self, gain_factor: float | torch.Tensor):
-        self._fixed_gf = gain_factor
+    @property
+    def gain_is_unity(self) -> bool:
+        """Whether every item's multiplicative gain is exactly 1.
 
-    def _set_max_gain_factor(self, max_gain_factor: float | torch.Tensor):
-        self._max_gf = max_gain_factor
+        True when the gain is off, fixed at 1, or drawn from ``[1, 1]``: no
+        ``max_gain_factor`` or ``max_gain_tau_ratio`` (the bound defaults to
+        1), or ones that give a bound of 1. Such a gain multiplies every input
+        by 1 exactly. An analysis override counts in place of the training
+        gain.
+        """
+        if self._gain_override is not None:
+            _kind, gain = self._gain_override
+            return bool(torch.all(torch.as_tensor(gain) == 1))
+        if not self.multiplicative_gain:
+            return True
+        if self.fixed_gain_factor is not None:
+            return float(self.fixed_gain_factor) == 1.0
+        return self.max_gain_factor == 1.0
+
+    def with_gain_override(
+        self,
+        *,
+        fixed: Optional[float | torch.Tensor] = None,
+        max_gain: Optional[float | torch.Tensor] = None,
+    ) -> "PoissonGeneratorDataset":
+        """Return a copy whose items use an analysis gain instead of the training one.
+
+        ``fixed`` multiplies every input by one gain. ``max_gain`` multiplies
+        each input element by its own gain drawn uniformly from
+        ``[1, max_gain]``. Poisson sampling is applied afterwards as usual. The
+        copy shares the base tensors, and the override holds for every item and
+        every DataLoader worker, so all materialization modes see the same gain.
+        """
+        if (fixed is None) == (max_gain is None):
+            raise ValueError("give exactly one of fixed or max_gain")
+        view = copy.copy(self)
+        view._gain_override = (
+            ("fixed", fixed) if fixed is not None else ("max", max_gain)
+        )
+        return view
 
     @staticmethod
     def _is_batched_index(idx) -> bool:
@@ -132,13 +188,12 @@ class PoissonGeneratorDataset(Dataset):
         input = self.base_inputs[idx]
         label = self.base_labels[idx]
 
-        if self._fixed_gf is not None:
-            input = input * self._fixed_gf
-            self._fixed_gf = None
-
-        elif self._max_gf is not None:
-            input = input * ((torch.rand_like(input) * (self._max_gf - 1)) + 1)
-            self._max_gf = None
+        if self._gain_override is not None:
+            kind, gain = self._gain_override
+            if kind == "fixed":
+                input = input * gain
+            else:
+                input = input * ((torch.rand_like(input) * (gain - 1)) + 1)
 
         elif self.multiplicative_gain:
             if self.fixed_gain_factor is not None:
@@ -170,4 +225,4 @@ class PoissonGeneratorDataset(Dataset):
             return input, label
 
 
-__all__ = ["PoissonGeneratorDataset"]
+__all__ = ["POISSON_GENERATOR_DEFAULTS", "PoissonGeneratorDataset"]

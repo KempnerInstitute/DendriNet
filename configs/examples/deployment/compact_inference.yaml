@@ -1,0 +1,25 @@
+# Post-training deployment policy. This file does not alter training.
+sparse_topology:
+  enabled: true
+  topology_encoding: bitmask  # uint is faster to decode; bitmask is often smaller
+  require_final_dense_to_sparse_step: true
+  allow_indexed_dynamic: true
+  allow_indexed_rewire: true
+
+# Applied only when load_compact_model_checkpoint(..., apply_dense_runtime=True).
+# "none" leaves the loaded model unchanged; the TorchAO backends transform
+# large nn.Linear layers and can change the outputs.
+dense_runtime:
+  backend: none
+  include_patterns: []
+  exclude_patterns: []
+  min_in_features: 256
+  min_out_features: 256
+  int4_group_size: 128
+  block_size: 64
+  minimum_block_sparsity: 0.80
+
+verification:
+  enabled: true
+  atol: 1.0e-5
+  rtol: 1.0e-5

@@ -226,7 +226,6 @@ def test_ordered_independent_transfer_preserves_ei_halves() -> None:
     transfer = TransferLayer(
         input_dim=8,
         transfer_params={
-            "input_mode": 1,
             "independent_pathways": True,
             "excitatory_dim": 4,
             "inhibitory_dim": 4,

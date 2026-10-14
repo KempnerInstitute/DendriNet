@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
 import torch
 
 from dendritic_modeling.training.strategies.local_learning_parts.local_learning_homeostasis import (
@@ -56,16 +57,14 @@ def test_inhibitory_homeostasis_voltage_mode():
     torch.testing.assert_close(out, 1.0 * (v_n - 0.1) * R_tot * (0.0 - v_n))
 
 
-def test_inhibitory_homeostasis_unknown_mode_returns_none():
+def test_inhibitory_homeostasis_unknown_mode_raises():
     cfg = SimpleNamespace(
         inhibitory_homeostasis=SimpleNamespace(enabled=True, weight=1.0, mode="bogus")
     )
-    assert (
+    with pytest.raises(ValueError, match=r"Unknown inhibitory_homeostasis\.mode"):
         compute_inhibitory_homeostasis_factor(
             cfg, {}, torch.tensor(0.3), torch.zeros(2)
         )
-        is None
-    )
 
 
 def test_voltage_homeostasis_error():
@@ -76,7 +75,7 @@ def test_voltage_homeostasis_error():
     )
     v_n = torch.tensor([0.0, 1.0])
     torch.testing.assert_close(
-        compute_voltage_homeostasis_error(cfg, v_n), 2.0 * (0.5 - v_n)
+        compute_voltage_homeostasis_error(cfg, v_n), 2.0 * (v_n - 0.5)
     )
     assert (
         compute_voltage_homeostasis_error(

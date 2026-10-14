@@ -14,17 +14,18 @@ from dendritic_modeling.analysis.tools.dendritic_timetraces import (
     DendriticTimetracesAnalyzer,
 )
 from dendritic_modeling.config.analysis import DendriticTimetracesAnalysisParams
+from dendritic_modeling.networks.activations.parametric import (
+    ParametricReLU,
+    ParametricTanh,
+)
 
 
-class _FakeReactivation(nn.Module):
-    def __init__(self, m: float, b: float, n_units: int = 4) -> None:
-        super().__init__()
-        self.log_m = nn.Parameter(torch.full((n_units,), math.log(m)))
-        self.b = nn.Parameter(torch.full((n_units,), b))
+def _reactivation(m: float, b: float, n_units: int = 4) -> ParametricTanh:
+    return ParametricTanh(n_units, init_m=m, init_b=b)
 
 
 class _FakeBranchLayer(nn.Module):
-    def __init__(self, reactivation: _FakeReactivation) -> None:
+    def __init__(self, reactivation: nn.Module) -> None:
         super().__init__()
         self.reactivation = reactivation
 
@@ -61,7 +62,7 @@ class _FakeModel(nn.Module):
 
 def _build_model(tau: list[float], m_b: list[tuple[float, float]]) -> _FakeModel:
     log_tau = torch.log(torch.tensor(tau, dtype=torch.float32))
-    branch_layers = [_FakeBranchLayer(_FakeReactivation(m, b)) for m, b in m_b]
+    branch_layers = [_FakeBranchLayer(_reactivation(m, b)) for m, b in m_b]
     return _FakeModel(_FakeCore([_FakeLayer(_FakePopulation(branch_layers, log_tau))]))
 
 
@@ -138,6 +139,33 @@ class TestDendriticTimetracesAnalyzer(unittest.TestCase):
             files = {p.name for p in Path(td).iterdir()}
             self.assertIn("final.json", files)
             self.assertIn("final_layer_0.pdf", files)
+
+    def test_the_population_step_sets_the_level_decay(self) -> None:
+        model = _build_model(tau=[4.0], m_b=[(1.0, 0.0)])
+        model.core_network.layers[0].e_population.dt = 0.5
+        params = DendriticTimetracesAnalysisParams(
+            n_timesteps=3,
+            stim1_window=(0, 3),
+            stim2_window=None,
+            noise_std=0.0,
+            save_figures=False,
+        )
+        entry = DendriticTimetracesAnalyzer(params).analyze(model)["layers"]["layer_0"]
+        rho = math.exp(-0.5 / 4.0)
+        self.assertEqual(entry["dt"], 0.5)
+        self.assertAlmostEqual(entry["V"][0][1], (1 - rho) * params.stim1_amp)
+
+    def test_populations_with_other_gates_are_skipped_with_a_warning(self) -> None:
+        model = _build_model(tau=[5.0, 2.0], m_b=[(1.0, 0.0)] * 2)
+        layer = model.core_network.layers[0].e_population.branch_layers[0]
+        layer.reactivation = ParametricReLU(4)
+        params = DendriticTimetracesAnalysisParams(save_figures=False)
+        with self.assertLogs(
+            "dendritic_modeling.analysis.tools.dendritic_timetraces", "WARNING"
+        ) as logs:
+            results = DendriticTimetracesAnalyzer(params).analyze(model)
+        self.assertNotIn("layer_0", results.get("layers", {}))
+        self.assertIn("ParametricReLU gates", logs.output[0])
 
 
 if __name__ == "__main__":

@@ -17,6 +17,10 @@ from dendritic_modeling.analysis.utils.effective_synapses import (
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer import (
     DendriticBranchLayer,
 )
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse import (
+    DenseToSparseLinear,
+    TopKLinear,
+)
 
 _SYNAPSE_PATHWAYS = {
     "branch_excitation": "ff_excitatory",
@@ -197,28 +201,121 @@ def synapse_resource_records(model: torch.nn.Module) -> list[SynapseResourceReco
             if synapse is None or id(synapse) in seen:
                 continue
             seen.add(id(synapse))
-            snapshot = effective_synapse_snapshot(synapse)
-            realized_k = snapshot.realized_k.to(dtype=torch.float32)
+            if type(synapse) in {TopKLinear, DenseToSparseLinear}:
+                counts = _dense_candidate_topk_resource_counts(synapse)
+                out_features = int(counts["out_features"])
+                in_features = int(counts["in_features"])
+                candidate_slots = int(counts["candidate_slots"])
+                active_synapses = int(counts["active_synapses"])
+                realized_k_min = int(counts["realized_k_min"])
+                realized_k_max = int(counts["realized_k_max"])
+                realized_k_mean = float(counts["realized_k_mean"])
+                selection_policy = str(counts["selection_policy"])
+                mask_source = str(counts["mask_source"])
+            elif callable(
+                compact_counts_fn := getattr(
+                    synapse,
+                    "connectivity_resource_counts",
+                    None,
+                )
+            ):
+                counts = compact_counts_fn()
+                out_features = int(counts["out_features"])
+                in_features = int(counts["in_features"])
+                candidate_slots = int(counts["candidate_slots"])
+                active_synapses = int(counts["active_synapses"])
+                realized_k_min = int(counts["realized_k_min"])
+                realized_k_max = int(counts["realized_k_max"])
+                realized_k_mean = float(counts["realized_k_mean"])
+                selection_policy = str(counts["selection_policy"])
+                mask_source = str(counts["mask_source"])
+            else:
+                snapshot = effective_synapse_snapshot(synapse)
+                realized_k = snapshot.realized_k.to(dtype=torch.float32)
+                out_features = int(snapshot.active_mask.shape[0])
+                in_features = int(snapshot.active_mask.shape[1])
+                candidate_slots = int(snapshot.candidate_mask.ne(0).sum().item())
+                active_synapses = int(snapshot.active_mask.ne(0).sum().item())
+                realized_k_min = int(realized_k.min().item())
+                realized_k_max = int(realized_k.max().item())
+                realized_k_mean = float(realized_k.mean().item())
+                selection_policy = snapshot.selection_policy
+                mask_source = snapshot.mask_source
             records.append(
                 SynapseResourceRecord(
                     module=f"{branch_name}.{attr}",
                     pathway=pathway,
                     soma_relative_depth=int(depth),
-                    out_features=int(snapshot.active_mask.shape[0]),
-                    in_features=int(snapshot.active_mask.shape[1]),
+                    out_features=out_features,
+                    in_features=in_features,
                     candidate_parameters=int(
                         sum(parameter.numel() for parameter in synapse.parameters())
                     ),
-                    candidate_slots=int(snapshot.candidate_mask.ne(0).sum().item()),
-                    active_synapses=int(snapshot.active_mask.ne(0).sum().item()),
-                    realized_k_min=int(realized_k.min().item()),
-                    realized_k_max=int(realized_k.max().item()),
-                    realized_k_mean=float(realized_k.mean().item()),
-                    selection_policy=snapshot.selection_policy,
-                    mask_source=snapshot.mask_source,
+                    candidate_slots=candidate_slots,
+                    active_synapses=active_synapses,
+                    realized_k_min=realized_k_min,
+                    realized_k_max=realized_k_max,
+                    realized_k_mean=realized_k_mean,
+                    selection_policy=selection_policy,
+                    mask_source=mask_source,
                 )
             )
     return records
+
+
+def _dense_candidate_topk_resource_counts(
+    synapse: TopKLinear,
+) -> dict[str, int | float | str]:
+    """Count deterministic dense-candidate Top-K support without a dense mask."""
+
+    if type(synapse) is DenseToSparseLinear:
+        selected_k = int(synapse.current_k)
+        selection_policy = "dense_to_sparse"
+    elif type(synapse) is TopKLinear:
+        selected_k = int(synapse.K)
+        selection_policy = "topk"
+    else:  # pragma: no cover - guarded by the caller
+        raise TypeError(type(synapse))
+
+    allowed_mask = synapse.connection_mask
+    forbidden = synapse._forbidden_input_index_per_output
+    if allowed_mask.numel() > 0:
+        allowed_per_output = allowed_mask.count_nonzero(dim=1).to(torch.long)
+        if forbidden.numel() > 0:
+            valid = forbidden >= 0
+            if bool(valid.any()):
+                rows = torch.arange(synapse.out_features, device=forbidden.device)
+                forbidden_allowed = allowed_mask[
+                    rows[valid],
+                    forbidden[valid].to(torch.long),
+                ].to(torch.long)
+                allowed_per_output[valid] -= forbidden_allowed
+        mask_source = "structured_candidate_mask"
+    else:
+        allowed_per_output = torch.full(
+            (synapse.out_features,),
+            synapse.in_features,
+            dtype=torch.long,
+            device=synapse.pre_w.device,
+        )
+        if forbidden.numel() > 0:
+            allowed_per_output -= (forbidden >= 0).to(
+                device=allowed_per_output.device,
+                dtype=torch.long,
+            )
+        mask_source = "dense_candidates"
+    realized = allowed_per_output.clamp(max=selected_k)
+    return {
+        "out_features": int(synapse.out_features),
+        "in_features": int(synapse.in_features),
+        "candidate_slots": int(allowed_per_output.sum().item()),
+        "active_synapses": int(realized.sum().item()),
+        "realized_k_min": int(realized.min().item()),
+        "realized_k_max": int(realized.max().item()),
+        "realized_k_mean": float(realized.to(torch.float64).mean().item()),
+        "selection_policy": selection_policy,
+        "mask_source": mask_source,
+    }
 
 
 def _tensor_tree_numel(value: Any, seen: set[int]) -> int:
@@ -262,10 +359,67 @@ def persistent_state_scalars(core: torch.nn.Module) -> int:
     return 0
 
 
-def model_resource_summary(model: torch.nn.Module) -> dict[str, Any]:
-    """Return auditable parameter, connectivity, and state accounting."""
+def topk_parameter_inventory(model: torch.nn.Module) -> dict[str, int]:
+    """Count trainable storage versus retained dense-candidate Top-K weights.
 
-    records = synapse_resource_records(model)
+    Works for conventional affine controls as well as dendritic models. Other
+    parameter families are counted at their stored size; dynamic indexed or
+    scheduled sparse policies require their own resource records. This is a
+    parameter count, not a claim about executable bytes or runtime.
+    """
+
+    stored = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    candidate = retained = 0
+    seen: set[int] = set()
+    for module in model.modules():
+        if type(module) is TopKLinear and module.pre_w.requires_grad:
+            if id(module.pre_w) in seen:
+                raise ValueError(
+                    "Shared Top-K weights require an explicit support accounting policy"
+                )
+            seen.add(id(module.pre_w))
+            candidate += module.pre_w.numel()
+            retained += int(
+                _dense_candidate_topk_resource_counts(module)["active_synapses"]
+            )
+    return {
+        "training_parameters": stored,
+        "candidate_weights": candidate,
+        "retained_parameters": stored - candidate + retained,
+        "buffer_bytes": sum(
+            value.numel() * value.element_size() for value in model.buffers()
+        ),
+    }
+
+
+def model_resource_summary(model: torch.nn.Module) -> dict[str, Any]:
+    """Return auditable parameter, connectivity, and state accounting.
+
+    Connectivity is counted for the evaluation-mode model, whose stochastic
+    selectors use their deterministic top-K masks.
+    """
+
+    core = getattr(model, "core_network", model)
+    modes = {module: module.training for module in model.modules()}
+    model.eval()
+    try:
+        records = synapse_resource_records(model)
+    finally:
+        for module, training in modes.items():
+            module.training = training
+    record_provider = getattr(core, "connectivity_resource_records", None)
+    if callable(record_provider):
+        provided = record_provider()
+        if not isinstance(provided, list):
+            raise TypeError("connectivity_resource_records() must return a list")
+        records.extend(
+            (
+                record
+                if isinstance(record, SynapseResourceRecord)
+                else SynapseResourceRecord(**record)
+            )
+            for record in provided
+        )
     total_parameters = int(sum(parameter.numel() for parameter in model.parameters()))
     trainable_parameters = int(
         sum(
@@ -274,13 +428,24 @@ def model_resource_summary(model: torch.nn.Module) -> dict[str, Any]:
             if parameter.requires_grad
         )
     )
+    core_total_parameters = int(
+        sum(parameter.numel() for parameter in core.parameters())
+    )
+    core_trainable_parameters = int(
+        sum(
+            parameter.numel()
+            for parameter in core.parameters()
+            if parameter.requires_grad
+        )
+    )
     synapse_candidate_parameters = int(
         sum(record.candidate_parameters for record in records)
     )
-    core = getattr(model, "core_network", model)
-    return {
+    summary = {
         "total_parameters": total_parameters,
         "trainable_parameters": trainable_parameters,
+        "core_total_parameters": core_total_parameters,
+        "core_trainable_parameters": core_trainable_parameters,
         "synapse_candidate_parameters": synapse_candidate_parameters,
         "non_synaptic_parameters": total_parameters - synapse_candidate_parameters,
         "candidate_synapse_slots": int(
@@ -290,6 +455,10 @@ def model_resource_summary(model: torch.nn.Module) -> dict[str, Any]:
         "persistent_state_scalars_per_sample": persistent_state_scalars(core),
         "synapses": [asdict(record) for record in records],
     }
+    ledger_provider = getattr(core, "resource_ledger", None)
+    if callable(ledger_provider):
+        summary["mechanism_ledger"] = ledger_provider()
+    return summary
 
 
 __all__ = [
@@ -300,4 +469,5 @@ __all__ = [
     "persistent_state_scalars",
     "static_dendritic_resource_summary",
     "synapse_resource_records",
+    "topk_parameter_inventory",
 ]

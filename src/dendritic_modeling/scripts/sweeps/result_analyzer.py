@@ -90,10 +90,8 @@ from dendritic_modeling.scripts.sweeps.analyzers import (
     auto_detect_sweep_type,
     get_analyzer,
 )
+from dendritic_modeling.utils.logging_config import setup_logging
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
 logger = logging.getLogger(__name__)
 
 
@@ -131,18 +129,31 @@ def main():
         "results_dir", nargs="?", type=Path, help="Sweep results directory"
     )
     parser.add_argument(
-        "--type", "-t", dest="sweep_type", choices=list(ANALYZER_REGISTRY.keys())
+        "--type",
+        "-t",
+        dest="sweep_type",
+        choices=list(ANALYZER_REGISTRY.keys()),
+        help="Analyzer to use (default: detected from the generated configs)",
     )
-    parser.add_argument("--output", "-o", dest="output_dir", type=Path)
+    parser.add_argument(
+        "--output",
+        "-o",
+        dest="output_dir",
+        type=Path,
+        help="Directory for the tables and plots (default: <results_dir>/plots)",
+    )
     parser.add_argument(
         "--list-types", action="store_true", help="List available sweep types"
     )
-    parser.add_argument("--verbose", "-v", action="store_true")
+    parser.add_argument(
+        "--verbose",
+        "-v",
+        action="store_true",
+        help="Log debug messages and print the traceback of a failed analysis",
+    )
 
     args = parser.parse_args()
-
-    if args.verbose:
-        logging.getLogger().setLevel(logging.DEBUG)
+    setup_logging(debug=args.verbose)
 
     if args.list_types:
         print("\nAvailable Sweep Types:", ", ".join(ANALYZER_REGISTRY.keys()))

@@ -81,15 +81,11 @@ def _ensure_slice_safe_triplet(
 def _dataset_mapping_to_triplet(
     data: dict[str, Dataset],
     *,
-    valid_fallback_to_test: bool = False,
     slice_safe: bool = False,
 ) -> tuple[Dataset, Dataset, Dataset]:
     """Convert a dataset mapping into a train/valid/test triplet."""
     train_ds = data["train"]
-    if valid_fallback_to_test:
-        valid_ds = data["valid"] if "valid" in data else data["test"]
-    else:
-        valid_ds = data["valid"]
+    valid_ds = data["valid"]
     test_ds = data["test"]
 
     if slice_safe:

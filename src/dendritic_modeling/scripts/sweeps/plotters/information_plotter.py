@@ -10,6 +10,8 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
+from dendritic_modeling.plotting.styles import depth_style, indexed_style
+
 from ..utils.metrics import get_metric_label
 from .base_plotter import BasePlotter
 
@@ -24,29 +26,43 @@ class InformationPlotter(BasePlotter):
         "class_information": {
             "metrics": ["mi_E_C", "mi_I_C", "mi_V_C"],
             "labels": ["I(E;C)", "I(I;C)", "I(V;C)"],
-            "colors": ["#FF6B6B", "#4ECDC4", "#45B7D1"],  # Red, Teal, Blue
+            "colors": ["#0072B2", "#D55E00", "#009E73"],
             "title": "Information with Class Labels",
             "ylabel": "Mutual Information (bits)",
         },
         "component_information": {
             "metrics": ["mi_E_I", "mi_E_V", "mi_I_V"],
             "labels": ["I(E;I)", "I(E;V)", "I(I;V)"],
-            "colors": ["#8B5A96", "#FFA726", "#9C27B0"],  # Purple, Orange, Purple
+            "colors": ["#CC79A7", "#E69F00", "#56B4E9"],
             "title": "Component Information",
             "ylabel": "Mutual Information (bits)",
         },
         "conditional_information": {
             "metrics": ["mi_E_I_given_C", "mi_E_V_given_C", "mi_I_V_given_C"],
             "labels": ["I(E;I|C)", "I(E;V|C)", "I(I;V|C)"],
-            "colors": [
-                "#2E7D32",
-                "#558B2F",
-                "#827717",
-            ],  # Dark green, Forest green, Olive
+            "colors": ["#009E73", "#0072B2", "#D55E00"],
             "title": "Conditional Information",
             "ylabel": "Mutual Information (bits)",
         },
     }
+
+    def _metric_style(self, metric: str, color: str | None = None) -> dict:
+        """Colour, marker and line style of a metric series.
+
+        Metrics of one group get distinct markers and line styles as well as
+        colours, so they read without colour.
+        """
+        for group in self.METRIC_GROUPS.values():
+            if metric in group["metrics"]:
+                index = group["metrics"].index(metric)
+                style = indexed_style(index)
+                return {
+                    "color": color or group["colors"][index],
+                    "marker": style.marker,
+                    "linestyle": style.linestyle,
+                }
+        style = indexed_style(0)
+        return {"color": color or style.color, "marker": style.marker, "linestyle": "-"}
 
     @staticmethod
     def _add_legend_if_handles(ax: plt.Axes, **kwargs) -> None:
@@ -372,8 +388,7 @@ class InformationPlotter(BasePlotter):
                 ax.plot(
                     grouped.index,
                     grouped.values,
-                    marker="o",
-                    color=color,
+                    **self._metric_style(metric, color),
                     label=label,
                     linewidth=2,
                 )
@@ -447,7 +462,7 @@ class InformationPlotter(BasePlotter):
                     ax.plot(
                         grouped.index,
                         grouped.values,
-                        marker="o",
+                        **depth_style(depth).kwargs(),
                         label=f"Layer {depth}",
                         linewidth=2,
                     )
@@ -646,8 +661,7 @@ class InformationPlotter(BasePlotter):
                             ax.plot(
                                 grouped.index,
                                 grouped.values,
-                                marker="o",
-                                color=color,
+                                **self._metric_style(metric, color),
                                 label=label,
                                 linewidth=2,
                                 markersize=6,
@@ -919,14 +933,18 @@ class InformationPlotter(BasePlotter):
                         continue
 
                     grouped = cat_data.groupby(sweep_var)[layer_col].mean().sort_index()
+                    # The marker names the metric and the line style the
+                    # condition (hollow markers without shunting).
+                    style = self._metric_style(metric, color)
                     ax.plot(
                         grouped.index,
                         grouped.values,
-                        color=color,
+                        color=style["color"],
+                        marker=style["marker"],
+                        markerfacecolor=style["color"] if use_shunting else "none",
                         linestyle=linestyle,
                         label=f"{label} ({'S' if use_shunting else 'NS'})",
                         linewidth=2,
-                        marker="o" if use_shunting else "s",
                         markersize=5,
                         alpha=alpha,
                     )
@@ -1207,8 +1225,7 @@ class InformationPlotter(BasePlotter):
                             ax.plot(
                                 grouped.index,
                                 grouped.values,
-                                marker="o",
-                                color=color,
+                                **self._metric_style(metric, color),
                                 label=label,
                                 linewidth=2,
                                 markersize=6,
@@ -1383,14 +1400,17 @@ class InformationPlotter(BasePlotter):
             series: pd.Series | None,
             label: str,
             color: str,
+            index: int,
         ) -> None:
             if series is None or series.empty:
                 return
+            style = indexed_style(index)
             ax.plot(
                 series.index,
                 series.values,
-                marker="o",
                 color=color,
+                marker=style.marker,
+                linestyle=style.linestyle,
                 label=label,
                 linewidth=2,
                 markersize=5,
@@ -1420,12 +1440,12 @@ class InformationPlotter(BasePlotter):
                         transform=ax.transAxes,
                     )
                 else:
-                    for lbl, m_xy, m_given, color in series_specs:
+                    for index, (lbl, m_xy, m_given, color) in enumerate(series_specs):
                         if m_given is not None:
                             s = coinfo_series(cat_df, m_xy, m_given)
                         else:
                             s = grouped_metric(cat_df, m_xy)
-                        plot_series_on_ax(ax, s, lbl, color)
+                        plot_series_on_ax(ax, s, lbl, color, index)
 
                 if show_zero_line:
                     ax.axhline(
@@ -1592,8 +1612,7 @@ class InformationPlotter(BasePlotter):
             if not depths:
                 continue
 
-            cmap = plt.get_cmap("tab10")
-            depth_colors = {d: cmap(d / 9.0) for d in depths}
+            depth_colors = {d: depth_style(d) for d in depths}
 
             fig, axes = plt.subplots(1, 3, figsize=(21, 6))
             fig.suptitle(
@@ -1637,9 +1656,8 @@ class InformationPlotter(BasePlotter):
                             ax.plot(
                                 x_vals,
                                 y_vals,
-                                marker="o",
                                 label=f"Layer {depth}",
-                                color=depth_colors[depth],
+                                **depth_colors[depth].kwargs(),
                                 alpha=0.8,
                                 linewidth=2,
                             )
@@ -1711,8 +1729,7 @@ class InformationPlotter(BasePlotter):
             if not depths:
                 continue
 
-            cmap = plt.get_cmap("tab10")
-            depth_colors = {d: cmap(d / 9.0) for d in depths}
+            depth_colors = {d: depth_style(d) for d in depths}
 
             fig, axes = plt.subplots(1, 3, figsize=(21, 6))
             fig.suptitle(
@@ -1756,9 +1773,8 @@ class InformationPlotter(BasePlotter):
                             ax.plot(
                                 x_vals,
                                 y_vals,
-                                marker="o",
                                 label=f"Layer {depth}",
-                                color=depth_colors[depth],
+                                **depth_colors[depth].kwargs(),
                                 alpha=0.8,
                                 linewidth=2,
                             )
@@ -1832,8 +1848,7 @@ class InformationPlotter(BasePlotter):
             if not depths:
                 continue
 
-            cmap = plt.get_cmap("tab10")
-            depth_colors = {d: cmap(d / 9.0) for d in depths}
+            depth_colors = {d: depth_style(d) for d in depths}
 
             fig, axes = plt.subplots(1, 3, figsize=(21, 6))
             fig.suptitle(
@@ -1877,9 +1892,8 @@ class InformationPlotter(BasePlotter):
                             ax.plot(
                                 x_vals,
                                 y_vals,
-                                marker="o",
                                 label=f"Layer {depth}",
-                                color=depth_colors[depth],
+                                **depth_colors[depth].kwargs(),
                                 alpha=0.8,
                                 linewidth=2,
                             )
@@ -1974,8 +1988,7 @@ class InformationPlotter(BasePlotter):
             if not depths:
                 continue
 
-            cmap = plt.get_cmap("tab10")
-            depth_colors = {d: cmap(d / 9.0) for d in depths}
+            depth_colors = {d: depth_style(d) for d in depths}
 
             fig, axes = plt.subplots(1, 3, figsize=(21, 6))
             fig.suptitle(
@@ -2025,9 +2038,8 @@ class InformationPlotter(BasePlotter):
                             ax.plot(
                                 x_vals,
                                 y_vals,
-                                marker="o",
                                 label=f"Layer {depth}",
-                                color=depth_colors[depth],
+                                **depth_colors[depth].kwargs(),
                                 alpha=0.8,
                                 linewidth=2,
                             )

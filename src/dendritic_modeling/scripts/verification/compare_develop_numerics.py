@@ -17,6 +17,8 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+from dendritic_modeling.utils.logging_config import setup_logging
+
 PROBE_SOURCE = r"""
 from __future__ import annotations
 
@@ -96,7 +98,27 @@ def _tensor_digest(tensor: torch.Tensor) -> dict[str, Any]:
 
 
 def _state_digest(model: torch.nn.Module) -> dict[str, Any]:
-    return {name: _tensor_digest(value) for name, value in model.state_dict().items()}
+    state = model.state_dict()
+    metadata = getattr(state, "_metadata", {})
+    try:
+        from dendritic_modeling.networks.state_versions import state_keys_added
+    except ImportError:  # checkouts before the version declarations
+        state_keys_added = None
+    version_added = {}
+    if state_keys_added is not None:
+        for module_name, module in model.named_modules():
+            prefix = f"{module_name}." if module_name else ""
+            for version, names in state_keys_added(module).items():
+                for name in names:
+                    if prefix + name in state:
+                        version_added[prefix + name] = int(version)
+    return {
+        "tensors": {name: _tensor_digest(value) for name, value in state.items()},
+        "module_versions": {
+            name: meta.get("version") for name, meta in metadata.items()
+        },
+        "version_added": version_added,
+    }
 
 
 def _grad_digest(model: torch.nn.Module) -> dict[str, Any]:
@@ -165,7 +187,6 @@ def _build_model(seed: int = 123, variant: Mapping[str, Any] | None = None) -> C
     _seed(seed)
     variant = dict(variant or MODEL_VARIANTS[0])
     transfer_params = {
-        "input_mode": 0,
         "independent_pathways": False,
         "output_activation": "softplus",
     }
@@ -440,6 +461,56 @@ def _is_number(value: Any) -> bool:
     return isinstance(value, int | float) and not isinstance(value, bool)
 
 
+def _is_state_digest(value: Any) -> bool:
+    return isinstance(value, Mapping) and set(value) == {
+        "tensors",
+        "module_versions",
+        "version_added",
+    }
+
+
+def _layout_only(key: str, side: Mapping[str, Any], other: Mapping[str, Any]) -> bool:
+    """Whether ``side`` has ``key`` only because its module version added it."""
+    added = side["version_added"].get(key)
+    if added is None:
+        return False
+    module = key.rsplit(".", 1)[0] if "." in key else ""
+    other_version = other["module_versions"].get(module)
+    return other_version is None or int(other_version) < added
+
+
+def _compare_state_digests(
+    left: Mapping[str, Any],
+    right: Mapping[str, Any],
+    *,
+    path: str,
+    atol: float,
+    rtol: float,
+    failures: list[str],
+    max_failures: int,
+    layout_notes: list[str],
+) -> None:
+    """Compare shared tensors; keys a newer module version added are notes."""
+    left_tensors, right_tensors = left["tensors"], right["tensors"]
+    for key in sorted(set(left_tensors) ^ set(right_tensors)):
+        side, other = (left, right) if key in left_tensors else (right, left)
+        if _layout_only(key, side, other):
+            layout_notes.append(f"{path}.{key}: added by a newer module version")
+        else:
+            failures.append(f"{path}: key {key!r} present on one side only")
+    for key in sorted(set(left_tensors) & set(right_tensors)):
+        _compare_values(
+            left_tensors[key],
+            right_tensors[key],
+            path=f"{path}.{key}",
+            atol=atol,
+            rtol=rtol,
+            failures=failures,
+            max_failures=max_failures,
+            layout_notes=layout_notes,
+        )
+
+
 def _compare_values(
     left: Any,
     right: Any,
@@ -449,8 +520,21 @@ def _compare_values(
     rtol: float,
     failures: list[str],
     max_failures: int,
+    layout_notes: list[str],
 ) -> None:
     if len(failures) >= max_failures:
+        return
+    if _is_state_digest(left) and _is_state_digest(right):
+        _compare_state_digests(
+            left,
+            right,
+            path=path,
+            atol=atol,
+            rtol=rtol,
+            failures=failures,
+            max_failures=max_failures,
+            layout_notes=layout_notes,
+        )
         return
     if _is_number(left) and _is_number(right):
         if math.isnan(float(left)) and math.isnan(float(right)):
@@ -476,6 +560,7 @@ def _compare_values(
                 rtol=rtol,
                 failures=failures,
                 max_failures=max_failures,
+                layout_notes=layout_notes,
             )
         return
     if (
@@ -496,6 +581,7 @@ def _compare_values(
                 rtol=rtol,
                 failures=failures,
                 max_failures=max_failures,
+                layout_notes=layout_notes,
             )
         return
     if left != right:
@@ -509,7 +595,10 @@ def compare_payloads(
     atol: float,
     rtol: float,
     max_failures: int,
+    layout_notes: list[str] | None = None,
 ) -> list[str]:
+    """Return the numerical differences; ``layout_notes`` collects state keys
+    that only a newer module version writes (not differences)."""
     failures: list[str] = []
     _compare_values(
         current,
@@ -519,6 +608,7 @@ def compare_payloads(
         rtol=rtol,
         failures=failures,
         max_failures=max_failures,
+        layout_notes=layout_notes if layout_notes is not None else [],
     )
     return failures
 
@@ -577,13 +667,19 @@ def main() -> int:
             json.dumps(develop, indent=2, sort_keys=True)
         )
 
+    layout_notes: list[str] = []
     failures = compare_payloads(
         current,
         develop,
         atol=args.atol,
         rtol=args.rtol,
         max_failures=args.max_failures,
+        layout_notes=layout_notes,
     )
+    if layout_notes:
+        print(f"State keys written only by newer module versions: {len(layout_notes)}")
+        for note in layout_notes[:20]:
+            print(f"- {note}")
     if failures:
         print("Numerical parity FAILED")
         for failure in failures:
@@ -612,4 +708,5 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    setup_logging()
     raise SystemExit(main())

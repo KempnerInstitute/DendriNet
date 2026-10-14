@@ -1,5 +1,6 @@
 """Tests for dendritic branch layer initialization methods."""
 
+from math import exp, log
 from unittest.mock import patch
 
 import pytest
@@ -16,10 +17,14 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.i
     _compute_expectation_truncated_relu,
     _compute_expectation_truncated_softplus,
     _expected_weight_for_transform,
+    _solve_first_crossing_expected_weight_mean,
     calibrate_reactivation_from_data,
     collect_model_data_driven_reactivation_policies,
     compute_expectation_truncated_log_normal,
     compute_network_scale_factor,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize_methods import (
+    shunting_child_coupling,
 )
 from dendritic_modeling.scripts.training.train_experiments import (
     _maybe_calibrate_data_driven_reactivation,
@@ -128,11 +133,75 @@ class TestTruncatedExpectations:
         )
         assert val > 0
 
+    def test_truncated_softplus_upper_tail_is_not_artificially_capped(self):
+        val = _compute_expectation_truncated_softplus(
+            mean=60.0, std=0.01, upper_quantile=0.25
+        )
+        assert val > 50.0
+
+    @pytest.mark.parametrize("direction", [-1, 1])
+    def test_grid_solver_returns_exact_first_crossing(self, direction):
+        target = 0.2 if direction < 0 else 57.6
+        mean = _solve_first_crossing_expected_weight_mean(
+            "softplus",
+            std=0.01,
+            upper_quantile=0.25,
+            target_weight=target,
+            direction=direction,
+        )
+        value = _expected_weight_for_transform("softplus", mean, 0.01, 0.25)
+        predecessor = _expected_weight_for_transform(
+            "softplus", mean - direction * 0.01, 0.01, 0.25
+        )
+        if direction > 0:
+            assert value >= target
+            assert predecessor < target
+        else:
+            assert value <= target
+            assert predecessor > target
+
+    def test_grid_solver_fails_closed_for_unreachable_bounded_target(self):
+        with pytest.raises(RuntimeError, match="unreachable"):
+            _solve_first_crossing_expected_weight_mean(
+                "softplus",
+                std=0.01,
+                upper_quantile=0.25,
+                target_weight=10.0,
+                direction=1,
+                step=0.01,
+                max_steps=2,
+            )
+
+    def test_grid_solver_rejects_nonfinite_inputs(self):
+        with pytest.raises(ValueError, match="finite"):
+            _solve_first_crossing_expected_weight_mean(
+                "softplus",
+                std=0.01,
+                upper_quantile=0.25,
+                target_weight=float("nan"),
+                direction=1,
+            )
+
     def test_truncated_relu_nonnegative(self):
         val = _compute_expectation_truncated_relu(
             mean=0.0, std=1.0, upper_quantile=0.25
         )
         assert val >= 0
+
+    @pytest.mark.parametrize("mean", [-0.5, 0.0, 0.5])
+    @pytest.mark.parametrize("upper_quantile", [0.1, 0.5, 0.75, 1.0])
+    def test_truncated_relu_matches_sampling(self, mean, upper_quantile):
+        """Kept negative weights contribute zero, also for dense banks."""
+        generator = torch.Generator().manual_seed(0)
+        samples = mean + torch.randn(
+            2_000_000, generator=generator, dtype=torch.float64
+        )
+        kept = samples.sort(descending=True).values[
+            : round(upper_quantile * samples.numel())
+        ]
+        sampled = kept.clamp_min(0).mean().item()
+        val = _compute_expectation_truncated_relu(mean, 1.0, upper_quantile)
+        assert val == pytest.approx(sampled, rel=5e-3)
 
     @pytest.mark.parametrize("transform", ["exp", "softplus", "relu"])
     def test_expected_weight_positive(self, transform):
@@ -159,6 +228,78 @@ class TestNetworkScaleFactor:
         sf = compute_network_scale_factor(layer, branch_factors=[3])
         assert sf >= 0
 
+    def test_branch_count_is_the_product_of_the_branch_factors(self):
+        layer = _make_layer(
+            excitatory_input_dim=400,
+            excitatory_synapses_per_branch=100,
+            adaptive_initialization=False,
+        )
+
+        def factor(branch_factors):
+            return compute_network_scale_factor(layer, branch_factors=branch_factors)
+
+        assert factor([]) == factor(()) == factor([1]) == pytest.approx(log(100 / 5))
+        assert factor([2, 2]) == factor([4]) == pytest.approx(log(200 / 5))
+        assert factor(None) == pytest.approx(log(1000 / 5))  # unknown: 100 branches
+
+
+class TestAdaptiveConductanceScaling:
+    """Adaptive scaling multiplies expected conductances by exp(-f)."""
+
+    def _recurrent_layer(
+        self, weight_transform, policy="preserve_shunting_center", adaptive=True
+    ):
+        torch.manual_seed(0)
+        return DendriticBranchLayer(
+            output_dim=64,
+            excitatory_input_dim=64,
+            excitatory_synapses_per_branch=16,
+            recurrent_input_dim=256,
+            recurrent_synapses_per_branch=64,
+            use_shunting=True,
+            reactivate=True,
+            dbl_init_method="analytical_expectation",
+            weight_transform=weight_transform,
+            adaptive_initialization=adaptive,
+            adaptive_initialization_policy=policy,
+            adaptive_target_conductance=5.0,
+            branch_factors=[4, 4],
+        )
+
+    @pytest.mark.parametrize("weight_transform", ["exp", "softplus", "relu"])
+    def test_recurrent_contacts_keep_the_scaled_expected_conductance(
+        self, weight_transform
+    ):
+        layer = self._recurrent_layer(weight_transform)
+        f = compute_network_scale_factor(layer, branch_factors=[4, 4])
+        assert f > 2.0
+        std = (2 / 257) ** 0.5
+        target = _expected_weight_for_transform(
+            weight_transform, 0.0, std, 64 / 256
+        ) * exp(-f)
+        bank = layer.branch_recurrent
+        realized = bank.weight().topk(bank.K, dim=1).values.mean().item()
+        assert realized == pytest.approx(target, rel=0.15)
+
+    @pytest.mark.parametrize("policy", ["preserve_shunting_center", "legacy_scale"])
+    def test_relu_scaling_keeps_every_contact_active(self, policy):
+        """A raw-mean shift of -f switched every relu contact off."""
+        scaled = self._recurrent_layer("relu", policy=policy)
+        plain = self._recurrent_layer("relu", adaptive=False)
+        for bank in ("branch_recurrent", "branch_excitation"):
+            scaled_w = getattr(scaled, bank).pre_w
+            plain_w = getattr(plain, bank).pre_w
+            assert torch.equal(scaled_w > 0, plain_w > 0), bank
+        assert (scaled.branch_recurrent.pre_w > 0).float().mean() > 0.4
+
+    def test_exp_scaling_is_a_raw_mean_shift(self):
+        adaptive = self._recurrent_layer("exp", policy="legacy_scale")
+        f = compute_network_scale_factor(adaptive, branch_factors=[4, 4])
+        plain = self._recurrent_layer("exp", adaptive=False)
+        assert torch.allclose(
+            adaptive.branch_recurrent.pre_w, plain.branch_recurrent.pre_w - f, atol=1e-6
+        )
+
 
 # ---------------------------------------------------------------------------
 # analytical_expectation init
@@ -182,6 +323,26 @@ class TestAnalyticalExpectationInit:
             inhibitory_input_dim=10,
             inhibitory_synapses_per_branch=3,
         )
+        assert torch.isfinite(layer.branch_inhibition.pre_w).all()
+
+    def test_exact_structural_biological_ei_ratio_constructs(self):
+        """Regression for b1_gated_positive_ei_flat's formerly infinite arm."""
+
+        layer = _make_layer(
+            output_dim=197,
+            excitatory_input_dim=8192,
+            excitatory_synapses_per_branch=979,
+            inhibitory_input_dim=49,
+            inhibitory_synapses_per_branch=12,
+            use_shunting=False,
+            reactivate=True,
+            dbl_init_method="analytical_expectation",
+            weight_transform="softplus",
+            adaptive_initialization=True,
+            adaptive_initialization_policy="preserve_shunting_center",
+        )
+
+        assert torch.isfinite(layer.branch_excitation.pre_w).all()
         assert torch.isfinite(layer.branch_inhibition.pre_w).all()
 
     def test_with_branches_finite(self):
@@ -240,6 +401,69 @@ class TestAnalyticalExpectationInit:
         assert adaptive.branch_excitation.weight().mean() < (
             nonadaptive.branch_excitation.weight().mean()
         )
+
+
+def _held_voltage(e_g_exc, e_g_inh, total_coupling):
+    """Shunting compartment voltage with its children at their output 0.5."""
+    return (e_g_exc + 0.5 * total_coupling) / (e_g_exc + e_g_inh + 1 + total_coupling)
+
+
+class TestShuntingChildCoupling:
+    @pytest.mark.parametrize(
+        "e_g_exc, e_g_inh",
+        [
+            (0.0, 0.0),  # a compartment without synapses
+            (0.2, 3.0),  # E / (E + I + 1) < 0.48: target 0.49
+            (0.96, 0.0),  # 0.48 <= E / (E + I + 1) < 0.5: midpoint
+            (1.0, 0.0),  # E = I + 1
+            (11.24, 0.0),  # excitation only
+            (40.0, 3.0),
+        ],
+    )
+    @pytest.mark.parametrize("block_size", [1, 3])
+    def test_coupling_holds_the_compartment_at_the_gate_centre(
+        self, e_g_exc, e_g_inh, block_size
+    ):
+        coupling, centre = shunting_child_coupling(e_g_exc, e_g_inh, block_size)
+        assert coupling * block_size >= e_g_exc + e_g_inh + 1 - 1e-12
+        assert _held_voltage(e_g_exc, e_g_inh, coupling * block_size) == (
+            pytest.approx(centre, abs=1e-9)
+        )
+
+    def test_rule_is_continuous_where_excitation_reaches_inhibition_plus_leak(self):
+        for e_g_inh in (0.0, 2.5):
+            below = shunting_child_coupling(e_g_inh + 1 - 1e-6, e_g_inh, 1)
+            at = shunting_child_coupling(e_g_inh + 1, e_g_inh, 1)
+            assert below == pytest.approx(at, abs=1e-5)
+
+    def test_excitation_only_branched_layer_reaches_its_children(self):
+        """The default policy keeps an uninhibited compartment coupled."""
+        torch.manual_seed(0)
+        layer = _make_layer(
+            output_dim=4,
+            excitatory_input_dim=784,
+            excitatory_synapses_per_branch=30,
+            input_branch_factor=2,
+            weight_transform="softplus",
+            adaptive_initialization_policy="preserve_shunting_center",
+        )
+        e_w = _expected_weight_for_transform(
+            transform="softplus",
+            mean=0,
+            std=(2 / 785) ** 0.5,
+            upper_quantile=30 / 784,
+        )
+        e_g_exc = 0.5 * 30 * e_w
+        coupling = layer.branches_to_output.weight().detach()
+        assert torch.allclose(coupling.sum(dim=1), torch.tensor(e_g_exc + 1.0).float())
+        centre = 0.5 * e_g_exc / (e_g_exc + 1) + 0.25
+        assert torch.allclose(
+            layer.reactivation.b.detach(), torch.tensor(centre).float()
+        )
+
+        children = torch.full((2, 8), 0.5, requires_grad=True)
+        layer(torch.rand(2, 784), branch_input=children).sum().backward()
+        assert children.grad.abs().min() > 0.1
 
 
 # ---------------------------------------------------------------------------
@@ -586,6 +810,109 @@ class TestEmpiricalCalibration:
         mock_calibrate.assert_called_once()
         assert mock_calibrate.call_args.kwargs["mode"] is None
 
+    def test_maybe_calibrate_keeps_warm_start_gates(self):
+        """A warm start keeps its checkpoint gates instead of recalibrating."""
+
+        class DummyModelCfg:
+            core = object()
+            initial_checkpoint = "/tmp/warm.pt"
+
+        class DummyConfig:
+            model = DummyModelCfg()
+
+        class PolicyModule(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.reactivation_init_policy = "quantile"
+                self.weight = torch.nn.Parameter(torch.zeros(1))
+
+        dataset = torch.utils.data.TensorDataset(torch.randn(8, 4), torch.zeros(8))
+        with patch(
+            "dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize.calibrate_reactivation_from_data"
+        ) as mock_calibrate:
+            summary = _maybe_calibrate_data_driven_reactivation(
+                config=DummyConfig(),
+                model=PolicyModule(),
+                train_dataset=dataset,
+                is_main=False,
+            )
+
+        mock_calibrate.assert_not_called()
+        assert summary["calibration"] == "skipped_initial_checkpoint"
+
+    def test_maybe_calibrate_names_the_batch_and_split_sizes(self):
+        """A split smaller than one calibration batch fails with both sizes."""
+
+        class DummyModelCfg:
+            core = object()
+
+        class DummyConfig:
+            model = DummyModelCfg()
+
+        class PolicyModule(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.reactivation_init_policy = "quantile"
+                self.weight = torch.nn.Parameter(torch.zeros(1))
+
+        dataset = torch.utils.data.TensorDataset(torch.randn(8, 4), torch.zeros(8))
+        with patch(
+            "dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize.calibrate_reactivation_from_data"
+        ) as mock_calibrate:
+            with pytest.raises(RuntimeError) as error:
+                _maybe_calibrate_data_driven_reactivation(
+                    config=DummyConfig(),
+                    model=PolicyModule(),
+                    train_dataset=dataset,
+                    is_main=False,
+                    batch_size=16,
+                )
+        mock_calibrate.assert_not_called()
+        message = str(error.value)
+        assert "training split has 8 samples" in message
+        assert "one calibration batch of 16" in message
+        assert "reactivation_initialization_batch_size" in message
+
+    @pytest.mark.parametrize("main", [{"strategy": "presentation_stream"}, None])
+    def test_maybe_calibrate_rejects_presentation_stream(self, main):
+        """Stream training sets' items are not training presentations: fail closed."""
+
+        class Main:
+            strategy = "presentation_stream"
+
+        class Config:
+            training = type("Training", (), {"main": main or Main()})()
+
+        class PolicyModule(torch.nn.Module):
+            def __init__(self, policy):
+                super().__init__()
+                self.reactivation_init_policy = policy
+                self.weight = torch.nn.Parameter(torch.zeros(1))
+
+        dataset = torch.utils.data.TensorDataset(torch.randn(8, 4), torch.zeros(8))
+        with patch(
+            "dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize.calibrate_reactivation_from_data"
+        ) as mock_calibrate:
+            with pytest.raises(ValueError, match="presentation_stream"):
+                _maybe_calibrate_data_driven_reactivation(
+                    config=Config(),
+                    model=PolicyModule("occupancy_quantile"),
+                    train_dataset=dataset,
+                    is_main=False,
+                )
+            # Fixed and analytical initialization need no calibration batches.
+            for policy in ("fixed", "analytical"):
+                assert (
+                    _maybe_calibrate_data_driven_reactivation(
+                        config=Config(),
+                        model=PolicyModule(policy),
+                        train_dataset=dataset,
+                        is_main=False,
+                    )
+                    is None
+                )
+        mock_calibrate.assert_not_called()
+
     def test_maybe_calibrate_tunes_loader_for_lazy_dataset(self, monkeypatch):
         """Init calibration should use worker loading for lazy image/file data."""
 
@@ -663,6 +990,73 @@ class TestEmpiricalCalibration:
         assert recorded_kwargs["pin_memory"] is False
         assert recorded_kwargs["persistent_workers"] is True
         assert "prefetch_factor" not in recorded_kwargs
+
+    def test_maybe_calibrate_uses_configured_initialization_budget(self, monkeypatch):
+        """Deep models can bound one-time calibration through typed config."""
+
+        class DummyCore:
+            pass
+
+        class DummyModelCfg:
+            core = DummyCore()
+
+        class DummyCommon:
+            num_workers = 0
+            pin_memory = False
+            persistent_workers = False
+            prefetch_factor = None
+            reactivation_initialization_batch_size = 2
+            reactivation_initialization_num_batches = 2
+            reactivation_initialization_max_iterations = 1
+
+        class DummyMain:
+            common = DummyCommon()
+
+        class DummyTraining:
+            main = DummyMain()
+
+        class DummyConfig:
+            model = DummyModelCfg()
+            training = DummyTraining()
+
+        class PolicyModule(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.reactivation_init_policy = "quantile"
+                self.weight = torch.nn.Parameter(torch.zeros(1))
+
+        dataset = torch.utils.data.TensorDataset(
+            torch.randn(8, 4), torch.zeros(8, dtype=torch.long)
+        )
+        recorded_kwargs = {}
+
+        class RecordingDataLoader:
+            def __init__(self, dataset, **kwargs):
+                del dataset
+                recorded_kwargs.update(kwargs)
+
+            def __iter__(self):
+                yield torch.zeros(2, 4), torch.zeros(2, dtype=torch.long)
+                yield torch.ones(2, 4), torch.zeros(2, dtype=torch.long)
+
+        monkeypatch.setattr(
+            "dendritic_modeling.scripts.training.train_experiments.DataLoader",
+            RecordingDataLoader,
+        )
+        with patch(
+            "dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize.calibrate_reactivation_from_data"
+        ) as mock_calibrate:
+            mock_calibrate.return_value = {"layer": {"m": 1.0, "b": 0.0, "V_std": 1.0}}
+            _maybe_calibrate_data_driven_reactivation(
+                config=DummyConfig(),
+                model=PolicyModule(),
+                train_dataset=dataset,
+                is_main=False,
+            )
+
+        assert recorded_kwargs["batch_size"] == 2
+        mock_calibrate.assert_called_once()
+        assert len(mock_calibrate.call_args.args[1]) == 2
 
     def test_maybe_calibrate_ignores_stale_config_when_layer_policies_exist(self):
         """Built module policies should override stale YAML-level init policy."""
@@ -1145,10 +1539,12 @@ class TestQuantileModeCalibration:
         prior_m = float(layer.reactivation_analytical_init_m)
         original_aggregate = init_mod._aggregate_quantiles_from_chunks
 
-        def fake_aggregate(chunks, probs, aggregation="global"):
+        def fake_aggregate(chunks, probs, aggregation="global", pooled=None):
             if probs.numel() == 2:
                 return torch.tensor([1.0, 1.01], dtype=torch.double), 2
-            return original_aggregate(chunks, probs, aggregation=aggregation)
+            return original_aggregate(
+                chunks, probs, aggregation=aggregation, pooled=pooled
+            )
 
         monkeypatch.setattr(
             init_mod, "_aggregate_quantiles_from_chunks", fake_aggregate
@@ -1182,6 +1578,36 @@ class TestQuantileModeCalibration:
         m_actual = float(layer.reactivation.log_m.exp()[0].item())
         assert m_actual == pytest.approx(expected_m, rel=1e-5)
         assert m_actual == pytest.approx(stats["m"], rel=1e-6)
+
+    def test_cpu_calibration_temporarily_uses_portable_indexed_backend(self):
+        """A CUDA-only production backend must not block CPU initialization."""
+        model, layer, batches = _build_calibration_fixture(
+            reactivation_init_policy="occupancy_quantile",
+            topk_type="indexed",
+            indexed_projection_backend="triton_transposed",
+            indexed_seed=23,
+        )
+        indexed_modules = [
+            module
+            for module in model.modules()
+            if getattr(module, "projection_backend", None) == "triton_transposed"
+        ]
+        assert indexed_modules
+
+        diagnostics = calibrate_reactivation_from_data(model, batches, mode=None)
+
+        assert diagnostics
+        assert all(
+            module.projection_backend == "triton_transposed"
+            for module in indexed_modules
+        )
+        assert all(
+            module._last_resolved_projection_backend is None
+            for module in indexed_modules
+        )
+        assert torch.isfinite(layer.reactivation.log_m).all()
+        with pytest.raises(RuntimeError, match="unavailable on device cpu"):
+            model(*batches[0])
 
     def test_quantile_mode_b_equals_midpoint_of_q10_q90(self):
         """b should equal (q10 + q90) / 2."""
@@ -1250,10 +1676,12 @@ class TestQuantileModeCalibration:
         )
         original_aggregate = init_mod._aggregate_quantiles_from_chunks
 
-        def fake_aggregate(chunks, probs, aggregation="global"):
+        def fake_aggregate(chunks, probs, aggregation="global", pooled=None):
             if probs.numel() == 2:
                 return torch.tensor([1.0, 1.0], dtype=torch.double), 2
-            return original_aggregate(chunks, probs, aggregation=aggregation)
+            return original_aggregate(
+                chunks, probs, aggregation=aggregation, pooled=pooled
+            )
 
         monkeypatch.setattr(
             init_mod, "_aggregate_quantiles_from_chunks", fake_aggregate
@@ -1283,10 +1711,12 @@ class TestQuantileModeCalibration:
         initial_b = float(layer.reactivation.b[0].item())
         original_aggregate = init_mod._aggregate_quantiles_from_chunks
 
-        def fake_aggregate(chunks, probs, aggregation="global"):
+        def fake_aggregate(chunks, probs, aggregation="global", pooled=None):
             if probs.numel() == 2:
                 return torch.tensor([float("nan"), float("nan")], dtype=torch.double), 2
-            return original_aggregate(chunks, probs, aggregation=aggregation)
+            return original_aggregate(
+                chunks, probs, aggregation=aggregation, pooled=pooled
+            )
 
         monkeypatch.setattr(
             init_mod, "_aggregate_quantiles_from_chunks", fake_aggregate
@@ -1445,3 +1875,95 @@ class TestQuantileModeCalibration:
         assert (
             delta_23 <= delta_12 + 1e-8
         ), f"calibration did not converge: delta_12={delta_12}, delta_23={delta_23}"
+
+
+@pytest.mark.parametrize(
+    "dbl_init_method", ["analytical_expectation", "ei_equivalence"]
+)
+def test_analytical_initializers_reject_branches_without_expected_contacts(
+    dbl_init_method,
+):
+    """DeepST at a density below one contact per branch raises a clear error.
+
+    ``K = int(target_density * in_features)`` rounds to zero for eight inputs
+    at the default density 0.1; the initializers divide by ``K``.
+    """
+    from golden_cases import _full_model
+
+    core = {
+        "type": "dendritic_shunting",
+        "architecture": {
+            "excitatory_layer_sizes": [4],
+            "inhibitory_layer_sizes": [2],
+            "excitatory_branch_factors": [2, 2],
+            "inhibitory_branch_factors": [2],
+        },
+        "connectivity": {
+            "ee_synapses_per_branch_per_layer": [3],
+            "ie_synapses_per_branch_per_layer": [2],
+            "ei_synapses_per_branch_per_layer": [2],
+            "ii_synapses_per_branch_per_layer": [0],
+        },
+        "sparsity": {"type": "deepst"},
+        "morphology": {"dbl_init_method": dbl_init_method},
+    }
+    with pytest.raises(ValueError, match="needs at least one excitatory contact"):
+        _full_model(core)
+
+
+@pytest.mark.parametrize("leak", [1.0, 0.03, 2.5])
+@pytest.mark.parametrize("e_g_exc, e_g_inh", [(0.5, 0.5), (3.0, 0.2), (0.2, 3.0)])
+def test_shunting_child_coupling_centres_the_compartment_at_its_leak(
+    leak, e_g_exc, e_g_inh
+):
+    """The coupling puts V = (E + 0.5 G) / (E + I + L + G) at the returned centre."""
+    block_size = 2
+    per_child, centre = shunting_child_coupling(e_g_exc, e_g_inh, block_size, leak=leak)
+    coupling = per_child * block_size
+    realized = (e_g_exc + 0.5 * coupling) / (e_g_exc + e_g_inh + leak + coupling)
+    assert realized == pytest.approx(centre)
+    if leak == 1.0:  # the unit-leak rule is unchanged
+        assert shunting_child_coupling(e_g_exc, e_g_inh, block_size) == (
+            per_child,
+            centre,
+        )
+
+
+@pytest.mark.parametrize("leak", [1.0, 0.03, 2.5])
+def test_center_preservation_keeps_the_leaky_centre(leak):
+    from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize_scaling import (
+        _center_preserving_shunting_conductances,
+    )
+
+    exc, inh = _center_preserving_shunting_conductances(6.0, 4.0, 2.0, leak=leak)
+    assert exc / (exc + inh + leak) == pytest.approx(6.0 / (10.0 + leak))
+    assert exc + inh <= 10.0
+
+
+def test_analytical_gate_centre_follows_a_non_unit_leak():
+    """A leaf shunting layer centres its gate at E / (E + I + leak).
+
+    The expected conductances E and I do not depend on the leak, so
+    ``1 / centre = (E + I) / E + leak / E`` is linear in the leak: two leaks
+    fix the line and a third must lie on it.
+    """
+
+    def inverse_centre(leak):
+        torch.manual_seed(0)
+        layer = DendriticBranchLayer(
+            output_dim=4,
+            excitatory_input_dim=20,
+            excitatory_synapses_per_branch=5,
+            inhibitory_input_dim=10,
+            inhibitory_synapses_per_branch=3,
+            reactivate=True,
+            dbl_init_method="analytical_expectation",
+            adaptive_initialization=False,
+            leak_conductance=leak,
+        )
+        return 1.0 / float(layer.reactivation.b.double().mean())
+
+    unit, high = inverse_centre(1.0), inverse_centre(2.5)
+    slope = (high - unit) / 1.5  # 1 / E
+    assert slope > 0
+    assert inverse_centre(0.03) == pytest.approx(unit + slope * (0.03 - 1.0), rel=1e-5)

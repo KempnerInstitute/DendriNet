@@ -5,11 +5,13 @@ This module implements the ExcitationInhibitionLayer which models
 excitatory and inhibitory cell populations.
 """
 
+from dataclasses import replace
 from typing import Any, Optional
 
 import torch
 import torch.nn as nn
 
+from dendritic_modeling.config.model import resolve_mlp_inhibitory_network_params
 from dendritic_modeling.networks.architectures.classical.mlp.mlp import MLP
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.dendrinet import (
     DendriNet,
@@ -57,6 +59,8 @@ def _build_common_synapse_config(
     adaptive_initialization_policy,
     adaptive_target_conductance,
     initial_child_conductance,
+    initial_conductance_scale,
+    initial_child_conductance_log_sd,
 ) -> DendriticSynapseConfig:
     """Normalize EI-layer synapse kwargs into the shared typed config."""
     if provided_synapse_config is not None:
@@ -98,7 +102,29 @@ def _build_common_synapse_config(
             "adaptive_initialization_policy": adaptive_initialization_policy,
             "adaptive_target_conductance": adaptive_target_conductance,
             "initial_child_conductance": initial_child_conductance,
+            "initial_conductance_scale": initial_conductance_scale,
+            "initial_child_conductance_log_sd": initial_child_conductance_log_sd,
         }
+    )
+
+
+def _with_population_namespace(
+    synapse_config: DendriticSynapseConfig, population: str
+) -> DendriticSynapseConfig:
+    """Give E and I populations distinct keyed initialization streams.
+
+    Without an ``initialization_seed`` the config is returned unchanged, so the
+    historical global-stream construction is untouched.
+    """
+    initialization = synapse_config.initialization
+    if initialization.initialization_seed is None:
+        return synapse_config
+    base = initialization.initialization_namespace or "einet"
+    return replace(
+        synapse_config,
+        initialization=replace(
+            initialization, initialization_namespace=f"{base}.{population}"
+        ),
     )
 
 
@@ -168,8 +194,15 @@ def _build_dendrinet_cells(
             structured_excitatory_pathway=structured_excitatory_pathway,
             structured_inhibitory_pathway=structured_inhibitory_pathway,
             synapse_config=synapse_config,
+            additive_tangent_n0_by_depth=tuple(
+                dendrinet_extra_kwargs.get("additive_tangent_n0_by_depth", ())
+            ),
+            additive_tangent_t0_by_depth=tuple(
+                dendrinet_extra_kwargs.get("additive_tangent_t0_by_depth", ())
+            ),
         ),
-        **dendrinet_extra_kwargs,
+        # The synapse options are already folded into synapse_config.
+        **DendriticSynapseConfig.split_kwargs(dendrinet_extra_kwargs)[1],
     )
 
 
@@ -195,6 +228,15 @@ def _build_inhibitory_cells(
 
     if not build_inhibitory_cells or n_inhibitory_cells is None:
         return None
+
+    # The soma reactivation override targets the propagated excitatory output
+    # code; inhibitory populations always keep the base gate so the inhibitory
+    # mechanism is not silently altered by an output-contract setting.
+    if getattr(getattr(common_synapse_config, "reactivation", None), "soma_type", None):
+        common_synapse_config = replace(
+            common_synapse_config,
+            reactivation=replace(common_synapse_config.reactivation, soma_type=None),
+        )
 
     assert inhibitory_network_type in ["dendritic", "mlp"], (
         "inhibitory_network_type must be either 'dendritic' or 'mlp'."
@@ -232,10 +274,13 @@ def _build_inhibitory_cells(
             dendrinet_extra_kwargs=dendrinet_extra_kwargs,
         )
 
+    mlp_params = resolve_mlp_inhibitory_network_params(
+        mlp_inhibitory_network_params, section="mlp_inhibitory_network_params"
+    )
     inh_mlp = MLP(
         input_dim=excitatory_input_dim,
-        hidden_dims=mlp_inhibitory_network_params.get("hidden_dims", []),
-        activation=mlp_inhibitory_network_params.get("activation", "relu"),
+        hidden_dims=mlp_params["hidden_dims"],
+        activation=mlp_params["activation"],
         output_dim=n_inhibitory_cells,
     )
     nn.init.xavier_normal_(inh_mlp.layers[-1].weight)
@@ -342,6 +387,8 @@ class ExcitationInhibitionLayer(nn.Module):
         adaptive_initialization_policy="preserve_shunting_center",
         adaptive_target_conductance=5.0,
         initial_child_conductance=1.0,
+        initial_conductance_scale=1.0,
+        initial_child_conductance_log_sd=0.0,
         structured_connectivity=None,
         structured_layer_idx: int = 0,
         **kwargs,
@@ -357,6 +404,16 @@ class ExcitationInhibitionLayer(nn.Module):
             )
         dendrinet_extra_kwargs = dict(kwargs)
         provided_synapse_config = dendrinet_extra_kwargs.pop("synapse_config", None)
+        # Layer-level options are consumed here and must not reach the branch
+        # layers, which reject options they would ignore.
+        mlp_inhibitory_network_params = dendrinet_extra_kwargs.pop(
+            "mlp_inhibitory_network_params", {}
+        )
+        if bool(dendrinet_extra_kwargs.pop("compile_forward", False)):
+            raise ValueError(
+                "compile_forward is applied by ExcitationInhibitionNetwork, not by "
+                "a single ExcitationInhibitionLayer; compile the enclosing module"
+            )
         common_synapse_config = _build_common_synapse_config(
             dendrinet_extra_kwargs,
             provided_synapse_config=provided_synapse_config,
@@ -393,6 +450,8 @@ class ExcitationInhibitionLayer(nn.Module):
             adaptive_initialization_policy=adaptive_initialization_policy,
             adaptive_target_conductance=adaptive_target_conductance,
             initial_child_conductance=initial_child_conductance,
+            initial_conductance_scale=initial_conductance_scale,
+            initial_child_conductance_log_sd=initial_child_conductance_log_sd,
         )
 
         self.inhibitory_cells = _build_inhibitory_cells(
@@ -406,14 +465,13 @@ class ExcitationInhibitionLayer(nn.Module):
             ii_synapses_per_branch=ii_synapses_per_branch,
             somatic_synapses=somatic_synapses,
             synapse_mode=self.synapse_mode,
-            common_synapse_config=common_synapse_config,
+            common_synapse_config=_with_population_namespace(
+                common_synapse_config, "inhibitory"
+            ),
             structured_connectivity=structured_connectivity,
             structured_layer_idx=structured_layer_idx,
             dendrinet_extra_kwargs=dendrinet_extra_kwargs,
-            mlp_inhibitory_network_params=kwargs.get(
-                "mlp_inhibitory_network_params",
-                {},
-            ),
+            mlp_inhibitory_network_params=mlp_inhibitory_network_params,
         )
 
         # Excitatory cells may receive inhibitory input from the same layer or transferred pathway.
@@ -437,7 +495,9 @@ class ExcitationInhibitionLayer(nn.Module):
             ie_synapses_per_branch=ie_synapses_per_branch,
             somatic_synapses=somatic_synapses,
             synapse_mode=self.synapse_mode,
-            common_synapse_config=common_synapse_config,
+            common_synapse_config=_with_population_namespace(
+                common_synapse_config, "excitatory"
+            ),
             structured_connectivity=structured_connectivity,
             structured_layer_idx=structured_layer_idx,
             dendrinet_extra_kwargs=dendrinet_extra_kwargs,

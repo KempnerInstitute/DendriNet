@@ -65,6 +65,7 @@ class InformationConfigSetupMixin:
         )
         self.compute_pid = bool(getattr(params, "compute_pid", False))
         self.compute_gaussian_fisher = False
+        self.compute_soma_coupling_mi = False
 
     def _configure_pid_preprocessing(self, *, params: Any, pid_cfg: Any) -> None:
         """Assign PID preprocessing parameters."""
@@ -128,17 +129,7 @@ class InformationConfigSetupMixin:
         self.compute_upstream_unique_cmi = (
             component_selection.compute_upstream_unique_cmi
         )
-
-    def _disable_pid_if_requested(self) -> None:
-        """Apply the current policy that PID requests are acknowledged but skipped."""
-        if not self.compute_pid:
-            return
-
-        self.logger.warning(
-            "PID requested via selection.components, but PID is currently disabled "
-            "and will be skipped."
-        )
-        self.compute_pid = False
+        self.compute_soma_coupling_mi = component_selection.compute_soma_coupling_mi
 
     def _configure_gaussian_fisher_metrics(self, *, gaussian_fisher_cfg: Any) -> None:
         """Assign Gaussian/Fisher proxy parameters."""
@@ -174,6 +165,7 @@ class InformationConfigSetupMixin:
                 runtime_config.invalid_output_units,
             )
         self.output_units = runtime_config.output_units
+        self.analysis_split = runtime_config.analysis_split
         self.verbose = runtime_config.verbose
 
     def _configure_granularity_defaults(
@@ -189,6 +181,21 @@ class InformationConfigSetupMixin:
         )
         self.computation_level = granularity_config.computation_level
         self.branch_aggregation = granularity_config.branch_aggregation
+        sample_count = granularity_config.branch_sample_count_per_layer
+        if sample_count is not None:
+            sample_count = int(sample_count)
+            if sample_count < 1:
+                raise ValueError("branch_sample_count_per_layer must be at least 1")
+        self.branch_sample_count_per_layer = sample_count
+        self.branch_sample_seed = granularity_config.branch_sample_seed
+        sample_strategy = (
+            granularity_config.branch_sample_strategy.strip().lower().replace("-", "_")
+        )
+        if sample_strategy not in {"uniform", "parent_soma_balanced"}:
+            raise ValueError(
+                "branch_sample_strategy must be 'uniform' or " "'parent_soma_balanced'"
+            )
+        self.branch_sample_strategy = sample_strategy
         self.per_neuron_analysis = granularity_config.per_neuron_analysis
         self.per_einet_analysis = granularity_config.per_einet_analysis
         self.per_layer_analysis = granularity_config.per_layer_analysis

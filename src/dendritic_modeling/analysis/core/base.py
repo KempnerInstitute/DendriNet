@@ -14,6 +14,23 @@ from typing import Any, Optional
 import torch
 
 from dendritic_modeling.models.base import BaseModel
+from dendritic_modeling.utils.logging_config import LOGGER_NAME
+
+#: Parent logger of every analyzer; records reach the package's handlers.
+ANALYZER_LOGGER_PREFIX = f"{LOGGER_NAME}.analysis"
+
+
+def analyzer_logger_name(name: str) -> str:
+    """Return the logger name an analyzer called ``name`` logs under.
+
+    Names inside the package's logger tree are kept; any other name (a class
+    name or a custom name) is placed under ``dendritic_modeling.analysis``, so
+    the records reach the console and ``dendritic_modeling.log`` of a run.
+    """
+    name = str(name)
+    if name == LOGGER_NAME or name.startswith(f"{LOGGER_NAME}."):
+        return name
+    return f"{ANALYZER_LOGGER_PREFIX}.{name}"
 
 
 class AbstractAnalyzer(ABC):
@@ -24,9 +41,48 @@ class AbstractAnalyzer(ABC):
     logging, and standardized interfaces for analysis.
     """
 
+    # Reports of the latest ``analyze`` call, which AnalysisManager records in
+    # analysis_status.json (see dendritic_modeling.analysis.managers.analysis_status).
+    analysis_skip_reason: Optional[str] = None
+    analysis_deferred_output: Optional[str] = None
+    analysis_missing_outputs: tuple[dict[str, str], ...] = ()
+
     def __init__(self, logger_name: Optional[str] = None):
-        """Initialize the analyzer with optional custom logger name."""
-        self.logger = logging.getLogger(logger_name or self.__class__.__name__)
+        """Initialize the analyzer with optional custom logger name.
+
+        The logger sits under ``dendritic_modeling.analysis`` (see
+        :func:`analyzer_logger_name`); the default name is the class name.
+        """
+        self.logger = logging.getLogger(
+            analyzer_logger_name(logger_name or self.__class__.__name__)
+        )
+
+    def reset_status_reports(self) -> None:
+        """Clear the reports of the previous ``analyze`` call."""
+        self.analysis_skip_reason = None
+        self.analysis_deferred_output = None
+        self.analysis_missing_outputs = ()
+
+    def report_skip(self, reason: str) -> None:
+        """Record that this call did not run the analysis, and why.
+
+        AnalysisManager records the analyzer as ``skipped`` with ``reason``.
+        """
+        self.analysis_skip_reason = str(reason)
+
+    def report_missing_output(self, output: str, reason: str) -> None:
+        """Record that one output of this call was not produced, and why."""
+        self.analysis_missing_outputs = (
+            *self.analysis_missing_outputs,
+            {"output": str(output), "reason": str(reason)},
+        )
+
+    def report_deferred_output(self, reason: str) -> None:
+        """Record that this call keeps its results for a later call to write.
+
+        A call that writes no file is otherwise recorded as ``empty``.
+        """
+        self.analysis_deferred_output = str(reason)
 
     @abstractmethod
     def analyze(
@@ -113,4 +169,4 @@ class AbstractAnalyzer(ABC):
         self.logger.info(end_msg)
 
 
-__all__ = ["AbstractAnalyzer"]
+__all__ = ["ANALYZER_LOGGER_PREFIX", "AbstractAnalyzer", "analyzer_logger_name"]

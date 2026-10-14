@@ -94,9 +94,7 @@ class _RecurrentReactivationOptions:
 class _StructuredRecurrentBuildOptions:
     excitatory_sizes: list[Any]
     inhibitory_sizes: list[Any]
-    input_mode: int
     use_transfer: bool
-    transfer_inhibitory_mode: str
     explicit_recurrent_layers: Any
     use_shunting: bool
     use_additive_normalization: bool
