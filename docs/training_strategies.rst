@@ -637,8 +637,9 @@ takes no options, and a block for ``fa``, ``dfa`` or ``soma_dfa`` raises.
        followed by a local rule.
 
 ``shunting_fa`` and ``shunting_dfa`` are deprecated names that run ``fa`` and
-``dfa`` with a warning. A misspelled strategy name loads and fails when the
-trainer is built, so check a new configuration with
+``dfa`` with a warning, as does the deprecated class
+``ShuntingFeedbackAlignmentTrainer``. A misspelled strategy name loads and
+fails when the trainer is built, so check a new configuration with
 ``dendritic-train config.yaml --validate-only``. The strategies differ in the
 schedule and the runtimes they support:
 

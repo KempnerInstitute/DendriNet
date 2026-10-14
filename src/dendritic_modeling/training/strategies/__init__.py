@@ -7,6 +7,7 @@ for dendritic network models.
 
 from dendritic_modeling.training.strategies.feedback_alignment import (
     FeedbackAlignmentTrainer,
+    ShuntingFeedbackAlignmentTrainer,
 )
 from dendritic_modeling.training.strategies.layerwise import LayerWiseTrainer
 from dendritic_modeling.training.strategies.local_learning import LocalCreditAssignment
@@ -37,6 +38,7 @@ __all__ = [
     "MultiStageTrainer",
     "PresentationStreamTrainer",
     "RecurrentTrainer",
+    "ShuntingFeedbackAlignmentTrainer",
     "SomaDFATrainer",
     "TrainOnlyMReactivation",
     "Trainer",

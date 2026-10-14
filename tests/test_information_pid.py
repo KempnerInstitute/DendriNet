@@ -77,3 +77,17 @@ def test_gaussian_sum_matches_the_closed_form():
     assert terms.unique_1 + terms.unique_2 == pytest.approx(
         abs(terms.unique_1 - terms.unique_2)
     )
+
+
+@pytest.mark.parametrize("name", ["check_pid_available", "pid_synergy_redundancy"])
+def test_the_deprecated_placeholders_still_raise_and_name_the_replacement(name):
+    """They wrapped an external package DendriNet never provided: importing them
+    works, and calling them raises ImportError, as it always did."""
+    import dendritic_modeling.utils.information as information
+
+    helper = getattr(information, name)
+    args = (
+        () if name == "check_pid_available" else ([np.zeros((4, 1))] * 2, np.zeros(4))
+    )
+    with pytest.raises(ImportError, match="partial_information_decomposition"):
+        helper(*args)

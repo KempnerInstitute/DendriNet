@@ -27,6 +27,7 @@ force of each pathway.
 from __future__ import annotations
 
 import logging
+import warnings
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from functools import partial
@@ -484,6 +485,35 @@ class FeedbackAlignmentTrainer(ForwardHookRemovalMixin, Trainer):
         )
 
 
+class ShuntingFeedbackAlignmentTrainer(FeedbackAlignmentTrainer):
+    """Deprecated alias of :class:`FeedbackAlignmentTrainer`; it will be removed.
+
+    Before 0.2.0 this trainer scaled the feedback of shunting branch layers by
+    ``R_tot * (e_rev_exc - V)``. FA and DFA now compute each block's exact
+    local gradient, which includes each pathway's conductance and driving
+    force with the model's own reversal potentials, so the class runs
+    :class:`FeedbackAlignmentTrainer` with a warning, as the strategy names
+    ``shunting_fa`` and ``shunting_dfa`` do. ``e_rev_exc`` has no counterpart
+    and raises.
+    """
+
+    def __init__(self, *args, **kwargs):
+        if "e_rev_exc" in kwargs:
+            raise ValueError(
+                "ShuntingFeedbackAlignmentTrainer(e_rev_exc=...) has no "
+                "counterpart: FeedbackAlignmentTrainer computes the exact local "
+                "gradient with the model's own reversal potentials"
+            )
+        warnings.warn(
+            "ShuntingFeedbackAlignmentTrainer is deprecated and will be removed; "
+            "use FeedbackAlignmentTrainer (mode 'fa' or 'dfa'), whose exact local "
+            "gradient includes the shunting conductance and driving-force terms",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        super().__init__(*args, **kwargs)
+
+
 def _accumulate(params, grads) -> None:
     """Add ``grads`` to the ``.grad`` of ``params``, skipping missing ones."""
     for param, grad in zip(params, grads):
@@ -493,4 +523,4 @@ def _accumulate(params, grads) -> None:
         param.grad = grad if param.grad is None else param.grad + grad
 
 
-__all__ = ["FeedbackAlignmentTrainer"]
+__all__ = ["FeedbackAlignmentTrainer", "ShuntingFeedbackAlignmentTrainer"]

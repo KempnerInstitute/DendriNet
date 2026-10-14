@@ -24,6 +24,7 @@ from dendritic_modeling.networks.architectures.factory import get_architecture
 from dendritic_modeling.training import factory
 from dendritic_modeling.training.strategies.feedback_alignment import (
     FeedbackAlignmentTrainer,
+    ShuntingFeedbackAlignmentTrainer,
 )
 
 
@@ -174,6 +175,27 @@ def test_shunting_strategy_names_run_fa_and_dfa(caplog, monkeypatch):
     assert "Strategy 'shunting_dfa' now runs as 'dfa'" in caplog.text
     with pytest.raises(ValueError, match="e_rev_exc"):
         _make_trainer("shunting_dfa", model, e_rev_exc=1.0)
+
+
+def test_the_deprecated_shunting_trainer_class_runs_fa_and_dfa(monkeypatch):
+    reference_model = _einet_model()
+    alias_model = deepcopy(reference_model)
+    x, y = _batch()
+    reference, _ = _make_trainer("dfa", reference_model)
+    expected = _rule_gradients(reference, reference_model, x, y)
+    monkeypatch.setitem(
+        factory.TRAINER_STRATEGY_REGISTRY,
+        "dfa",
+        {"class": ShuntingFeedbackAlignmentTrainer, "fixed_kwargs": {"mode": "dfa"}},
+    )
+    with pytest.warns(DeprecationWarning, match="use FeedbackAlignmentTrainer"):
+        trainer, _ = _make_trainer("dfa", alias_model)
+    assert isinstance(trainer, FeedbackAlignmentTrainer) and trainer.mode == "dfa"
+    observed = _rule_gradients(trainer, alias_model, x, y)
+    assert expected.keys() == observed.keys()
+    assert all(torch.equal(expected[name], observed[name]) for name in expected)
+    with pytest.raises(ValueError, match="e_rev_exc"):
+        ShuntingFeedbackAlignmentTrainer(e_rev_exc=1.0)
 
 
 def test_recurrent_cells_are_rejected():

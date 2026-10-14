@@ -28,6 +28,7 @@ of `docs/analyzers.rst`).
 
 - `PIDTerms`
 - `build_sr_matrix`
+- `check_pid_available` (deprecated)
 - `compute_cmi_ccc`
 - `compute_ei_mi`
 - `compute_mi_cc`
@@ -37,6 +38,11 @@ of `docs/analyzers.rst`).
 - `compute_synaptic_information`
 - `mmi_pid`
 - `partial_information_decomposition`
+- `pid_synergy_redundancy` (deprecated)
+
+`check_pid_available` and `pid_synergy_redundancy` were placeholders for an
+external PID package that DendriNet never provided. They raise `ImportError`,
+as they always did, name the built-in replacements, and will be removed.
 
 ## Example
 

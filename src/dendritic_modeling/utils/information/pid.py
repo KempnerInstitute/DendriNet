@@ -57,6 +57,37 @@ def _as_2d(values: np.ndarray) -> np.ndarray:
     return array.reshape(-1, 1) if array.ndim == 1 else array
 
 
+_RETIRED_HELPER = (
+    "{name} was a placeholder for an external PID package that DendriNet never "
+    "provided, so it always raised ImportError; it is deprecated and will be "
+    "removed. The decomposition is built in: use "
+    "partial_information_decomposition(source_1, source_2, target, "
+    "mutual_information) or mmi_pid(i_1, i_2, i_joint) from "
+    "dendritic_modeling.utils.information."
+)
+
+
+def check_pid_available() -> None:
+    """Deprecated: raises :class:`ImportError`, as it always did.
+
+    It checked for an external ``PID`` package that DendriNet never provided.
+    The decomposition is built in (:func:`partial_information_decomposition`).
+    """
+    raise ImportError(_RETIRED_HELPER.format(name="check_pid_available"))
+
+
+def pid_synergy_redundancy(
+    sources: list[np.ndarray], target: np.ndarray
+) -> tuple[float, float]:
+    """Deprecated: raises :class:`ImportError`, as it always did.
+
+    It wrapped an external ``PID`` package that DendriNet never provided. The
+    ``synergy`` and ``redundancy`` of :func:`partial_information_decomposition`,
+    with a mutual-information estimator of your choice, replace its result.
+    """
+    raise ImportError(_RETIRED_HELPER.format(name="pid_synergy_redundancy"))
+
+
 def partial_information_decomposition(
     source_1: np.ndarray,
     source_2: np.ndarray,
@@ -81,6 +112,8 @@ def partial_information_decomposition(
 __all__ = [
     "PID_MEASURES",
     "PIDTerms",
+    "check_pid_available",
     "mmi_pid",
     "partial_information_decomposition",
+    "pid_synergy_redundancy",
 ]

@@ -361,23 +361,9 @@ what replaces them:
   encoders train in the main phase, and ``training.encoder_pretraining``
   pretrains autoencoder encoders); ``DatasetParamsConfig``
   (``data.dataset_params`` holds plain per-dataset mappings); ``WandbConfig``.
-- ``ShuntingFeedbackAlignmentTrainer`` and
-  ``training.factory.SHUNTING_FEEDBACK_ALIGNMENT_MODES``:
-  ``FeedbackAlignmentTrainer`` replaces the class, and the strategies
+- ``training.factory.SHUNTING_FEEDBACK_ALIGNMENT_MODES``: the strategies
   ``shunting_fa`` and ``shunting_dfa`` load as ``fa`` and ``dfa`` with a
-  warning (``DEPRECATED_STRATEGY_ALIASES``). FA and DFA compute each block's
-  exact local gradient, which in shunting branch layers includes each
-  pathway's conductance and driving force, the terms the class approximated
-  by scaling the feedback with ``R_tot * (e_rev_exc - V)``. Its ``e_rev_exc``
-  argument has no counterpart: the gradient uses the model's own reversal
-  potentials.
-- ``check_pid_available`` and ``pid_synergy_redundancy``
-  (``utils.information``): they imported ``PID`` from ``external``, which
-  never provided it (the former ``external/`` directory held only
-  ``BROJA_2PID``), so both always raised ``ImportError``.
-  ``partial_information_decomposition`` (two sources, a target and a
-  mutual-information estimator) and ``mmi_pid`` (from three mutual
-  informations) compute the decomposition.
+  warning (``DEPRECATED_STRATEGY_ALIASES``).
 - Code that no part of the library ran: ``config.training.ReportingConfig``
   (no configuration built it; ``PruningConfig`` holds the same pruning-report
   settings); ``analysis.tools.integrate_pruning_with_turnover_analysis``, the
@@ -397,6 +383,24 @@ what replaces them:
   ``projects/`` scaffolding, and the pages ``docs/fsdp_troubleshooting.rst``
   and ``docs/initialization_comparison_policy.rst``, merged into
   ``docs/distributed_training.rst`` and ``docs/dendritic_neurons.rst``.
+
+Deprecated names kept for compatibility, to be removed in a later release:
+
+- ``ShuntingFeedbackAlignmentTrainer`` (``training.strategies``) runs
+  ``FeedbackAlignmentTrainer`` and warns, as the strategy names
+  ``shunting_fa`` and ``shunting_dfa`` do. FA and DFA compute each block's
+  exact local gradient, which in shunting branch layers includes each
+  pathway's conductance and driving force, the terms the class approximated
+  by scaling the feedback with ``R_tot * (e_rev_exc - V)``. Its ``e_rev_exc``
+  argument has no counterpart, because the gradient uses the model's own
+  reversal potentials, and raises.
+- ``check_pid_available`` and ``pid_synergy_redundancy``
+  (``utils.information``) raise ``ImportError``, as they always did, and now
+  name the replacements: they imported ``PID`` from ``external``, which never
+  provided it (the former ``external/`` directory held only ``BROJA_2PID``).
+  ``partial_information_decomposition`` (two sources, a target and a
+  mutual-information estimator) and ``mmi_pid`` (from three mutual
+  informations) compute the decomposition.
 
 Configuration and run records:
 
