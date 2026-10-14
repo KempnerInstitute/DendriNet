@@ -1,0 +1,762 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Temporal dynamics &mdash; DendriNet v0.2.0</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=938c9ccc"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Structured E/I cores" href="structured_ei_cores.html" />
+    <link rel="prev" title="Population networks" href="population_networks.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            DendriNet
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Example configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Building models</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="network_architectures.html">Model architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dendritic_neurons.html">Dendritic neurons</a></li>
+<li class="toctree-l1"><a class="reference internal" href="synapses.html">Synapses and connectivity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="population_networks.html">Population networks</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Temporal dynamics</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#where-the-options-are-set">Where the options are set</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#receptor-synapse-types">Receptor synapse types</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#spiking-soma">Spiking soma</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#dendritic-spikes-and-plateaus">Dendritic spikes and plateaus</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#soma-to-dendrite-feedback">Soma-to-dendrite feedback</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sequence-output">Sequence output</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="structured_ei_cores.html">Structured E/I cores</a></li>
+<li class="toctree-l1"><a class="reference internal" href="conductance_options.html">Conductance options</a></li>
+<li class="toctree-l1"><a class="reference internal" href="comparison_models.html">Baselines and comparison models</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Configuration</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="configuration_guide.html">Configuration guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config_reference.html">Annotated reference configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="training_strategies.html">Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="distributed_training.html">Distributed training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="performance_kernels.html">Sparse execution and performance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Data and analysis</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="datasets.html">Datasets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="analysis.html">Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="analyzers.html">Analyzer reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="checkpoint_analysis.html">Analyzing saved checkpoints</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Running experiments</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="runs_and_outputs.html">Runs and outputs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sweeps.html">Parameter sweeps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="model_compression.html">Compact checkpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="project_provenance.html">Project provenance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="available_components.html">Component catalogue</a></li>
+<li class="toctree-l1"><a class="reference internal" href="options_reference.html">Options reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cli_reference.html">Command-line reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api_reference.html">Python API</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="extending.html">Extending DendriNet</a></li>
+<li class="toctree-l1"><a class="reference internal" href="engineering_architecture.html">Engineering architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">DendriNet</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Temporal dynamics</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/temporal_dynamics.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="temporal-dynamics">
+<span id="id1"></span><h1>Temporal dynamics<a class="headerlink" href="#temporal-dynamics" title="Link to this heading"></a></h1>
+<p>These options give dendritic populations a state that carries over from one
+timestep to the next: receptor synapse types with their own kinetics and
+short-term plasticity, a spiking soma, dendritic spikes and plateaus, and
+feedback from the soma to the dendrites. Each option is set per population
+and is off by default. Use them for sequence tasks; a core that enables any of
+them processes its input one timestep at a time.</p>
+<section id="where-the-options-are-set">
+<span id="temporal-placement"></span><h2>Where the options are set<a class="headerlink" href="#where-the-options-are-set" title="Link to this heading"></a></h2>
+<p>The four features are population options (see <a class="reference internal" href="population_networks.html#population-options"><span class="std std-ref">Options reference</span></a>). The
+core families accept them as follows:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 24.0%" />
+<col style="width: 38.0%" />
+<col style="width: 38.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Core</p></th>
+<th class="head"><p>Where the options go</p></th>
+<th class="head"><p>Effect of enabling one</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Population network (<code class="docutils literal notranslate"><span class="pre">population_network</span></code>)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">model.core.population_network.layers[].population_defaults</span></code> or a
+population’s <code class="docutils literal notranslate"><span class="pre">population</span></code> block</p></td>
+<td><p>The layer steps through time, with or without <code class="docutils literal notranslate"><span class="pre">recurrent:</span> <span class="pre">true</span></code>, and
+the network processes sequences (see <a class="reference internal" href="population_networks.html#temporal-constants"><span class="std std-ref">Temporal constants and delays</span></a>).</p></td>
+</tr>
+<tr class="row-odd"><td><p>Unified E/I core (<code class="docutils literal notranslate"><span class="pre">unified_ei</span></code>, see <a class="reference internal" href="structured_ei_cores.html#unified-ei"><span class="std std-ref">Unified E/I core</span></a>)</p></td>
+<td><p>The same fields in <code class="docutils literal notranslate"><span class="pre">model.core.unified_ei.layers[].excitatory</span></code> and
+<code class="docutils literal notranslate"><span class="pre">.inhibitory</span></code></p></td>
+<td><p>The layer must set <code class="docutils literal notranslate"><span class="pre">recurrent:</span> <span class="pre">true</span></code>; otherwise building raises.</p></td>
+</tr>
+<tr class="row-even"><td><p>Structured E/I core (<code class="docutils literal notranslate"><span class="pre">einet</span></code>, <code class="docutils literal notranslate"><span class="pre">dendritic_shunting</span></code>,
+<code class="docutils literal notranslate"><span class="pre">dendritic_additive</span></code>, <code class="docutils literal notranslate"><span class="pre">dendritic_normalized_additive</span></code>)</p></td>
+<td><p>The blocks <code class="docutils literal notranslate"><span class="pre">model.core.synapse_types</span></code>, <code class="docutils literal notranslate"><span class="pre">model.core.dynamics</span></code>,
+<code class="docutils literal notranslate"><span class="pre">model.core.dendritic_spikes</span></code> and <code class="docutils literal notranslate"><span class="pre">model.core.soma_feedback</span></code></p></td>
+<td><p>The core is built as the recurrent E/I network, and the settings apply
+to the excitatory and inhibitory populations of every layer (see
+<a class="reference internal" href="structured_ei_cores.html#recurrent-structured-cores"><span class="std std-ref">Recurrent structured cores</span></a>).</p></td>
+</tr>
+</tbody>
+</table>
+<p>The structured types <code class="docutils literal notranslate"><span class="pre">flat_shunting</span></code>, <code class="docutils literal notranslate"><span class="pre">flat_additive</span></code>,
+<code class="docutils literal notranslate"><span class="pre">flat_normalized_additive</span></code>, <code class="docutils literal notranslate"><span class="pre">flat_mlp</span></code>, <code class="docutils literal notranslate"><span class="pre">dendritic_mlp</span></code>,
+<code class="docutils literal notranslate"><span class="pre">dendritic_signed</span></code> and <code class="docutils literal notranslate"><span class="pre">flat_signed</span></code> cannot be made recurrent, and
+enabling any of these features with them raises when the model is built.</p>
+<p>A core with temporal state takes inputs of shape <code class="docutils literal notranslate"><span class="pre">[batch,</span> <span class="pre">time,</span> <span class="pre">features]</span></code>;
+a two-dimensional input is treated as a single timestep. Train it on sequence
+data with <code class="docutils literal notranslate"><span class="pre">training.main.strategy:</span> <span class="pre">recurrent</span></code> (see <a class="reference internal" href="training_strategies.html#training-strategies"><span class="std std-ref">Training strategies</span></a>).
+Besides these features, recurrent connections also give a core temporal state:
+delayed connections and <code class="docutils literal notranslate"><span class="pre">recurrent:</span> <span class="pre">true</span></code> layers in population networks,
+<code class="docutils literal notranslate"><span class="pre">recurrent:</span> <span class="pre">true</span></code> layers in unified E/I cores, and recurrent synapse counts in
+structured E/I cores. None of the four features can be combined with a
+non-unit or learnable leak, <code class="docutils literal notranslate"><span class="pre">endpoint_tanh</span></code> gates, <code class="docutils literal notranslate"><span class="pre">indexed_release</span></code>
+synapses, <code class="docutils literal notranslate"><span class="pre">signal_rounding</span></code>, a <code class="docutils literal notranslate"><span class="pre">cross_level_mode</span></code> other than
+<code class="docutils literal notranslate"><span class="pre">hierarchical</span></code>, or <code class="docutils literal notranslate"><span class="pre">autograd_credit_mode:</span> <span class="pre">soma_broadcast</span></code>; building such a
+population raises.</p>
+<p>In a structured E/I core, the four blocks use the population field names
+without their prefix, for example <code class="docutils literal notranslate"><span class="pre">model.core.dynamics.threshold</span></code> for
+<code class="docutils literal notranslate"><span class="pre">spike_threshold</span></code> and <code class="docutils literal notranslate"><span class="pre">model.core.soma_feedback.mode</span></code> for
+<code class="docutils literal notranslate"><span class="pre">soma_feedback_mode</span></code>. This structured core enables all four features:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">core</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_shunting</span>
+<span class="w">    </span><span class="nt">architecture</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">excitatory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">32</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">inhibitory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">8</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">excitatory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">2</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">2</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">connectivity</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">ee_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">8</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">ei_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">8</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">ie_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">4</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">synapse_types</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">excitatory</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">AMPA</span><span class="p p-Indicator">,</span><span class="nt"> fraction</span><span class="p">:</span><span class="w"> </span><span class="nv">0.8</span><span class="p p-Indicator">,</span><span class="nt"> tau_rise</span><span class="p">:</span><span class="w"> </span><span class="nv">0.5</span><span class="p p-Indicator">,</span><span class="nt"> tau_decay</span><span class="p">:</span><span class="w"> </span><span class="nv">2.0</span><span class="p p-Indicator">}</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">NMDA</span><span class="p p-Indicator">,</span><span class="nt"> fraction</span><span class="p">:</span><span class="w"> </span><span class="nv">0.2</span><span class="p p-Indicator">,</span><span class="nt"> tau_rise</span><span class="p">:</span><span class="w"> </span><span class="nv">3.0</span><span class="p p-Indicator">,</span><span class="nt"> tau_decay</span><span class="p">:</span><span class="w"> </span><span class="nv">70.0</span><span class="p p-Indicator">,</span><span class="nt"> magnesium_block</span><span class="p">:</span><span class="w"> </span><span class="nv">true</span><span class="p p-Indicator">}</span>
+<span class="w">      </span><span class="nt">inhibitory</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">GABA_A</span><span class="p p-Indicator">,</span><span class="nt"> fraction</span><span class="p">:</span><span class="w"> </span><span class="nv">1.0</span><span class="p p-Indicator">,</span><span class="nt"> tau_decay</span><span class="p">:</span><span class="w"> </span><span class="nv">7.0</span><span class="p p-Indicator">}</span>
+<span class="w">    </span><span class="nt">dynamics</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">spike</span>
+<span class="w">      </span><span class="nt">threshold</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.6</span>
+<span class="w">      </span><span class="nt">readout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">rate</span>
+<span class="w">    </span><span class="nt">dendritic_spikes</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">levels</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">distal</span>
+<span class="w">    </span><span class="nt">soma_feedback</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gated</span>
+<span class="w">      </span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">voltage</span>
+<span class="w">      </span><span class="nt">levels</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">distal</span>
+<span class="nt">training</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">main</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">recurrent</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">model.core.dynamics</span></code> also accepts the population field names of its own
+options (<code class="docutils literal notranslate"><span class="pre">dynamics_mode</span></code>, <code class="docutils literal notranslate"><span class="pre">spike_threshold</span></code>, …) and of the dendritic-spike
+and soma-feedback options (<code class="docutils literal notranslate"><span class="pre">dendritic_spikes_enabled</span></code>,
+<code class="docutils literal notranslate"><span class="pre">dendritic_spike_threshold</span></code>, <code class="docutils literal notranslate"><span class="pre">soma_feedback_mode</span></code>, …); writing the same
+option twice raises. Nesting the
+<code class="docutils literal notranslate"><span class="pre">dendritic_spikes</span></code> or <code class="docutils literal notranslate"><span class="pre">soma_feedback</span></code> block inside <code class="docutils literal notranslate"><span class="pre">model.core.dynamics</span></code>,
+or <code class="docutils literal notranslate"><span class="pre">soma_feedback</span></code> inside <code class="docutils literal notranslate"><span class="pre">model.core.recurrent_ei</span></code>, raises when the
+configuration loads. <code class="docutils literal notranslate"><span class="pre">model.core.spiking</span></code> still loads as
+<code class="docutils literal notranslate"><span class="pre">model.core.dynamics</span></code>, with a deprecation warning.</p>
+</section>
+<section id="receptor-synapse-types">
+<span id="synapse-types"></span><h2>Receptor synapse types<a class="headerlink" href="#receptor-synapse-types" title="Link to this heading"></a></h2>
+<figure class="align-default" id="id3">
+<a class="reference internal image-reference" href="_images/synapse-types.svg"><img alt="Excitatory and inhibitory input streams split into AMPA, NMDA, GABA-A and GABA-B traces with their own time courses, summed into excitatory and inhibitory conductances that enter the dendritic voltage" src="_images/synapse-types.svg" style="width: 100%;" />
+</a>
+<figcaption>
+<p><span class="caption-text">Receptor types split the excitatory and inhibitory input of a compartment
+into traces with their own fraction, time course, reversal potential and
+voltage gate, here AMPA and NMDA for excitation and GABA-A and GABA-B for
+inhibition. The traces of each polarity are summed into conductances, which
+enter the shunting or additive voltage. The lower panels show where the
+block is set and the difference between a population’s polarity and a
+receptor type.</span><a class="headerlink" href="#id3" title="Link to this image"></a></p>
+</figcaption>
+</figure>
+<p>Polarity and receptor type are separate. The polarity of the source
+population decides whether its output enters the excitatory or the inhibitory
+input of a target. Receptor types (<code class="docutils literal notranslate"><span class="pre">synapse_types</span></code>) decide how that input
+becomes a conductance over time. They belong to the receiving population: the
+types set in a population’s options filter all of its excitatory or all of its
+inhibitory input, whichever source population sent it, so they cannot be
+assigned per connection. A receptor type does not create a population, a
+connection or a readout; different populations of a layer can use different
+receptor mixtures through their <code class="docutils literal notranslate"><span class="pre">population</span></code> blocks.</p>
+<p>Receptor types are set in the population option <code class="docutils literal notranslate"><span class="pre">synapse_types</span></code>, for
+example <code class="docutils literal notranslate"><span class="pre">model.core.population_network.layers[].population_defaults.synapse_types</span></code>.
+Without receptor types, every compartment keeps one trace per input stream
+(see <a class="reference internal" href="population_networks.html#temporal-constants"><span class="std std-ref">Temporal constants and delays</span></a>). With <code class="docutils literal notranslate"><span class="pre">synapse_types.enabled:</span> <span class="pre">true</span></code>, each
+excitatory input current is divided among the excitatory types and each
+inhibitory current among the inhibitory types, in proportion to their
+<code class="docutils literal notranslate"><span class="pre">fraction</span></code> values (normalized within each polarity). For each type, the
+current <code class="docutils literal notranslate"><span class="pre">u</span></code> is transformed by <code class="docutils literal notranslate"><span class="pre">nonlinearity</span></code> and <code class="docutils literal notranslate"><span class="pre">conductance_power</span></code>,
+scaled by short-term plasticity when <code class="docutils literal notranslate"><span class="pre">stp</span></code> is enabled, and integrated into a
+conductance trace <code class="docutils literal notranslate"><span class="pre">g</span></code>. With a single time constant (<code class="docutils literal notranslate"><span class="pre">tau</span></code> or
+<code class="docutils literal notranslate"><span class="pre">tau_decay</span></code>):</p>
+<div class="math notranslate nohighlight">
+\[g(t) = \alpha\, g(t - \Delta t) + (1 - \alpha)\, f\, u(t),
+\qquad \alpha = e^{-\Delta t / \tau_{\text{decay}}} ,\]</div>
+<p>where <code class="docutils literal notranslate"><span class="pre">f</span></code> is the normalized fraction. A type without a time constant uses
+the population’s trace constant of the level. With <code class="docutils literal notranslate"><span class="pre">tau_rise</span></code> and
+<code class="docutils literal notranslate"><span class="pre">tau_decay</span></code> the trace is a difference of two exponential traces:</p>
+<div class="math notranslate nohighlight">
+\[r(t) = \alpha_r\, r(t - \Delta t) + f\, u(t), \qquad
+d(t) = \alpha_d\, d(t - \Delta t) + f\, u(t), \qquad
+g(t) = \max\bigl(d(t) - r(t),\, 0\bigr),\]</div>
+<p>with <span class="math notranslate nohighlight">\(\alpha_r = e^{-\Delta t/\tau_{\text{rise}}}\)</span> and
+<span class="math notranslate nohighlight">\(\alpha_d = e^{-\Delta t/\tau_{\text{decay}}}\)</span>. A voltage gate then
+multiplies the trace by a function of the compartment’s output at the previous
+step (see the field table). In shunting populations every trace <code class="docutils literal notranslate"><span class="pre">g_k</span></code> enters
+the voltage with its reversal potential <code class="docutils literal notranslate"><span class="pre">E_k</span></code>:</p>
+<div class="math notranslate nohighlight">
+\[V = \frac{\sum_k g_k E_k + I_{\text{branch}}}{1 + \sum_k g_k + G_{\text{branch}} + \epsilon} ,\]</div>
+<p>where the sums run over the types of all four input streams, and
+<span class="math notranslate nohighlight">\(I_{\text{branch}}\)</span> and <span class="math notranslate nohighlight">\(G_{\text{branch}}\)</span> are the current and
+coupling conductance from the child branches. Reversal potentials use the
+normalized convention of the model (excitation 1, inhibition 0) and must lie in
+<code class="docutils literal notranslate"><span class="pre">[-1,</span> <span class="pre">2]</span></code>. A type need not stand for a named receptor: a custom type such as
+<code class="docutils literal notranslate"><span class="pre">E_rev_0p4</span></code> with <code class="docutils literal notranslate"><span class="pre">reversal_potential:</span> <span class="pre">0.4</span></code> is a conductance class defined
+by its reversal potential. Additive populations accept only the reversal
+potentials 1.0 for excitatory and 0.0 for inhibitory types, and only
+<code class="docutils literal notranslate"><span class="pre">additive_mode:</span> <span class="pre">raw</span></code>; use shunting populations for other reversal
+potentials.</p>
+<p>One excitatory and one inhibitory type with <code class="docutils literal notranslate"><span class="pre">fraction:</span> <span class="pre">1.0</span></code> and no time
+constants reproduce the dynamics without receptor types exactly.</p>
+<p>This recurrent layer gives its populations AMPA and NMDA excitation and GABA-A
+and GABA-B inhibition, with depressing short-term plasticity on GABA-B:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">population_network</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">layers</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">recurrent_layer</span>
+<span class="w">      </span><span class="nt">recurrent</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">readout_population</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pyr</span>
+<span class="w">      </span><span class="nt">population_defaults</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">ff_excitatory_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">12</span>
+<span class="w">        </span><span class="nt">ff_inhibitory_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
+<span class="w">        </span><span class="nt">rec_excitatory_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8</span>
+<span class="w">        </span><span class="nt">rec_inhibitory_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
+<span class="w">        </span><span class="nt">synapse_types</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">          </span><span class="nt">excitatory</span><span class="p">:</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">AMPA</span><span class="p p-Indicator">,</span><span class="nt"> fraction</span><span class="p">:</span><span class="w"> </span><span class="nv">0.8</span><span class="p p-Indicator">,</span><span class="nt"> tau_rise</span><span class="p">:</span><span class="w"> </span><span class="nv">0.5</span><span class="p p-Indicator">,</span><span class="nt"> tau_decay</span><span class="p">:</span><span class="w"> </span><span class="nv">2.0</span><span class="p p-Indicator">,</span><span class="nt"> reversal_potential</span><span class="p">:</span><span class="w"> </span><span class="nv">1.0</span><span class="p p-Indicator">}</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">NMDA</span>
+<span class="w">              </span><span class="nt">fraction</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.2</span>
+<span class="w">              </span><span class="nt">tau_rise</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3.0</span>
+<span class="w">              </span><span class="nt">tau_decay</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">70.0</span>
+<span class="w">              </span><span class="nt">reversal_potential</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span>
+<span class="w">              </span><span class="nt">magnesium_block</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">          </span><span class="nt">inhibitory</span><span class="p">:</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">GABA_A</span><span class="p p-Indicator">,</span><span class="nt"> fraction</span><span class="p">:</span><span class="w"> </span><span class="nv">0.9</span><span class="p p-Indicator">,</span><span class="nt"> tau_rise</span><span class="p">:</span><span class="w"> </span><span class="nv">1.0</span><span class="p p-Indicator">,</span><span class="nt"> tau_decay</span><span class="p">:</span><span class="w"> </span><span class="nv">7.0</span><span class="p p-Indicator">,</span><span class="nt"> reversal_potential</span><span class="p">:</span><span class="w"> </span><span class="nv">0.0</span><span class="p p-Indicator">}</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">GABA_B</span>
+<span class="w">              </span><span class="nt">fraction</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.1</span>
+<span class="w">              </span><span class="nt">tau_rise</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20.0</span>
+<span class="w">              </span><span class="nt">tau_decay</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">150.0</span>
+<span class="w">              </span><span class="nt">reversal_potential</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">-0.25</span>
+<span class="w">              </span><span class="nt">stp</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="nv">true</span><span class="p p-Indicator">,</span><span class="nt"> u0</span><span class="p">:</span><span class="w"> </span><span class="nv">0.25</span><span class="p p-Indicator">,</span><span class="nt"> depression</span><span class="p">:</span><span class="w"> </span><span class="nv">0.2</span><span class="p p-Indicator">}</span>
+<span class="w">      </span><span class="nt">populations</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">pyr</span><span class="p p-Indicator">,</span><span class="nt"> polarity</span><span class="p">:</span><span class="w"> </span><span class="nv">excitatory</span><span class="p p-Indicator">,</span><span class="nt"> n_neurons</span><span class="p">:</span><span class="w"> </span><span class="nv">32</span><span class="p p-Indicator">,</span><span class="nt"> branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">2</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">2</span><span class="p p-Indicator">]}</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">pv</span><span class="p p-Indicator">,</span><span class="nt"> polarity</span><span class="p">:</span><span class="w"> </span><span class="nv">inhibitory</span><span class="p p-Indicator">,</span><span class="nt"> n_neurons</span><span class="p">:</span><span class="w"> </span><span class="nv">8</span><span class="p p-Indicator">,</span><span class="nt"> branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">1</span><span class="p p-Indicator">]}</span>
+<span class="w">      </span><span class="nt">connections</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">input</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">pyr</span><span class="p p-Indicator">}</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">input</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">pv</span><span class="p p-Indicator">}</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">pv</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">pyr</span><span class="p p-Indicator">}</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">pyr</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">pyr</span><span class="p p-Indicator">,</span><span class="nt"> timing</span><span class="p">:</span><span class="w"> </span><span class="nv">delayed</span><span class="p p-Indicator">}</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">pv</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">pyr</span><span class="p p-Indicator">,</span><span class="nt"> timing</span><span class="p">:</span><span class="w"> </span><span class="nv">delayed</span><span class="p p-Indicator">}</span>
+</pre></div>
+</div>
+<p>The <code class="docutils literal notranslate"><span class="pre">synapse_types</span></code> block has these keys:</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">enabled</span></code></dt><dd><p>Whether the types apply. A block that lists types without <code class="docutils literal notranslate"><span class="pre">enabled</span></code>
+raises, and <code class="docutils literal notranslate"><span class="pre">enabled:</span> <span class="pre">true</span></code> requires both an excitatory and an inhibitory
+list.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">excitatory</span></code> and <code class="docutils literal notranslate"><span class="pre">inhibitory</span></code></dt><dd><p>Lists of types for each polarity (<code class="docutils literal notranslate"><span class="pre">exc</span></code>/<code class="docutils literal notranslate"><span class="pre">e</span></code> and <code class="docutils literal notranslate"><span class="pre">inh</span></code>/<code class="docutils literal notranslate"><span class="pre">i</span></code> are also
+accepted). Alternatively, one <code class="docutils literal notranslate"><span class="pre">types</span></code> list may hold both, with
+<code class="docutils literal notranslate"><span class="pre">polarity</span></code> written on every entry. A list may also be a mapping from type
+names to their settings.</p>
+</dd>
+</dl>
+<p>Each type has these fields:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 26.0%" />
+<col style="width: 14.0%" />
+<col style="width: 14.0%" />
+<col style="width: 46.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Field</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">name</span></code></p></td>
+<td><p>str</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">AMPA</span></code></p></td>
+<td><p>Label of the type, for example <code class="docutils literal notranslate"><span class="pre">AMPA</span></code>, <code class="docutils literal notranslate"><span class="pre">NMDA</span></code>, <code class="docutils literal notranslate"><span class="pre">GABA_A</span></code>,
+<code class="docutils literal notranslate"><span class="pre">GABA_B</span></code> or a custom name.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">polarity</span></code></p></td>
+<td><p>str</p></td>
+<td><p>from its list</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">excitatory</span></code> or <code class="docutils literal notranslate"><span class="pre">inhibitory</span></code>; required in a <code class="docutils literal notranslate"><span class="pre">types</span></code> list.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">fraction</span></code></p></td>
+<td><p>float</p></td>
+<td><p>1.0</p></td>
+<td><p>Share of the polarity’s current, normalized over the enabled types of
+that polarity.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">enabled</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code> (or <code class="docutils literal notranslate"><span class="pre">fraction:</span> <span class="pre">0</span></code>) leaves the type out. Each polarity needs
+at least one enabled type.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">tau</span></code></p></td>
+<td><p>float or null</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">null</span></code></p></td>
+<td><p>Single decay time constant; used as <code class="docutils literal notranslate"><span class="pre">tau_decay</span></code> when that is not
+written.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">tau_rise</span></code></p></td>
+<td><p>float or null</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">null</span></code></p></td>
+<td><p>Rise time constant of a double-exponential trace; must be smaller than
+<code class="docutils literal notranslate"><span class="pre">tau_decay</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">tau_decay</span></code></p></td>
+<td><p>float or null</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">null</span></code></p></td>
+<td><p>Decay time constant. Without any time constant the type uses the
+population’s trace constant of the level.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">reversal_potential</span></code></p></td>
+<td><p>float or null</p></td>
+<td><p>1.0 (excitatory), 0.0 (inhibitory)</p></td>
+<td><p>Reversal potential in the normalized convention, within <code class="docutils literal notranslate"><span class="pre">[-1,</span> <span class="pre">2]</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nonlinearity</span></code></p></td>
+<td><p>str</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">linear</span></code></p></td>
+<td><p>Transform of the input current: <code class="docutils literal notranslate"><span class="pre">linear</span></code>, <code class="docutils literal notranslate"><span class="pre">relu</span></code>, <code class="docutils literal notranslate"><span class="pre">sigmoid</span></code>,
+<code class="docutils literal notranslate"><span class="pre">tanh</span></code> or <code class="docutils literal notranslate"><span class="pre">softplus</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">conductance_power</span></code></p></td>
+<td><p>float</p></td>
+<td><p>1.0</p></td>
+<td><p>Signed power applied to the transformed current,
+<code class="docutils literal notranslate"><span class="pre">sign(u)</span> <span class="pre">|u|^p</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">magnesium_block</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>Shorthand for <code class="docutils literal notranslate"><span class="pre">voltage_gate:</span> <span class="pre">nmda_magnesium</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">voltage_gate</span></code></p></td>
+<td><p>str</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">none</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">nmda_magnesium</span></code> multiplies the trace by
+<code class="docutils literal notranslate"><span class="pre">1</span> <span class="pre">/</span> <span class="pre">(1</span> <span class="pre">+</span> <span class="pre">mg_concentration</span> <span class="pre">*</span> <span class="pre">exp(-V_mV</span> <span class="pre">/</span> <span class="pre">mg_slope)</span> <span class="pre">/</span> <span class="pre">mg_scale)</span></code>;
+<code class="docutils literal notranslate"><span class="pre">sigmoid</span></code> by <code class="docutils literal notranslate"><span class="pre">sigmoid(V_mV</span> <span class="pre">/</span> <span class="pre">mg_slope)</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">voltage_scale_mv</span></code></p></td>
+<td><p>float</p></td>
+<td><p>100.0</p></td>
+<td><p>Scale from the unitless compartment output <code class="docutils literal notranslate"><span class="pre">V</span></code> of the previous step
+to <code class="docutils literal notranslate"><span class="pre">V_mV</span> <span class="pre">=</span> <span class="pre">voltage_scale_mv</span> <span class="pre">*</span> <span class="pre">V</span> <span class="pre">+</span> <span class="pre">mg_v_offset</span></code>, so the gate varies
+over the model’s usual 0 to 1 range.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">mg_v_offset</span></code></p></td>
+<td><p>float</p></td>
+<td><p>0.0</p></td>
+<td><p>Offset of <code class="docutils literal notranslate"><span class="pre">V_mV</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">mg_concentration</span></code></p></td>
+<td><p>float</p></td>
+<td><p>1.0</p></td>
+<td><p>Magnesium concentration of the <code class="docutils literal notranslate"><span class="pre">nmda_magnesium</span></code> gate.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">mg_scale</span></code></p></td>
+<td><p>float</p></td>
+<td><p>3.57</p></td>
+<td><p>Scale of the <code class="docutils literal notranslate"><span class="pre">nmda_magnesium</span></code> gate.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">mg_slope</span></code></p></td>
+<td><p>float</p></td>
+<td><p>16.13</p></td>
+<td><p>Voltage slope of both gates.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">stp</span></code></p></td>
+<td><p>mapping</p></td>
+<td><p>none (off)</p></td>
+<td><p>Short-term plasticity; the keys are listed below. A written <code class="docutils literal notranslate"><span class="pre">stp</span></code>
+block is enabled unless it sets <code class="docutils literal notranslate"><span class="pre">enabled:</span> <span class="pre">false</span></code>.</p></td>
+</tr>
+</tbody>
+</table>
+<p>Short-term plasticity tracks a utilization <code class="docutils literal notranslate"><span class="pre">u_s</span></code> and available resources
+<code class="docutils literal notranslate"><span class="pre">x_s</span></code> for each type and multiplies the type’s current by <code class="docutils literal notranslate"><span class="pre">u_s</span> <span class="pre">x_s</span></code>. The
+presynaptic activity <code class="docutils literal notranslate"><span class="pre">a</span></code> is derived from the type’s rectified current <code class="docutils literal notranslate"><span class="pre">r</span></code>:
+<code class="docutils literal notranslate"><span class="pre">saturating</span></code> (default) uses <code class="docutils literal notranslate"><span class="pre">a</span> <span class="pre">=</span> <span class="pre">r</span> <span class="pre">/</span> <span class="pre">(activity_scale</span> <span class="pre">+</span> <span class="pre">r)</span></code> and <code class="docutils literal notranslate"><span class="pre">clamped</span></code>
+uses <code class="docutils literal notranslate"><span class="pre">a</span> <span class="pre">=</span> <span class="pre">min(r,</span> <span class="pre">1)</span></code> for currents already in rate units. Without input the
+activity is 0, so the resources stay full and the utilization stays at
+<code class="docutils literal notranslate"><span class="pre">u0</span></code>. Each step updates, with both values clipped to <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">1]</span></code>:</p>
+<div class="math notranslate nohighlight">
+\[u_s(t) = u_s + \frac{\Delta t}{\tau_u}(u_0 - u_s) + F (1 - u_s)\, a,
+\qquad
+x_s(t) = x_s + \frac{\Delta t}{\tau_x}(1 - x_s) - D\, u_s(t)\, x_s\, a ,\]</div>
+<p>where the right-hand sides use the previous values <span class="math notranslate nohighlight">\(u_s(t-\Delta t)\)</span> and
+<span class="math notranslate nohighlight">\(x_s(t-\Delta t)\)</span>. The keys of the <code class="docutils literal notranslate"><span class="pre">stp</span></code> block are <code class="docutils literal notranslate"><span class="pre">enabled</span></code>,
+<code class="docutils literal notranslate"><span class="pre">u0</span></code> (0.2), <code class="docutils literal notranslate"><span class="pre">tau_u</span></code> (200), <code class="docutils literal notranslate"><span class="pre">tau_x</span></code> (700), <code class="docutils literal notranslate"><span class="pre">facilitation</span></code> <code class="docutils literal notranslate"><span class="pre">F</span></code> (0),
+<code class="docutils literal notranslate"><span class="pre">depression</span></code> <code class="docutils literal notranslate"><span class="pre">D</span></code> (1), <code class="docutils literal notranslate"><span class="pre">activity</span></code> (<code class="docutils literal notranslate"><span class="pre">saturating</span></code> or <code class="docutils literal notranslate"><span class="pre">clamped</span></code>),
+<code class="docutils literal notranslate"><span class="pre">activity_scale</span></code> (1) and <code class="docutils literal notranslate"><span class="pre">differentiable_state</span></code> (<code class="docutils literal notranslate"><span class="pre">false</span></code>); the same
+options can be written on the type as fields with the prefix <code class="docutils literal notranslate"><span class="pre">stp_</span></code>
+(<code class="docutils literal notranslate"><span class="pre">stp_enabled</span></code>, <code class="docutils literal notranslate"><span class="pre">stp_u0</span></code>, …). By default the
+state is updated from a detached copy of the current, so gradients reach the
+current scaled by the present <code class="docutils literal notranslate"><span class="pre">u_s</span> <span class="pre">x_s</span></code> but do not flow through the state
+history; <code class="docutils literal notranslate"><span class="pre">differentiable_state:</span> <span class="pre">true</span></code> backpropagates through it.</p>
+<p>Type entries also accept the names <code class="docutils literal notranslate"><span class="pre">weight</span></code> (for <code class="docutils literal notranslate"><span class="pre">fraction</span></code>), <code class="docutils literal notranslate"><span class="pre">tau_r</span></code>,
+<code class="docutils literal notranslate"><span class="pre">tau_d</span></code>, <code class="docutils literal notranslate"><span class="pre">mg_block</span></code>, <code class="docutils literal notranslate"><span class="pre">voltage_scale</span></code>, <code class="docutils literal notranslate"><span class="pre">mg_voltage_scale</span></code>,
+<code class="docutils literal notranslate"><span class="pre">mg_voltage_scale_mv</span></code> and <code class="docutils literal notranslate"><span class="pre">short_term_plasticity</span></code> (for <code class="docutils literal notranslate"><span class="pre">stp</span></code>).</p>
+</section>
+<section id="spiking-soma">
+<span id="id2"></span><h2>Spiking soma<a class="headerlink" href="#spiking-soma" title="Link to this heading"></a></h2>
+<figure class="align-default" id="id4">
+<a class="reference internal image-reference" href="_images/spiking-modes.svg"><img alt="Rate soma output, somatic leaky integrate-and-fire spikes with threshold and reset, and a dendritic plateau triggered by a branch threshold crossing" src="_images/spiking-modes.svg" style="width: 100%;" />
+</a>
+<figcaption>
+<p><span class="caption-text">Three output behaviours. A rate soma (the default) emits a graded,
+differentiable output. A spiking soma (<code class="docutils literal notranslate"><span class="pre">dynamics_mode:</span> <span class="pre">spike</span></code>) integrates
+its membrane to <code class="docutils literal notranslate"><span class="pre">spike_threshold</span></code>, spikes and resets. A dendritic plateau
+(<a class="reference internal" href="#dendritic-spikes"><span class="std std-ref">Dendritic spikes and plateaus</span></a>) starts when a branch output crosses
+<code class="docutils literal notranslate"><span class="pre">dendritic_spike_threshold</span></code>; somatic and dendritic spikes act at different
+sites and can be combined.</span><a class="headerlink" href="#id4" title="Link to this image"></a></p>
+</figcaption>
+</figure>
+<p>With the population option <code class="docutils literal notranslate"><span class="pre">dynamics_mode:</span> <span class="pre">spike</span></code>
+(<code class="docutils literal notranslate"><span class="pre">model.core.population_network.layers[].population_defaults.dynamics_mode</span></code>)
+the output of the soma level (after its reactivation gate) drives a leaky
+integrate-and-fire membrane <code class="docutils literal notranslate"><span class="pre">m</span></code> instead of being the population output
+directly. With <span class="math notranslate nohighlight">\(\lambda = e^{-\Delta t/\tau}\)</span>
+(<code class="docutils literal notranslate"><span class="pre">spike_tau</span></code>) and threshold <span class="math notranslate nohighlight">\(\theta\)</span> (<code class="docutils literal notranslate"><span class="pre">spike_threshold</span></code>):</p>
+<div class="math notranslate nohighlight">
+\[\tilde m(t) = \lambda\, m(t - \Delta t) + (1 - \lambda)\, v(t), \qquad
+s(t) = H\bigl(\tilde m(t) - \theta\bigr),\]</div>
+<p>where <code class="docutils literal notranslate"><span class="pre">v</span></code> is the soma-level output. After a spike the membrane is set to
+<code class="docutils literal notranslate"><span class="pre">spike_reset</span></code>, and for <code class="docutils literal notranslate"><span class="pre">spike_refractory_steps</span></code> steps the membrane is held
+at the reset value and cannot spike. The step function has a fast-sigmoid
+surrogate gradient <span class="math notranslate nohighlight">\(1 / (1 + \beta_s |\tilde m - \theta|)^2\)</span> with
+<span class="math notranslate nohighlight">\(\beta_s\)</span> = <code class="docutils literal notranslate"><span class="pre">spike_surrogate_beta</span></code>. <code class="docutils literal notranslate"><span class="pre">spike_readout</span></code> selects the
+population output:</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">spikes</span></code> (default)</dt><dd><p>The binary spikes <code class="docutils literal notranslate"><span class="pre">s(t)</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">rate</span></code></dt><dd><p>A leaky spike trace with time constant <code class="docutils literal notranslate"><span class="pre">spike_readout_tau</span></code>, which gives
+the decoder and downstream populations a graded signal.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">membrane</span></code></dt><dd><p>The membrane <span class="math notranslate nohighlight">\(\tilde m(t)\)</span> before threshold and reset, for
+comparisons with the rate output.</p>
+</dd>
+</dl>
+<p>With <code class="docutils literal notranslate"><span class="pre">spike_readout:</span> <span class="pre">spikes</span></code> and <code class="docutils literal notranslate"><span class="pre">output_mode:</span> <span class="pre">last</span></code>, the decoder sees
+only the spikes of the final step; <code class="docutils literal notranslate"><span class="pre">rate</span></code> or <code class="docutils literal notranslate"><span class="pre">output_mode:</span> <span class="pre">mean</span></code> combines
+activity over time. The defaults of all <code class="docutils literal notranslate"><span class="pre">spike_*</span></code> fields are listed under
+<a class="reference internal" href="population_networks.html#population-options"><span class="std std-ref">Options reference</span></a>. The <code class="docutils literal notranslate"><span class="pre">spike_train</span></code> analyzer reports firing rates,
+spike-count statistics and rasters of spiking populations (see
+<a class="reference internal" href="analysis.html#analyzer-catalogue"><span class="std std-ref">Analyzer catalogue</span></a>).</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">population_network</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">layers</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">recurrent_layer</span>
+<span class="w">      </span><span class="nt">recurrent</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">readout_population</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pyr</span>
+<span class="w">      </span><span class="nt">population_defaults</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">ff_excitatory_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8</span>
+<span class="w">        </span><span class="nt">rec_excitatory_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
+<span class="w">        </span><span class="nt">dynamics_mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">spike</span>
+<span class="w">        </span><span class="nt">spike_threshold</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.6</span>
+<span class="w">        </span><span class="nt">spike_tau</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20.0</span>
+<span class="w">        </span><span class="nt">spike_refractory_steps</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<span class="w">        </span><span class="nt">spike_readout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">rate</span>
+<span class="w">        </span><span class="nt">spike_readout_tau</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20.0</span>
+<span class="w">      </span><span class="nt">populations</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">pyr</span><span class="p p-Indicator">,</span><span class="nt"> polarity</span><span class="p">:</span><span class="w"> </span><span class="nv">excitatory</span><span class="p p-Indicator">,</span><span class="nt"> n_neurons</span><span class="p">:</span><span class="w"> </span><span class="nv">32</span><span class="p p-Indicator">,</span><span class="nt"> branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">2</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">2</span><span class="p p-Indicator">]}</span>
+<span class="w">      </span><span class="nt">connections</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">input</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">pyr</span><span class="p p-Indicator">}</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">pyr</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">pyr</span><span class="p p-Indicator">,</span><span class="nt"> timing</span><span class="p">:</span><span class="w"> </span><span class="nv">delayed</span><span class="p p-Indicator">}</span>
+</pre></div>
+</div>
+<p>In a structured E/I core the block is <code class="docutils literal notranslate"><span class="pre">model.core.dynamics</span></code> with the keys
+<code class="docutils literal notranslate"><span class="pre">mode</span></code>, <code class="docutils literal notranslate"><span class="pre">threshold</span></code>, <code class="docutils literal notranslate"><span class="pre">reset</span></code>, <code class="docutils literal notranslate"><span class="pre">tau</span></code>, <code class="docutils literal notranslate"><span class="pre">refractory_steps</span></code>,
+<code class="docutils literal notranslate"><span class="pre">surrogate_beta</span></code>, <code class="docutils literal notranslate"><span class="pre">readout</span></code> and <code class="docutils literal notranslate"><span class="pre">readout_tau</span></code>.</p>
+</section>
+<section id="dendritic-spikes-and-plateaus">
+<span id="dendritic-spikes"></span><h2>Dendritic spikes and plateaus<a class="headerlink" href="#dendritic-spikes-and-plateaus" title="Link to this heading"></a></h2>
+<p>Dendritic spikes are local events in the dendritic levels, separate from the
+soma, enabled with the population option <code class="docutils literal notranslate"><span class="pre">dendritic_spikes_enabled</span></code>
+(<code class="docutils literal notranslate"><span class="pre">model.core.population_network.layers[].population_defaults.dendritic_spikes_enabled</span></code>).
+They act after a level has computed its output (after its reactivation gate)
+and before that output reaches the parent level, so a local event propagates
+toward the soma. With threshold <span class="math notranslate nohighlight">\(\theta_d\)</span>
+(<code class="docutils literal notranslate"><span class="pre">dendritic_spike_threshold</span></code>):</p>
+<div class="math notranslate nohighlight">
+\[z_l(t) = H\bigl(V_l(t) - \theta_d\bigr), \qquad
+p_l(t) = \alpha_p\, p_l(t - \Delta t) + (1 - \alpha_p)\, z_l(t), \qquad
+\alpha_p = e^{-\Delta t / \tau_p},\]</div>
+<p>where <span class="math notranslate nohighlight">\(V_l\)</span> is the output of level <code class="docutils literal notranslate"><span class="pre">l</span></code> and <span class="math notranslate nohighlight">\(\tau_p\)</span> is
+<code class="docutils literal notranslate"><span class="pre">dendritic_spike_plateau_tau</span></code>. In
+<code class="docutils literal notranslate"><span class="pre">dendritic_spike_mode:</span> <span class="pre">plateau</span></code> (default) the plateau trace <code class="docutils literal notranslate"><span class="pre">p</span></code> modifies the
+branch output; in <code class="docutils literal notranslate"><span class="pre">threshold</span></code> mode the event <code class="docutils literal notranslate"><span class="pre">z</span></code> does so directly. With
+amplitude <code class="docutils literal notranslate"><span class="pre">A</span></code> (<code class="docutils literal notranslate"><span class="pre">dendritic_spike_plateau_amplitude</span></code>),
+<code class="docutils literal notranslate"><span class="pre">dendritic_spike_propagation</span></code> selects the modification:</p>
+<div class="math notranslate nohighlight">
+\[V_l^{\text{additive}} = V_l + A\, p_l, \qquad
+V_l^{\text{replace}} = V_l (1 - p_l) + A\, p_l, \qquad
+V_l^{\text{gated}} = V_l (1 + A\, p_l).\]</div>
+<p>Events use the same fast-sigmoid surrogate gradient as the soma
+(<code class="docutils literal notranslate"><span class="pre">dendritic_spike_surrogate_beta</span></code>), and after an event a branch cannot fire
+for <code class="docutils literal notranslate"><span class="pre">dendritic_spike_refractory_steps</span></code> steps.</p>
+<p><code class="docutils literal notranslate"><span class="pre">dendritic_spike_levels</span></code> selects the levels with events. Levels are counted
+from the most distal level (0) toward the soma, and the soma level never has
+dendritic events; use <code class="docutils literal notranslate"><span class="pre">dynamics_mode:</span> <span class="pre">spike</span></code> for a spiking soma.
+<code class="docutils literal notranslate"><span class="pre">non_soma</span></code> (default) and <code class="docutils literal notranslate"><span class="pre">all</span></code> select every dendritic level, <code class="docutils literal notranslate"><span class="pre">distal</span></code>
+level 0, <code class="docutils literal notranslate"><span class="pre">proximal</span></code> the last level before the soma, and <code class="docutils literal notranslate"><span class="pre">none</span></code> no level; a
+list of indices selects those levels.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">population_network</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">layers</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">recurrent_layer</span>
+<span class="w">      </span><span class="nt">recurrent</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">readout_population</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pyr</span>
+<span class="w">      </span><span class="nt">population_defaults</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">ff_excitatory_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8</span>
+<span class="w">        </span><span class="nt">rec_excitatory_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
+<span class="w">        </span><span class="nt">dendritic_spikes_enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">        </span><span class="nt">dendritic_spike_mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">plateau</span>
+<span class="w">        </span><span class="nt">dendritic_spike_levels</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">distal</span>
+<span class="w">        </span><span class="nt">dendritic_spike_threshold</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.7</span>
+<span class="w">        </span><span class="nt">dendritic_spike_plateau_tau</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20.0</span>
+<span class="w">        </span><span class="nt">dendritic_spike_refractory_steps</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<span class="w">        </span><span class="nt">dendritic_spike_propagation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">additive</span>
+<span class="w">      </span><span class="nt">populations</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">pyr</span><span class="p p-Indicator">,</span><span class="nt"> polarity</span><span class="p">:</span><span class="w"> </span><span class="nv">excitatory</span><span class="p p-Indicator">,</span><span class="nt"> n_neurons</span><span class="p">:</span><span class="w"> </span><span class="nv">32</span><span class="p p-Indicator">,</span><span class="nt"> branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">2</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">2</span><span class="p p-Indicator">]}</span>
+<span class="w">      </span><span class="nt">connections</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">input</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">pyr</span><span class="p p-Indicator">}</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">pyr</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">pyr</span><span class="p p-Indicator">,</span><span class="nt"> timing</span><span class="p">:</span><span class="w"> </span><span class="nv">delayed</span><span class="p p-Indicator">}</span>
+</pre></div>
+</div>
+<p>In a structured E/I core the block is <code class="docutils literal notranslate"><span class="pre">model.core.dendritic_spikes</span></code> with the
+keys <code class="docutils literal notranslate"><span class="pre">enabled</span></code>, <code class="docutils literal notranslate"><span class="pre">mode</span></code>, <code class="docutils literal notranslate"><span class="pre">levels</span></code>, <code class="docutils literal notranslate"><span class="pre">threshold</span></code>, <code class="docutils literal notranslate"><span class="pre">plateau_amplitude</span></code>,
+<code class="docutils literal notranslate"><span class="pre">plateau_tau</span></code>, <code class="docutils literal notranslate"><span class="pre">refractory_steps</span></code>, <code class="docutils literal notranslate"><span class="pre">surrogate_beta</span></code> and <code class="docutils literal notranslate"><span class="pre">propagation</span></code>.</p>
+</section>
+<section id="soma-to-dendrite-feedback">
+<span id="soma-feedback"></span><h2>Soma-to-dendrite feedback<a class="headerlink" href="#soma-to-dendrite-feedback" title="Link to this heading"></a></h2>
+<figure class="align-default" id="id5">
+<a class="reference internal image-reference" href="_images/soma-dendrite-feedback.svg"><img alt="Soma output of the previous timestep projected back onto the distal and proximal dendritic levels, with the additive, shunting and gated feedback modes" src="_images/soma-dendrite-feedback.svg" style="width: 100%;" />
+</a>
+<figcaption>
+<p><span class="caption-text">Soma-to-dendrite feedback. The soma signal of the previous timestep (dashed
+lines) is projected back onto selected dendritic levels, here the distal
+level 0 and the proximal level 1. The right panel lists the feedback modes
+and the controls.</span><a class="headerlink" href="#id5" title="Link to this image"></a></p>
+</figcaption>
+</figure>
+<p>Soma feedback (the population option <code class="docutils literal notranslate"><span class="pre">soma_feedback_enabled</span></code>, for example
+<code class="docutils literal notranslate"><span class="pre">model.core.population_network.layers[].population_defaults.soma_feedback_enabled</span></code>)
+sends a population’s soma signal from the previous timestep back into selected
+levels of its own dendritic tree. Because the signal comes from the previous
+step, the dendrites still update before the soma within a step, and there is no
+same-step loop. For each receiving level <code class="docutils literal notranslate"><span class="pre">l</span></code> a learned
+projection <span class="math notranslate nohighlight">\(W_l\)</span> maps the soma signal <code class="docutils literal notranslate"><span class="pre">y</span></code> to the level’s compartments:</p>
+<div class="math notranslate nohighlight">
+\[f_l(t) = s_l\, W_l\, y(t - \Delta t),\]</div>
+<p>where <span class="math notranslate nohighlight">\(s_l\)</span> is the feedback strength (<code class="docutils literal notranslate"><span class="pre">soma_feedback_strength</span></code>; one
+value per level with <code class="docutils literal notranslate"><span class="pre">soma_feedback_per_level:</span> <span class="pre">true</span></code>, learned with
+<code class="docutils literal notranslate"><span class="pre">soma_feedback_learnable_strength:</span> <span class="pre">true</span></code>). <code class="docutils literal notranslate"><span class="pre">soma_feedback_mode</span></code> selects
+how <span class="math notranslate nohighlight">\(f_l\)</span> acts:</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">additive</span></code> (default)</dt><dd><p>Adds <span class="math notranslate nohighlight">\(f_l\)</span> to the level’s branch current.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">shunting</span></code></dt><dd><p>Rectifies the feedback into a conductance <span class="math notranslate nohighlight">\(g = \max(f_l, 0)\)</span> and adds
+<span class="math notranslate nohighlight">\(g\,E_{\text{fb}}\)</span> to the branch current and <code class="docutils literal notranslate"><span class="pre">g</span></code> to the branch
+conductance of the shunting denominator, where <span class="math notranslate nohighlight">\(E_{\text{fb}}\)</span> is
+<code class="docutils literal notranslate"><span class="pre">soma_feedback_reversal</span></code>. It requires <code class="docutils literal notranslate"><span class="pre">use_shunting:</span> <span class="pre">true</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">gated</span></code></dt><dd><p>Multiplies the level’s output by <span class="math notranslate nohighlight">\(1 + \tanh(f_l)\)</span>.</p>
+</dd>
+</dl>
+<p><code class="docutils literal notranslate"><span class="pre">soma_feedback_source</span></code> selects <code class="docutils literal notranslate"><span class="pre">y</span></code>: <code class="docutils literal notranslate"><span class="pre">output</span></code> (default) is the
+population output; <code class="docutils literal notranslate"><span class="pre">voltage</span></code> is the membrane of a spiking soma; and
+<code class="docutils literal notranslate"><span class="pre">spike_readout</span></code> is the spike trace of a spiking soma. For a rate soma all
+three are the population output. (<code class="docutils literal notranslate"><span class="pre">soma_output</span></code> and <code class="docutils literal notranslate"><span class="pre">readout</span></code> are also
+accepted for <code class="docutils literal notranslate"><span class="pre">output</span></code>, <code class="docutils literal notranslate"><span class="pre">soma_voltage</span></code>, <code class="docutils literal notranslate"><span class="pre">membrane</span></code> and <code class="docutils literal notranslate"><span class="pre">v_soma</span></code> for
+<code class="docutils literal notranslate"><span class="pre">voltage</span></code>, and <code class="docutils literal notranslate"><span class="pre">spike</span></code>, <code class="docutils literal notranslate"><span class="pre">spikes</span></code> and <code class="docutils literal notranslate"><span class="pre">rate</span></code> for <code class="docutils literal notranslate"><span class="pre">spike_readout</span></code>.) <code class="docutils literal notranslate"><span class="pre">soma_feedback_levels</span></code> uses the level
+indices of dendritic spikes, but <code class="docutils literal notranslate"><span class="pre">all</span></code> includes the soma level: <code class="docutils literal notranslate"><span class="pre">non_soma</span></code>
+(default), <code class="docutils literal notranslate"><span class="pre">all</span></code>, <code class="docutils literal notranslate"><span class="pre">distal</span></code>, <code class="docutils literal notranslate"><span class="pre">proximal</span></code>, <code class="docutils literal notranslate"><span class="pre">soma</span></code>, <code class="docutils literal notranslate"><span class="pre">none</span></code> or a list of
+indices.</p>
+<p>The projections start at zero (<code class="docutils literal notranslate"><span class="pre">soma_feedback_init_std:</span> <span class="pre">0</span></code>), so additive and
+gated feedback begin as a no-op that training can change. A positive
+<code class="docutils literal notranslate"><span class="pre">soma_feedback_init_std</span></code> starts with random feedback. <code class="docutils literal notranslate"><span class="pre">shunting</span></code> feedback
+requires <code class="docutils literal notranslate"><span class="pre">soma_feedback_init_std</span></code> greater than 0, because the rectified
+projection has no gradient at zero. Enabling feedback does not change the
+initialization of the other parameters.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">population_network</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">layers</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">recurrent_layer</span>
+<span class="w">      </span><span class="nt">recurrent</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">readout_population</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pyr</span>
+<span class="w">      </span><span class="nt">population_defaults</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">ff_excitatory_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8</span>
+<span class="w">        </span><span class="nt">rec_excitatory_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
+<span class="w">        </span><span class="nt">soma_feedback_enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">        </span><span class="nt">soma_feedback_mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">additive</span>
+<span class="w">        </span><span class="nt">soma_feedback_source</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">output</span>
+<span class="w">        </span><span class="nt">soma_feedback_levels</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">non_soma</span>
+<span class="w">        </span><span class="nt">soma_feedback_strength</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.15</span>
+<span class="w">        </span><span class="nt">soma_feedback_learnable_strength</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">        </span><span class="nt">soma_feedback_init_std</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.01</span>
+<span class="w">      </span><span class="nt">populations</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">pyr</span><span class="p p-Indicator">,</span><span class="nt"> polarity</span><span class="p">:</span><span class="w"> </span><span class="nv">excitatory</span><span class="p p-Indicator">,</span><span class="nt"> n_neurons</span><span class="p">:</span><span class="w"> </span><span class="nv">32</span><span class="p p-Indicator">,</span><span class="nt"> branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">2</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">2</span><span class="p p-Indicator">]}</span>
+<span class="w">      </span><span class="nt">connections</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">input</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">pyr</span><span class="p p-Indicator">}</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">pyr</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">pyr</span><span class="p p-Indicator">,</span><span class="nt"> timing</span><span class="p">:</span><span class="w"> </span><span class="nv">delayed</span><span class="p p-Indicator">}</span>
+</pre></div>
+</div>
+<p>In a structured E/I core the block is <code class="docutils literal notranslate"><span class="pre">model.core.soma_feedback</span></code> with the
+keys <code class="docutils literal notranslate"><span class="pre">enabled</span></code>, <code class="docutils literal notranslate"><span class="pre">mode</span></code>, <code class="docutils literal notranslate"><span class="pre">source</span></code>, <code class="docutils literal notranslate"><span class="pre">levels</span></code>, <code class="docutils literal notranslate"><span class="pre">strength</span></code>,
+<code class="docutils literal notranslate"><span class="pre">learnable_strength</span></code>, <code class="docutils literal notranslate"><span class="pre">per_level</span></code>, <code class="docutils literal notranslate"><span class="pre">init_std</span></code> and <code class="docutils literal notranslate"><span class="pre">reversal</span></code>.</p>
+</section>
+<section id="sequence-output">
+<span id="temporal-output-mode"></span><h2>Sequence output<a class="headerlink" href="#sequence-output" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">output_mode</span></code> decides what a core that processes sequences returns to the
+decoder. It is <code class="docutils literal notranslate"><span class="pre">model.core.population_network.output_mode</span></code> for population
+networks, <code class="docutils literal notranslate"><span class="pre">model.core.unified_ei.output_mode</span></code> for unified E/I cores and
+<code class="docutils literal notranslate"><span class="pre">model.core.recurrent_ei.output_mode</span></code> for recurrent structured E/I cores:</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">last</span></code> (default)</dt><dd><p>The output of the last timestep, <code class="docutils literal notranslate"><span class="pre">[batch,</span> <span class="pre">features]</span></code>. For sequences of
+different lengths it is the last valid step of each sequence.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">mean</span></code></dt><dd><p>The mean over the (valid) timesteps, <code class="docutils literal notranslate"><span class="pre">[batch,</span> <span class="pre">features]</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">all</span></code></dt><dd><p>Every timestep, <code class="docutils literal notranslate"><span class="pre">[batch,</span> <span class="pre">time,</span> <span class="pre">features]</span></code>, with steps beyond a
+sequence’s length set to zero. The decoder is applied at every step.</p>
+</dd>
+</dl>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="population_networks.html" class="btn btn-neutral float-left" title="Population networks" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="structured_ei_cores.html" class="btn btn-neutral float-right" title="Structured E/I cores" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024-2026, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

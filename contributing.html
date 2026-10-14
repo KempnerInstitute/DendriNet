@@ -6,20 +6,20 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Contributing &mdash; Dendritic Modeling Framework v0.1.0</title>
+  <title>Contributing &mdash; DendriNet v0.2.0</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
 
   
       <script src="_static/jquery.js?v=5d32c60e"></script>
       <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="_static/documentation_options.js?v=01f34227"></script>
+      <script src="_static/documentation_options.js?v=938c9ccc"></script>
       <script src="_static/doctools.js?v=fd6eb6e6"></script>
       <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="prev" title="Available Components" href="available_components.html" /> 
+    <link rel="prev" title="Engineering architecture" href="engineering_architecture.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -31,7 +31,7 @@
           
           
           <a href="index.html" class="icon icon-home">
-            Dendritic Modeling Framework
+            DendriNet
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
@@ -41,34 +41,68 @@
   </form>
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
-              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+              <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quick Start</a></li>
-<li class="toctree-l1"><a class="reference internal" href="examples.html">Runnable Config Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Example configurations</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
+<p class="caption" role="heading"><span class="caption-text">Building models</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="network_architectures.html">Network Architectures</a></li>
-<li class="toctree-l1"><a class="reference internal" href="training_strategies.html">Training Strategies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="network_architectures.html">Model architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dendritic_neurons.html">Dendritic neurons</a></li>
+<li class="toctree-l1"><a class="reference internal" href="synapses.html">Synapses and connectivity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="population_networks.html">Population networks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="temporal_dynamics.html">Temporal dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="structured_ei_cores.html">Structured E/I cores</a></li>
+<li class="toctree-l1"><a class="reference internal" href="conductance_options.html">Conductance options</a></li>
+<li class="toctree-l1"><a class="reference internal" href="comparison_models.html">Baselines and comparison models</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Configuration</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="configuration_guide.html">Configuration guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config_reference.html">Annotated reference configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="training_strategies.html">Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="distributed_training.html">Distributed training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="performance_kernels.html">Sparse execution and performance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Data and analysis</span></p>
+<ul>
 <li class="toctree-l1"><a class="reference internal" href="datasets.html">Datasets</a></li>
 <li class="toctree-l1"><a class="reference internal" href="analysis.html">Analysis</a></li>
-<li class="toctree-l1"><a class="reference internal" href="engineering_architecture.html">Engineering Architecture</a></li>
-<li class="toctree-l1"><a class="reference internal" href="configuration_guide.html">Configuration Guide</a></li>
-<li class="toctree-l1"><a class="reference internal" href="transformer_llm_scaling.html">Dendritic LLM Scaling Workflow</a></li>
-<li class="toctree-l1"><a class="reference internal" href="initialization_comparison_policy.html">Initialization Comparison Policy</a></li>
-<li class="toctree-l1"><a class="reference internal" href="sweeps.html">Parameter Sweeps</a></li>
-<li class="toctree-l1"><a class="reference internal" href="fsdp_troubleshooting.html">Distributed Training Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="analyzers.html">Analyzer reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="checkpoint_analysis.html">Analyzing saved checkpoints</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Running experiments</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="runs_and_outputs.html">Runs and outputs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sweeps.html">Parameter sweeps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="model_compression.html">Compact checkpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="project_provenance.html">Project provenance</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="available_components.html">Component catalogue</a></li>
+<li class="toctree-l1"><a class="reference internal" href="options_reference.html">Options reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cli_reference.html">Command-line reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api_reference.html">Python API</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
 <ul class="current">
-<li class="toctree-l1"><a class="reference internal" href="config_reference.html">Population-Network Reference Config</a></li>
-<li class="toctree-l1"><a class="reference internal" href="available_components.html">Available Components</a></li>
+<li class="toctree-l1"><a class="reference internal" href="extending.html">Extending DendriNet</a></li>
+<li class="toctree-l1"><a class="reference internal" href="engineering_architecture.html">Engineering architecture</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Contributing</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#development-setup">Development Setup</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#code-style">Code Style</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#testing">Testing</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#building-documentation">Building Documentation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#development-setup">Development setup</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#several-checkouts">Several checkouts</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#where-code-belongs">Where code belongs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#code-style">Code style</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#tests">Tests</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#building-the-documentation">Building the documentation</a></li>
 </ul>
 </li>
 </ul>
@@ -79,7 +113,7 @@
 
     <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-          <a href="index.html">Dendritic Modeling Framework</a>
+          <a href="index.html">DendriNet</a>
       </nav>
 
       <div class="wy-nav-content">
@@ -100,48 +134,136 @@
   <section id="contributing">
 <h1>Contributing<a class="headerlink" href="#contributing" title="Link to this heading"></a></h1>
 <section id="development-setup">
-<h2>Development Setup<a class="headerlink" href="#development-setup" title="Link to this heading"></a></h2>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>activate<span class="w"> </span>dendritic_env
-pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span><span class="s2">&quot;.[dev]&quot;</span>
+<h2>Development setup<a class="headerlink" href="#development-setup" title="Link to this heading"></a></h2>
+<p>Install the package from a checkout (see <a class="reference internal" href="installation.html"><span class="doc">Installation</span></a>) with the
+<code class="docutils literal notranslate"><span class="pre">dev</span></code> extra, which adds the test and lint tools, and install the
+pre-commit hooks:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span><span class="s2">".[dev]"</span><span class="w"> </span>-c<span class="w"> </span>setup/constraints/core-py310-torch2.9.1.txt
+pre-commit<span class="w"> </span>install
 </pre></div>
 </div>
-<p>This installs pytest, ruff, sphinx, and pre-commit hooks.</p>
+<section id="several-checkouts">
+<h3>Several checkouts<a class="headerlink" href="#several-checkouts" title="Link to this heading"></a></h3>
+<p>An editable install serves the one checkout it was installed from. When you
+work with several checkouts or worktrees, run Python with
+<code class="docutils literal notranslate"><span class="pre">PYTHONPATH=&lt;checkout&gt;/src</span></code> so that the code you edit is the code that
+runs, for example
+<code class="docutils literal notranslate"><span class="pre">PYTHONPATH=$PWD/src</span> <span class="pre">python</span> <span class="pre">-m</span> <span class="pre">dendritic_modeling.scripts.training.train_experiments</span> <span class="pre">&lt;config&gt;</span></code>.
+Every training run records the imported package path and its commit in
+<code class="docutils literal notranslate"><span class="pre">runtime_environment.json</span></code>.</p>
+</section>
+</section>
+<section id="where-code-belongs">
+<h2>Where code belongs<a class="headerlink" href="#where-code-belongs" title="Link to this heading"></a></h2>
+<p>The library holds components that serve more than one study: models, layers,
+synapse and connectivity policies, training rules, datasets, analysis tools,
+configuration schemas and the command-line programs, under
+<code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling</span></code>, with tests in <code class="docutils literal notranslate"><span class="pre">tests/</span></code> and documentation in
+<code class="docutils literal notranslate"><span class="pre">docs/</span></code>. Runners, sweeps, figure scripts and configurations of one study
+belong in that study’s own repository, which records the library revision it
+uses.</p>
+<p>Keep generated runs, checkpoints, datasets, logs and local credentials out of
+Git. Use <code class="docutils literal notranslate"><span class="pre">outputs/</span></code>, <code class="docutils literal notranslate"><span class="pre">data/</span></code>, <code class="docutils literal notranslate"><span class="pre">checkpoints/</span></code>, <code class="docutils literal notranslate"><span class="pre">slurm_jobs/</span></code> or <code class="docutils literal notranslate"><span class="pre">jobs/</span></code>
+for generated files, <code class="docutils literal notranslate"><span class="pre">configs/local/</span></code> for machine-specific configurations,
+and <code class="docutils literal notranslate"><span class="pre">scripts/local/</span></code> for ad hoc launchers. The repository’s ignore rules
+exclude these locations, build products and local editor or agent state.
+Maintained scripts, example configurations and small test fixtures belong in
+version control. An ignore rule does not remove a file already tracked by
+Git; review the staged diff before committing.</p>
+<p>A new option or component:</p>
+<ul class="simple">
+<li><p>is a typed configuration field with validation, so the loader accepts and
+checks it (see <a class="reference internal" href="configuration_guide.html"><span class="doc">Configuration guide</span></a>);</p></li>
+<li><p>is off by default: existing configurations keep their exact behaviour, and
+a test shows that the default output does not change;</p></li>
+<li><p>registers through the existing registries where one exists (see
+<a class="reference internal" href="available_components.html#extension-registries"><span class="std std-ref">Extension registries</span></a>);</p></li>
+<li><p>is documented on the page of its topic, with an entry in <code class="docutils literal notranslate"><span class="pre">CHANGELOG.md</span></code>
+for user-visible changes.</p></li>
+</ul>
+<p>A change of what an omitted key means, such as a new default, changes the
+configuration format: increment <code class="docutils literal notranslate"><span class="pre">CONFIG_VERSION</span></code>
+(<a class="reference internal" href="configuration_guide.html#config-version"><span class="std std-ref">Configuration format version</span></a>), add a rule to <code class="docutils literal notranslate"><span class="pre">dendritic-upgrade-config</span></code> that
+writes the earlier meaning into files of earlier versions, and update the
+shipped configurations.</p>
 </section>
 <section id="code-style">
-<h2>Code Style<a class="headerlink" href="#code-style" title="Link to this heading"></a></h2>
-<p>The project uses <a class="reference external" href="https://docs.astral.sh/ruff/">ruff</a> for linting and
-formatting. Configuration is in <code class="docutils literal notranslate"><span class="pre">ruff.toml</span></code>. Run checks with:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ruff<span class="w"> </span>check<span class="w"> </span>src/<span class="w"> </span>tests/
-ruff<span class="w"> </span>format<span class="w"> </span>src/<span class="w"> </span>tests/
+<h2>Code style<a class="headerlink" href="#code-style" title="Link to this heading"></a></h2>
+<p><a class="reference external" href="https://black.readthedocs.io/">black</a> formats the code and
+<a class="reference external" href="https://pycqa.github.io/isort/">isort</a> orders the imports (both configured
+in <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code>); <a class="reference external" href="https://docs.astral.sh/ruff/">ruff</a> lints it
+(configured in <code class="docutils literal notranslate"><span class="pre">ruff.toml</span></code>). The pre-commit hooks run all three, check
+whitespace, YAML syntax, file sizes and merge markers, and run
+<code class="docutils literal notranslate"><span class="pre">tests/test_training_stability_validator.py</span></code>. Run them on the files you
+changed:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pre-commit<span class="w"> </span>run<span class="w"> </span>--files<span class="w"> </span>&lt;changed<span class="w"> </span>files&gt;
 </pre></div>
 </div>
-<p>Do not suppress lint warnings with <code class="docutils literal notranslate"><span class="pre">#</span> <span class="pre">noqa</span></code> comments. Fix the underlying
-issue instead (move imports, restructure code, etc.).</p>
+<p>Fix lint warnings instead of suppressing them with <code class="docutils literal notranslate"><span class="pre">#</span> <span class="pre">noqa</span></code>; the few
+existing suppressions are re-exports and benchmark lambdas.</p>
 </section>
-<section id="testing">
-<h2>Testing<a class="headerlink" href="#testing" title="Link to this heading"></a></h2>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> </span>tests/
+<section id="tests">
+<h2>Tests<a class="headerlink" href="#tests" title="Link to this heading"></a></h2>
+<p>Run the tests from the repository root with <code class="docutils literal notranslate"><span class="pre">PYTHONPATH</span></code> pointing at the
+checkout under test:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># quick run without the slow tests</span>
+<span class="nv">PYTHONPATH</span><span class="o">=</span><span class="nv">$PWD</span>/src<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> </span>-m<span class="w"> </span><span class="s2">"not slow"</span><span class="w"> </span>-n<span class="w"> </span>auto
+
+<span class="c1"># full suite, in parallel (pytest-xdist is in the test extra)</span>
+<span class="nv">PYTHONPATH</span><span class="o">=</span><span class="nv">$PWD</span>/src<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> </span>-n<span class="w"> </span>auto
+
+<span class="c1"># one file</span>
+<span class="nv">PYTHONPATH</span><span class="o">=</span><span class="nv">$PWD</span>/src<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> </span>tests/test_config.py<span class="w"> </span>-q
 </pre></div>
 </div>
-<p>Coverage is collected explicitly in the primary Python CI job. To reproduce
-that check locally, run:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> </span>tests/<span class="w"> </span><span class="se">\</span>
-<span class="w">   </span>--cov<span class="o">=</span>src/dendritic_modeling<span class="w"> </span>--cov-branch<span class="w"> </span><span class="se">\</span>
-<span class="w">   </span>--cov-report<span class="o">=</span>xml<span class="w"> </span>--cov-fail-under<span class="o">=</span><span class="m">30</span>
+<p><code class="docutils literal notranslate"><span class="pre">pytest.ini</span></code> runs with <code class="docutils literal notranslate"><span class="pre">--strict-markers</span></code> and defines four markers:</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">slow</span></code></dt><dd><p>Long tests, including tests that spawn worker processes or run training
+launchers; deselect them with <code class="docutils literal notranslate"><span class="pre">-m</span> <span class="pre">&quot;not</span> <span class="pre">slow&quot;</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">multiprocess</span></code></dt><dd><p>Tests that spawn worker processes (distributed tests).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">requires_gpu</span></code></dt><dd><p>Tests that need CUDA. Tests parametrized with <code class="docutils literal notranslate"><span class="pre">device=&quot;cuda&quot;</span></code> get the
+marker automatically, and hosts without CUDA skip them. The continuous
+integration has no GPU, so run <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">pytest</span> <span class="pre">-m</span> <span class="pre">requires_gpu</span></code> on a
+GPU machine before merging changes to kernels or device code.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">requires_git_checkout</span></code></dt><dd><p>Tests that read the library’s own Git checkout (its commit and tracked
+files); they are skipped when the tests run from a source archive or sdist.</p>
+</dd>
+</dl>
+<p>The continuous integration also measures coverage; to reproduce that check:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PYTHONPATH</span><span class="o">=</span><span class="nv">$PWD</span>/src<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> </span>tests/<span class="w"> </span>-n<span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--cov<span class="o">=</span>src/dendritic_modeling<span class="w"> </span>--cov-branch<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--cov-report<span class="o">=</span>xml<span class="w"> </span>--cov-fail-under<span class="o">=</span><span class="m">30</span>
 </pre></div>
 </div>
-<p>Test markers: <code class="docutils literal notranslate"><span class="pre">&#64;pytest.mark.unit</span></code>, <code class="docutils literal notranslate"><span class="pre">&#64;pytest.mark.integration</span></code>,
-<code class="docutils literal notranslate"><span class="pre">&#64;pytest.mark.slow</span></code>, <code class="docutils literal notranslate"><span class="pre">&#64;pytest.mark.requires_gpu</span></code>,
-<code class="docutils literal notranslate"><span class="pre">&#64;pytest.mark.requires_data</span></code>.</p>
+<p><code class="docutils literal notranslate"><span class="pre">tests/README.md</span></code> describes the default-path golden tests, which fail when
+a change alters the default behaviour, and how to regenerate their fixture.</p>
 </section>
-<section id="building-documentation">
-<h2>Building Documentation<a class="headerlink" href="#building-documentation" title="Link to this heading"></a></h2>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>docs
-make<span class="w"> </span>html
+<section id="building-the-documentation">
+<h2>Building the documentation<a class="headerlink" href="#building-the-documentation" title="Link to this heading"></a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span><span class="s2">".[docs]"</span>
+python<span class="w"> </span>-m<span class="w"> </span>sphinx<span class="w"> </span>-b<span class="w"> </span>html<span class="w"> </span>-W<span class="w"> </span>--keep-going<span class="w"> </span>docs<span class="w"> </span>docs/_build/html
 </pre></div>
 </div>
-<p>View the generated site at <code class="docutils literal notranslate"><span class="pre">docs/_build/html/index.html</span></code> from the repository
-root.</p>
+<p><code class="docutils literal notranslate"><span class="pre">-W</span></code> turns warnings into errors; the pages build without warnings, and the
+pull-request checks and the documentation deployment build them with the same
+command. Open
+<code class="docutils literal notranslate"><span class="pre">docs/_build/html/index.html</span></code> to read the result. A page is an <code class="docutils literal notranslate"><span class="pre">.rst</span></code>
+file listed in a <code class="docutils literal notranslate"><span class="pre">toctree</span></code> of <code class="docutils literal notranslate"><span class="pre">docs/index.rst</span></code>; Markdown files under
+<code class="docutils literal notranslate"><span class="pre">docs/</span></code> are not built.</p>
+<p>Every <code class="docutils literal notranslate"><span class="pre">..</span> <span class="pre">code-block::</span> <span class="pre">yaml</span></code> example must load through the strict loader,
+which <code class="docutils literal notranslate"><span class="pre">tests/test_doc_yaml_snippets.py</span></code> checks. After changing the
+arguments of a command-line program, regenerate the command-line reference,
+and after changing a configuration field, the options reference, with the
+package importable, and commit the page:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PYTHONPATH</span><span class="o">=</span><span class="nv">$PWD</span>/src<span class="w"> </span>python<span class="w"> </span>docs/scripts/generate_cli_reference.py
+<span class="nv">PYTHONPATH</span><span class="o">=</span><span class="nv">$PWD</span>/src<span class="w"> </span>python<span class="w"> </span>docs/scripts/generate_options_reference.py
+</pre></div>
+</div>
+<p>With <code class="docutils literal notranslate"><span class="pre">--check</span></code>, either script fails when its page is out of date; the
+pull-request checks run both that way.</p>
 </section>
 </section>
 
@@ -149,13 +271,13 @@ root.</p>
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="available_components.html" class="btn btn-neutral float-left" title="Available Components" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="engineering_architecture.html" class="btn btn-neutral float-left" title="Engineering architecture" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
     </div>
 
   <hr/>
 
   <div role="contentinfo">
-    <p>&#169; Copyright 2025, Kempner Institute.</p>
+    <p>&#169; Copyright 2024-2026, Kempner Institute.</p>
   </div>
 
   Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a

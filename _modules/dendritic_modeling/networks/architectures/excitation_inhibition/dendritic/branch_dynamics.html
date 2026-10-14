@@ -1,0 +1,856 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_dynamics &mdash; DendriNet v0.2.0</title>
+      <link rel="stylesheet" type="text/css" href="../../../../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../../../../_static/documentation_options.js?v=938c9ccc"></script>
+      <script src="../../../../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../../../../index.html" class="icon icon-home">
+            DendriNet
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../examples.html">Example configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Building models</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../network_architectures.html">Model architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../dendritic_neurons.html">Dendritic neurons</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../synapses.html">Synapses and connectivity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../population_networks.html">Population networks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../temporal_dynamics.html">Temporal dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../structured_ei_cores.html">Structured E/I cores</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../conductance_options.html">Conductance options</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../comparison_models.html">Baselines and comparison models</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Configuration</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../configuration_guide.html">Configuration guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../config_reference.html">Annotated reference configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../training_strategies.html">Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../distributed_training.html">Distributed training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../performance_kernels.html">Sparse execution and performance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Data and analysis</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../datasets.html">Datasets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../analysis.html">Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../analyzers.html">Analyzer reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../checkpoint_analysis.html">Analyzing saved checkpoints</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Running experiments</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../runs_and_outputs.html">Runs and outputs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../sweeps.html">Parameter sweeps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../model_compression.html">Compact checkpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../project_provenance.html">Project provenance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../available_components.html">Component catalogue</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../options_reference.html">Options reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../cli_reference.html">Command-line reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../api_reference.html">Python API</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../extending.html">Extending DendriNet</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../engineering_architecture.html">Engineering architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../contributing.html">Contributing</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../../../index.html">DendriNet</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../../../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_dynamics</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_dynamics</h1><div class="highlight"><pre>
+<span></span><span class="sd">"""Forward current and voltage dynamics for dendritic branch layers."""</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Mapping</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">field</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.activations.memory_efficient</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">fused_shunt_reactivation</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_rule_override</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">active_branch_rule_override</span><span class="p">,</span>
+    <span class="n">check_branch_rule_override_target</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.utils.signal_rounding</span><span class="w"> </span><span class="kn">import</span> <span class="n">round_signal</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.plugins</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_plugins</span>
+
+<span class="c1">#: The library's additive integration rules.</span>
+<span class="n">ADDITIVE_MODES</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">({</span><span class="s2">"raw"</span><span class="p">,</span> <span class="s2">"tangent_matched"</span><span class="p">,</span> <span class="s2">"conductance_normalized"</span><span class="p">})</span>
+
+
+<div class="viewcode-block" id="AdditiveRule">
+<a class="viewcode-back" href="../../../../../../api_reference.html#dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_dynamics.AdditiveRule">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">AdditiveRule</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""An additive integration rule that a plugin provides.</span>
+
+<span class="sd">    ``voltage(layer, *, excitation, inhibition, child_current, child_conductance,</span>
+<span class="sd">    raw_voltage, inputs)`` returns the compartment voltage before reactivation.</span>
+<span class="sd">    The currents are those of the built-in rules (``raw_voltage`` is</span>
+<span class="sd">    ``excitation - inhibition + child_current``); ``inputs`` maps ``x``,</span>
+<span class="sd">    ``inhibitory_input`` and ``branch_input`` to the layer's inputs on the</span>
+<span class="sd">    feedforward path, and is None where voltages are computed from stored</span>
+<span class="sd">    currents (recurrent and analysis paths), where a rule that needs the inputs</span>
+<span class="sd">    must raise.</span>
+
+<span class="sd">    ``options`` holds the rule's options and their defaults; a layer receives</span>
+<span class="sd">    them as ``additive_options``. ``setup(layer, options)``, if given, runs once</span>
+<span class="sd">    while the layer is constructed (after its leak parameter) to create the</span>
+<span class="sd">    rule's parameters and buffers and to check the layer.</span>
+<span class="sd">    """</span>
+
+    <span class="n">voltage</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+    <span class="n">options</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
+    <span class="n">setup</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Any</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]],</span> <span class="kc">None</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span></div>
+
+
+
+<span class="n">_ADDITIVE_RULES</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">AdditiveRule</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+
+
+<div class="viewcode-block" id="register_additive_rule">
+<a class="viewcode-back" href="../../../../../../api_reference.html#dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_dynamics.register_additive_rule">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">register_additive_rule</span><span class="p">(</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">rule</span><span class="p">:</span> <span class="n">AdditiveRule</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">allow_override</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Register an additive integration rule under ``additive_mode: &lt;name&gt;``."""</span>
+    <span class="n">key</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">name</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">key</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"additive rule name must be non-empty"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">ADDITIVE_MODES</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"additive_mode </span><span class="si">{</span><span class="n">key</span><span class="si">!r}</span><span class="s2"> is built in"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">_ADDITIVE_RULES</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">allow_override</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"additive rule </span><span class="si">{</span><span class="n">key</span><span class="si">!r}</span><span class="s2"> is already registered; pass allow_override=True "</span>
+            <span class="s2">"to replace it"</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">rule</span><span class="p">,</span> <span class="n">AdditiveRule</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">"rule must be an AdditiveRule"</span><span class="p">)</span>
+    <span class="n">_ADDITIVE_RULES</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">rule</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">unregister_additive_rule</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Remove a registered additive rule if present."""</span>
+    <span class="n">_ADDITIVE_RULES</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">name</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">(),</span> <span class="kc">None</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">get_additive_rule</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AdditiveRule</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""The registered rule for a non-built-in additive mode, or None."""</span>
+    <span class="n">key</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">name</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">ADDITIVE_MODES</span> <span class="ow">and</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">_ADDITIVE_RULES</span><span class="p">:</span>
+        <span class="n">load_plugins</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">_ADDITIVE_RULES</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">available_additive_modes</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Built-in and registered additive modes, including those of plugins."""</span>
+    <span class="n">load_plugins</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">ADDITIVE_MODES</span> <span class="o">|</span> <span class="nb">frozenset</span><span class="p">(</span><span class="n">_ADDITIVE_RULES</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">normalize_additive_mode</span><span class="p">(</span><span class="n">mode</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return a validated additive control name."""</span>
+    <span class="n">normalized</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">mode</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">normalized</span> <span class="ow">in</span> <span class="n">ADDITIVE_MODES</span> <span class="ow">or</span> <span class="n">normalized</span> <span class="ow">in</span> <span class="n">_ADDITIVE_RULES</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">normalized</span>
+    <span class="n">load_plugins</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">normalized</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">_ADDITIVE_RULES</span><span class="p">:</span>
+        <span class="n">choices</span> <span class="o">=</span> <span class="s2">", "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">available_additive_modes</span><span class="p">()))</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"additive_mode must be one of </span><span class="se">{{</span><span class="si">{</span><span class="n">choices</span><span class="si">}</span><span class="se">}}</span><span class="s2">, got </span><span class="si">{</span><span class="n">mode</span><span class="si">!r}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">normalized</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_diagnostic_synapse_forward</span><span class="p">(</span><span class="n">owner</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">layer</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Run a synapse layer while retaining its exact realized forward mask."""</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">owner</span><span class="p">,</span> <span class="s2">"_store_diagnostics"</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span>
+        <span class="n">layer</span><span class="p">,</span> <span class="s2">"cache_mask"</span>
+    <span class="p">):</span>
+        <span class="k">return</span> <span class="n">layer</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+
+    <span class="n">previous_cache_mask</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">cache_mask</span>
+    <span class="n">layer</span><span class="o">.</span><span class="n">cache_mask</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">layer</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="n">layer</span><span class="o">.</span><span class="n">cache_mask</span> <span class="o">=</span> <span class="n">previous_cache_mask</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_realized_k_per_output</span><span class="p">(</span><span class="n">layer</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return the realized synapse count from the most recent forward."""</span>
+    <span class="k">if</span> <span class="n">layer</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="n">mask</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span> <span class="s2">"_last_forward_weight_mask"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">mask</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># DeepST exposes its realized mask directly rather than through the</span>
+        <span class="c1"># TopK cache interface.</span>
+        <span class="n">mask</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span> <span class="s2">"mask"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">is_tensor</span><span class="p">(</span><span class="n">mask</span><span class="p">)</span> <span class="ow">and</span> <span class="n">mask</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">mask</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">mask</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">ne</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="c1"># Fixed indexed layers always realize their K stored connections. This is</span>
+    <span class="c1"># also a safe fallback for custom deterministic sparse layers that expose</span>
+    <span class="c1"># K but not a dense mask.</span>
+    <span class="n">k</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span> <span class="s2">"K"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">out_features</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span> <span class="s2">"out_features"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">parameter</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span> <span class="s2">"pre_w"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">k</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">out_features</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">device</span> <span class="o">=</span> <span class="n">parameter</span><span class="o">.</span><span class="n">device</span> <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">is_tensor</span><span class="p">(</span><span class="n">parameter</span><span class="p">)</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">full</span><span class="p">((</span><span class="nb">int</span><span class="p">(</span><span class="n">out_features</span><span class="p">),),</span> <span class="nb">int</span><span class="p">(</span><span class="n">k</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">)</span>
+    <span class="k">return</span> <span class="kc">None</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_collect_realized_k</span><span class="p">(</span><span class="n">owner</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">active_pathways</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+    <span class="n">pathway_layers</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">"E"</span><span class="p">:</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">owner</span><span class="p">,</span> <span class="s2">"branch_excitation"</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+        <span class="s2">"I"</span><span class="p">:</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">owner</span><span class="p">,</span> <span class="s2">"branch_inhibition"</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+        <span class="s2">"E_rec"</span><span class="p">:</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">owner</span><span class="p">,</span> <span class="s2">"branch_recurrent"</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+        <span class="s2">"I_rec"</span><span class="p">:</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">owner</span><span class="p">,</span> <span class="s2">"branch_rec_inhibition"</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+    <span class="p">}</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="n">name</span><span class="p">:</span> <span class="p">(</span><span class="n">_realized_k_per_output</span><span class="p">(</span><span class="n">layer</span><span class="p">)</span> <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">active_pathways</span> <span class="k">else</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">layer</span> <span class="ow">in</span> <span class="n">pathway_layers</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+    <span class="p">}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_diagnostic_component</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">reference</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Broadcast one circuit component to the voltage shape and detach it."""</span>
+    <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">is_tensor</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="n">value</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="o">=</span><span class="n">reference</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">reference</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="n">reference</span><span class="o">.</span><span class="n">new_tensor</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">value</span> <span class="o">+</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">reference</span><span class="p">))</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_store_branch_diagnostics</span><span class="p">(</span>
+    <span class="n">owner</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">E</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+    <span class="n">inhibitory</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+    <span class="n">C</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+    <span class="n">G</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+    <span class="n">N</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+    <span class="n">T</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+    <span class="n">V</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+    <span class="n">realized_k</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">shunt_denominator</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Store a detached, code-faithful branch-circuit decomposition."""</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">owner</span><span class="p">,</span> <span class="s2">"_store_diagnostics"</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">torch</span><span class="o">.</span><span class="n">is_tensor</span><span class="p">(</span><span class="n">V</span><span class="p">):</span>
+        <span class="k">return</span>
+
+    <span class="n">realized_k</span> <span class="o">=</span> <span class="n">realized_k</span> <span class="ow">or</span> <span class="p">{}</span>
+    <span class="n">detached_k</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="n">name</span><span class="p">:</span> <span class="n">value</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span> <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">is_tensor</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="k">else</span> <span class="n">value</span>
+        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">realized_k</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+    <span class="p">}</span>
+    <span class="n">owner</span><span class="o">.</span><span class="n">_last_branch_diagnostics</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">"E"</span><span class="p">:</span> <span class="n">_diagnostic_component</span><span class="p">(</span><span class="n">E</span><span class="p">,</span> <span class="n">V</span><span class="p">),</span>
+        <span class="s2">"I"</span><span class="p">:</span> <span class="n">_diagnostic_component</span><span class="p">(</span><span class="n">inhibitory</span><span class="p">,</span> <span class="n">V</span><span class="p">),</span>
+        <span class="s2">"C"</span><span class="p">:</span> <span class="n">_diagnostic_component</span><span class="p">(</span><span class="n">C</span><span class="p">,</span> <span class="n">V</span><span class="p">),</span>
+        <span class="s2">"G"</span><span class="p">:</span> <span class="n">_diagnostic_component</span><span class="p">(</span><span class="n">G</span><span class="p">,</span> <span class="n">V</span><span class="p">),</span>
+        <span class="s2">"N"</span><span class="p">:</span> <span class="n">_diagnostic_component</span><span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">V</span><span class="p">),</span>
+        <span class="s2">"T"</span><span class="p">:</span> <span class="n">_diagnostic_component</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">V</span><span class="p">),</span>
+        <span class="s2">"V"</span><span class="p">:</span> <span class="n">V</span><span class="o">.</span><span class="n">detach</span><span class="p">(),</span>
+        <span class="s2">"leak"</span><span class="p">:</span> <span class="n">_diagnostic_component</span><span class="p">(</span><span class="n">owner</span><span class="o">.</span><span class="n">effective_leak</span><span class="p">,</span> <span class="n">V</span><span class="p">),</span>
+        <span class="s2">"realized_K"</span><span class="p">:</span> <span class="n">detached_k</span><span class="p">,</span>
+        <span class="s2">"mode"</span><span class="p">:</span> <span class="s2">"shunting"</span> <span class="k">if</span> <span class="n">owner</span><span class="o">.</span><span class="n">use_shunting</span> <span class="k">else</span> <span class="n">owner</span><span class="o">.</span><span class="n">additive_mode</span><span class="p">,</span>
+    <span class="p">}</span>
+
+    <span class="c1"># Private compatibility fields consumed by shunting feedback alignment.</span>
+    <span class="c1"># Keep them unset for every additive control so additive FA behavior does</span>
+    <span class="c1"># not change merely because richer diagnostics are available.</span>
+    <span class="k">if</span> <span class="n">owner</span><span class="o">.</span><span class="n">use_shunting</span><span class="p">:</span>
+        <span class="n">g_total</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">+</span> <span class="n">T</span> <span class="k">if</span> <span class="n">shunt_denominator</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">shunt_denominator</span>
+        <span class="n">owner</span><span class="o">.</span><span class="n">_diag_g_tot</span> <span class="o">=</span> <span class="n">_diagnostic_component</span><span class="p">(</span><span class="n">g_total</span><span class="p">,</span> <span class="n">V</span><span class="p">)</span>
+        <span class="n">owner</span><span class="o">.</span><span class="n">_diag_numerator</span> <span class="o">=</span> <span class="n">_diagnostic_component</span><span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">V</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">owner</span><span class="o">.</span><span class="n">_diag_g_tot</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">owner</span><span class="o">.</span><span class="n">_diag_numerator</span> <span class="o">=</span> <span class="kc">None</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_tangent_matched_voltage</span><span class="p">(</span><span class="n">owner</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">N</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">T</span><span class="p">:</span> <span class="n">Any</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Evaluate the affine tangent of ``N / (1 + T + epsilon)``."""</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">owner</span><span class="o">.</span><span class="n">has_additive_operating_point</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+            <span class="s2">"additive_mode='tangent_matched' requires a frozen operating "</span>
+            <span class="s2">"point. Pass additive_tangent_n0/additive_tangent_t0 or call "</span>
+            <span class="s2">"set_additive_operating_point(n0, t0) before forward()."</span>
+        <span class="p">)</span>
+
+    <span class="n">reference</span> <span class="o">=</span> <span class="n">N</span> <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">is_tensor</span><span class="p">(</span><span class="n">N</span><span class="p">)</span> <span class="k">else</span> <span class="n">T</span>
+    <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">is_tensor</span><span class="p">(</span><span class="n">reference</span><span class="p">):</span>
+        <span class="n">n0</span> <span class="o">=</span> <span class="n">owner</span><span class="o">.</span><span class="n">_additive_tangent_n0</span><span class="o">.</span><span class="n">to</span><span class="p">(</span>
+            <span class="n">device</span><span class="o">=</span><span class="n">reference</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">reference</span><span class="o">.</span><span class="n">dtype</span>
+        <span class="p">)</span>
+        <span class="n">t0</span> <span class="o">=</span> <span class="n">owner</span><span class="o">.</span><span class="n">_additive_tangent_t0</span><span class="o">.</span><span class="n">to</span><span class="p">(</span>
+            <span class="n">device</span><span class="o">=</span><span class="n">reference</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">reference</span><span class="o">.</span><span class="n">dtype</span>
+        <span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">n0</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">owner</span><span class="o">.</span><span class="n">_additive_tangent_n0</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
+        <span class="n">t0</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">owner</span><span class="o">.</span><span class="n">_additive_tangent_t0</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
+
+    <span class="n">d0</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">+</span> <span class="n">t0</span> <span class="o">+</span> <span class="n">owner</span><span class="o">.</span><span class="n">epsilon</span>
+    <span class="n">v0</span> <span class="o">=</span> <span class="n">n0</span> <span class="o">/</span> <span class="n">d0</span>
+    <span class="k">return</span> <span class="n">v0</span> <span class="o">+</span> <span class="p">((</span><span class="n">N</span> <span class="o">-</span> <span class="n">n0</span><span class="p">)</span> <span class="o">-</span> <span class="n">v0</span> <span class="o">*</span> <span class="p">(</span><span class="n">T</span> <span class="o">-</span> <span class="n">t0</span><span class="p">))</span> <span class="o">/</span> <span class="n">d0</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">compute_additive_control_voltage</span><span class="p">(</span>
+    <span class="n">owner</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">E</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+    <span class="n">inhibitory</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+    <span class="n">C</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+    <span class="n">G</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+    <span class="n">raw_voltage</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">inputs</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Compute one explicitly named additive comparison control."""</span>
+    <span class="n">mode</span> <span class="o">=</span> <span class="n">owner</span><span class="o">.</span><span class="n">additive_mode</span>
+    <span class="k">if</span> <span class="n">raw_voltage</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">raw_voltage</span> <span class="o">=</span> <span class="n">E</span> <span class="o">-</span> <span class="n">inhibitory</span> <span class="o">+</span> <span class="n">C</span>
+    <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="s2">"raw"</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">owner</span><span class="o">.</span><span class="n">normalize_additive_voltage</span><span class="p">(</span><span class="n">raw_voltage</span><span class="p">)</span>
+    <span class="n">rule</span> <span class="o">=</span> <span class="n">_ADDITIVE_RULES</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">mode</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">rule</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">rule</span><span class="o">.</span><span class="n">voltage</span><span class="p">(</span>
+            <span class="n">owner</span><span class="p">,</span>
+            <span class="n">excitation</span><span class="o">=</span><span class="n">E</span><span class="p">,</span>
+            <span class="n">inhibition</span><span class="o">=</span><span class="n">inhibitory</span><span class="p">,</span>
+            <span class="n">child_current</span><span class="o">=</span><span class="n">C</span><span class="p">,</span>
+            <span class="n">child_conductance</span><span class="o">=</span><span class="n">G</span><span class="p">,</span>
+            <span class="n">raw_voltage</span><span class="o">=</span><span class="n">raw_voltage</span><span class="p">,</span>
+            <span class="n">inputs</span><span class="o">=</span><span class="n">inputs</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="n">N</span> <span class="o">=</span> <span class="n">E</span> <span class="o">+</span> <span class="n">C</span>
+    <span class="n">T</span> <span class="o">=</span> <span class="n">E</span> <span class="o">+</span> <span class="n">inhibitory</span> <span class="o">+</span> <span class="n">G</span>
+    <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="s2">"conductance_normalized"</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">raw_voltage</span> <span class="o">/</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">T</span> <span class="o">+</span> <span class="n">owner</span><span class="o">.</span><span class="n">epsilon</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="s2">"tangent_matched"</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">_tangent_matched_voltage</span><span class="p">(</span><span class="n">owner</span><span class="p">,</span> <span class="n">N</span><span class="p">,</span> <span class="n">T</span><span class="p">)</span>
+    <span class="c1"># Construction validates this, but retain a local guard for custom owners.</span>
+    <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Unsupported additive_mode: </span><span class="si">{</span><span class="n">mode</span><span class="si">!r}</span><span class="s2">"</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">forward_branch_dynamics</span><span class="p">(</span>
+    <span class="n">owner</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+    <span class="n">x</span><span class="p">,</span>
+    <span class="n">inhibitory_input</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">branch_input</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">recurrent_input</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">rec_inhibitory_input</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Run the branch-layer forward dynamics before returning reactivation output."""</span>
+    <span class="n">excitation</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">inhibition</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">branch_current</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">E</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">inhibitory_total</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">C</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">G</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">raw_voltage</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">shunt_numerator</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">shunt_denominator</span> <span class="o">=</span> <span class="n">owner</span><span class="o">.</span><span class="n">effective_leak</span>
+    <span class="n">store_diagnostics</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">owner</span><span class="p">,</span> <span class="s2">"_store_diagnostics"</span><span class="p">,</span> <span class="kc">False</span><span class="p">))</span>
+    <span class="n">rounding</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">owner</span><span class="p">,</span> <span class="s2">"_signal_round_dtype"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">analysis_rule</span> <span class="o">=</span> <span class="n">active_branch_rule_override</span><span class="p">(</span><span class="n">owner</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">analysis_rule</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">check_branch_rule_override_target</span><span class="p">(</span><span class="n">owner</span><span class="p">)</span>
+    <span class="n">needs_components</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">store_diagnostics</span>
+        <span class="ow">or</span> <span class="n">analysis_rule</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="ow">or</span> <span class="p">(</span><span class="ow">not</span> <span class="n">owner</span><span class="o">.</span><span class="n">use_shunting</span> <span class="ow">and</span> <span class="n">owner</span><span class="o">.</span><span class="n">additive_mode</span> <span class="o">!=</span> <span class="s2">"raw"</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="n">active_pathways</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="n">owner</span><span class="o">.</span><span class="n">input_excitatory</span> <span class="ow">and</span> <span class="n">owner</span><span class="o">.</span><span class="n">branch_excitation</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">excitation</span> <span class="o">=</span> <span class="n">_diagnostic_synapse_forward</span><span class="p">(</span><span class="n">owner</span><span class="p">,</span> <span class="n">owner</span><span class="o">.</span><span class="n">branch_excitation</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">needs_components</span><span class="p">:</span>
+            <span class="n">E</span> <span class="o">=</span> <span class="n">E</span> <span class="o">+</span> <span class="n">excitation</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">owner</span><span class="o">.</span><span class="n">use_shunting</span><span class="p">:</span>
+            <span class="n">raw_voltage</span> <span class="o">=</span> <span class="n">raw_voltage</span> <span class="o">+</span> <span class="n">excitation</span>
+        <span class="k">if</span> <span class="n">owner</span><span class="o">.</span><span class="n">use_shunting</span><span class="p">:</span>
+            <span class="n">shunt_numerator</span> <span class="o">=</span> <span class="n">shunt_numerator</span> <span class="o">+</span> <span class="n">excitation</span>
+            <span class="n">shunt_denominator</span> <span class="o">=</span> <span class="n">shunt_denominator</span> <span class="o">+</span> <span class="n">excitation</span>
+        <span class="k">if</span> <span class="n">store_diagnostics</span><span class="p">:</span>
+            <span class="n">active_pathways</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s2">"E"</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="p">(</span>
+        <span class="n">owner</span><span class="o">.</span><span class="n">input_recurrent</span>
+        <span class="ow">and</span> <span class="n">owner</span><span class="o">.</span><span class="n">branch_recurrent</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="ow">and</span> <span class="n">recurrent_input</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+    <span class="p">):</span>
+        <span class="n">rec_excitation</span> <span class="o">=</span> <span class="n">_diagnostic_synapse_forward</span><span class="p">(</span>
+            <span class="n">owner</span><span class="p">,</span> <span class="n">owner</span><span class="o">.</span><span class="n">branch_recurrent</span><span class="p">,</span> <span class="n">recurrent_input</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">needs_components</span><span class="p">:</span>
+            <span class="n">E</span> <span class="o">=</span> <span class="n">E</span> <span class="o">+</span> <span class="n">rec_excitation</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">owner</span><span class="o">.</span><span class="n">use_shunting</span><span class="p">:</span>
+            <span class="n">raw_voltage</span> <span class="o">=</span> <span class="n">raw_voltage</span> <span class="o">+</span> <span class="n">rec_excitation</span>
+        <span class="k">if</span> <span class="n">owner</span><span class="o">.</span><span class="n">use_shunting</span><span class="p">:</span>
+            <span class="n">shunt_numerator</span> <span class="o">=</span> <span class="n">shunt_numerator</span> <span class="o">+</span> <span class="n">rec_excitation</span>
+            <span class="n">shunt_denominator</span> <span class="o">=</span> <span class="n">shunt_denominator</span> <span class="o">+</span> <span class="n">rec_excitation</span>
+        <span class="k">if</span> <span class="n">store_diagnostics</span><span class="p">:</span>
+            <span class="n">active_pathways</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s2">"E_rec"</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">owner</span><span class="o">.</span><span class="n">input_branches</span> <span class="ow">and</span> <span class="n">branch_input</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">branch_current</span> <span class="o">=</span> <span class="n">owner</span><span class="o">.</span><span class="n">branches_to_output</span><span class="p">(</span><span class="n">branch_input</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">needs_components</span><span class="p">:</span>
+            <span class="n">C</span> <span class="o">=</span> <span class="n">C</span> <span class="o">+</span> <span class="n">branch_current</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">owner</span><span class="o">.</span><span class="n">use_shunting</span><span class="p">:</span>
+            <span class="n">raw_voltage</span> <span class="o">=</span> <span class="n">raw_voltage</span> <span class="o">+</span> <span class="n">branch_current</span>
+        <span class="k">if</span> <span class="n">owner</span><span class="o">.</span><span class="n">use_shunting</span> <span class="ow">or</span> <span class="n">owner</span><span class="o">.</span><span class="n">additive_mode</span> <span class="o">!=</span> <span class="s2">"raw"</span> <span class="ow">or</span> <span class="n">store_diagnostics</span><span class="p">:</span>
+            <span class="n">G</span> <span class="o">=</span> <span class="n">owner</span><span class="o">.</span><span class="n">branches_to_output</span><span class="o">.</span><span class="n">sum_conductances</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">owner</span><span class="o">.</span><span class="n">use_shunting</span><span class="p">:</span>
+            <span class="n">shunt_numerator</span> <span class="o">=</span> <span class="n">shunt_numerator</span> <span class="o">+</span> <span class="n">branch_current</span>
+            <span class="n">shunt_denominator</span> <span class="o">=</span> <span class="n">shunt_denominator</span> <span class="o">+</span> <span class="n">G</span>
+
+    <span class="k">if</span> <span class="p">(</span>
+        <span class="n">owner</span><span class="o">.</span><span class="n">input_inhibitory</span>
+        <span class="ow">and</span> <span class="n">owner</span><span class="o">.</span><span class="n">branch_inhibition</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="ow">and</span> <span class="n">inhibitory_input</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+    <span class="p">):</span>
+        <span class="n">inhibition</span> <span class="o">=</span> <span class="n">_diagnostic_synapse_forward</span><span class="p">(</span>
+            <span class="n">owner</span><span class="p">,</span> <span class="n">owner</span><span class="o">.</span><span class="n">branch_inhibition</span><span class="p">,</span> <span class="n">inhibitory_input</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">needs_components</span><span class="p">:</span>
+            <span class="n">inhibitory_total</span> <span class="o">=</span> <span class="n">inhibitory_total</span> <span class="o">+</span> <span class="n">inhibition</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">owner</span><span class="o">.</span><span class="n">use_shunting</span><span class="p">:</span>
+            <span class="n">raw_voltage</span> <span class="o">=</span> <span class="n">raw_voltage</span> <span class="o">-</span> <span class="n">inhibition</span>
+        <span class="k">if</span> <span class="n">owner</span><span class="o">.</span><span class="n">use_shunting</span><span class="p">:</span>
+            <span class="n">shunt_denominator</span> <span class="o">=</span> <span class="n">shunt_denominator</span> <span class="o">+</span> <span class="n">inhibition</span>
+        <span class="k">if</span> <span class="n">store_diagnostics</span><span class="p">:</span>
+            <span class="n">active_pathways</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s2">"I"</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="p">(</span>
+        <span class="n">owner</span><span class="o">.</span><span class="n">input_rec_inhibitory</span>
+        <span class="ow">and</span> <span class="n">owner</span><span class="o">.</span><span class="n">branch_rec_inhibition</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="ow">and</span> <span class="n">rec_inhibitory_input</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+    <span class="p">):</span>
+        <span class="n">rec_inhibition</span> <span class="o">=</span> <span class="n">_diagnostic_synapse_forward</span><span class="p">(</span>
+            <span class="n">owner</span><span class="p">,</span> <span class="n">owner</span><span class="o">.</span><span class="n">branch_rec_inhibition</span><span class="p">,</span> <span class="n">rec_inhibitory_input</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">needs_components</span><span class="p">:</span>
+            <span class="n">inhibitory_total</span> <span class="o">=</span> <span class="n">inhibitory_total</span> <span class="o">+</span> <span class="n">rec_inhibition</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">owner</span><span class="o">.</span><span class="n">use_shunting</span><span class="p">:</span>
+            <span class="n">raw_voltage</span> <span class="o">=</span> <span class="n">raw_voltage</span> <span class="o">-</span> <span class="n">rec_inhibition</span>
+        <span class="k">if</span> <span class="n">owner</span><span class="o">.</span><span class="n">use_shunting</span><span class="p">:</span>
+            <span class="n">shunt_denominator</span> <span class="o">=</span> <span class="n">shunt_denominator</span> <span class="o">+</span> <span class="n">rec_inhibition</span>
+        <span class="k">if</span> <span class="n">store_diagnostics</span><span class="p">:</span>
+            <span class="n">active_pathways</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s2">"I_rec"</span><span class="p">)</span>
+
+    <span class="n">fused_shunt</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="p">(</span>
+        <span class="n">owner</span><span class="o">.</span><span class="n">use_shunting</span>
+        <span class="ow">and</span> <span class="ow">not</span> <span class="n">store_diagnostics</span>
+        <span class="ow">and</span> <span class="ow">not</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">owner</span><span class="p">,</span> <span class="s2">"_store_analysis_currents"</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+        <span class="ow">and</span> <span class="n">analysis_rule</span> <span class="ow">is</span> <span class="kc">None</span>
+        <span class="ow">and</span> <span class="n">rounding</span> <span class="ow">is</span> <span class="kc">None</span>
+    <span class="p">):</span>
+        <span class="n">fused_shunt</span> <span class="o">=</span> <span class="n">fused_shunt_reactivation</span><span class="p">(</span><span class="n">owner</span><span class="o">.</span><span class="n">reactivation</span><span class="p">)</span>
+
+    <span class="n">denominator</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">voltage</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">fused_shunt</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">denominator</span> <span class="o">=</span> <span class="n">shunt_denominator</span>
+    <span class="k">elif</span> <span class="n">owner</span><span class="o">.</span><span class="n">use_shunting</span><span class="p">:</span>
+        <span class="n">denominator</span> <span class="o">=</span> <span class="n">shunt_denominator</span>
+        <span class="k">if</span> <span class="n">analysis_rule</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">voltage</span> <span class="o">=</span> <span class="n">shunt_numerator</span> <span class="o">/</span> <span class="p">(</span><span class="n">denominator</span> <span class="o">+</span> <span class="n">owner</span><span class="o">.</span><span class="n">epsilon</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">voltage</span> <span class="o">=</span> <span class="n">analysis_rule</span><span class="o">.</span><span class="n">voltage</span><span class="p">(</span>
+                <span class="n">owner</span><span class="p">,</span>
+                <span class="n">shunt_numerator</span><span class="p">,</span>
+                <span class="n">denominator</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span>
+                <span class="n">excitation</span><span class="o">=</span><span class="n">E</span><span class="p">,</span>
+                <span class="n">inhibition</span><span class="o">=</span><span class="n">inhibitory_total</span><span class="p">,</span>
+                <span class="n">child_current</span><span class="o">=</span><span class="n">C</span><span class="p">,</span>
+            <span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">voltage</span> <span class="o">=</span> <span class="n">compute_additive_control_voltage</span><span class="p">(</span>
+            <span class="n">owner</span><span class="p">,</span>
+            <span class="n">E</span><span class="o">=</span><span class="n">E</span><span class="p">,</span>
+            <span class="n">inhibitory</span><span class="o">=</span><span class="n">inhibitory_total</span><span class="p">,</span>
+            <span class="n">C</span><span class="o">=</span><span class="n">C</span><span class="p">,</span>
+            <span class="n">G</span><span class="o">=</span><span class="n">G</span><span class="p">,</span>
+            <span class="n">raw_voltage</span><span class="o">=</span><span class="n">raw_voltage</span><span class="p">,</span>
+            <span class="n">inputs</span><span class="o">=</span><span class="p">(</span>
+                <span class="p">{</span>
+                    <span class="s2">"x"</span><span class="p">:</span> <span class="n">x</span><span class="p">,</span>
+                    <span class="s2">"inhibitory_input"</span><span class="p">:</span> <span class="n">inhibitory_input</span><span class="p">,</span>
+                    <span class="s2">"branch_input"</span><span class="p">:</span> <span class="n">branch_input</span><span class="p">,</span>
+                <span class="p">}</span>
+                <span class="k">if</span> <span class="n">owner</span><span class="o">.</span><span class="n">additive_mode</span> <span class="ow">in</span> <span class="n">_ADDITIVE_RULES</span>
+                <span class="k">else</span> <span class="kc">None</span>
+            <span class="p">),</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="n">rounding</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">voltage</span> <span class="o">=</span> <span class="n">round_signal</span><span class="p">(</span><span class="n">voltage</span><span class="p">,</span> <span class="n">rounding</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">store_diagnostics</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">owner</span><span class="o">.</span><span class="n">use_shunting</span><span class="p">:</span>
+            <span class="n">N</span> <span class="o">=</span> <span class="n">shunt_numerator</span>
+            <span class="n">T</span> <span class="o">=</span> <span class="n">denominator</span> <span class="o">-</span> <span class="n">owner</span><span class="o">.</span><span class="n">effective_leak</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">N</span> <span class="o">=</span> <span class="n">E</span> <span class="o">+</span> <span class="n">C</span>
+            <span class="n">T</span> <span class="o">=</span> <span class="n">E</span> <span class="o">+</span> <span class="n">inhibitory_total</span> <span class="o">+</span> <span class="n">G</span>
+        <span class="n">realized_k</span> <span class="o">=</span> <span class="n">_collect_realized_k</span><span class="p">(</span><span class="n">owner</span><span class="p">,</span> <span class="n">active_pathways</span><span class="p">)</span>
+        <span class="n">_store_branch_diagnostics</span><span class="p">(</span>
+            <span class="n">owner</span><span class="p">,</span>
+            <span class="n">E</span><span class="o">=</span><span class="n">E</span><span class="p">,</span>
+            <span class="n">inhibitory</span><span class="o">=</span><span class="n">inhibitory_total</span><span class="p">,</span>
+            <span class="n">C</span><span class="o">=</span><span class="n">C</span><span class="p">,</span>
+            <span class="n">G</span><span class="o">=</span><span class="n">G</span><span class="p">,</span>
+            <span class="n">N</span><span class="o">=</span><span class="n">N</span><span class="p">,</span>
+            <span class="n">T</span><span class="o">=</span><span class="n">T</span><span class="p">,</span>
+            <span class="n">V</span><span class="o">=</span><span class="n">voltage</span><span class="p">,</span>
+            <span class="n">realized_k</span><span class="o">=</span><span class="n">realized_k</span><span class="p">,</span>
+            <span class="n">shunt_denominator</span><span class="o">=</span><span class="n">denominator</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">owner</span><span class="o">.</span><span class="n">training</span> <span class="ow">and</span> <span class="s2">"conductance_dynamic"</span> <span class="ow">in</span> <span class="p">[</span>
+        <span class="n">owner</span><span class="o">.</span><span class="n">topk_strategy</span><span class="p">,</span>
+        <span class="n">owner</span><span class="o">.</span><span class="n">blocklinear_strategy</span><span class="p">,</span>
+    <span class="p">]:</span>
+        <span class="n">owner</span><span class="o">.</span><span class="n">compute_grad_scales</span><span class="p">(</span>
+            <span class="n">g_total</span><span class="o">=</span><span class="n">denominator</span> <span class="k">if</span> <span class="n">owner</span><span class="o">.</span><span class="n">use_shunting</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">use_forward_hooks</span><span class="o">=</span><span class="nb">bool</span><span class="p">(</span>
+                <span class="nb">getattr</span><span class="p">(</span><span class="n">owner</span><span class="p">,</span> <span class="s2">"_forward_dynamic_grad_scaling"</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+            <span class="p">),</span>
+        <span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">fused_shunt</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">fused_shunt</span><span class="p">(</span><span class="n">shunt_numerator</span><span class="p">,</span> <span class="n">denominator</span><span class="p">,</span> <span class="n">owner</span><span class="o">.</span><span class="n">epsilon</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">round_signal</span><span class="p">(</span><span class="n">owner</span><span class="o">.</span><span class="n">reactivation</span><span class="p">(</span><span class="n">voltage</span><span class="p">),</span> <span class="n">rounding</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">owner</span><span class="p">,</span> <span class="s2">"_store_analysis_currents"</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
+        <span class="n">owner</span><span class="o">.</span><span class="n">_last_analysis_currents</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="c1"># Canonical stage-explicit analysis names.</span>
+            <span class="s2">"pre_gate_excitation_current"</span><span class="p">:</span> <span class="n">excitation</span><span class="p">,</span>
+            <span class="s2">"pre_gate_inhibition_current"</span><span class="p">:</span> <span class="n">inhibition</span><span class="p">,</span>
+            <span class="s2">"pre_gate_upstream_current"</span><span class="p">:</span> <span class="n">branch_current</span><span class="p">,</span>
+            <span class="s2">"pre_gate_voltage"</span><span class="p">:</span> <span class="n">voltage</span><span class="p">,</span>
+            <span class="s2">"post_gate_output"</span><span class="p">:</span> <span class="n">result</span><span class="p">,</span>
+            <span class="c1"># Compatibility aliases consumed by older analysis code.</span>
+            <span class="s2">"excitation"</span><span class="p">:</span> <span class="n">excitation</span><span class="p">,</span>
+            <span class="s2">"inhibition"</span><span class="p">:</span> <span class="n">inhibition</span><span class="p">,</span>
+            <span class="s2">"branch_input"</span><span class="p">:</span> <span class="n">branch_current</span><span class="p">,</span>
+        <span class="p">}</span>
+    <span class="k">return</span> <span class="n">result</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">compute_branch_raw_currents</span><span class="p">(</span>
+    <span class="n">owner</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+    <span class="n">x</span><span class="p">,</span>
+    <span class="n">inhibitory_input</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">recurrent_input</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">rec_inhibitory_input</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Compute raw feedforward and recurrent branch currents."""</span>
+    <span class="n">store_diagnostics</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">owner</span><span class="p">,</span> <span class="s2">"_store_diagnostics"</span><span class="p">,</span> <span class="kc">False</span><span class="p">))</span>
+    <span class="n">active_pathways</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="n">raw_E</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">if</span> <span class="n">owner</span><span class="o">.</span><span class="n">input_excitatory</span> <span class="ow">and</span> <span class="n">owner</span><span class="o">.</span><span class="n">branch_excitation</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">raw_E</span> <span class="o">=</span> <span class="n">_diagnostic_synapse_forward</span><span class="p">(</span><span class="n">owner</span><span class="p">,</span> <span class="n">owner</span><span class="o">.</span><span class="n">branch_excitation</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">store_diagnostics</span><span class="p">:</span>
+            <span class="n">active_pathways</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s2">"E"</span><span class="p">)</span>
+
+    <span class="n">raw_E_rec</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">if</span> <span class="p">(</span>
+        <span class="n">owner</span><span class="o">.</span><span class="n">input_recurrent</span>
+        <span class="ow">and</span> <span class="n">owner</span><span class="o">.</span><span class="n">branch_recurrent</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="ow">and</span> <span class="n">recurrent_input</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+    <span class="p">):</span>
+        <span class="n">raw_E_rec</span> <span class="o">=</span> <span class="n">_diagnostic_synapse_forward</span><span class="p">(</span>
+            <span class="n">owner</span><span class="p">,</span> <span class="n">owner</span><span class="o">.</span><span class="n">branch_recurrent</span><span class="p">,</span> <span class="n">recurrent_input</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">store_diagnostics</span><span class="p">:</span>
+            <span class="n">active_pathways</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s2">"E_rec"</span><span class="p">)</span>
+
+    <span class="n">raw_I</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">if</span> <span class="p">(</span>
+        <span class="n">owner</span><span class="o">.</span><span class="n">input_inhibitory</span>
+        <span class="ow">and</span> <span class="n">owner</span><span class="o">.</span><span class="n">branch_inhibition</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="ow">and</span> <span class="n">inhibitory_input</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+    <span class="p">):</span>
+        <span class="n">raw_I</span> <span class="o">=</span> <span class="n">_diagnostic_synapse_forward</span><span class="p">(</span>
+            <span class="n">owner</span><span class="p">,</span> <span class="n">owner</span><span class="o">.</span><span class="n">branch_inhibition</span><span class="p">,</span> <span class="n">inhibitory_input</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">store_diagnostics</span><span class="p">:</span>
+            <span class="n">active_pathways</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s2">"I"</span><span class="p">)</span>
+
+    <span class="n">raw_I_rec</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">if</span> <span class="p">(</span>
+        <span class="n">owner</span><span class="o">.</span><span class="n">input_rec_inhibitory</span>
+        <span class="ow">and</span> <span class="n">owner</span><span class="o">.</span><span class="n">branch_rec_inhibition</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="ow">and</span> <span class="n">rec_inhibitory_input</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+    <span class="p">):</span>
+        <span class="n">raw_I_rec</span> <span class="o">=</span> <span class="n">_diagnostic_synapse_forward</span><span class="p">(</span>
+            <span class="n">owner</span><span class="p">,</span> <span class="n">owner</span><span class="o">.</span><span class="n">branch_rec_inhibition</span><span class="p">,</span> <span class="n">rec_inhibitory_input</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">store_diagnostics</span><span class="p">:</span>
+            <span class="n">active_pathways</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s2">"I_rec"</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">store_diagnostics</span><span class="p">:</span>
+        <span class="n">owner</span><span class="o">.</span><span class="n">_pending_realized_k</span> <span class="o">=</span> <span class="n">_collect_realized_k</span><span class="p">(</span><span class="n">owner</span><span class="p">,</span> <span class="n">active_pathways</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">raw_E</span><span class="p">,</span> <span class="n">raw_E_rec</span><span class="p">,</span> <span class="n">raw_I</span><span class="p">,</span> <span class="n">raw_I_rec</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">normalize_branch_additive_voltage</span><span class="p">(</span><span class="n">owner</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">voltage</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Apply the legacy per-sample, across-output z-score to additive voltage."""</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">owner</span><span class="o">.</span><span class="n">use_additive_normalization</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">torch</span><span class="o">.</span><span class="n">is_tensor</span><span class="p">(</span><span class="n">voltage</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">voltage</span>
+    <span class="n">centered</span> <span class="o">=</span> <span class="n">voltage</span> <span class="o">-</span> <span class="n">voltage</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdim</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">std</span> <span class="o">=</span> <span class="n">voltage</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdim</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">unbiased</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">centered</span> <span class="o">/</span> <span class="n">std</span><span class="o">.</span><span class="n">clamp_min</span><span class="p">(</span><span class="n">owner</span><span class="o">.</span><span class="n">epsilon</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">compute_branch_voltage_from_currents</span><span class="p">(</span>
+    <span class="n">owner</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+    <span class="n">trace_E</span><span class="p">,</span>
+    <span class="n">trace_E_rec</span><span class="p">,</span>
+    <span class="n">trace_I</span><span class="p">,</span>
+    <span class="n">trace_I_rec</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+    <span class="n">trace_branch</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+    <span class="n">branch_conductance</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">record_diagnostics</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Compute pre-reactivation voltage from integrated recurrent traces.</span>
+
+<span class="sd">    ``branch_conductance`` is a denominator-only input for shunting. Raw</span>
+<span class="sd">    additive voltage ignores it; explicitly normalized additive controls may</span>
+<span class="sd">    use it through their named comparison rule. This asymmetry is useful for</span>
+<span class="sd">    mechanism-isolation interventions but is not a same-physical-input model</span>
+<span class="sd">    of additive and conductance-based neurons. ``record_diagnostics=False``</span>
+<span class="sd">    leaves the layer's stored diagnostics untouched (for analyses that apply</span>
+<span class="sd">    the rule to substituted currents).</span>
+<span class="sd">    """</span>
+    <span class="n">store_diagnostics</span> <span class="o">=</span> <span class="n">record_diagnostics</span> <span class="ow">and</span> <span class="nb">bool</span><span class="p">(</span>
+        <span class="nb">getattr</span><span class="p">(</span><span class="n">owner</span><span class="p">,</span> <span class="s2">"_store_diagnostics"</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="k">if</span> <span class="n">active_branch_rule_override</span><span class="p">(</span><span class="n">owner</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">"branch rule overrides apply to the feedforward forward pass; "</span>
+            <span class="s2">"voltages computed from currents (recurrent and stateful paths, "</span>
+            <span class="s2">"analyses that substitute currents) would ignore them"</span>
+        <span class="p">)</span>
+    <span class="n">denominator</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">owner</span><span class="o">.</span><span class="n">use_shunting</span><span class="p">:</span>
+        <span class="n">child_current</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">is_tensor</span><span class="p">(</span><span class="n">trace_branch</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">bool</span><span class="p">(</span><span class="n">trace_branch</span><span class="p">)</span>
+        <span class="k">if</span> <span class="p">(</span>
+            <span class="n">child_current</span>
+            <span class="ow">and</span> <span class="n">branch_conductance</span> <span class="ow">is</span> <span class="kc">None</span>
+            <span class="ow">and</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">owner</span><span class="p">,</span> <span class="s2">"input_branches"</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+        <span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">"a shunting layer given its child-branch current needs their "</span>
+                <span class="s2">"coupling conductance (branches_to_output.sum_conductances()) in "</span>
+                <span class="s2">"the denominator; pass branch_conductance"</span>
+            <span class="p">)</span>
+        <span class="n">N</span> <span class="o">=</span> <span class="n">trace_E</span> <span class="o">+</span> <span class="n">trace_E_rec</span>
+        <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">is_tensor</span><span class="p">(</span><span class="n">trace_branch</span><span class="p">):</span>
+            <span class="n">N</span> <span class="o">=</span> <span class="n">N</span> <span class="o">+</span> <span class="n">trace_branch</span>
+        <span class="k">elif</span> <span class="n">trace_branch</span><span class="p">:</span>
+            <span class="n">N</span> <span class="o">=</span> <span class="n">N</span> <span class="o">+</span> <span class="n">trace_branch</span>
+
+        <span class="n">denominator</span> <span class="o">=</span> <span class="n">owner</span><span class="o">.</span><span class="n">effective_leak</span> <span class="o">+</span> <span class="n">trace_E</span>
+        <span class="c1"># Scalars count as well as tensors (zero scalars add nothing).</span>
+        <span class="k">for</span> <span class="n">term</span> <span class="ow">in</span> <span class="p">(</span><span class="n">trace_E_rec</span><span class="p">,</span> <span class="n">trace_I</span><span class="p">,</span> <span class="n">trace_I_rec</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">is_tensor</span><span class="p">(</span><span class="n">term</span><span class="p">)</span> <span class="ow">or</span> <span class="n">term</span><span class="p">:</span>
+                <span class="n">denominator</span> <span class="o">=</span> <span class="n">denominator</span> <span class="o">+</span> <span class="n">term</span>
+        <span class="k">if</span> <span class="n">branch_conductance</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">denominator</span> <span class="o">=</span> <span class="n">denominator</span> <span class="o">+</span> <span class="n">branch_conductance</span>
+        <span class="n">T</span> <span class="o">=</span> <span class="n">denominator</span> <span class="o">-</span> <span class="n">owner</span><span class="o">.</span><span class="n">effective_leak</span>
+        <span class="n">voltage</span> <span class="o">=</span> <span class="n">N</span> <span class="o">/</span> <span class="p">(</span><span class="n">denominator</span> <span class="o">+</span> <span class="n">owner</span><span class="o">.</span><span class="n">epsilon</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">raw_voltage</span> <span class="o">=</span> <span class="n">trace_E</span> <span class="o">+</span> <span class="n">trace_E_rec</span> <span class="o">-</span> <span class="n">trace_I</span> <span class="o">-</span> <span class="n">trace_I_rec</span>
+        <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">is_tensor</span><span class="p">(</span><span class="n">trace_branch</span><span class="p">):</span>
+            <span class="n">raw_voltage</span> <span class="o">=</span> <span class="n">raw_voltage</span> <span class="o">+</span> <span class="n">trace_branch</span>
+        <span class="k">elif</span> <span class="n">trace_branch</span><span class="p">:</span>
+            <span class="n">raw_voltage</span> <span class="o">=</span> <span class="n">raw_voltage</span> <span class="o">+</span> <span class="n">trace_branch</span>
+
+        <span class="k">if</span> <span class="n">store_diagnostics</span> <span class="ow">or</span> <span class="n">owner</span><span class="o">.</span><span class="n">additive_mode</span> <span class="o">!=</span> <span class="s2">"raw"</span><span class="p">:</span>
+            <span class="n">E</span> <span class="o">=</span> <span class="n">trace_E</span> <span class="o">+</span> <span class="n">trace_E_rec</span>
+            <span class="n">inhibitory_total</span> <span class="o">=</span> <span class="n">trace_I</span> <span class="o">+</span> <span class="n">trace_I_rec</span>
+            <span class="n">C</span> <span class="o">=</span> <span class="n">trace_branch</span>
+            <span class="n">G</span> <span class="o">=</span> <span class="mi">0</span> <span class="k">if</span> <span class="n">branch_conductance</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">branch_conductance</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">E</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="n">inhibitory_total</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="n">C</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="n">G</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">voltage</span> <span class="o">=</span> <span class="n">compute_additive_control_voltage</span><span class="p">(</span>
+            <span class="n">owner</span><span class="p">,</span>
+            <span class="n">E</span><span class="o">=</span><span class="n">E</span><span class="p">,</span>
+            <span class="n">inhibitory</span><span class="o">=</span><span class="n">inhibitory_total</span><span class="p">,</span>
+            <span class="n">C</span><span class="o">=</span><span class="n">C</span><span class="p">,</span>
+            <span class="n">G</span><span class="o">=</span><span class="n">G</span><span class="p">,</span>
+            <span class="n">raw_voltage</span><span class="o">=</span><span class="n">raw_voltage</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">store_diagnostics</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">owner</span><span class="o">.</span><span class="n">use_shunting</span><span class="p">:</span>
+            <span class="n">E</span> <span class="o">=</span> <span class="n">trace_E</span> <span class="o">+</span> <span class="n">trace_E_rec</span>
+            <span class="n">inhibitory_total</span> <span class="o">=</span> <span class="n">trace_I</span> <span class="o">+</span> <span class="n">trace_I_rec</span>
+            <span class="n">C</span> <span class="o">=</span> <span class="n">trace_branch</span>
+            <span class="n">G</span> <span class="o">=</span> <span class="mi">0</span> <span class="k">if</span> <span class="n">branch_conductance</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">branch_conductance</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">N</span> <span class="o">=</span> <span class="n">E</span> <span class="o">+</span> <span class="n">C</span>
+            <span class="n">T</span> <span class="o">=</span> <span class="n">E</span> <span class="o">+</span> <span class="n">inhibitory_total</span> <span class="o">+</span> <span class="n">G</span>
+        <span class="n">_store_branch_diagnostics</span><span class="p">(</span>
+            <span class="n">owner</span><span class="p">,</span>
+            <span class="n">E</span><span class="o">=</span><span class="n">E</span><span class="p">,</span>
+            <span class="n">inhibitory</span><span class="o">=</span><span class="n">inhibitory_total</span><span class="p">,</span>
+            <span class="n">C</span><span class="o">=</span><span class="n">C</span><span class="p">,</span>
+            <span class="n">G</span><span class="o">=</span><span class="n">G</span><span class="p">,</span>
+            <span class="n">N</span><span class="o">=</span><span class="n">N</span><span class="p">,</span>
+            <span class="n">T</span><span class="o">=</span><span class="n">T</span><span class="p">,</span>
+            <span class="n">V</span><span class="o">=</span><span class="n">voltage</span><span class="p">,</span>
+            <span class="n">realized_k</span><span class="o">=</span><span class="nb">getattr</span><span class="p">(</span><span class="n">owner</span><span class="p">,</span> <span class="s2">"_pending_realized_k"</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+            <span class="n">shunt_denominator</span><span class="o">=</span><span class="n">denominator</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="n">voltage</span><span class="p">,</span> <span class="n">denominator</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">compute_branch_output_from_currents</span><span class="p">(</span>
+    <span class="n">owner</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+    <span class="n">excitation</span><span class="p">,</span>
+    <span class="n">inhibition</span><span class="p">,</span>
+    <span class="n">branch_current</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+    <span class="n">branch_conductance</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Branch output for given currents under the layer's own rule.</span>
+
+<span class="sd">    Applies the layer's voltage rule (leak, integration mode and, for a</span>
+<span class="sd">    shunting layer with child branches, their coupling conductance), its</span>
+<span class="sd">    signal rounding and its reactivation, as the forward pass does. Analyses</span>
+<span class="sd">    that substitute, condition or project currents use this instead of</span>
+<span class="sd">    copying the equation; the layer's stored diagnostics are left untouched.</span>
+<span class="sd">    """</span>
+    <span class="n">rounding</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">owner</span><span class="p">,</span> <span class="s2">"_signal_round_dtype"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">voltage</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">compute_branch_voltage_from_currents</span><span class="p">(</span>
+        <span class="n">owner</span><span class="p">,</span>
+        <span class="n">trace_E</span><span class="o">=</span><span class="n">excitation</span><span class="p">,</span>
+        <span class="n">trace_E_rec</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+        <span class="n">trace_I</span><span class="o">=</span><span class="n">inhibition</span><span class="p">,</span>
+        <span class="n">trace_branch</span><span class="o">=</span><span class="n">branch_current</span><span class="p">,</span>
+        <span class="n">branch_conductance</span><span class="o">=</span><span class="n">branch_conductance</span><span class="p">,</span>
+        <span class="n">record_diagnostics</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">voltage</span> <span class="o">=</span> <span class="n">round_signal</span><span class="p">(</span><span class="n">voltage</span><span class="p">,</span> <span class="n">rounding</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">round_signal</span><span class="p">(</span><span class="n">owner</span><span class="o">.</span><span class="n">reactivation</span><span class="p">(</span><span class="n">voltage</span><span class="p">),</span> <span class="n">rounding</span><span class="p">)</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s2">"ADDITIVE_MODES"</span><span class="p">,</span>
+    <span class="s2">"AdditiveRule"</span><span class="p">,</span>
+    <span class="s2">"available_additive_modes"</span><span class="p">,</span>
+    <span class="s2">"compute_additive_control_voltage"</span><span class="p">,</span>
+    <span class="s2">"compute_branch_output_from_currents"</span><span class="p">,</span>
+    <span class="s2">"compute_branch_raw_currents"</span><span class="p">,</span>
+    <span class="s2">"compute_branch_voltage_from_currents"</span><span class="p">,</span>
+    <span class="s2">"forward_branch_dynamics"</span><span class="p">,</span>
+    <span class="s2">"get_additive_rule"</span><span class="p">,</span>
+    <span class="s2">"normalize_additive_mode"</span><span class="p">,</span>
+    <span class="s2">"normalize_branch_additive_voltage"</span><span class="p">,</span>
+    <span class="s2">"register_additive_rule"</span><span class="p">,</span>
+    <span class="s2">"unregister_additive_rule"</span><span class="p">,</span>
+<span class="p">]</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024-2026, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -124,7 +124,7 @@
   <text class="small" x="74" y="686">Disabled synapse_types preserve the original single E/I traces.</text>
 
   <rect class="sum" x="526" y="496" width="432" height="206"/>
-  <text class="name" x="552" y="530">Scientific separation</text>
+  <text class="name" x="552" y="530">Polarity and receptor type</text>
   <text class="body" x="552" y="560">Population polarity says who sends the signal:</text>
   <text class="code" x="552" y="584">pyr -> target E stream</text>
   <text class="code" x="552" y="608">pv/sst -> target I stream</text>
@@ -134,10 +134,10 @@
 
   <rect class="sum" x="1016" y="496" width="418" height="206"/>
   <text class="name" x="1042" y="530">Training and gradients</text>
-  <text class="body" x="1042" y="560">Fractions, traces, voltage gates, STP states,</text>
-  <text class="body" x="1042" y="582">and dendritic weights stay inside the target</text>
-  <text class="body" x="1042" y="604">population's differentiable forward path.</text>
-  <text class="code" x="1042" y="636">TopK selects source slots.</text>
-  <text class="code" x="1042" y="660">synapse_types filter selected current.</text>
+  <text class="body" x="1042" y="560">Receptor fractions are fixed values; the</text>
+  <text class="body" x="1042" y="582">synaptic weights train through the traces.</text>
+  <text class="body" x="1042" y="604">STP state follows a detached current unless</text>
+  <text class="code" x="1042" y="636">stp_differentiable_state: true.</text>
+  <text class="code" x="1042" y="660">Top-K selects the synapses; types filter them.</text>
   <text class="small" x="1042" y="688">For recurrent runs, traces update at each timestep.</text>
 </svg>

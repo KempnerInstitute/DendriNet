@@ -1,0 +1,510 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Project provenance &mdash; DendriNet v0.2.0</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=938c9ccc"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Component catalogue" href="available_components.html" />
+    <link rel="prev" title="Compact checkpoints" href="model_compression.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            DendriNet
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Example configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Building models</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="network_architectures.html">Model architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dendritic_neurons.html">Dendritic neurons</a></li>
+<li class="toctree-l1"><a class="reference internal" href="synapses.html">Synapses and connectivity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="population_networks.html">Population networks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="temporal_dynamics.html">Temporal dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="structured_ei_cores.html">Structured E/I cores</a></li>
+<li class="toctree-l1"><a class="reference internal" href="conductance_options.html">Conductance options</a></li>
+<li class="toctree-l1"><a class="reference internal" href="comparison_models.html">Baselines and comparison models</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Configuration</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="configuration_guide.html">Configuration guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config_reference.html">Annotated reference configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="training_strategies.html">Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="distributed_training.html">Distributed training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="performance_kernels.html">Sparse execution and performance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Data and analysis</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="datasets.html">Datasets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="analysis.html">Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="analyzers.html">Analyzer reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="checkpoint_analysis.html">Analyzing saved checkpoints</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Running experiments</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="runs_and_outputs.html">Runs and outputs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sweeps.html">Parameter sweeps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="model_compression.html">Compact checkpoints</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Project provenance</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#source-contracts">Source contracts</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#releases-built-by-squashing">Releases built by squashing</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#exports">Exports</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#evidence-checks">Evidence checks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#exact-file-inventories">Exact-file inventories</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="available_components.html">Component catalogue</a></li>
+<li class="toctree-l1"><a class="reference internal" href="options_reference.html">Options reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cli_reference.html">Command-line reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api_reference.html">Python API</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="extending.html">Extending DendriNet</a></li>
+<li class="toctree-l1"><a class="reference internal" href="engineering_architecture.html">Engineering architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">DendriNet</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Project provenance</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/project_provenance.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="project-provenance">
+<span id="id1"></span><h1>Project provenance<a class="headerlink" href="#project-provenance" title="Link to this heading"></a></h1>
+<p>A study that builds on DendriNet keeps its own code (configurations, runners,
+analyses, figure scripts) in its own repository and runs it against an exact
+library commit. Four standard-library utilities in
+<code class="docutils literal notranslate"><span class="pre">dendritic_modeling/utils</span></code> record and check that relationship:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 28.0%" />
+<col style="width: 72.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Utility</p></th>
+<th class="head"><p>What it does</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">project_source.py</span></code></p></td>
+<td><p>Verifies a project’s source contract against a library checkout and
+runs the project’s declared entry points with the verified package,
+writing a receipt (<a class="reference internal" href="#project-source-contracts"><span class="std std-ref">Source contracts</span></a>).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">project_export.py</span></code></p></td>
+<td><p>Exports an allow-listed set of committed project files to a
+deterministic archive with an export record
+(<a class="reference internal" href="#project-exports"><span class="std std-ref">Exports</span></a>).</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">project_evidence.py</span></code></p></td>
+<td><p>Checks that the files a project declares as evidence for its results
+still have their recorded SHA-256 digests (<a class="reference internal" href="#project-evidence"><span class="std std-ref">Evidence checks</span></a>).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">exact_file_inventory.py</span></code></p></td>
+<td><p>Python functions that freeze a list of input files with their digests
+and rehash them, shared across data-parallel ranks, before a run uses
+them (<a class="reference internal" href="#exact-file-inventories"><span class="std std-ref">Exact-file inventories</span></a>).</p></td>
+</tr>
+</tbody>
+</table>
+<p>The first three are programs that run by file path, so that they can check a
+checkout before any copy of DendriNet is imported; they never edit a checkout
+or change a Git reference. None of them assesses scientific equivalence:
+a verified source or a matching digest says which bytes ran, not that two
+versions compute the same results.</p>
+<section id="source-contracts">
+<span id="project-source-contracts"></span><h2>Source contracts<a class="headerlink" href="#source-contracts" title="Link to this heading"></a></h2>
+<p>A project declares the library it runs on in <code class="docutils literal notranslate"><span class="pre">dendrinet.project.json</span></code> at the
+root of its repository:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">"schema_version"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"project"</span><span class="p">:</span><span class="w"> </span><span class="s2">"example-study"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"library"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">"line"</span><span class="p">:</span><span class="w"> </span><span class="s2">"core"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"commit"</span><span class="p">:</span><span class="w"> </span><span class="s2">"0123456789abcdef0123456789abcdef01234567"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"ref"</span><span class="p">:</span><span class="w"> </span><span class="s2">"refs/tags/example-study/v1"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"maintained_ref"</span><span class="p">:</span><span class="w"> </span><span class="s2">"refs/remotes/origin/develop"</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="w">  </span><span class="nt">"source_paths"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"scripts"</span><span class="p">,</span><span class="w"> </span><span class="s2">"configs"</span><span class="p">],</span>
+<span class="w">  </span><span class="nt">"entry_points"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">"train"</span><span class="p">:</span><span class="w"> </span><span class="s2">"scripts/train.py"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"figures"</span><span class="p">:</span><span class="w"> </span><span class="s2">"scripts/figures.py"</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 30.0%" />
+<col style="width: 70.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Field</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">schema_version</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">1</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">project</span></code></p></td>
+<td><p>The project’s name.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">library.line</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">core</span></code> for a maintained line of the library (<code class="docutils literal notranslate"><span class="pre">llm</span></code> is accepted for
+existing contracts), or <code class="docutils literal notranslate"><span class="pre">historical</span></code> for an original source that no
+maintained branch contains.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">library.commit</span></code></p></td>
+<td><p>The exact 40-character commit the project runs on.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">library.ref</span></code></p></td>
+<td><p>A tag (<code class="docutils literal notranslate"><span class="pre">refs/tags/...</span></code>) that points at <code class="docutils literal notranslate"><span class="pre">library.commit</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">library.maintained_ref</span></code></p></td>
+<td><p>Required for <code class="docutils literal notranslate"><span class="pre">core</span></code> and <code class="docutils literal notranslate"><span class="pre">llm</span></code>, not allowed for <code class="docutils literal notranslate"><span class="pre">historical</span></code>: the
+full branch ref (<code class="docutils literal notranslate"><span class="pre">refs/heads/...</span></code> or <code class="docutils literal notranslate"><span class="pre">refs/remotes/...</span></code>) whose
+history must contain <code class="docutils literal notranslate"><span class="pre">library.commit</span></code>. A contract without it raises;
+there is no default branch.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">library.release_bridge</span></code></p></td>
+<td><p>Optional, for a release built by squashing (<a class="reference internal" href="#release-bridges"><span class="std std-ref">Releases built by squashing</span></a>).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">source_paths</span></code></p></td>
+<td><p>The project’s code and configuration paths, relative to the
+repository root.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">entry_points</span></code></p></td>
+<td><p>Names mapped to Python scripts inside <code class="docutils literal notranslate"><span class="pre">source_paths</span></code>.</p></td>
+</tr>
+</tbody>
+</table>
+<p>Check a contract, or run an entry point, with the utility of the library
+checkout the contract pins:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>&lt;library&gt;/src/dendritic_modeling/utils/project_source.py<span class="w"> </span>check<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--contract<span class="w"> </span>&lt;project&gt;/dendrinet.project.json<span class="w"> </span>--library-root<span class="w"> </span>&lt;library&gt;
+
+python<span class="w"> </span>&lt;library&gt;/src/dendritic_modeling/utils/project_source.py<span class="w"> </span>run<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--contract<span class="w"> </span>&lt;project&gt;/dendrinet.project.json<span class="w"> </span>--library-root<span class="w"> </span>&lt;library&gt;<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--entry<span class="w"> </span>figures<span class="w"> </span>--receipt<span class="w"> </span>&lt;runs&gt;/figures_source.json<span class="w"> </span>--<span class="w"> </span>--out<span class="w"> </span>&lt;runs&gt;/figures
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">--library-root</span></code> defaults to <code class="docutils literal notranslate"><span class="pre">$DENDRINET_LIBRARY_ROOT</span></code>; there is no
+fallback to an installed copy. A tool from a newer checkout can verify an
+older library commit that predates the utility.</p>
+<p><code class="docutils literal notranslate"><span class="pre">check</span></code> verifies, and fails with <code class="docutils literal notranslate"><span class="pre">SourceContractError</span></code> at the first
+problem:</p>
+<ul class="simple">
+<li><p>the contract’s fields as described above;</p></li>
+<li><p>the project directory (the contract’s directory) and the library root are
+each the root of a Git repository;</p></li>
+<li><p>the library’s <code class="docutils literal notranslate"><span class="pre">HEAD</span></code> and the commit of <code class="docutils literal notranslate"><span class="pre">library.ref</span></code> are both
+<code class="docutils literal notranslate"><span class="pre">library.commit</span></code>;</p></li>
+<li><p>for a maintained line, <code class="docutils literal notranslate"><span class="pre">library.maintained_ref</span></code> resolves to a commit and
+<code class="docutils literal notranslate"><span class="pre">library.commit</span></code> is that commit or one of its ancestors (or the release
+bridge holds);</p></li>
+<li><p>the library has a package at <code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/__init__.py</span></code>;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">src</span></code>, <code class="docutils literal notranslate"><span class="pre">configs</span></code>, <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code>, <code class="docutils literal notranslate"><span class="pre">setup.py</span></code> and
+<code class="docutils literal notranslate"><span class="pre">requirements.txt</span></code> of the library, and the <code class="docutils literal notranslate"><span class="pre">source_paths</span></code> and contract of
+the project, have no uncommitted or untracked changes, no ignored files with
+a source suffix (<code class="docutils literal notranslate"><span class="pre">.py</span></code>, <code class="docutils literal notranslate"><span class="pre">.so</span></code>, <code class="docutils literal notranslate"><span class="pre">.pyd</span></code>, <code class="docutils literal notranslate"><span class="pre">.yaml</span></code>, <code class="docutils literal notranslate"><span class="pre">.yml</span></code>, <code class="docutils literal notranslate"><span class="pre">.json</span></code>,
+<code class="docutils literal notranslate"><span class="pre">.jsonl</span></code>, <code class="docutils literal notranslate"><span class="pre">.toml</span></code>, <code class="docutils literal notranslate"><span class="pre">.sh</span></code>, <code class="docutils literal notranslate"><span class="pre">.sbatch</span></code>, <code class="docutils literal notranslate"><span class="pre">.slurm</span></code>, <code class="docutils literal notranslate"><span class="pre">.ipynb</span></code>) and no
+tracked symbolic links;</p></li>
+<li><p>every declared source path exists, and every entry point is a tracked
+Python file inside a declared source path.</p></li>
+</ul>
+<p>It then prints the receipt:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 30.0%" />
+<col style="width: 70.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Receipt field</p></th>
+<th class="head"><p>Content</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">schema_version</span></code>, <code class="docutils literal notranslate"><span class="pre">project</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">1</span></code> and the project’s name.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">contract</span></code>, <code class="docutils literal notranslate"><span class="pre">contract_sha256</span></code></p></td>
+<td><p>Path and SHA-256 digest of the contract.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">paper_commit</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">HEAD</span></code> of the project repository.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">library_commit</span></code>, <code class="docutils literal notranslate"><span class="pre">library_ref</span></code>, <code class="docutils literal notranslate"><span class="pre">library_line</span></code></p></td>
+<td><p>The verified library commit, its tag and its line.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">maintained_ref</span></code>, <code class="docutils literal notranslate"><span class="pre">maintained_commit</span></code></p></td>
+<td><p>The maintained branch and the commit it pointed at (<code class="docutils literal notranslate"><span class="pre">null</span></code> for a
+historical source).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">release_bridge</span></code></p></td>
+<td><p>Only when the contract declares a bridge: its <code class="docutils literal notranslate"><span class="pre">source_commit</span></code>,
+<code class="docutils literal notranslate"><span class="pre">release_commit</span></code> and their common <code class="docutils literal notranslate"><span class="pre">tree</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">library_root</span></code>, <code class="docutils literal notranslate"><span class="pre">configuration_root</span></code>, <code class="docutils literal notranslate"><span class="pre">package_file</span></code></p></td>
+<td><p>The library checkout, its <code class="docutils literal notranslate"><span class="pre">configs</span></code> directory and its package file.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">python_executable</span></code>, <code class="docutils literal notranslate"><span class="pre">python_version</span></code></p></td>
+<td><p>The interpreter.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">status</span></code>, <code class="docutils literal notranslate"><span class="pre">scientific_equivalence</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">source_verified</span></code> and <code class="docutils literal notranslate"><span class="pre">not</span> <span class="pre">assessed</span> <span class="pre">by</span> <span class="pre">source</span> <span class="pre">verification</span></code>.</p></td>
+</tr>
+</tbody>
+</table>
+<p><code class="docutils literal notranslate"><span class="pre">run</span></code> verifies the contract the same way and then runs the named entry point
+as <code class="docutils literal notranslate"><span class="pre">__main__</span></code>, with the arguments after <code class="docutils literal notranslate"><span class="pre">--</span></code>, from the project directory.
+It imports <code class="docutils literal notranslate"><span class="pre">dendritic_modeling</span></code> from <code class="docutils literal notranslate"><span class="pre">&lt;library&gt;/src</span></code> and fails when another
+copy was already imported; it sets <code class="docutils literal notranslate"><span class="pre">DENDRINET_LIBRARY_ROOT</span></code> and
+<code class="docutils literal notranslate"><span class="pre">DENDRINET_CONFIG_ROOT</span></code> (the library’s <code class="docutils literal notranslate"><span class="pre">configs</span></code>) and puts <code class="docutils literal notranslate"><span class="pre">&lt;library&gt;/src</span></code>
+first on <code class="docutils literal notranslate"><span class="pre">PYTHONPATH</span></code> for child processes. The receipt must be a new file
+outside the project and library repositories: an existing receipt is never
+overwritten. It is written when the run starts and again when it ends, with
+<code class="docutils literal notranslate"><span class="pre">entry_point</span></code>, <code class="docutils literal notranslate"><span class="pre">script</span></code>, <code class="docutils literal notranslate"><span class="pre">arguments</span></code>, <code class="docutils literal notranslate"><span class="pre">imported_package_file</span></code>,
+<code class="docutils literal notranslate"><span class="pre">status</span></code> (<code class="docutils literal notranslate"><span class="pre">started</span></code>, then <code class="docutils literal notranslate"><span class="pre">completed</span></code> or <code class="docutils literal notranslate"><span class="pre">failed</span></code>) and <code class="docutils literal notranslate"><span class="pre">exit_code</span></code>,
+or <code class="docutils literal notranslate"><span class="pre">error_type</span></code> and <code class="docutils literal notranslate"><span class="pre">error</span></code> for an exception. <code class="docutils literal notranslate"><span class="pre">run</span></code> exits with the entry
+point’s exit status.</p>
+<section id="releases-built-by-squashing">
+<span id="release-bridges"></span><h3>Releases built by squashing<a class="headerlink" href="#releases-built-by-squashing" title="Link to this heading"></a></h3>
+<p>A public release can be built by squashing the maintained line into a single
+commit whose tree equals a commit of that line. The release then has none of
+the line’s commits as ancestors, so a contract that pins a commit of the line
+and names the release branch as <code class="docutils literal notranslate"><span class="pre">maintained_ref</span></code> fails the ancestry check
+even though the released files are identical. The contract states that
+relationship explicitly:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">"library"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">"line"</span><span class="p">:</span><span class="w"> </span><span class="s2">"core"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"commit"</span><span class="p">:</span><span class="w"> </span><span class="s2">"0123456789abcdef0123456789abcdef01234567"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"ref"</span><span class="p">:</span><span class="w"> </span><span class="s2">"refs/tags/example-study/v1"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"maintained_ref"</span><span class="p">:</span><span class="w"> </span><span class="s2">"refs/remotes/origin/develop"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"release_bridge"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">"source_commit"</span><span class="p">:</span><span class="w"> </span><span class="s2">"89abcdef0123456789abcdef0123456789abcdef"</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"release_commit"</span><span class="p">:</span><span class="w"> </span><span class="s2">"fedcba9876543210fedcba9876543210fedcba98"</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>With a bridge, the ancestry check is replaced by these checks, all of which
+must hold:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">source_commit</span></code> and <code class="docutils literal notranslate"><span class="pre">release_commit</span></code> are exact 40-character commits
+present in the library checkout (fetch both before verification);</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">library.commit</span></code> is <code class="docutils literal notranslate"><span class="pre">source_commit</span></code> or one of its ancestors, so the
+release contains the pinned commit;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">release_commit</span></code> is the <code class="docutils literal notranslate"><span class="pre">maintained_ref</span></code> commit or one of its ancestors;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">source_commit</span></code> and <code class="docutils literal notranslate"><span class="pre">release_commit</span></code> have the same tree
+(<code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">rev-parse</span> <span class="pre">&lt;commit&gt;^{tree}</span></code>).</p></li>
+</ul>
+<p>The receipt records the bridge and the tree. Without a bridge the ancestry
+check is unchanged, and a historical contract cannot declare one. The bridge
+establishes identical released files only; it does not approve a release or
+assess its results.</p>
+</section>
+</section>
+<section id="exports">
+<span id="project-exports"></span><h2>Exports<a class="headerlink" href="#exports" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">project_export.py</span></code> writes the files that a manifest at the root of the
+project repository lists, as committed at a given commit, to a new ZIP
+archive:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>&lt;library&gt;/src/dendritic_modeling/utils/project_export.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--manifest<span class="w"> </span>&lt;project&gt;/manuscript_export.json<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--commit<span class="w"> </span>&lt;project<span class="w"> </span>commit&gt;<span class="w"> </span>--output<span class="w"> </span>&lt;exports&gt;/manuscript.zip
+</pre></div>
+</div>
+<p>The manifest is read from that commit, not from the working tree:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">"schema_version"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"kind"</span><span class="p">:</span><span class="w"> </span><span class="s2">"manuscript"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"files"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"main.tex"</span><span class="p">,</span><span class="w"> </span><span class="s2">"references.bib"</span><span class="p">,</span><span class="w"> </span><span class="s2">"figures/figure1.pdf"</span><span class="p">]</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">kind</span></code> is <code class="docutils literal notranslate"><span class="pre">manuscript</span></code> or <code class="docutils literal notranslate"><span class="pre">paper-code</span></code>. Manuscript files have the
+suffixes <code class="docutils literal notranslate"><span class="pre">.tex</span></code>, <code class="docutils literal notranslate"><span class="pre">.bib</span></code>, <code class="docutils literal notranslate"><span class="pre">.bst</span></code>, <code class="docutils literal notranslate"><span class="pre">.cls</span></code>, <code class="docutils literal notranslate"><span class="pre">.sty</span></code>, <code class="docutils literal notranslate"><span class="pre">.pdf</span></code>, <code class="docutils literal notranslate"><span class="pre">.eps</span></code>,
+<code class="docutils literal notranslate"><span class="pre">.png</span></code> or <code class="docutils literal notranslate"><span class="pre">.jpg</span></code>. Paper-code files have the suffixes <code class="docutils literal notranslate"><span class="pre">.py</span></code>, <code class="docutils literal notranslate"><span class="pre">.sh</span></code>,
+<code class="docutils literal notranslate"><span class="pre">.sbatch</span></code>, <code class="docutils literal notranslate"><span class="pre">.slurm</span></code>, <code class="docutils literal notranslate"><span class="pre">.yaml</span></code>, <code class="docutils literal notranslate"><span class="pre">.yml</span></code>, <code class="docutils literal notranslate"><span class="pre">.json</span></code>, <code class="docutils literal notranslate"><span class="pre">.md</span></code>, <code class="docutils literal notranslate"><span class="pre">.txt</span></code>,
+<code class="docutils literal notranslate"><span class="pre">.tsv</span></code>, <code class="docutils literal notranslate"><span class="pre">.csv</span></code>, <code class="docutils literal notranslate"><span class="pre">.toml</span></code>, <code class="docutils literal notranslate"><span class="pre">.ini</span></code>, <code class="docutils literal notranslate"><span class="pre">.cpp</span></code> or <code class="docutils literal notranslate"><span class="pre">.h</span></code>, no path component
+among <code class="docutils literal notranslate"><span class="pre">src</span></code>, <code class="docutils literal notranslate"><span class="pre">dendritic_modeling</span></code>, <code class="docutils literal notranslate"><span class="pre">runtime</span></code>, <code class="docutils literal notranslate"><span class="pre">historical_runtimes</span></code>,
+<code class="docutils literal notranslate"><span class="pre">source_snapshots</span></code>, <code class="docutils literal notranslate"><span class="pre">frozen_sources</span></code>, <code class="docutils literal notranslate"><span class="pre">.git</span></code>, <code class="docutils literal notranslate"><span class="pre">outputs</span></code>, <code class="docutils literal notranslate"><span class="pre">results</span></code>
+and <code class="docutils literal notranslate"><span class="pre">logs</span></code> (library source is never exported with a project), and a
+paper-code manifest also declares <code class="docutils literal notranslate"><span class="pre">publication_status:</span> <span class="pre">internal_candidate</span></code>,
+a <code class="docutils literal notranslate"><span class="pre">library_dependency</span></code> object and optionally <code class="docutils literal notranslate"><span class="pre">reproduction_status</span></code>. Every
+listed file must be a regular file committed at that commit; absolute paths,
+<code class="docutils literal notranslate"><span class="pre">..</span></code> and backslashes are refused, and so is a list with duplicates.</p>
+<p>The archive must be a new file outside the project repository and the library
+checkout. It holds each file with its Git mode and a fixed timestamp, so the
+same commit and manifest give a byte-identical archive, and
+<code class="docutils literal notranslate"><span class="pre">EXPORT_SOURCE.json</span></code> with <code class="docutils literal notranslate"><span class="pre">schema_version</span></code>, <code class="docutils literal notranslate"><span class="pre">kind</span></code>, <code class="docutils literal notranslate"><span class="pre">paper_commit</span></code>,
+<code class="docutils literal notranslate"><span class="pre">manifest_sha256</span></code>, <code class="docutils literal notranslate"><span class="pre">exporter_sha256</span></code> and <code class="docutils literal notranslate"><span class="pre">files</span></code> (path, SHA-256 digest
+and size of each); a paper-code export adds <code class="docutils literal notranslate"><span class="pre">publication_status</span></code>,
+<code class="docutils literal notranslate"><span class="pre">reproduction_status</span></code> (default <code class="docutils literal notranslate"><span class="pre">not</span> <span class="pre">validated</span></code>), <code class="docutils literal notranslate"><span class="pre">library_dependency</span></code>
+and <code class="docutils literal notranslate"><span class="pre">library_source_included:</span> <span class="pre">false</span></code>. An export does not make a candidate
+ready for publication.</p>
+</section>
+<section id="evidence-checks">
+<span id="project-evidence"></span><h2>Evidence checks<a class="headerlink" href="#evidence-checks" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">project_evidence.py</span></code> checks a manifest that binds a project’s results to
+the files that support them:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>&lt;library&gt;/src/dendritic_modeling/utils/project_evidence.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--manifest<span class="w"> </span>&lt;project&gt;/evidence.json<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--root<span class="w"> </span><span class="nv">paper</span><span class="o">=</span>&lt;project&gt;<span class="w"> </span>--root<span class="w"> </span><span class="nv">runs</span><span class="o">=</span>&lt;results<span class="w"> </span>root&gt;<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--report<span class="w"> </span>&lt;reports&gt;/evidence_report.json<span class="w"> </span>--require-qualified
+</pre></div>
+</div>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">"schema_version"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"project"</span><span class="p">:</span><span class="w"> </span><span class="s2">"example-study"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"baseline_paper_commit"</span><span class="p">:</span><span class="w"> </span><span class="s2">"0123456789abcdef0123456789abcdef01234567"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"files"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"fig1_data"</span><span class="p">,</span><span class="w"> </span><span class="nt">"root"</span><span class="p">:</span><span class="w"> </span><span class="s2">"runs"</span><span class="p">,</span><span class="w"> </span><span class="nt">"path"</span><span class="p">:</span><span class="w"> </span><span class="s2">"figure1/summary.csv"</span><span class="p">,</span>
+<span class="w">     </span><span class="nt">"sha256"</span><span class="p">:</span><span class="w"> </span><span class="s2">"&lt;64 hexadecimal digits&gt;"</span><span class="p">}</span>
+<span class="w">  </span><span class="p">],</span>
+<span class="w">  </span><span class="nt">"results"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Figure 1"</span><span class="p">,</span><span class="w"> </span><span class="nt">"artifact"</span><span class="p">:</span><span class="w"> </span><span class="s2">"fig1_data"</span><span class="p">,</span><span class="w"> </span><span class="nt">"evidence"</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
+<span class="w">     </span><span class="nt">"workflow_kind"</span><span class="p">:</span><span class="w"> </span><span class="s2">"native"</span><span class="p">,</span><span class="w"> </span><span class="nt">"qualification"</span><span class="p">:</span><span class="w"> </span><span class="s2">"pending"</span><span class="p">}</span>
+<span class="w">  </span><span class="p">],</span>
+<span class="w">  </span><span class="nt">"missing_evidence"</span><span class="p">:</span><span class="w"> </span><span class="p">[]</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>Each file names one of the <code class="docutils literal notranslate"><span class="pre">--root</span> <span class="pre">NAME=PATH</span></code> directories and a relative path
+inside it, with its expected SHA-256 digest. Each result names its artifact
+and evidence files by <code class="docutils literal notranslate"><span class="pre">id</span></code> and classifies its computation in
+<code class="docutils literal notranslate"><span class="pre">workflow_kind</span></code>; it counts as qualified only with <code class="docutils literal notranslate"><span class="pre">qualification:</span>
+<span class="pre">numerically_validated</span></code> and a non-empty <code class="docutils literal notranslate"><span class="pre">validation_evidence</span></code> list of file
+<code class="docutils literal notranslate"><span class="pre">id</span></code> values. Unknown roots, paths that leave their root, duplicate
+identifiers and references to undeclared files raise.</p>
+<p>The report, a new file outside every root, holds <code class="docutils literal notranslate"><span class="pre">integrity</span></code> (<code class="docutils literal notranslate"><span class="pre">passed</span></code>
+when every file matches), one check per file (<code class="docutils literal notranslate"><span class="pre">match</span></code>, <code class="docutils literal notranslate"><span class="pre">changed</span></code> or
+<code class="docutils literal notranslate"><span class="pre">missing</span></code>), <code class="docutils literal notranslate"><span class="pre">unqualified_results</span></code>, <code class="docutils literal notranslate"><span class="pre">unresolved_dependencies</span></code> (the
+manifest’s <code class="docutils literal notranslate"><span class="pre">missing_evidence</span></code>), the manifest digest and the baseline commit.
+The command exits with status 1 when a file does not match, and with
+<code class="docutils literal notranslate"><span class="pre">--require-qualified</span></code> also when a result is unqualified or a dependency is
+unresolved. Matching digests show that the declared bytes are preserved, not
+that the workflow that produced them is valid.</p>
+</section>
+<section id="exact-file-inventories">
+<span id="id2"></span><h2>Exact-file inventories<a class="headerlink" href="#exact-file-inventories" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">dendritic_modeling.utils.exact_file_inventory</span></code> freezes the input files of a
+run after the application has verified them, and rehashes every file before
+each execution; no size-or-timestamp shortcut is accepted. An inventory lists
+each file’s absolute resolved path, size, SHA-256 digest and roles, sorted by
+path with task identifiers <code class="docutils literal notranslate"><span class="pre">file_00000</span></code>, <code class="docutils literal notranslate"><span class="pre">file_00001</span></code>, …, and carries its
+own digest:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">build_inventory</span></code> canonicalizes the application’s list of files (merging
+the roles of a repeated path) with the application’s generation binding;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">validate_inventory</span></code> checks an inventory’s schema, order and digest
+without reading the files;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">balanced_assignment</span></code> assigns the files to ranks, largest first, each to
+the rank with the fewest bytes so far;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">verify_shard</span></code> rehashes one rank’s files, comparing a symlink-aware
+<code class="docutils literal notranslate"><span class="pre">file_snapshot</span></code> before and after each read, and returns a shard receipt;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">merge_verified_shards</span></code> accepts exactly one shard per rank with exactly
+the assigned files, checks that no file changed since it was hashed, and
+returns the verification receipt (with its own digest) and the snapshots.</p></li>
+</ul>
+<p>The functions are listed in <a class="reference internal" href="api_reference.html#python-api"><span class="std std-ref">Python API</span></a>.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="model_compression.html" class="btn btn-neutral float-left" title="Compact checkpoints" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="available_components.html" class="btn btn-neutral float-right" title="Component catalogue" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024-2026, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

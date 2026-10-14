@@ -1,0 +1,588 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>dendritic_modeling.training.factory &mdash; DendriNet v0.2.0</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=938c9ccc"></script>
+      <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            DendriNet
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../examples.html">Example configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Building models</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../network_architectures.html">Model architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../dendritic_neurons.html">Dendritic neurons</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../synapses.html">Synapses and connectivity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../population_networks.html">Population networks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../temporal_dynamics.html">Temporal dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../structured_ei_cores.html">Structured E/I cores</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../conductance_options.html">Conductance options</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../comparison_models.html">Baselines and comparison models</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Configuration</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../configuration_guide.html">Configuration guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../config_reference.html">Annotated reference configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../training_strategies.html">Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../distributed_training.html">Distributed training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../performance_kernels.html">Sparse execution and performance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Data and analysis</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../datasets.html">Datasets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../analysis.html">Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../analyzers.html">Analyzer reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../checkpoint_analysis.html">Analyzing saved checkpoints</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Running experiments</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../runs_and_outputs.html">Runs and outputs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../sweeps.html">Parameter sweeps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../model_compression.html">Compact checkpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../project_provenance.html">Project provenance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../available_components.html">Component catalogue</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../options_reference.html">Options reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../cli_reference.html">Command-line reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api_reference.html">Python API</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../extending.html">Extending DendriNet</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../engineering_architecture.html">Engineering architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../contributing.html">Contributing</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">DendriNet</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">dendritic_modeling.training.factory</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for dendritic_modeling.training.factory</h1><div class="highlight"><pre>
+<span></span><span class="sd">"""</span>
+<span class="sd">Training Factory and Utilities</span>
+
+<span class="sd">Factory functions for creating training strategies and utility functions</span>
+<span class="sd">for MLP training and weight transfer.</span>
+<span class="sd">"""</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">importlib</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Optional</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config.conversion</span><span class="w"> </span><span class="kn">import</span> <span class="n">to_plain_dict</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config.keys</span><span class="w"> </span><span class="kn">import</span> <span class="n">build_section</span><span class="p">,</span> <span class="n">check_section_keys</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config.multi_stage_training</span><span class="w"> </span><span class="kn">import</span> <span class="n">MultiStageTrainingConfig</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config.training</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">OptimizerConfig</span><span class="p">,</span>
+    <span class="n">ParamGroupsConfig</span><span class="p">,</span>
+    <span class="n">PruningConfig</span><span class="p">,</span>
+    <span class="n">RegularizationConfig</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.plugins</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_plugins</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.training.strategies</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">ExcitationInhibitionEquilibriumTrainer</span><span class="p">,</span>
+    <span class="n">FeedbackAlignmentTrainer</span><span class="p">,</span>
+    <span class="n">HomeostaticControlTrainer</span><span class="p">,</span>
+    <span class="n">LayerWiseTrainer</span><span class="p">,</span>
+    <span class="n">LocalCreditAssignment</span><span class="p">,</span>
+    <span class="n">MultiStageTrainer</span><span class="p">,</span>
+    <span class="n">PresentationStreamTrainer</span><span class="p">,</span>
+    <span class="n">RecurrentTrainer</span><span class="p">,</span>
+    <span class="n">SomaDFATrainer</span><span class="p">,</span>
+    <span class="n">Trainer</span><span class="p">,</span>
+    <span class="n">TwoStepTrainer</span><span class="p">,</span>
+    <span class="n">TwoStepTrainerWithKL</span><span class="p">,</span>
+    <span class="n">VoltageStabilizationTrainer</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.training.strategies.standard</span><span class="w"> </span><span class="kn">import</span> <span class="n">validate_lr_schedule</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+<span class="c1"># These classes are resolved by name through ``globals()`` below, and tests</span>
+<span class="c1"># patch them through this module path. Keep them materialized in module globals.</span>
+<span class="n">_TRAINER_CLASS_GLOBALS</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">ExcitationInhibitionEquilibriumTrainer</span><span class="p">,</span>
+    <span class="n">FeedbackAlignmentTrainer</span><span class="p">,</span>
+    <span class="n">HomeostaticControlTrainer</span><span class="p">,</span>
+    <span class="n">LayerWiseTrainer</span><span class="p">,</span>
+    <span class="n">LocalCreditAssignment</span><span class="p">,</span>
+    <span class="n">MultiStageTrainer</span><span class="p">,</span>
+    <span class="n">PresentationStreamTrainer</span><span class="p">,</span>
+    <span class="n">RecurrentTrainer</span><span class="p">,</span>
+    <span class="n">SomaDFATrainer</span><span class="p">,</span>
+    <span class="n">Trainer</span><span class="p">,</span>
+    <span class="n">TwoStepTrainer</span><span class="p">,</span>
+    <span class="n">TwoStepTrainerWithKL</span><span class="p">,</span>
+    <span class="n">VoltageStabilizationTrainer</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">TRAINER_STRATEGY_REGISTRY</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">"standard"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"class"</span><span class="p">:</span> <span class="s2">"Trainer"</span><span class="p">},</span>
+    <span class="s2">"freeze_layers"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"class"</span><span class="p">:</span> <span class="s2">"LayerWiseTrainer"</span><span class="p">},</span>
+    <span class="s2">"freeze_branches"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"class"</span><span class="p">:</span> <span class="s2">"TwoStepTrainer"</span><span class="p">},</span>
+    <span class="s2">"fa"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"class"</span><span class="p">:</span> <span class="s2">"FeedbackAlignmentTrainer"</span><span class="p">,</span> <span class="s2">"fixed_kwargs"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"mode"</span><span class="p">:</span> <span class="s2">"fa"</span><span class="p">}},</span>
+    <span class="s2">"dfa"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"class"</span><span class="p">:</span> <span class="s2">"FeedbackAlignmentTrainer"</span><span class="p">,</span> <span class="s2">"fixed_kwargs"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"mode"</span><span class="p">:</span> <span class="s2">"dfa"</span><span class="p">}},</span>
+    <span class="s2">"soma_dfa"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"class"</span><span class="p">:</span> <span class="s2">"SomaDFATrainer"</span><span class="p">},</span>
+    <span class="s2">"local_ca"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"class"</span><span class="p">:</span> <span class="s2">"LocalCreditAssignment"</span><span class="p">},</span>
+    <span class="s2">"freeze_branch_kl"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"class"</span><span class="p">:</span> <span class="s2">"TwoStepTrainerWithKL"</span><span class="p">},</span>
+    <span class="s2">"voltage_stabilization"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"class"</span><span class="p">:</span> <span class="s2">"VoltageStabilizationTrainer"</span><span class="p">},</span>
+    <span class="s2">"homeostatic_control"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"class"</span><span class="p">:</span> <span class="s2">"HomeostaticControlTrainer"</span><span class="p">},</span>
+    <span class="s2">"ei_equilibrium"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"class"</span><span class="p">:</span> <span class="s2">"ExcitationInhibitionEquilibriumTrainer"</span><span class="p">},</span>
+    <span class="s2">"presentation_stream"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"class"</span><span class="p">:</span> <span class="s2">"PresentationStreamTrainer"</span><span class="p">},</span>
+<span class="p">}</span>
+
+<span class="c1"># Former strategies that now run as the strategy they name. FA and DFA compute</span>
+<span class="c1"># each block's exact local gradient, which includes the conductance and</span>
+<span class="c1"># driving-force terms the shunting variants approximated.</span>
+<span class="n">DEPRECATED_STRATEGY_ALIASES</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">"shunting_fa"</span><span class="p">:</span> <span class="s2">"fa"</span><span class="p">,</span>
+    <span class="s2">"shunting_dfa"</span><span class="p">:</span> <span class="s2">"dfa"</span><span class="p">,</span>
+<span class="p">}</span>
+<span class="n">SPECIAL_TRAINER_STRATEGIES</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s2">"recurrent"</span><span class="p">,</span>
+    <span class="s2">"multi_stage"</span><span class="p">,</span>
+<span class="p">]</span>
+<span class="n">_WARNED_STRATEGY_ALIASES</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+
+
+<div class="viewcode-block" id="register_trainer_strategy">
+<a class="viewcode-back" href="../../../api_reference.html#dendritic_modeling.training.factory.register_trainer_strategy">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">register_trainer_strategy</span><span class="p">(</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">trainer_class</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Trainer</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">fixed_kwargs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">allow_override</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Register a trainer strategy without editing ``get_trainer``.</span>
+
+<span class="sd">    ``trainer_class`` is a :class:`Trainer` subclass or a ``"module:Class"``</span>
+<span class="sd">    reference, which is imported when the strategy is first used (plugins</span>
+<span class="sd">    register strategies this way, so that loading them stays light). Replacing</span>
+<span class="sd">    an existing strategy (built-in or registered) requires</span>
+<span class="sd">    ``allow_override=True``.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">name</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"trainer strategy name must be non-empty"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">trainer_class</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">and</span> <span class="n">trainer_class</span><span class="o">.</span><span class="n">count</span><span class="p">(</span><span class="s2">":"</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">"a trainer class reference is written 'module:Class', got "</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">trainer_class</span><span class="si">!r}</span><span class="s2">"</span>
+        <span class="p">)</span>
+    <span class="n">key</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">name</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+    <span class="k">if</span> <span class="p">(</span>
+        <span class="n">key</span> <span class="ow">in</span> <span class="n">TRAINER_STRATEGY_REGISTRY</span> <span class="ow">or</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">SPECIAL_TRAINER_STRATEGIES</span>
+    <span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">allow_override</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"Trainer strategy '</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">' is already registered; pass "</span>
+            <span class="s2">"allow_override=True to replace it"</span>
+        <span class="p">)</span>
+    <span class="n">TRAINER_STRATEGY_REGISTRY</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">"class"</span><span class="p">:</span> <span class="n">trainer_class</span><span class="p">,</span>
+        <span class="s2">"fixed_kwargs"</span><span class="p">:</span> <span class="nb">dict</span><span class="p">(</span><span class="n">fixed_kwargs</span> <span class="ow">or</span> <span class="p">{}),</span>
+    <span class="p">}</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">get_available_trainer_strategies</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Return supported trainer strategy names, including those of plugins."""</span>
+    <span class="n">load_plugins</span><span class="p">()</span>
+    <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="n">TRAINER_STRATEGY_REGISTRY</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span> <span class="o">+</span> <span class="n">SPECIAL_TRAINER_STRATEGIES</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_resolve_trainer_class</span><span class="p">(</span><span class="n">class_ref</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Trainer</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">type</span><span class="p">[</span><span class="n">Trainer</span><span class="p">]:</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">class_ref</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">class_ref</span>
+    <span class="k">if</span> <span class="s2">":"</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">class_ref</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">globals</span><span class="p">()[</span><span class="n">class_ref</span><span class="p">]</span>  <span class="c1"># a trainer of this module</span>
+    <span class="n">module_name</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">class_name</span> <span class="o">=</span> <span class="n">class_ref</span><span class="o">.</span><span class="n">partition</span><span class="p">(</span><span class="s2">":"</span><span class="p">)</span>
+    <span class="n">trainer_cls</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">importlib</span><span class="o">.</span><span class="n">import_module</span><span class="p">(</span><span class="n">module_name</span><span class="p">),</span> <span class="n">class_name</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">trainer_cls</span><span class="p">,</span> <span class="nb">type</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">issubclass</span><span class="p">(</span><span class="n">trainer_cls</span><span class="p">,</span> <span class="n">Trainer</span><span class="p">)):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">class_ref</span><span class="si">}</span><span class="s2"> is not a Trainer subclass"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">trainer_cls</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_build_multi_stage_config</span><span class="p">(</span><span class="n">raw_config</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">MultiStageTrainingConfig</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Build the typed multi-stage config, checking every key."""</span>
+    <span class="k">if</span> <span class="n">raw_config</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">"strategy='multi_stage' requires 'multi_stage_config' in trainer config."</span>
+        <span class="p">)</span>
+    <span class="n">config</span> <span class="o">=</span> <span class="n">build_section</span><span class="p">(</span>
+        <span class="n">MultiStageTrainingConfig</span><span class="p">,</span>
+        <span class="n">raw_config</span><span class="p">,</span>
+        <span class="n">section</span><span class="o">=</span><span class="s2">"training.main.strategies.multi_stage"</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">config</span><span class="o">.</span><span class="n">stages</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"multi_stage_config must contain at least one stage."</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">config</span>
+
+
+<span class="n">_FLATTENED_STRATEGY_CONFIG_KEYS</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="s2">"voltage_stabilization_config"</span><span class="p">,</span>
+    <span class="s2">"homeostatic_control_config"</span><span class="p">,</span>
+    <span class="s2">"ei_equilibrium_config"</span><span class="p">,</span>
+    <span class="s2">"freeze_layers_config"</span><span class="p">,</span>
+    <span class="s2">"freeze_branches_config"</span><span class="p">,</span>
+    <span class="s2">"freeze_branch_kl_config"</span><span class="p">,</span>
+<span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_pop_flat_strategy_config</span><span class="p">(</span>
+    <span class="n">enhanced_configs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="n">trainer_config_dict</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="n">key</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Pop a nested strategy config and flatten dict values into trainer kwargs."""</span>
+    <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">trainer_config_dict</span><span class="p">:</span>
+        <span class="k">return</span>
+    <span class="n">nested_config</span> <span class="o">=</span> <span class="n">trainer_config_dict</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">nested_config</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"trainer option </span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2"> must be a mapping, got "</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">nested_config</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">"</span>
+        <span class="p">)</span>
+    <span class="n">enhanced_configs</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">nested_config</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_extract_enhanced_configs</span><span class="p">(</span><span class="n">trainer_config_dict</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Extract enhanced configuration objects from trainer config dict.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        trainer_config_dict: Configuration dictionary</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Dictionary containing enhanced config objects</span>
+<span class="sd">    """</span>
+    <span class="n">enhanced_configs</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="c1"># Extract optimizer config</span>
+    <span class="k">if</span> <span class="s2">"optimizer"</span> <span class="ow">in</span> <span class="n">trainer_config_dict</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span>
+        <span class="n">trainer_config_dict</span><span class="p">[</span><span class="s2">"optimizer"</span><span class="p">],</span> <span class="nb">dict</span>
+    <span class="p">):</span>
+        <span class="n">enhanced_configs</span><span class="p">[</span><span class="s2">"optimizer_config"</span><span class="p">]</span> <span class="o">=</span> <span class="n">OptimizerConfig</span><span class="p">(</span>
+            <span class="o">**</span><span class="n">trainer_config_dict</span><span class="p">[</span><span class="s2">"optimizer"</span><span class="p">]</span>
+        <span class="p">)</span>
+        <span class="c1"># Don't pass the dict version to avoid conflicts</span>
+        <span class="n">trainer_config_dict</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">"optimizer"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+
+    <span class="c1"># Extract regularization config</span>
+    <span class="k">if</span> <span class="s2">"regularization"</span> <span class="ow">in</span> <span class="n">trainer_config_dict</span><span class="p">:</span>
+        <span class="n">reg_config</span> <span class="o">=</span> <span class="n">trainer_config_dict</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">"regularization"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">reg_config</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+            <span class="c1"># Handle nested SelectiveConfig properly</span>
+            <span class="k">if</span> <span class="s2">"selective"</span> <span class="ow">in</span> <span class="n">reg_config</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">reg_config</span><span class="p">[</span><span class="s2">"selective"</span><span class="p">],</span> <span class="nb">dict</span><span class="p">):</span>
+                <span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config.regularization</span><span class="w"> </span><span class="kn">import</span> <span class="n">SelectiveConfig</span>
+
+                <span class="n">reg_config</span><span class="p">[</span><span class="s2">"selective"</span><span class="p">]</span> <span class="o">=</span> <span class="n">SelectiveConfig</span><span class="p">(</span><span class="o">**</span><span class="n">reg_config</span><span class="p">[</span><span class="s2">"selective"</span><span class="p">])</span>
+            <span class="n">enhanced_configs</span><span class="p">[</span><span class="s2">"regularization_config"</span><span class="p">]</span> <span class="o">=</span> <span class="n">RegularizationConfig</span><span class="p">(</span>
+                <span class="o">**</span><span class="n">reg_config</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">enhanced_configs</span><span class="p">[</span><span class="s2">"regularization_config"</span><span class="p">]</span> <span class="o">=</span> <span class="n">reg_config</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># Create default regularization config and check for E/I parameters</span>
+        <span class="n">reg_config_dict</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="c1"># Check for E/I regularization parameters in trainer config</span>
+        <span class="n">ei_params</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="s2">"enforce_ei_weight_ratio"</span><span class="p">,</span>
+            <span class="s2">"target_ei_weight_ratio"</span><span class="p">,</span>
+            <span class="s2">"ei_ratio_loss_weight"</span><span class="p">,</span>
+            <span class="s2">"ei_ratio_scope"</span><span class="p">,</span>
+            <span class="s2">"ei_ratio_metric"</span><span class="p">,</span>
+        <span class="p">]</span>
+        <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="n">ei_params</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">param</span> <span class="ow">in</span> <span class="n">trainer_config_dict</span><span class="p">:</span>
+                <span class="n">reg_config_dict</span><span class="p">[</span><span class="n">param</span><span class="p">]</span> <span class="o">=</span> <span class="n">trainer_config_dict</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">param</span><span class="p">)</span>
+
+        <span class="c1"># Create regularization config with parameters if found</span>
+        <span class="k">if</span> <span class="n">reg_config_dict</span><span class="p">:</span>
+            <span class="n">enhanced_configs</span><span class="p">[</span><span class="s2">"regularization_config"</span><span class="p">]</span> <span class="o">=</span> <span class="n">RegularizationConfig</span><span class="p">(</span>
+                <span class="o">**</span><span class="n">reg_config_dict</span>
+            <span class="p">)</span>
+
+    <span class="c1"># Extract pruning config</span>
+    <span class="k">if</span> <span class="s2">"pruning"</span> <span class="ow">in</span> <span class="n">trainer_config_dict</span><span class="p">:</span>
+        <span class="n">prune_config</span> <span class="o">=</span> <span class="n">trainer_config_dict</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">"pruning"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">prune_config</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+            <span class="c1"># Handle nested SelectiveConfig properly</span>
+            <span class="k">if</span> <span class="s2">"selective"</span> <span class="ow">in</span> <span class="n">prune_config</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span>
+                <span class="n">prune_config</span><span class="p">[</span><span class="s2">"selective"</span><span class="p">],</span> <span class="nb">dict</span>
+            <span class="p">):</span>
+                <span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config.regularization</span><span class="w"> </span><span class="kn">import</span> <span class="n">SelectiveConfig</span>
+
+                <span class="n">prune_config</span><span class="p">[</span><span class="s2">"selective"</span><span class="p">]</span> <span class="o">=</span> <span class="n">SelectiveConfig</span><span class="p">(</span><span class="o">**</span><span class="n">prune_config</span><span class="p">[</span><span class="s2">"selective"</span><span class="p">])</span>
+            <span class="n">enhanced_configs</span><span class="p">[</span><span class="s2">"pruning_config"</span><span class="p">]</span> <span class="o">=</span> <span class="n">PruningConfig</span><span class="p">(</span><span class="o">**</span><span class="n">prune_config</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">enhanced_configs</span><span class="p">[</span><span class="s2">"pruning_config"</span><span class="p">]</span> <span class="o">=</span> <span class="n">prune_config</span>
+
+    <span class="k">if</span> <span class="s2">"reporting"</span> <span class="ow">in</span> <span class="n">trainer_config_dict</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">"The trainer option 'reporting' was removed: its values were never "</span>
+            <span class="s2">"read. The pruning report options are fields of 'pruning'."</span>
+        <span class="p">)</span>
+
+    <span class="c1"># Extract param_groups config (preserve original parameter grouping behavior)</span>
+    <span class="k">if</span> <span class="s2">"param_groups"</span> <span class="ow">in</span> <span class="n">trainer_config_dict</span><span class="p">:</span>
+        <span class="n">param_groups_config</span> <span class="o">=</span> <span class="n">trainer_config_dict</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">"param_groups"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">param_groups_config</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+            <span class="n">param_groups_config</span> <span class="o">=</span> <span class="n">ParamGroupsConfig</span><span class="p">(</span>
+                <span class="o">**</span><span class="n">check_section_keys</span><span class="p">(</span>
+                    <span class="n">param_groups_config</span><span class="p">,</span>
+                    <span class="n">ParamGroupsConfig</span><span class="o">.</span><span class="n">__dataclass_fields__</span><span class="p">,</span>
+                    <span class="n">section</span><span class="o">=</span><span class="s2">"param_groups"</span><span class="p">,</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+        <span class="n">enhanced_configs</span><span class="p">[</span><span class="s2">"param_groups_config"</span><span class="p">]</span> <span class="o">=</span> <span class="n">param_groups_config</span>
+
+    <span class="c1"># Extract strategy-specific nested configs and flatten into kwargs</span>
+    <span class="c1"># Local credit assignment</span>
+    <span class="k">if</span> <span class="s2">"local_rule_config"</span> <span class="ow">in</span> <span class="n">trainer_config_dict</span><span class="p">:</span>
+        <span class="n">enhanced_configs</span><span class="p">[</span><span class="s2">"local_rule_config"</span><span class="p">]</span> <span class="o">=</span> <span class="n">trainer_config_dict</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span>
+            <span class="s2">"local_rule_config"</span>
+        <span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">_FLATTENED_STRATEGY_CONFIG_KEYS</span><span class="p">:</span>
+        <span class="n">_pop_flat_strategy_config</span><span class="p">(</span><span class="n">enhanced_configs</span><span class="p">,</span> <span class="n">trainer_config_dict</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">enhanced_configs</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_apply_enhanced_configs</span><span class="p">(</span><span class="n">trainer_config_dict</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">trainer_config_dict</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">_extract_enhanced_configs</span><span class="p">(</span><span class="n">trainer_config_dict</span><span class="p">))</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_validate_lr_schedule_for</span><span class="p">(</span>
+    <span class="n">trainer_cls</span><span class="p">:</span> <span class="nb">type</span><span class="p">,</span> <span class="n">trainer_config_dict</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Fail before training when the strategy would not apply the LR schedule.</span>
+
+<span class="sd">    ``training.main.common.lr_schedule``/``lr_warmup_epochs`` are applied per</span>
+<span class="sd">    epoch by ``Trainer.train()``; strategies whose loops bypass it declare</span>
+<span class="sd">    ``supports_lr_schedule = False``.</span>
+<span class="sd">    """</span>
+    <span class="n">validate_lr_schedule</span><span class="p">(</span>
+        <span class="n">trainer_config_dict</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"lr_schedule"</span><span class="p">,</span> <span class="s2">"none"</span><span class="p">),</span>
+        <span class="n">trainer_config_dict</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"lr_warmup_epochs"</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>
+        <span class="n">supported</span><span class="o">=</span><span class="nb">bool</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">trainer_cls</span><span class="p">,</span> <span class="s2">"supports_lr_schedule"</span><span class="p">,</span> <span class="kc">False</span><span class="p">)),</span>
+        <span class="n">owner</span><span class="o">=</span><span class="nb">getattr</span><span class="p">(</span><span class="n">trainer_cls</span><span class="p">,</span> <span class="s2">"__name__"</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">trainer_cls</span><span class="p">)),</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_build_recurrent_trainer</span><span class="p">(</span><span class="n">trainer_config_dict</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">RecurrentTrainer</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Build a recurrent trainer while preserving legacy kwarg precedence."""</span>
+    <span class="c1"># Strategy-specific recurrent config takes precedence over generic fields.</span>
+    <span class="n">recurrent_cfg</span> <span class="o">=</span> <span class="n">trainer_config_dict</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">"recurrent_config"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">recurrent_cfg</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">recurrent_cfg</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="n">recurrent_cfg</span> <span class="o">=</span> <span class="n">to_plain_dict</span><span class="p">(</span><span class="n">recurrent_cfg</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">recurrent_cfg</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="c1"># Set strategy overrides take precedence over common settings; None</span>
+        <span class="c1"># means "inherit training.main.common".</span>
+        <span class="n">trainer_config_dict</span><span class="o">.</span><span class="n">update</span><span class="p">(</span>
+            <span class="p">{</span><span class="n">key</span><span class="p">:</span> <span class="n">value</span> <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">recurrent_cfg</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">}</span>
+        <span class="p">)</span>
+
+    <span class="n">task</span> <span class="o">=</span> <span class="n">trainer_config_dict</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">"task"</span><span class="p">,</span> <span class="s2">"classification"</span><span class="p">)</span>
+    <span class="n">use_amp</span> <span class="o">=</span> <span class="n">trainer_config_dict</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">"use_amp"</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+    <span class="n">lr_schedule</span> <span class="o">=</span> <span class="n">trainer_config_dict</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">"lr_schedule"</span><span class="p">,</span> <span class="s2">"none"</span><span class="p">)</span>
+    <span class="n">lr_warmup_epochs</span> <span class="o">=</span> <span class="n">trainer_config_dict</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">"lr_warmup_epochs"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="n">validate_lr_schedule</span><span class="p">(</span>
+        <span class="n">lr_schedule</span><span class="p">,</span> <span class="n">lr_warmup_epochs</span><span class="p">,</span> <span class="n">supported</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">owner</span><span class="o">=</span><span class="s2">"RecurrentTrainer"</span>
+    <span class="p">)</span>
+    <span class="n">_apply_enhanced_configs</span><span class="p">(</span><span class="n">trainer_config_dict</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">RecurrentTrainer</span><span class="p">(</span>
+        <span class="n">task</span><span class="o">=</span><span class="n">task</span><span class="p">,</span>
+        <span class="n">use_amp</span><span class="o">=</span><span class="n">use_amp</span><span class="p">,</span>
+        <span class="n">lr_schedule</span><span class="o">=</span><span class="n">lr_schedule</span><span class="p">,</span>
+        <span class="n">lr_warmup_epochs</span><span class="o">=</span><span class="n">lr_warmup_epochs</span><span class="p">,</span>
+        <span class="o">**</span><span class="n">trainer_config_dict</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_build_multi_stage_trainer</span><span class="p">(</span>
+    <span class="n">trainer_config_dict</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">optimizer</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Optimizer</span><span class="p">,</span>
+    <span class="n">analysis_manager</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">object</span><span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">MultiStageTrainer</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Build a multi-stage trainer from normalized factory kwargs."""</span>
+    <span class="n">raw_multi_stage_config</span> <span class="o">=</span> <span class="n">trainer_config_dict</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">"multi_stage_config"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">multi_stage_config</span> <span class="o">=</span> <span class="n">_build_multi_stage_config</span><span class="p">(</span><span class="n">raw_multi_stage_config</span><span class="p">)</span>
+    <span class="c1"># training.main.optimizer, used by stages that rebuild their optimizer.</span>
+    <span class="n">optimizer_config</span> <span class="o">=</span> <span class="n">trainer_config_dict</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">"optimizer_config"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">optimizer_config</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="n">optimizer_config</span> <span class="o">=</span> <span class="n">OptimizerConfig</span><span class="p">(</span><span class="o">**</span><span class="n">optimizer_config</span><span class="p">)</span>
+
+    <span class="n">_apply_enhanced_configs</span><span class="p">(</span><span class="n">trainer_config_dict</span><span class="p">)</span>
+    <span class="n">_validate_lr_schedule_for</span><span class="p">(</span><span class="n">MultiStageTrainer</span><span class="p">,</span> <span class="n">trainer_config_dict</span><span class="p">)</span>
+
+    <span class="n">base_trainer_config</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">trainer_config_dict</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">MultiStageTrainer</span><span class="p">(</span>
+        <span class="n">multi_stage_config</span><span class="o">=</span><span class="n">multi_stage_config</span><span class="p">,</span>
+        <span class="n">base_optimizer</span><span class="o">=</span><span class="n">optimizer</span><span class="p">,</span>
+        <span class="n">base_trainer_config</span><span class="o">=</span><span class="n">base_trainer_config</span><span class="p">,</span>
+        <span class="n">analysis_manager</span><span class="o">=</span><span class="n">analysis_manager</span><span class="p">,</span>
+        <span class="n">optimizer_config</span><span class="o">=</span><span class="n">optimizer_config</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">get_trainer</span><span class="p">(</span>
+    <span class="n">strategy</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">optimizer</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Optimizer</span><span class="p">,</span>
+    <span class="n">trainer_config_dict</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="n">analysis_manager</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">object</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Trainer</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Factory function to create training strategies.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        strategy: String specifying the training strategy</span>
+<span class="sd">        optimizer: The optimizer to use</span>
+<span class="sd">        trainer_config_dict: The trainer configuration dict</span>
+<span class="sd">        analysis_manager: Optional analysis manager</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        An instance of the requested training strategy</span>
+<span class="sd">    """</span>
+    <span class="n">strategy</span> <span class="o">=</span> <span class="n">strategy</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">strategy</span> <span class="ow">in</span> <span class="n">DEPRECATED_STRATEGY_ALIASES</span><span class="p">:</span>
+        <span class="n">target</span> <span class="o">=</span> <span class="n">DEPRECATED_STRATEGY_ALIASES</span><span class="p">[</span><span class="n">strategy</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">strategy</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">_WARNED_STRATEGY_ALIASES</span><span class="p">:</span>
+            <span class="n">_WARNED_STRATEGY_ALIASES</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">strategy</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="s2">"Strategy </span><span class="si">%r</span><span class="s2"> now runs as </span><span class="si">%r</span><span class="s2">: </span><span class="si">%s</span><span class="s2"> computes each block's exact local "</span>
+                <span class="s2">"gradient, which includes the conductance and driving-force terms "</span>
+                <span class="s2">"</span><span class="si">%r</span><span class="s2"> approximated. Write </span><span class="si">%r</span><span class="s2">."</span><span class="p">,</span>
+                <span class="n">strategy</span><span class="p">,</span>
+                <span class="n">target</span><span class="p">,</span>
+                <span class="n">target</span><span class="p">,</span>
+                <span class="n">strategy</span><span class="p">,</span>
+                <span class="n">target</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="n">strategy</span> <span class="o">=</span> <span class="n">target</span>
+    <span class="n">trainer_config_dict</span><span class="p">[</span><span class="s2">"analysis_manager"</span><span class="p">]</span> <span class="o">=</span> <span class="n">analysis_manager</span>
+    <span class="n">trainer_config_dict</span><span class="p">[</span><span class="s2">"optimizer"</span><span class="p">]</span> <span class="o">=</span> <span class="n">optimizer</span>
+
+    <span class="k">if</span> <span class="p">(</span>
+        <span class="n">strategy</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">TRAINER_STRATEGY_REGISTRY</span>
+        <span class="ow">and</span> <span class="n">strategy</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">SPECIAL_TRAINER_STRATEGIES</span>
+    <span class="p">):</span>
+        <span class="n">load_plugins</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">strategy</span> <span class="ow">in</span> <span class="n">TRAINER_STRATEGY_REGISTRY</span><span class="p">:</span>
+        <span class="n">_apply_enhanced_configs</span><span class="p">(</span><span class="n">trainer_config_dict</span><span class="p">)</span>
+        <span class="n">spec</span> <span class="o">=</span> <span class="n">TRAINER_STRATEGY_REGISTRY</span><span class="p">[</span><span class="n">strategy</span><span class="p">]</span>
+        <span class="n">trainer_config_dict</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">spec</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"fixed_kwargs"</span><span class="p">,</span> <span class="p">{}))</span>
+        <span class="n">trainer_cls</span> <span class="o">=</span> <span class="n">_resolve_trainer_class</span><span class="p">(</span><span class="n">spec</span><span class="p">[</span><span class="s2">"class"</span><span class="p">])</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">trainer_cls</span><span class="p">,</span> <span class="s2">"applies_own_lr_schedule"</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
+            <span class="n">_validate_lr_schedule_for</span><span class="p">(</span><span class="n">trainer_cls</span><span class="p">,</span> <span class="n">trainer_config_dict</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">trainer_cls</span><span class="p">(</span><span class="o">**</span><span class="n">trainer_config_dict</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">strategy</span> <span class="o">==</span> <span class="s2">"recurrent"</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">_build_recurrent_trainer</span><span class="p">(</span><span class="n">trainer_config_dict</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">strategy</span> <span class="o">==</span> <span class="s2">"multi_stage"</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">_build_multi_stage_trainer</span><span class="p">(</span>
+            <span class="n">trainer_config_dict</span><span class="p">,</span>
+            <span class="n">optimizer</span><span class="o">=</span><span class="n">optimizer</span><span class="p">,</span>
+            <span class="n">analysis_manager</span><span class="o">=</span><span class="n">analysis_manager</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">supported</span> <span class="o">=</span> <span class="n">get_available_trainer_strategies</span><span class="p">()</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"Unknown training strategy '</span><span class="si">{</span><span class="n">strategy</span><span class="si">}</span><span class="s2">'. Supported strategies: </span><span class="si">{</span><span class="n">supported</span><span class="si">}</span><span class="s2">"</span>
+        <span class="p">)</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024-2026, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

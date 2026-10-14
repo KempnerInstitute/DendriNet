@@ -1,0 +1,602 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>dendritic_modeling.utils.exact_file_inventory &mdash; DendriNet v0.2.0</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=938c9ccc"></script>
+      <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            DendriNet
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../examples.html">Example configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Building models</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../network_architectures.html">Model architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../dendritic_neurons.html">Dendritic neurons</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../synapses.html">Synapses and connectivity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../population_networks.html">Population networks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../temporal_dynamics.html">Temporal dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../structured_ei_cores.html">Structured E/I cores</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../conductance_options.html">Conductance options</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../comparison_models.html">Baselines and comparison models</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Configuration</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../configuration_guide.html">Configuration guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../config_reference.html">Annotated reference configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../training_strategies.html">Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../distributed_training.html">Distributed training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../performance_kernels.html">Sparse execution and performance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Data and analysis</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../datasets.html">Datasets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../analysis.html">Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../analyzers.html">Analyzer reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../checkpoint_analysis.html">Analyzing saved checkpoints</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Running experiments</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../runs_and_outputs.html">Runs and outputs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../sweeps.html">Parameter sweeps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../model_compression.html">Compact checkpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../project_provenance.html">Project provenance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../available_components.html">Component catalogue</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../options_reference.html">Options reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../cli_reference.html">Command-line reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api_reference.html">Python API</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../extending.html">Extending DendriNet</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../engineering_architecture.html">Engineering architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../contributing.html">Contributing</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">DendriNet</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">dendritic_modeling.utils.exact_file_inventory</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for dendritic_modeling.utils.exact_file_inventory</h1><div class="highlight"><pre>
+<span></span><span class="sd">"""Deterministic distributed verification of a frozen exact-file inventory.</span>
+
+<span class="sd">This module deliberately separates two boundaries:</span>
+
+<span class="sd">* an application constructs and freezes an inventory only after its complete</span>
+<span class="sd">  semantic verifier has accepted the inputs; and</span>
+<span class="sd">* every execution rehashes every inventory file from live storage.</span>
+
+<span class="sd">The inventory is not a mutable cache and no stat-only shortcut is accepted.</span>
+<span class="sd">Files are assigned by a deterministic largest-first byte balancer so DDP ranks</span>
+<span class="sd">can share hashing work without changing the exact-SHA boundary.</span>
+<span class="sd">"""</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">hashlib</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">stat</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Mapping</span><span class="p">,</span> <span class="n">Sequence</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
+
+<span class="n">INVENTORY_SCHEMA</span> <span class="o">=</span> <span class="s2">"dendritic_exact_file_inventory/v1"</span>
+<span class="n">SHARD_SCHEMA</span> <span class="o">=</span> <span class="s2">"dendritic_exact_file_inventory_shard/v1"</span>
+<span class="n">VERIFICATION_SCHEMA</span> <span class="o">=</span> <span class="s2">"dendritic_exact_file_inventory_verification/v1"</span>
+
+
+<div class="viewcode-block" id="canonical_sha256">
+<a class="viewcode-back" href="../../../api_reference.html#dendritic_modeling.utils.exact_file_inventory.canonical_sha256">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">canonical_sha256</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Hash one finite canonical-JSON value."""</span>
+
+    <span class="k">return</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha256</span><span class="p">(</span>
+        <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span>
+            <span class="n">value</span><span class="p">,</span>
+            <span class="n">sort_keys</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">separators</span><span class="o">=</span><span class="p">(</span><span class="s2">","</span><span class="p">,</span> <span class="s2">":"</span><span class="p">),</span>
+            <span class="n">ensure_ascii</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">allow_nan</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s2">"utf-8"</span><span class="p">)</span>
+    <span class="p">)</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">()</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_lower_sha256</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">object</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">label</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="n">digest</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">digest</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">64</span> <span class="ow">or</span> <span class="nb">any</span><span class="p">(</span>
+        <span class="n">character</span> <span class="ow">not</span> <span class="ow">in</span> <span class="s2">"0123456789abcdef"</span> <span class="k">for</span> <span class="n">character</span> <span class="ow">in</span> <span class="n">digest</span>
+    <span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2"> must be a lowercase SHA-256 digest"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">digest</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_stat_identity</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="n">os</span><span class="o">.</span><span class="n">stat_result</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]:</span>
+    <span class="k">return</span> <span class="p">[</span>
+        <span class="nb">int</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">st_dev</span><span class="p">),</span>
+        <span class="nb">int</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">st_ino</span><span class="p">),</span>
+        <span class="nb">int</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">st_mode</span><span class="p">),</span>
+        <span class="nb">int</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">st_size</span><span class="p">),</span>
+        <span class="nb">int</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">st_mtime_ns</span><span class="p">),</span>
+        <span class="nb">int</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">st_ctime_ns</span><span class="p">),</span>
+    <span class="p">]</span>
+
+
+<div class="viewcode-block" id="file_snapshot">
+<a class="viewcode-back" href="../../../api_reference.html#dendritic_modeling.utils.exact_file_inventory.file_snapshot">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">file_snapshot</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Return a symlink-aware mutation snapshot without reading file bytes."""</span>
+
+    <span class="n">requested</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span><span class="o">.</span><span class="n">absolute</span><span class="p">()</span>
+    <span class="n">before</span> <span class="o">=</span> <span class="n">requested</span><span class="o">.</span><span class="n">lstat</span><span class="p">()</span>
+    <span class="n">resolved</span> <span class="o">=</span> <span class="n">requested</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">after</span> <span class="o">=</span> <span class="n">requested</span><span class="o">.</span><span class="n">lstat</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">_stat_identity</span><span class="p">(</span><span class="n">before</span><span class="p">)</span> <span class="o">!=</span> <span class="n">_stat_identity</span><span class="p">(</span><span class="n">after</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"input path changed while it was resolved: </span><span class="si">{</span><span class="n">requested</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="n">target</span> <span class="o">=</span> <span class="n">resolved</span><span class="o">.</span><span class="n">stat</span><span class="p">()</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">stat</span><span class="o">.</span><span class="n">S_ISREG</span><span class="p">(</span><span class="n">target</span><span class="o">.</span><span class="n">st_mode</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"input does not resolve to a regular file: </span><span class="si">{</span><span class="n">requested</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s2">"requested_path"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">requested</span><span class="p">),</span>
+        <span class="s2">"resolved_path"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">resolved</span><span class="p">),</span>
+        <span class="s2">"requested_lstat"</span><span class="p">:</span> <span class="n">_stat_identity</span><span class="p">(</span><span class="n">after</span><span class="p">),</span>
+        <span class="s2">"resolved_stat"</span><span class="p">:</span> <span class="n">_stat_identity</span><span class="p">(</span><span class="n">target</span><span class="p">),</span>
+    <span class="p">}</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_sha256_file</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="n">digest</span> <span class="o">=</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha256</span><span class="p">()</span>
+    <span class="k">with</span> <span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="s2">"rb"</span><span class="p">)</span> <span class="k">as</span> <span class="n">handle</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="nb">iter</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="n">handle</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="mi">8</span> <span class="o">*</span> <span class="mi">1024</span> <span class="o">*</span> <span class="mi">1024</span><span class="p">),</span> <span class="sa">b</span><span class="s2">""</span><span class="p">):</span>
+            <span class="n">digest</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">chunk</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">digest</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">()</span>
+
+
+<div class="viewcode-block" id="build_inventory">
+<a class="viewcode-back" href="../../../api_reference.html#dendritic_modeling.utils.exact_file_inventory.build_inventory">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">build_inventory</span><span class="p">(</span>
+    <span class="n">files</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]],</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">generation_binding</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="n">path_bindings</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="n">directory_bindings</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(),</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Canonicalize a frozen application-supplied exact-file inventory."""</span>
+
+    <span class="n">by_path</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">raw</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">files</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">set</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span> <span class="o">!=</span> <span class="p">{</span><span class="s2">"resolved_path"</span><span class="p">,</span> <span class="s2">"bytes"</span><span class="p">,</span> <span class="s2">"sha256"</span><span class="p">,</span> <span class="s2">"roles"</span><span class="p">}:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"inventory file row </span><span class="si">{</span><span class="n">index</span><span class="si">}</span><span class="s2"> has an invalid schema"</span><span class="p">)</span>
+        <span class="n">resolved</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">raw</span><span class="p">[</span><span class="s2">"resolved_path"</span><span class="p">]))</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">resolved</span><span class="o">.</span><span class="n">is_absolute</span><span class="p">()</span> <span class="ow">or</span> <span class="s2">".."</span> <span class="ow">in</span> <span class="n">resolved</span><span class="o">.</span><span class="n">parts</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"inventory resolved paths must be absolute and normalized"</span><span class="p">)</span>
+        <span class="n">resolved_string</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">resolved</span><span class="p">)</span>
+        <span class="n">size</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">raw</span><span class="p">[</span><span class="s2">"bytes"</span><span class="p">])</span>
+        <span class="k">if</span> <span class="n">size</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"inventory file bytes must be nonnegative"</span><span class="p">)</span>
+        <span class="n">digest</span> <span class="o">=</span> <span class="n">_lower_sha256</span><span class="p">(</span><span class="n">raw</span><span class="p">[</span><span class="s2">"sha256"</span><span class="p">],</span> <span class="n">label</span><span class="o">=</span><span class="s2">"inventory file sha256"</span><span class="p">)</span>
+        <span class="n">roles</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">({</span><span class="nb">str</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">raw</span><span class="p">[</span><span class="s2">"roles"</span><span class="p">]})</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">roles</span> <span class="ow">or</span> <span class="nb">any</span><span class="p">(</span><span class="ow">not</span> <span class="n">value</span> <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">roles</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"inventory file roles must be non-empty strings"</span><span class="p">)</span>
+        <span class="n">existing</span> <span class="o">=</span> <span class="n">by_path</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">resolved_string</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">existing</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">by_path</span><span class="p">[</span><span class="n">resolved_string</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s2">"resolved_path"</span><span class="p">:</span> <span class="n">resolved_string</span><span class="p">,</span>
+                <span class="s2">"bytes"</span><span class="p">:</span> <span class="n">size</span><span class="p">,</span>
+                <span class="s2">"sha256"</span><span class="p">:</span> <span class="n">digest</span><span class="p">,</span>
+                <span class="s2">"roles"</span><span class="p">:</span> <span class="n">roles</span><span class="p">,</span>
+            <span class="p">}</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">existing</span><span class="p">[</span><span class="s2">"bytes"</span><span class="p">]</span> <span class="o">!=</span> <span class="n">size</span> <span class="ow">or</span> <span class="n">existing</span><span class="p">[</span><span class="s2">"sha256"</span><span class="p">]</span> <span class="o">!=</span> <span class="n">digest</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"conflicting exact identities for </span><span class="si">{</span><span class="n">resolved_string</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+            <span class="n">existing</span><span class="p">[</span><span class="s2">"roles"</span><span class="p">]</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">existing</span><span class="p">[</span><span class="s2">"roles"</span><span class="p">])</span> <span class="o">|</span> <span class="nb">set</span><span class="p">(</span><span class="n">roles</span><span class="p">))</span>
+
+    <span class="n">rows</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">task_index</span><span class="p">,</span> <span class="n">row</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span>
+        <span class="nb">sorted</span><span class="p">(</span><span class="n">by_path</span><span class="o">.</span><span class="n">values</span><span class="p">(),</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">value</span><span class="p">:</span> <span class="n">value</span><span class="p">[</span><span class="s2">"resolved_path"</span><span class="p">])</span>
+    <span class="p">):</span>
+        <span class="n">rows</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s2">"task_id"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"file_</span><span class="si">{</span><span class="n">task_index</span><span class="si">:</span><span class="s2">05d</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="o">**</span><span class="n">row</span><span class="p">})</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">rows</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"exact-file inventory must contain at least one file"</span><span class="p">)</span>
+
+    <span class="n">normalized_path_bindings</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span>
+        <span class="p">[</span><span class="nb">dict</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">path_bindings</span><span class="p">],</span>
+        <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">value</span><span class="p">:</span> <span class="p">(</span>
+            <span class="nb">str</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"requested_path"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)),</span>
+            <span class="nb">str</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"role"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)),</span>
+        <span class="p">),</span>
+    <span class="p">)</span>
+    <span class="n">normalized_directory_bindings</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span>
+        <span class="p">[</span><span class="nb">dict</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">directory_bindings</span><span class="p">],</span>
+        <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">value</span><span class="p">:</span> <span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"kind"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)),</span> <span class="nb">str</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"root"</span><span class="p">,</span> <span class="s2">""</span><span class="p">))),</span>
+    <span class="p">)</span>
+    <span class="n">payload</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">"schema"</span><span class="p">:</span> <span class="n">INVENTORY_SCHEMA</span><span class="p">,</span>
+        <span class="s2">"status"</span><span class="p">:</span> <span class="s2">"full_generation_verification_bound_live_rehash_required"</span><span class="p">,</span>
+        <span class="s2">"generation_binding"</span><span class="p">:</span> <span class="nb">dict</span><span class="p">(</span><span class="n">generation_binding</span><span class="p">),</span>
+        <span class="s2">"files"</span><span class="p">:</span> <span class="n">rows</span><span class="p">,</span>
+        <span class="s2">"path_bindings"</span><span class="p">:</span> <span class="n">normalized_path_bindings</span><span class="p">,</span>
+        <span class="s2">"directory_bindings"</span><span class="p">:</span> <span class="n">normalized_directory_bindings</span><span class="p">,</span>
+        <span class="s2">"file_count"</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">rows</span><span class="p">),</span>
+        <span class="s2">"total_bytes"</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="nb">sum</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s2">"bytes"</span><span class="p">])</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">)),</span>
+        <span class="s2">"largest_file_bytes"</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s2">"bytes"</span><span class="p">])</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">)),</span>
+        <span class="s2">"runtime_contract"</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">"every_file_live_sha256_required"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+            <span class="s2">"stat_only_cache_accepted"</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+            <span class="s2">"semantic_verification_performed_during_generation"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+            <span class="s2">"semantic_reconstruction_repeated_at_runtime"</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+            <span class="s2">"same_frozen_code_commit_required"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="p">},</span>
+    <span class="p">}</span>
+    <span class="k">return</span> <span class="p">{</span><span class="o">**</span><span class="n">payload</span><span class="p">,</span> <span class="s2">"inventory_sha256"</span><span class="p">:</span> <span class="n">canonical_sha256</span><span class="p">(</span><span class="n">payload</span><span class="p">)}</span></div>
+
+
+
+<div class="viewcode-block" id="validate_inventory">
+<a class="viewcode-back" href="../../../api_reference.html#dendritic_modeling.utils.exact_file_inventory.validate_inventory">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">validate_inventory</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Validate an inventory without trusting or reading its target files."""</span>
+
+    <span class="n">required</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">"schema"</span><span class="p">,</span>
+        <span class="s2">"status"</span><span class="p">,</span>
+        <span class="s2">"generation_binding"</span><span class="p">,</span>
+        <span class="s2">"files"</span><span class="p">,</span>
+        <span class="s2">"path_bindings"</span><span class="p">,</span>
+        <span class="s2">"directory_bindings"</span><span class="p">,</span>
+        <span class="s2">"file_count"</span><span class="p">,</span>
+        <span class="s2">"total_bytes"</span><span class="p">,</span>
+        <span class="s2">"largest_file_bytes"</span><span class="p">,</span>
+        <span class="s2">"runtime_contract"</span><span class="p">,</span>
+        <span class="s2">"inventory_sha256"</span><span class="p">,</span>
+    <span class="p">}</span>
+    <span class="k">if</span> <span class="nb">set</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="o">!=</span> <span class="n">required</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">"exact-file inventory keys drifted: "</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">value</span><span class="p">)</span><span class="w"> </span><span class="o">^</span><span class="w"> </span><span class="n">required</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
+        <span class="p">)</span>
+    <span class="n">payload</span> <span class="o">=</span> <span class="p">{</span><span class="n">key</span><span class="p">:</span> <span class="n">value</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">required</span> <span class="k">if</span> <span class="n">key</span> <span class="o">!=</span> <span class="s2">"inventory_sha256"</span><span class="p">}</span>
+    <span class="k">if</span> <span class="p">(</span>
+        <span class="n">value</span><span class="p">[</span><span class="s2">"schema"</span><span class="p">]</span> <span class="o">!=</span> <span class="n">INVENTORY_SCHEMA</span>
+        <span class="ow">or</span> <span class="n">value</span><span class="p">[</span><span class="s2">"status"</span><span class="p">]</span> <span class="o">!=</span> <span class="s2">"full_generation_verification_bound_live_rehash_required"</span>
+        <span class="ow">or</span> <span class="n">canonical_sha256</span><span class="p">(</span><span class="n">payload</span><span class="p">)</span> <span class="o">!=</span> <span class="n">value</span><span class="p">[</span><span class="s2">"inventory_sha256"</span><span class="p">]</span>
+    <span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"exact-file inventory identity drifted"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">value</span><span class="p">[</span><span class="s2">"runtime_contract"</span><span class="p">]</span> <span class="o">!=</span> <span class="p">{</span>
+        <span class="s2">"every_file_live_sha256_required"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="s2">"stat_only_cache_accepted"</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="s2">"semantic_verification_performed_during_generation"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="s2">"semantic_reconstruction_repeated_at_runtime"</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="s2">"same_frozen_code_commit_required"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">}:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"exact-file inventory runtime contract drifted"</span><span class="p">)</span>
+    <span class="n">files</span> <span class="o">=</span> <span class="n">value</span><span class="p">[</span><span class="s2">"files"</span><span class="p">]</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">files</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">files</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"exact-file inventory has no files"</span><span class="p">)</span>
+    <span class="n">expected_ids</span> <span class="o">=</span> <span class="p">[</span><span class="sa">f</span><span class="s2">"file_</span><span class="si">{</span><span class="n">index</span><span class="si">:</span><span class="s2">05d</span><span class="si">}</span><span class="s2">"</span> <span class="k">for</span> <span class="n">index</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">files</span><span class="p">))]</span>
+    <span class="k">if</span> <span class="p">[</span><span class="n">row</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"task_id"</span><span class="p">)</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">files</span><span class="p">]</span> <span class="o">!=</span> <span class="n">expected_ids</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"exact-file inventory task IDs are not canonical"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">row</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"resolved_path"</span><span class="p">))</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">files</span><span class="p">]</span> <span class="o">!=</span> <span class="nb">sorted</span><span class="p">(</span>
+        <span class="nb">str</span><span class="p">(</span><span class="n">row</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"resolved_path"</span><span class="p">))</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">files</span>
+    <span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"exact-file inventory paths are not sorted"</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">row</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">files</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">set</span><span class="p">(</span><span class="n">row</span><span class="p">)</span> <span class="o">!=</span> <span class="p">{</span><span class="s2">"task_id"</span><span class="p">,</span> <span class="s2">"resolved_path"</span><span class="p">,</span> <span class="s2">"bytes"</span><span class="p">,</span> <span class="s2">"sha256"</span><span class="p">,</span> <span class="s2">"roles"</span><span class="p">}:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"exact-file inventory row </span><span class="si">{</span><span class="n">index</span><span class="si">}</span><span class="s2"> schema drifted"</span><span class="p">)</span>
+        <span class="n">path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s2">"resolved_path"</span><span class="p">]))</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">path</span><span class="o">.</span><span class="n">is_absolute</span><span class="p">()</span> <span class="ow">or</span> <span class="s2">".."</span> <span class="ow">in</span> <span class="n">path</span><span class="o">.</span><span class="n">parts</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"exact-file inventory path is not absolute"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">int</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s2">"bytes"</span><span class="p">])</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"exact-file inventory bytes are negative"</span><span class="p">)</span>
+        <span class="n">_lower_sha256</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s2">"sha256"</span><span class="p">],</span> <span class="n">label</span><span class="o">=</span><span class="s2">"exact-file inventory sha256"</span><span class="p">)</span>
+        <span class="n">roles</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="s2">"roles"</span><span class="p">]</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">roles</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="ow">or</span> <span class="n">roles</span> <span class="o">!=</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">roles</span><span class="p">))</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">roles</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"exact-file inventory roles are not canonical"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">int</span><span class="p">(</span><span class="n">value</span><span class="p">[</span><span class="s2">"file_count"</span><span class="p">])</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">files</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"exact-file inventory count differs"</span><span class="p">)</span>
+    <span class="n">sizes</span> <span class="o">=</span> <span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s2">"bytes"</span><span class="p">])</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">files</span><span class="p">]</span>
+    <span class="k">if</span> <span class="nb">int</span><span class="p">(</span><span class="n">value</span><span class="p">[</span><span class="s2">"total_bytes"</span><span class="p">])</span> <span class="o">!=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">sizes</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"exact-file inventory total bytes differ"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">int</span><span class="p">(</span><span class="n">value</span><span class="p">[</span><span class="s2">"largest_file_bytes"</span><span class="p">])</span> <span class="o">!=</span> <span class="nb">max</span><span class="p">(</span><span class="n">sizes</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"exact-file inventory largest-file bytes differ"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">[</span><span class="s2">"generation_binding"</span><span class="p">],</span> <span class="n">Mapping</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"exact-file inventory generation binding is invalid"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">[</span><span class="s2">"path_bindings"</span><span class="p">],</span> <span class="nb">list</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span>
+        <span class="n">value</span><span class="p">[</span><span class="s2">"directory_bindings"</span><span class="p">],</span> <span class="nb">list</span>
+    <span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"exact-file inventory path bindings are invalid"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nb">dict</span><span class="p">(</span><span class="n">value</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="balanced_assignment">
+<a class="viewcode-back" href="../../../api_reference.html#dendritic_modeling.utils.exact_file_inventory.balanced_assignment">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">balanced_assignment</span><span class="p">(</span>
+    <span class="n">inventory</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="o">*</span><span class="p">,</span> <span class="n">world_size</span><span class="p">:</span> <span class="nb">int</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Assign files deterministically by largest-first cumulative bytes."""</span>
+
+    <span class="n">verified</span> <span class="o">=</span> <span class="n">validate_inventory</span><span class="p">(</span><span class="n">inventory</span><span class="p">)</span>
+    <span class="n">world</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">world_size</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">world</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"world_size must be positive"</span><span class="p">)</span>
+    <span class="n">loads</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">world</span>
+    <span class="n">assignment</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">ordered</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span>
+        <span class="n">verified</span><span class="p">[</span><span class="s2">"files"</span><span class="p">],</span>
+        <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">row</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="nb">int</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s2">"bytes"</span><span class="p">]),</span> <span class="nb">str</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s2">"task_id"</span><span class="p">])),</span>
+    <span class="p">)</span>
+    <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">ordered</span><span class="p">:</span>
+        <span class="n">rank</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">world</span><span class="p">),</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">candidate</span><span class="p">:</span> <span class="p">(</span><span class="n">loads</span><span class="p">[</span><span class="n">candidate</span><span class="p">],</span> <span class="n">candidate</span><span class="p">))</span>
+        <span class="n">assignment</span><span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s2">"task_id"</span><span class="p">])]</span> <span class="o">=</span> <span class="n">rank</span>
+        <span class="n">loads</span><span class="p">[</span><span class="n">rank</span><span class="p">]</span> <span class="o">+=</span> <span class="nb">int</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s2">"bytes"</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">assignment</span></div>
+
+
+
+<div class="viewcode-block" id="verify_shard">
+<a class="viewcode-back" href="../../../api_reference.html#dendritic_modeling.utils.exact_file_inventory.verify_shard">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">verify_shard</span><span class="p">(</span>
+    <span class="n">inventory</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="o">*</span><span class="p">,</span> <span class="n">rank</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">world_size</span><span class="p">:</span> <span class="nb">int</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Live-hash one deterministic rank shard and bracket every read by stats."""</span>
+
+    <span class="n">verified</span> <span class="o">=</span> <span class="n">validate_inventory</span><span class="p">(</span><span class="n">inventory</span><span class="p">)</span>
+    <span class="n">world</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">world_size</span><span class="p">)</span>
+    <span class="n">worker</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">rank</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">worker</span> <span class="o">&lt;</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">worker</span> <span class="o">&gt;=</span> <span class="n">world</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"rank is outside world_size"</span><span class="p">)</span>
+    <span class="n">assignment</span> <span class="o">=</span> <span class="n">balanced_assignment</span><span class="p">(</span><span class="n">verified</span><span class="p">,</span> <span class="n">world_size</span><span class="o">=</span><span class="n">world</span><span class="p">)</span>
+    <span class="n">files</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">row</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">verified</span><span class="p">[</span><span class="s2">"files"</span><span class="p">]</span> <span class="k">if</span> <span class="n">assignment</span><span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s2">"task_id"</span><span class="p">])]</span> <span class="o">==</span> <span class="n">worker</span>
+    <span class="p">]</span>
+    <span class="n">receipts</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">files</span><span class="p">:</span>
+        <span class="n">path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s2">"resolved_path"</span><span class="p">]))</span>
+        <span class="n">before</span> <span class="o">=</span> <span class="n">file_snapshot</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">before</span><span class="p">[</span><span class="s2">"requested_path"</span><span class="p">]</span> <span class="o">!=</span> <span class="n">before</span><span class="p">[</span><span class="s2">"resolved_path"</span><span class="p">]:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"inventory target became a symbolic link: </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">before</span><span class="p">[</span><span class="s2">"resolved_path"</span><span class="p">]</span> <span class="o">!=</span> <span class="nb">str</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"inventory target resolution drifted: </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">int</span><span class="p">(</span><span class="n">before</span><span class="p">[</span><span class="s2">"resolved_stat"</span><span class="p">][</span><span class="mi">3</span><span class="p">])</span> <span class="o">!=</span> <span class="nb">int</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s2">"bytes"</span><span class="p">]):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"inventory target size drifted: </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="n">observed</span> <span class="o">=</span> <span class="n">_sha256_file</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+        <span class="n">after</span> <span class="o">=</span> <span class="n">file_snapshot</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">before</span> <span class="o">!=</span> <span class="n">after</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"inventory target changed while hashing: </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">observed</span> <span class="o">!=</span> <span class="nb">str</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s2">"sha256"</span><span class="p">]):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"inventory target SHA-256 drifted: </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="n">receipts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="p">{</span>
+                <span class="s2">"task_id"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s2">"task_id"</span><span class="p">]),</span>
+                <span class="s2">"resolved_path"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">path</span><span class="p">),</span>
+                <span class="s2">"bytes"</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s2">"bytes"</span><span class="p">]),</span>
+                <span class="s2">"sha256"</span><span class="p">:</span> <span class="n">observed</span><span class="p">,</span>
+                <span class="s2">"snapshot"</span><span class="p">:</span> <span class="n">after</span><span class="p">,</span>
+            <span class="p">}</span>
+        <span class="p">)</span>
+    <span class="k">for</span> <span class="n">receipt</span> <span class="ow">in</span> <span class="n">receipts</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">file_snapshot</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="n">receipt</span><span class="p">[</span><span class="s2">"resolved_path"</span><span class="p">]))</span> <span class="o">!=</span> <span class="n">receipt</span><span class="p">[</span><span class="s2">"snapshot"</span><span class="p">]:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">"inventory target changed before its rank shard completed: "</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">receipt</span><span class="p">[</span><span class="s1">'resolved_path'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">)</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s2">"schema"</span><span class="p">:</span> <span class="n">SHARD_SCHEMA</span><span class="p">,</span>
+        <span class="s2">"status"</span><span class="p">:</span> <span class="s2">"verified"</span><span class="p">,</span>
+        <span class="s2">"inventory_sha256"</span><span class="p">:</span> <span class="n">verified</span><span class="p">[</span><span class="s2">"inventory_sha256"</span><span class="p">],</span>
+        <span class="s2">"rank"</span><span class="p">:</span> <span class="n">worker</span><span class="p">,</span>
+        <span class="s2">"world_size"</span><span class="p">:</span> <span class="n">world</span><span class="p">,</span>
+        <span class="s2">"assignment_policy"</span><span class="p">:</span> <span class="s2">"largest_first_bytes_then_lowest_rank"</span><span class="p">,</span>
+        <span class="s2">"file_count"</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">receipts</span><span class="p">),</span>
+        <span class="s2">"total_bytes"</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="nb">sum</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s2">"bytes"</span><span class="p">]</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">receipts</span><span class="p">)),</span>
+        <span class="s2">"files"</span><span class="p">:</span> <span class="n">receipts</span><span class="p">,</span>
+    <span class="p">}</span></div>
+
+
+
+<div class="viewcode-block" id="merge_verified_shards">
+<a class="viewcode-back" href="../../../api_reference.html#dendritic_modeling.utils.exact_file_inventory.merge_verified_shards">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">merge_verified_shards</span><span class="p">(</span>
+    <span class="n">inventory</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="n">shards</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]],</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">world_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]]:</span>
+<span class="w">    </span><span class="sd">"""Fail closed unless all and only canonical rank assignments were verified."""</span>
+
+    <span class="n">verified</span> <span class="o">=</span> <span class="n">validate_inventory</span><span class="p">(</span><span class="n">inventory</span><span class="p">)</span>
+    <span class="n">world</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">world_size</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">shards</span><span class="p">)</span> <span class="o">!=</span> <span class="n">world</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"distributed inventory verification lacks one rank shard"</span><span class="p">)</span>
+    <span class="n">assignment</span> <span class="o">=</span> <span class="n">balanced_assignment</span><span class="p">(</span><span class="n">verified</span><span class="p">,</span> <span class="n">world_size</span><span class="o">=</span><span class="n">world</span><span class="p">)</span>
+    <span class="n">expected_by_id</span> <span class="o">=</span> <span class="p">{</span><span class="nb">str</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s2">"task_id"</span><span class="p">]):</span> <span class="n">row</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">verified</span><span class="p">[</span><span class="s2">"files"</span><span class="p">]}</span>
+    <span class="n">observed_by_id</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">ranks</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="n">rank_rows</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">raw</span> <span class="ow">in</span> <span class="n">shards</span><span class="p">:</span>
+        <span class="n">shard</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span>
+        <span class="n">required</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">"schema"</span><span class="p">,</span>
+            <span class="s2">"status"</span><span class="p">,</span>
+            <span class="s2">"inventory_sha256"</span><span class="p">,</span>
+            <span class="s2">"rank"</span><span class="p">,</span>
+            <span class="s2">"world_size"</span><span class="p">,</span>
+            <span class="s2">"assignment_policy"</span><span class="p">,</span>
+            <span class="s2">"file_count"</span><span class="p">,</span>
+            <span class="s2">"total_bytes"</span><span class="p">,</span>
+            <span class="s2">"files"</span><span class="p">,</span>
+        <span class="p">}</span>
+        <span class="k">if</span> <span class="nb">set</span><span class="p">(</span><span class="n">shard</span><span class="p">)</span> <span class="o">!=</span> <span class="n">required</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"distributed inventory shard schema drifted"</span><span class="p">)</span>
+        <span class="n">rank</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">shard</span><span class="p">[</span><span class="s2">"rank"</span><span class="p">])</span>
+        <span class="k">if</span> <span class="n">rank</span> <span class="ow">in</span> <span class="n">ranks</span> <span class="ow">or</span> <span class="n">rank</span> <span class="o">&lt;</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">rank</span> <span class="o">&gt;=</span> <span class="n">world</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"distributed inventory rank is duplicate or invalid"</span><span class="p">)</span>
+        <span class="n">ranks</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">rank</span><span class="p">)</span>
+        <span class="k">if</span> <span class="p">(</span>
+            <span class="n">shard</span><span class="p">[</span><span class="s2">"schema"</span><span class="p">]</span> <span class="o">!=</span> <span class="n">SHARD_SCHEMA</span>
+            <span class="ow">or</span> <span class="n">shard</span><span class="p">[</span><span class="s2">"status"</span><span class="p">]</span> <span class="o">!=</span> <span class="s2">"verified"</span>
+            <span class="ow">or</span> <span class="n">shard</span><span class="p">[</span><span class="s2">"inventory_sha256"</span><span class="p">]</span> <span class="o">!=</span> <span class="n">verified</span><span class="p">[</span><span class="s2">"inventory_sha256"</span><span class="p">]</span>
+            <span class="ow">or</span> <span class="nb">int</span><span class="p">(</span><span class="n">shard</span><span class="p">[</span><span class="s2">"world_size"</span><span class="p">])</span> <span class="o">!=</span> <span class="n">world</span>
+            <span class="ow">or</span> <span class="n">shard</span><span class="p">[</span><span class="s2">"assignment_policy"</span><span class="p">]</span> <span class="o">!=</span> <span class="s2">"largest_first_bytes_then_lowest_rank"</span>
+        <span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"distributed inventory shard identity drifted"</span><span class="p">)</span>
+        <span class="n">files</span> <span class="o">=</span> <span class="n">shard</span><span class="p">[</span><span class="s2">"files"</span><span class="p">]</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">files</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">int</span><span class="p">(</span><span class="n">shard</span><span class="p">[</span><span class="s2">"file_count"</span><span class="p">])</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">files</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"distributed inventory shard count differs"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">int</span><span class="p">(</span><span class="n">shard</span><span class="p">[</span><span class="s2">"total_bytes"</span><span class="p">])</span> <span class="o">!=</span> <span class="nb">sum</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s2">"bytes"</span><span class="p">])</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">files</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"distributed inventory shard byte total differs"</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">files</span><span class="p">:</span>
+            <span class="n">required_file</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s2">"task_id"</span><span class="p">,</span>
+                <span class="s2">"resolved_path"</span><span class="p">,</span>
+                <span class="s2">"bytes"</span><span class="p">,</span>
+                <span class="s2">"sha256"</span><span class="p">,</span>
+                <span class="s2">"snapshot"</span><span class="p">,</span>
+            <span class="p">}</span>
+            <span class="k">if</span> <span class="nb">set</span><span class="p">(</span><span class="n">row</span><span class="p">)</span> <span class="o">!=</span> <span class="n">required_file</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"distributed inventory file receipt schema drifted"</span><span class="p">)</span>
+            <span class="n">task</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s2">"task_id"</span><span class="p">])</span>
+            <span class="k">if</span> <span class="n">task</span> <span class="ow">in</span> <span class="n">observed_by_id</span> <span class="ow">or</span> <span class="n">task</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">expected_by_id</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"distributed inventory task is duplicate or unknown"</span><span class="p">)</span>
+            <span class="n">expected</span> <span class="o">=</span> <span class="n">expected_by_id</span><span class="p">[</span><span class="n">task</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">assignment</span><span class="p">[</span><span class="n">task</span><span class="p">]</span> <span class="o">!=</span> <span class="n">rank</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"distributed inventory task was hashed by wrong rank"</span><span class="p">)</span>
+            <span class="k">if</span> <span class="p">(</span>
+                <span class="n">row</span><span class="p">[</span><span class="s2">"resolved_path"</span><span class="p">]</span> <span class="o">!=</span> <span class="n">expected</span><span class="p">[</span><span class="s2">"resolved_path"</span><span class="p">]</span>
+                <span class="ow">or</span> <span class="nb">int</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s2">"bytes"</span><span class="p">])</span> <span class="o">!=</span> <span class="nb">int</span><span class="p">(</span><span class="n">expected</span><span class="p">[</span><span class="s2">"bytes"</span><span class="p">])</span>
+                <span class="ow">or</span> <span class="n">row</span><span class="p">[</span><span class="s2">"sha256"</span><span class="p">]</span> <span class="o">!=</span> <span class="n">expected</span><span class="p">[</span><span class="s2">"sha256"</span><span class="p">]</span>
+            <span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"distributed inventory file receipt differs"</span><span class="p">)</span>
+            <span class="n">observed_by_id</span><span class="p">[</span><span class="n">task</span><span class="p">]</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">row</span><span class="p">)</span>
+        <span class="n">rank_rows</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="p">{</span>
+                <span class="s2">"rank"</span><span class="p">:</span> <span class="n">rank</span><span class="p">,</span>
+                <span class="s2">"file_count"</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">files</span><span class="p">),</span>
+                <span class="s2">"total_bytes"</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">shard</span><span class="p">[</span><span class="s2">"total_bytes"</span><span class="p">]),</span>
+                <span class="s2">"task_ids_sha256"</span><span class="p">:</span> <span class="n">canonical_sha256</span><span class="p">(</span>
+                    <span class="nb">sorted</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s2">"task_id"</span><span class="p">])</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">files</span><span class="p">)</span>
+                <span class="p">),</span>
+            <span class="p">}</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="nb">set</span><span class="p">(</span><span class="n">observed_by_id</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">set</span><span class="p">(</span><span class="n">expected_by_id</span><span class="p">):</span>
+        <span class="n">missing</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">expected_by_id</span><span class="p">)</span> <span class="o">-</span> <span class="nb">set</span><span class="p">(</span><span class="n">observed_by_id</span><span class="p">))</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"distributed inventory verification missed tasks: </span><span class="si">{</span><span class="n">missing</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">task</span><span class="p">,</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">observed_by_id</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">current</span> <span class="o">=</span> <span class="n">file_snapshot</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s2">"resolved_path"</span><span class="p">])))</span>
+        <span class="k">if</span> <span class="n">current</span> <span class="o">!=</span> <span class="n">row</span><span class="p">[</span><span class="s2">"snapshot"</span><span class="p">]:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"distributed inventory target changed before merge: </span><span class="si">{</span><span class="n">task</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">)</span>
+    <span class="n">public</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">"schema"</span><span class="p">:</span> <span class="n">VERIFICATION_SCHEMA</span><span class="p">,</span>
+        <span class="s2">"status"</span><span class="p">:</span> <span class="s2">"verified_before_execution"</span><span class="p">,</span>
+        <span class="s2">"inventory_sha256"</span><span class="p">:</span> <span class="n">verified</span><span class="p">[</span><span class="s2">"inventory_sha256"</span><span class="p">],</span>
+        <span class="s2">"method"</span><span class="p">:</span> <span class="s2">"deterministic_byte_balanced_all_rank_live_sha256"</span><span class="p">,</span>
+        <span class="s2">"world_size"</span><span class="p">:</span> <span class="n">world</span><span class="p">,</span>
+        <span class="s2">"file_count"</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">observed_by_id</span><span class="p">),</span>
+        <span class="s2">"total_bytes"</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">verified</span><span class="p">[</span><span class="s2">"total_bytes"</span><span class="p">]),</span>
+        <span class="s2">"per_rank"</span><span class="p">:</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">rank_rows</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">row</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s2">"rank"</span><span class="p">])),</span>
+        <span class="s2">"all_live_file_sha256_matched"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="s2">"all_files_mutation_stable_through_rank_zero_merge"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="s2">"generation_semantic_verification_bound"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="s2">"stat_only_cache_used"</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">}</span>
+    <span class="n">snapshots</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="n">task</span><span class="p">:</span> <span class="nb">dict</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s2">"snapshot"</span><span class="p">])</span> <span class="k">for</span> <span class="n">task</span><span class="p">,</span> <span class="n">row</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">observed_by_id</span><span class="o">.</span><span class="n">items</span><span class="p">())</span>
+    <span class="p">}</span>
+    <span class="k">return</span> <span class="p">{</span><span class="o">**</span><span class="n">public</span><span class="p">,</span> <span class="s2">"receipt_sha256"</span><span class="p">:</span> <span class="n">canonical_sha256</span><span class="p">(</span><span class="n">public</span><span class="p">)},</span> <span class="n">snapshots</span></div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024-2026, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

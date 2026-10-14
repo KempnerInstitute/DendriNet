@@ -1,0 +1,1150 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>dendritic_modeling.networks.benchmarks.parameter_budget &mdash; DendriNet v0.2.0</title>
+      <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../../_static/documentation_options.js?v=938c9ccc"></script>
+      <script src="../../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../../index.html" class="icon icon-home">
+            DendriNet
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../examples.html">Example configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Building models</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../network_architectures.html">Model architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../dendritic_neurons.html">Dendritic neurons</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../synapses.html">Synapses and connectivity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../population_networks.html">Population networks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../temporal_dynamics.html">Temporal dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../structured_ei_cores.html">Structured E/I cores</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../conductance_options.html">Conductance options</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../comparison_models.html">Baselines and comparison models</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Configuration</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../configuration_guide.html">Configuration guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../config_reference.html">Annotated reference configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../training_strategies.html">Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../distributed_training.html">Distributed training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../performance_kernels.html">Sparse execution and performance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Data and analysis</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../datasets.html">Datasets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../analysis.html">Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../analyzers.html">Analyzer reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../checkpoint_analysis.html">Analyzing saved checkpoints</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Running experiments</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../runs_and_outputs.html">Runs and outputs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../sweeps.html">Parameter sweeps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../model_compression.html">Compact checkpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../project_provenance.html">Project provenance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../available_components.html">Component catalogue</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../options_reference.html">Options reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../cli_reference.html">Command-line reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../api_reference.html">Python API</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../extending.html">Extending DendriNet</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../engineering_architecture.html">Engineering architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../contributing.html">Contributing</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">DendriNet</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">dendritic_modeling.networks.benchmarks.parameter_budget</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for dendritic_modeling.networks.benchmarks.parameter_budget</h1><div class="highlight"><pre>
+<span></span><span class="sd">"""Auditable fixed-support model families for parameter-budget experiments.</span>
+
+<span class="sd">The dendritic arms instantiate the production ``ConfigurableEINetwork``.  All</span>
+<span class="sd">arms include a counted affine readout and the same information-preserving input</span>
+<span class="sd">encoding.  No dense candidate bank, dynamic rewiring, or dormant budget-filling</span>
+<span class="sd">parameter is introduced.  ``width`` always means exposed hidden outputs/somas.</span>
+<span class="sd">"""</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">hashlib</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">copy</span><span class="w"> </span><span class="kn">import</span> <span class="n">deepcopy</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">numbers</span><span class="w"> </span><span class="kn">import</span> <span class="n">Integral</span><span class="p">,</span> <span class="n">Real</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">torch</span><span class="w"> </span><span class="kn">import</span> <span class="n">nn</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.activations</span><span class="w"> </span><span class="kn">import</span> <span class="n">ActivationFactory</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.blocklinear</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">BlockLinear</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.dendrinet</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">DendriNet</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.excitation_inhibition.ei_network</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">ConfigurableEINetwork</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.excitation_inhibition.synapse.indexed_sparse</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">IndexedSparseLinear</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.excitation_inhibition.synapse.kernels</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">normalize_indexed_projection_backend</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">FAMILIES</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="s2">"dense"</span><span class="p">,</span>
+    <span class="s2">"sparse"</span><span class="p">,</span>
+    <span class="s2">"dendritic_signed"</span><span class="p">,</span>
+    <span class="s2">"dendritic_additive"</span><span class="p">,</span>
+    <span class="s2">"dendritic_shunting"</span><span class="p">,</span>
+    <span class="s2">"grouped_gated"</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">_DEFAULTS</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">"width"</span><span class="p">:</span> <span class="mi">32</span><span class="p">,</span>
+    <span class="s2">"branch_factors"</span><span class="p">:</span> <span class="p">[</span><span class="mi">2</span><span class="p">],</span>
+    <span class="s2">"contacts_e"</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span>
+    <span class="s2">"contacts_i"</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="s2">"network_depth"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="s2">"seed"</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="s2">"activation"</span><span class="p">:</span> <span class="s2">"relu"</span><span class="p">,</span>
+    <span class="s2">"input_encoding"</span><span class="p">:</span> <span class="s2">"signed_split"</span><span class="p">,</span>
+    <span class="s2">"clip_contacts"</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="s2">"initialization"</span><span class="p">:</span> <span class="s2">"fan_in"</span><span class="p">,</span>
+    <span class="s2">"projection_backend"</span><span class="p">:</span> <span class="s2">"eager"</span><span class="p">,</span>
+<span class="p">}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_integer</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">minimum</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">bool</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">Integral</span><span class="p">)</span> <span class="ow">or</span> <span class="n">value</span> <span class="o">&lt;</span> <span class="n">minimum</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> must be an integer &gt;= </span><span class="si">{</span><span class="n">minimum</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_normalize_readout</span><span class="p">(</span><span class="n">readout</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">output_dim</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Validate opt-in signed allocation; omitted seeds retain inheritance."""</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">readout</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"readout must be a dict"</span><span class="p">)</span>
+    <span class="n">kind</span> <span class="o">=</span> <span class="n">readout</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"kind"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">kind</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">or</span> <span class="n">kind</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">"dense"</span><span class="p">,</span> <span class="s2">"indexed"</span><span class="p">,</span> <span class="s2">"low_rank"</span><span class="p">}:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"readout.kind must be dense, indexed, or low_rank"</span><span class="p">)</span>
+    <span class="n">allowed</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"kind"</span><span class="p">,</span> <span class="s2">"bias"</span><span class="p">,</span> <span class="s2">"init_std"</span><span class="p">,</span> <span class="s2">"parameter_seed"</span><span class="p">}</span>
+    <span class="k">if</span> <span class="n">kind</span> <span class="o">==</span> <span class="s2">"indexed"</span><span class="p">:</span>
+        <span class="n">allowed</span> <span class="o">|=</span> <span class="p">{</span><span class="s2">"topk"</span><span class="p">,</span> <span class="s2">"topology_seed"</span><span class="p">,</span> <span class="s2">"projection_backend"</span><span class="p">}</span>
+    <span class="k">elif</span> <span class="n">kind</span> <span class="o">==</span> <span class="s2">"low_rank"</span><span class="p">:</span>
+        <span class="n">allowed</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s2">"rank"</span><span class="p">)</span>
+    <span class="n">unknown</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">readout</span><span class="p">)</span> <span class="o">-</span> <span class="n">allowed</span>
+    <span class="k">if</span> <span class="n">unknown</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Unknown readout keys for </span><span class="si">{</span><span class="n">kind</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="n">unknown</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"bias"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s2">"init_std"</span><span class="p">:</span> <span class="mf">0.02</span><span class="p">,</span> <span class="o">**</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">readout</span><span class="p">)}</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">"bias"</span><span class="p">],</span> <span class="nb">bool</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"readout.bias must be a bool"</span><span class="p">)</span>
+    <span class="n">std</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="s2">"init_std"</span><span class="p">]</span>
+    <span class="k">if</span> <span class="p">(</span>
+        <span class="nb">isinstance</span><span class="p">(</span><span class="n">std</span><span class="p">,</span> <span class="nb">bool</span><span class="p">)</span>
+        <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">std</span><span class="p">,</span> <span class="n">Real</span><span class="p">)</span>
+        <span class="ow">or</span> <span class="ow">not</span> <span class="n">math</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">std</span><span class="p">)</span>
+        <span class="ow">or</span> <span class="n">std</span> <span class="o">&lt;=</span> <span class="mi">0</span>
+    <span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"readout.init_std must be finite and &gt; 0"</span><span class="p">)</span>
+    <span class="n">result</span><span class="p">[</span><span class="s2">"init_std"</span><span class="p">]</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">std</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"parameter_seed"</span><span class="p">,</span> <span class="s2">"topology_seed"</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">result</span><span class="p">:</span>
+            <span class="n">result</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">_integer</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="n">name</span><span class="p">],</span> <span class="sa">f</span><span class="s2">"readout.</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">kind</span> <span class="o">==</span> <span class="s2">"indexed"</span><span class="p">:</span>
+        <span class="n">result</span><span class="p">[</span><span class="s2">"topk"</span><span class="p">]</span> <span class="o">=</span> <span class="n">_integer</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"topk"</span><span class="p">),</span> <span class="s2">"readout.topk"</span><span class="p">)</span>
+        <span class="n">backend</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"projection_backend"</span><span class="p">,</span> <span class="s2">"eager"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">backend</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"readout.projection_backend must be a string"</span><span class="p">)</span>
+        <span class="n">result</span><span class="p">[</span><span class="s2">"projection_backend"</span><span class="p">]</span> <span class="o">=</span> <span class="n">normalize_indexed_projection_backend</span><span class="p">(</span><span class="n">backend</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">kind</span> <span class="o">==</span> <span class="s2">"low_rank"</span><span class="p">:</span>
+        <span class="n">result</span><span class="p">[</span><span class="s2">"rank"</span><span class="p">]</span> <span class="o">=</span> <span class="n">_integer</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"rank"</span><span class="p">),</span> <span class="s2">"readout.rank"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">result</span><span class="p">[</span><span class="s2">"rank"</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">output_dim</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"readout.rank must be &lt;= output_dim"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">result</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_normalize_spec</span><span class="p">(</span><span class="n">spec</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">"model spec must be a dict"</span><span class="p">)</span>
+    <span class="n">allowed</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">_DEFAULTS</span><span class="p">)</span> <span class="o">|</span> <span class="p">{</span>
+        <span class="s2">"family"</span><span class="p">,</span>
+        <span class="s2">"input_dim"</span><span class="p">,</span>
+        <span class="s2">"output_dim"</span><span class="p">,</span>
+        <span class="s2">"topology_seed"</span><span class="p">,</span>
+        <span class="s2">"readout"</span><span class="p">,</span>
+        <span class="s2">"activation_init"</span><span class="p">,</span>
+    <span class="p">}</span>
+    <span class="n">unknown</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">spec</span><span class="p">)</span> <span class="o">-</span> <span class="n">allowed</span>
+    <span class="k">if</span> <span class="n">unknown</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Unknown model spec keys: </span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="n">unknown</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="p">{</span><span class="o">**</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">_DEFAULTS</span><span class="p">),</span> <span class="o">**</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">spec</span><span class="p">)}</span>
+    <span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"family"</span><span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">FAMILIES</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"family must be one of </span><span class="si">{</span><span class="n">FAMILIES</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"input_dim"</span><span class="p">,</span> <span class="s2">"output_dim"</span><span class="p">,</span> <span class="s2">"width"</span><span class="p">,</span> <span class="s2">"network_depth"</span><span class="p">,</span> <span class="s2">"contacts_e"</span><span class="p">):</span>
+        <span class="n">result</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">_integer</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">name</span><span class="p">),</span> <span class="n">name</span><span class="p">)</span>
+    <span class="n">result</span><span class="p">[</span><span class="s2">"contacts_i"</span><span class="p">]</span> <span class="o">=</span> <span class="n">_integer</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">"contacts_i"</span><span class="p">],</span> <span class="s2">"contacts_i"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="n">result</span><span class="p">[</span><span class="s2">"seed"</span><span class="p">]</span> <span class="o">=</span> <span class="n">_integer</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">"seed"</span><span class="p">],</span> <span class="s2">"seed"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="n">result</span><span class="p">[</span><span class="s2">"topology_seed"</span><span class="p">]</span> <span class="o">=</span> <span class="n">_integer</span><span class="p">(</span>
+        <span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"topology_seed"</span><span class="p">,</span> <span class="n">result</span><span class="p">[</span><span class="s2">"seed"</span><span class="p">]),</span> <span class="s2">"topology_seed"</span><span class="p">,</span> <span class="mi">0</span>
+    <span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">"branch_factors"</span><span class="p">],</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"branch_factors must be a sequence"</span><span class="p">)</span>
+    <span class="n">result</span><span class="p">[</span><span class="s2">"branch_factors"</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">_integer</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="s2">"branch factor"</span><span class="p">)</span> <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">result</span><span class="p">[</span><span class="s2">"branch_factors"</span><span class="p">]</span>
+    <span class="p">]</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">"activation"</span><span class="p">],</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">or</span> <span class="n">result</span><span class="p">[</span><span class="s2">"activation"</span><span class="p">]</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">{</span>
+        <span class="s2">"relu"</span><span class="p">,</span>
+        <span class="s2">"softplus"</span><span class="p">,</span>
+        <span class="s2">"sigmoid"</span><span class="p">,</span>
+        <span class="s2">"param_relu"</span><span class="p">,</span>
+        <span class="s2">"param_tanh"</span><span class="p">,</span>
+    <span class="p">}:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">"activation must be relu, softplus, sigmoid, param_relu, or param_tanh"</span>
+        <span class="p">)</span>
+    <span class="n">learned_gate</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="s2">"activation"</span><span class="p">]</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">"param_relu"</span><span class="p">,</span> <span class="s2">"param_tanh"</span><span class="p">}</span>
+    <span class="k">if</span> <span class="n">learned_gate</span><span class="p">:</span>
+        <span class="n">result</span><span class="p">[</span><span class="s2">"activation_init"</span><span class="p">]</span> <span class="o">=</span> <span class="n">_normalize_activation_init</span><span class="p">(</span>
+            <span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"activation_init"</span><span class="p">),</span> <span class="n">result</span><span class="p">[</span><span class="s2">"activation"</span><span class="p">]</span>
+        <span class="p">)</span>
+    <span class="k">elif</span> <span class="s2">"activation_init"</span> <span class="ow">in</span> <span class="n">result</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"activation_init requires param_relu or param_tanh"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">result</span><span class="p">[</span><span class="s2">"initialization"</span><span class="p">]</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">"fan_in"</span><span class="p">,</span> <span class="s2">"legacy_xavier"</span><span class="p">}:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"initialization must be fan_in or legacy_xavier"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">"projection_backend"</span><span class="p">],</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"projection_backend must be a string"</span><span class="p">)</span>
+    <span class="n">result</span><span class="p">[</span><span class="s2">"projection_backend"</span><span class="p">]</span> <span class="o">=</span> <span class="n">normalize_indexed_projection_backend</span><span class="p">(</span>
+        <span class="n">result</span><span class="p">[</span><span class="s2">"projection_backend"</span><span class="p">]</span>
+    <span class="p">)</span>
+    <span class="k">if</span> <span class="n">result</span><span class="p">[</span><span class="s2">"family"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"dense"</span> <span class="ow">and</span> <span class="n">result</span><span class="p">[</span><span class="s2">"projection_backend"</span><span class="p">]</span> <span class="o">!=</span> <span class="s2">"eager"</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">"dense has no indexed projections; projection_backend must be eager"</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="n">result</span><span class="p">[</span><span class="s2">"input_encoding"</span><span class="p">]</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">"signed_split"</span><span class="p">,</span> <span class="s2">"nonnegative"</span><span class="p">,</span> <span class="s2">"raw"</span><span class="p">}:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"input_encoding must be signed_split, nonnegative, or raw"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">result</span><span class="p">[</span><span class="s2">"input_encoding"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"raw"</span> <span class="ow">and</span> <span class="n">result</span><span class="p">[</span><span class="s2">"family"</span><span class="p">]</span> <span class="ow">in</span> <span class="p">{</span>
+        <span class="s2">"dendritic_additive"</span><span class="p">,</span>
+        <span class="s2">"dendritic_shunting"</span><span class="p">,</span>
+    <span class="p">}:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">"Positive E/I families require signed_split or nonnegative inputs; "</span>
+            <span class="s2">"input_encoding='raw' is not a valid conductance-input contract"</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">"clip_contacts"</span><span class="p">],</span> <span class="nb">bool</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"clip_contacts must be a bool"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">result</span><span class="p">[</span><span class="s2">"family"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"dendritic_signed"</span> <span class="ow">and</span> <span class="n">result</span><span class="p">[</span><span class="s2">"contacts_i"</span><span class="p">]:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"dendritic_signed has no I bank; set contacts_i=0"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="s2">"readout"</span> <span class="ow">in</span> <span class="n">result</span><span class="p">:</span>
+        <span class="n">result</span><span class="p">[</span><span class="s2">"readout"</span><span class="p">]</span> <span class="o">=</span> <span class="n">_normalize_readout</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">"readout"</span><span class="p">],</span> <span class="n">result</span><span class="p">[</span><span class="s2">"output_dim"</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">result</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_normalize_activation_init</span><span class="p">(</span><span class="n">settings</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">activation</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Require declared, fixed production gate initialization without calibration."""</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">settings</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">set</span><span class="p">(</span><span class="n">settings</span><span class="p">)</span> <span class="o">!=</span> <span class="p">{</span><span class="s2">"gain"</span><span class="p">,</span> <span class="s2">"threshold"</span><span class="p">}:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"activation_init must declare exactly gain and threshold"</span><span class="p">)</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">settings</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">if</span> <span class="p">(</span>
+            <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">bool</span><span class="p">)</span>
+            <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">Real</span><span class="p">)</span>
+            <span class="ow">or</span> <span class="ow">not</span> <span class="n">math</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+        <span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"activation_init.</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> must be a finite real number"</span><span class="p">)</span>
+        <span class="n">result</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">result</span><span class="p">[</span><span class="s2">"gain"</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"activation_init.gain must be &gt; 0"</span><span class="p">)</span>
+    <span class="c1"># ParametricReLU.initialize clamps smaller gains. Reject them rather than</span>
+    <span class="c1"># let production initialization silently differ from conventional controls.</span>
+    <span class="k">if</span> <span class="n">activation</span> <span class="o">==</span> <span class="s2">"param_relu"</span> <span class="ow">and</span> <span class="n">result</span><span class="p">[</span><span class="s2">"gain"</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mf">1e-8</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"param_relu activation_init.gain must be &gt;= 1e-8"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">result</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_activation</span><span class="p">(</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">output_dim</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">initialization</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">:</span>
+    <span class="n">gain</span><span class="p">,</span> <span class="n">threshold</span> <span class="o">=</span> <span class="mf">1.5</span><span class="p">,</span> <span class="mf">0.5</span>
+    <span class="k">if</span> <span class="n">initialization</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">gain</span><span class="p">,</span> <span class="n">threshold</span> <span class="o">=</span> <span class="n">initialization</span><span class="p">[</span><span class="s2">"gain"</span><span class="p">],</span> <span class="n">initialization</span><span class="p">[</span><span class="s2">"threshold"</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">ActivationFactory</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+        <span class="n">name</span><span class="p">,</span> <span class="n">output_dim</span><span class="o">=</span><span class="n">output_dim</span><span class="p">,</span> <span class="n">init_m</span><span class="o">=</span><span class="n">gain</span><span class="p">,</span> <span class="n">init_b</span><span class="o">=</span><span class="n">threshold</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_compartments</span><span class="p">(</span><span class="n">branch_factors</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+    <span class="n">sites</span><span class="p">,</span> <span class="n">level</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span>
+    <span class="k">for</span> <span class="n">factor</span> <span class="ow">in</span> <span class="n">branch_factors</span><span class="p">:</span>
+        <span class="n">level</span> <span class="o">*=</span> <span class="n">factor</span>
+        <span class="n">sites</span> <span class="o">+=</span> <span class="n">level</span>
+    <span class="k">return</span> <span class="n">sites</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_contacts</span><span class="p">(</span><span class="n">requested</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">available</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">spec</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">requested</span> <span class="o">&gt;</span> <span class="n">available</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">spec</span><span class="p">[</span><span class="s2">"clip_contacts"</span><span class="p">]:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"Requested </span><span class="si">{</span><span class="n">requested</span><span class="si">}</span><span class="s2"> contacts per output but only </span><span class="si">{</span><span class="n">available</span><span class="si">}</span><span class="s2"> "</span>
+            <span class="s2">"sources are available; choose a feasible width/contact count or "</span>
+            <span class="s2">"explicitly set clip_contacts=true."</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="nb">min</span><span class="p">(</span><span class="n">requested</span><span class="p">,</span> <span class="n">available</span><span class="p">)</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">_InputEncoding</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_dim</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">kind</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">input_dim</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">kind</span> <span class="o">=</span> <span class="n">input_dim</span><span class="p">,</span> <span class="n">kind</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">ndim</span> <span class="o">!=</span> <span class="mi">2</span> <span class="ow">or</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_dim</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Expected [batch, </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">input_dim</span><span class="si">}</span><span class="s2">] inputs"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s2">"signed_split"</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">((</span><span class="n">x</span><span class="o">.</span><span class="n">relu</span><span class="p">(),</span> <span class="p">(</span><span class="o">-</span><span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">relu</span><span class="p">()),</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s2">"raw"</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">x</span>
+        <span class="k">if</span> <span class="nb">bool</span><span class="p">((</span><span class="n">x</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">()):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"input_encoding='nonnegative' received negative input"</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">x</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">_SparseAffine</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Signed, fixed-index production projection plus an ordinary affine bias."""</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">input_dim</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">output_dim</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">contacts</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">seed</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">initialization</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">gate_projection</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">projection_backend</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"eager"</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="n">fan_in</span> <span class="o">=</span> <span class="n">initialization</span> <span class="o">==</span> <span class="s2">"fan_in"</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">projection</span> <span class="o">=</span> <span class="n">IndexedSparseLinear</span><span class="p">(</span>
+            <span class="n">input_dim</span><span class="p">,</span>
+            <span class="n">output_dim</span><span class="p">,</span>
+            <span class="n">contacts</span><span class="p">,</span>
+            <span class="n">param_space</span><span class="o">=</span><span class="s2">"linear"</span><span class="p">,</span>
+            <span class="n">weight_transform</span><span class="o">=</span><span class="s2">"identity"</span><span class="p">,</span>
+            <span class="n">init_method</span><span class="o">=</span><span class="s2">"kaiming_normal"</span> <span class="k">if</span> <span class="n">fan_in</span> <span class="k">else</span> <span class="s2">"xavier_normal"</span><span class="p">,</span>
+            <span class="c1"># Value projections use ReLU gain sqrt(2); sigmoid-gate logits</span>
+            <span class="c1"># use gain 1. Both depend on contact fan-in, never output width.</span>
+            <span class="n">init_gain</span><span class="o">=</span><span class="mf">1.0</span> <span class="o">/</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mf">2.0</span><span class="p">)</span> <span class="k">if</span> <span class="n">fan_in</span> <span class="ow">and</span> <span class="n">gate_projection</span> <span class="k">else</span> <span class="mf">1.0</span><span class="p">,</span>
+            <span class="n">seed</span><span class="o">=</span><span class="n">seed</span><span class="p">,</span>
+            <span class="n">projection_backend</span><span class="o">=</span><span class="n">projection_backend</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">bias</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">output_dim</span><span class="p">))</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">projection</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">bias</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">_IndexedAffineReadout</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Signed production output projection with a counted optional affine bias."""</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">projection</span><span class="p">:</span> <span class="n">IndexedSparseLinear</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">bias</span><span class="p">:</span> <span class="nb">bool</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="k">if</span> <span class="p">(</span>
+            <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">projection</span><span class="p">,</span> <span class="n">IndexedSparseLinear</span><span class="p">)</span>
+            <span class="ow">or</span> <span class="n">projection</span><span class="o">.</span><span class="n">weight_transform</span> <span class="o">!=</span> <span class="s2">"identity"</span>
+        <span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">"Indexed affine readout requires a signed indexed projection"</span>
+            <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">projection</span> <span class="o">=</span> <span class="n">projection</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">bias</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">projection</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">new_zeros</span><span class="p">(</span><span class="n">projection</span><span class="o">.</span><span class="n">out_features</span><span class="p">))</span>
+            <span class="k">if</span> <span class="n">bias</span>
+            <span class="k">else</span> <span class="kc">None</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+        <span class="n">output</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">projection</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">output</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">bias</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">output</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">bias</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_build_readout</span><span class="p">(</span><span class="n">spec</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">:</span>
+    <span class="c1"># Keep the historical call and RNG sequence unchanged when not opted in.</span>
+    <span class="k">if</span> <span class="s2">"readout"</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">spec</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">spec</span><span class="p">[</span><span class="s2">"width"</span><span class="p">],</span> <span class="n">spec</span><span class="p">[</span><span class="s2">"output_dim"</span><span class="p">])</span>
+
+    <span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.utils.readouts</span><span class="w"> </span><span class="kn">import</span> <span class="n">make_signed_readout</span>
+
+    <span class="n">readout</span> <span class="o">=</span> <span class="n">spec</span><span class="p">[</span><span class="s2">"readout"</span><span class="p">]</span>
+    <span class="n">indexed</span> <span class="o">=</span> <span class="n">readout</span><span class="p">[</span><span class="s2">"kind"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"indexed"</span>
+    <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">fork_rng</span><span class="p">(</span><span class="n">devices</span><span class="o">=</span><span class="p">[]):</span>
+        <span class="n">torch</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_generator</span><span class="o">.</span><span class="n">manual_seed</span><span class="p">(</span>
+            <span class="n">readout</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"parameter_seed"</span><span class="p">,</span> <span class="n">spec</span><span class="p">[</span><span class="s2">"seed"</span><span class="p">])</span>
+        <span class="p">)</span>
+        <span class="n">projection</span> <span class="o">=</span> <span class="n">make_signed_readout</span><span class="p">(</span>
+            <span class="n">spec</span><span class="p">[</span><span class="s2">"width"</span><span class="p">],</span>
+            <span class="n">spec</span><span class="p">[</span><span class="s2">"output_dim"</span><span class="p">],</span>
+            <span class="n">rank</span><span class="o">=</span><span class="n">readout</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"rank"</span><span class="p">),</span>
+            <span class="n">topk</span><span class="o">=</span><span class="n">readout</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"topk"</span><span class="p">),</span>
+            <span class="n">bias</span><span class="o">=</span><span class="kc">False</span> <span class="k">if</span> <span class="n">indexed</span> <span class="k">else</span> <span class="n">readout</span><span class="p">[</span><span class="s2">"bias"</span><span class="p">],</span>
+            <span class="n">init_std</span><span class="o">=</span><span class="n">readout</span><span class="p">[</span><span class="s2">"init_std"</span><span class="p">],</span>
+            <span class="n">seed</span><span class="o">=</span><span class="n">readout</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"topology_seed"</span><span class="p">,</span> <span class="n">spec</span><span class="p">[</span><span class="s2">"topology_seed"</span><span class="p">]),</span>
+            <span class="n">projection_backend</span><span class="o">=</span><span class="n">readout</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"projection_backend"</span><span class="p">,</span> <span class="s2">"eager"</span><span class="p">),</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">indexed</span><span class="p">:</span>
+            <span class="c1"># The factory's sparse initializer otherwise ignores init_std.</span>
+            <span class="c1"># Match the signed normal per-stored-weight policy of its dense</span>
+            <span class="c1"># and low-rank paths, while retaining its fixed support and kernel.</span>
+            <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">normal_</span><span class="p">(</span><span class="n">projection</span><span class="o">.</span><span class="n">pre_w</span><span class="p">,</span> <span class="n">mean</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">std</span><span class="o">=</span><span class="n">readout</span><span class="p">[</span><span class="s2">"init_std"</span><span class="p">])</span>
+            <span class="k">return</span> <span class="n">_IndexedAffineReadout</span><span class="p">(</span><span class="n">projection</span><span class="p">,</span> <span class="n">bias</span><span class="o">=</span><span class="n">readout</span><span class="p">[</span><span class="s2">"bias"</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">projection</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">_GroupedGated</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Generic sparse gated subunits, group RMS normalization, and learned sum.</span>
+
+<span class="sd">    This conventional comparator has no dendritic circuit dynamics. Each soma</span>
+<span class="sd">    group contains as many parallel sites as the dendritic nonsomatic-site</span>
+<span class="sd">    inventory (one for a flat morphology). Both sparse projections, biases,</span>
+<span class="sd">    branch-combination weights, and output bias are counted. It is a bundled</span>
+<span class="sd">    grouping/gating/normalization control, not an exact shunting equivalent.</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">input_dim</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">width</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">groups</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">contacts_e</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">contacts_i</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">activation</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">seed</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">initialization</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">projection_backend</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"eager"</span><span class="p">,</span>
+        <span class="n">activation_init</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="n">sites</span> <span class="o">=</span> <span class="n">width</span> <span class="o">*</span> <span class="n">groups</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">width</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">groups</span> <span class="o">=</span> <span class="n">width</span><span class="p">,</span> <span class="n">groups</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="n">_SparseAffine</span><span class="p">(</span>
+            <span class="n">input_dim</span><span class="p">,</span>
+            <span class="n">sites</span><span class="p">,</span>
+            <span class="n">contacts_e</span><span class="p">,</span>
+            <span class="n">seed</span><span class="p">,</span>
+            <span class="n">initialization</span><span class="p">,</span>
+            <span class="n">projection_backend</span><span class="o">=</span><span class="n">projection_backend</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gate</span> <span class="o">=</span> <span class="n">_SparseAffine</span><span class="p">(</span>
+            <span class="n">input_dim</span><span class="p">,</span>
+            <span class="n">sites</span><span class="p">,</span>
+            <span class="n">contacts_i</span><span class="p">,</span>
+            <span class="n">seed</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span>
+            <span class="n">initialization</span><span class="p">,</span>
+            <span class="n">gate_projection</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">projection_backend</span><span class="o">=</span><span class="n">projection_backend</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">activation</span> <span class="o">=</span> <span class="n">_activation</span><span class="p">(</span><span class="n">activation</span><span class="p">,</span> <span class="n">sites</span><span class="p">,</span> <span class="n">activation_init</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">combine</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">width</span><span class="p">,</span> <span class="n">groups</span><span class="p">))</span>
+        <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">normal_</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">combine</span><span class="p">,</span> <span class="n">std</span><span class="o">=</span><span class="n">groups</span><span class="o">**-</span><span class="mf">0.5</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">bias</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">width</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">output_activation</span> <span class="o">=</span> <span class="n">_activation</span><span class="p">(</span><span class="n">activation</span><span class="p">,</span> <span class="n">width</span><span class="p">,</span> <span class="n">activation_init</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+        <span class="n">branches</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">activation</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">value</span><span class="p">(</span><span class="n">x</span><span class="p">))</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">sigmoid</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">gate</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>
+        <span class="n">branches</span> <span class="o">=</span> <span class="n">branches</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">width</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">groups</span><span class="p">)</span>
+        <span class="c1"># Include a unit reference so singleton groups remain amplitude-sensitive.</span>
+        <span class="n">branches</span> <span class="o">=</span> <span class="n">branches</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">rsqrt</span><span class="p">(</span>
+            <span class="mf">1.0</span> <span class="o">+</span> <span class="n">branches</span><span class="o">.</span><span class="n">square</span><span class="p">()</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdim</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_activation</span><span class="p">((</span><span class="n">branches</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">combine</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">bias</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_dendritic_config</span><span class="p">(</span><span class="n">spec</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">contacts_e</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">contacts_i</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">seed</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+    <span class="n">signed</span> <span class="o">=</span> <span class="n">spec</span><span class="p">[</span><span class="s2">"family"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"dendritic_signed"</span>
+    <span class="n">activation_init</span> <span class="o">=</span> <span class="n">spec</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"activation_init"</span><span class="p">,</span> <span class="p">{</span><span class="s2">"gain"</span><span class="p">:</span> <span class="mf">1.5</span><span class="p">,</span> <span class="s2">"threshold"</span><span class="p">:</span> <span class="mf">0.5</span><span class="p">})</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s2">"architecture"</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">"excitatory_layer_sizes"</span><span class="p">:</span> <span class="p">[</span><span class="n">spec</span><span class="p">[</span><span class="s2">"width"</span><span class="p">]],</span>
+            <span class="s2">"inhibitory_layer_sizes"</span><span class="p">:</span> <span class="p">[],</span>
+            <span class="s2">"excitatory_branch_factors"</span><span class="p">:</span> <span class="n">spec</span><span class="p">[</span><span class="s2">"branch_factors"</span><span class="p">],</span>
+            <span class="s2">"inhibitory_branch_factors"</span><span class="p">:</span> <span class="n">spec</span><span class="p">[</span><span class="s2">"branch_factors"</span><span class="p">],</span>
+        <span class="p">},</span>
+        <span class="s2">"connectivity"</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">"ee_synapses_per_branch_per_layer"</span><span class="p">:</span> <span class="p">[</span><span class="n">contacts_e</span><span class="p">],</span>
+            <span class="s2">"ei_synapses_per_branch_per_layer"</span><span class="p">:</span> <span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+            <span class="s2">"ie_synapses_per_branch_per_layer"</span><span class="p">:</span> <span class="p">[</span><span class="n">contacts_i</span><span class="p">],</span>
+            <span class="s2">"ii_synapses_per_branch_per_layer"</span><span class="p">:</span> <span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+        <span class="p">},</span>
+        <span class="s2">"transfer"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"independent_pathways"</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span> <span class="s2">"output_activation"</span><span class="p">:</span> <span class="kc">None</span><span class="p">},</span>
+        <span class="s2">"morphology"</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">"somatic_synapses"</span><span class="p">:</span> <span class="ow">not</span> <span class="nb">bool</span><span class="p">(</span><span class="n">spec</span><span class="p">[</span><span class="s2">"branch_factors"</span><span class="p">]),</span>
+            <span class="s2">"use_shunting"</span><span class="p">:</span> <span class="n">spec</span><span class="p">[</span><span class="s2">"family"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"dendritic_shunting"</span><span class="p">,</span>
+            <span class="s2">"weight_transform"</span><span class="p">:</span> <span class="s2">"identity"</span> <span class="k">if</span> <span class="n">signed</span> <span class="k">else</span> <span class="s2">"softplus"</span><span class="p">,</span>
+            <span class="s2">"dbl_init_method"</span><span class="p">:</span> <span class="s2">"analytical_expectation"</span><span class="p">,</span>
+        <span class="p">},</span>
+        <span class="s2">"sparsity"</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">"type"</span><span class="p">:</span> <span class="s2">"indexed"</span><span class="p">,</span>
+            <span class="s2">"init_method"</span><span class="p">:</span> <span class="p">(</span>
+                <span class="s2">"kaiming_normal"</span>
+                <span class="k">if</span> <span class="n">spec</span><span class="p">[</span><span class="s2">"initialization"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"fan_in"</span>
+                <span class="k">else</span> <span class="s2">"xavier_normal"</span>
+            <span class="p">),</span>
+            <span class="s2">"indexed"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"seed"</span><span class="p">:</span> <span class="n">seed</span><span class="p">,</span> <span class="s2">"projection_backend"</span><span class="p">:</span> <span class="n">spec</span><span class="p">[</span><span class="s2">"projection_backend"</span><span class="p">]},</span>
+        <span class="p">},</span>
+        <span class="s2">"reactivation"</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">"enabled"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+            <span class="s2">"type"</span><span class="p">:</span> <span class="n">spec</span><span class="p">[</span><span class="s2">"activation"</span><span class="p">],</span>
+            <span class="c1"># Fixed applies explicit m/b to learned gates at every branch and</span>
+            <span class="c1"># soma. Historical parameter-free gates ignore these same values.</span>
+            <span class="s2">"init_m"</span><span class="p">:</span> <span class="n">activation_init</span><span class="p">[</span><span class="s2">"gain"</span><span class="p">],</span>
+            <span class="s2">"init_b"</span><span class="p">:</span> <span class="n">activation_init</span><span class="p">[</span><span class="s2">"threshold"</span><span class="p">],</span>
+            <span class="s2">"init_policy"</span><span class="p">:</span> <span class="s2">"fixed"</span><span class="p">,</span>
+        <span class="p">},</span>
+        <span class="s2">"blocklinear"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"efficient"</span><span class="p">:</span> <span class="kc">True</span><span class="p">},</span>
+        <span class="s2">"implementation"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"adaptive_initialization"</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span> <span class="s2">"print_hooks"</span><span class="p">:</span> <span class="kc">False</span><span class="p">},</span>
+    <span class="p">}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_initialize_signed_dendritic_fan_in</span><span class="p">(</span><span class="n">module</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Reset production signed-final-init using actual contacts/children fan-in.</span>
+
+<span class="sd">    The production identity-weight initializer reapplies Xavier after the</span>
+<span class="sd">    projection constructors. Only existing signed parameters are reset here;</span>
+<span class="sd">    circuit dynamics, support, and positive-conductance initialization remain</span>
+<span class="sd">    those of the production modules.</span>
+<span class="sd">    """</span>
+    <span class="n">fan_ins</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">child</span> <span class="ow">in</span> <span class="n">module</span><span class="o">.</span><span class="n">named_modules</span><span class="p">():</span>
+        <span class="k">if</span> <span class="p">(</span>
+            <span class="nb">isinstance</span><span class="p">(</span><span class="n">child</span><span class="p">,</span> <span class="n">IndexedSparseLinear</span><span class="p">)</span>
+            <span class="ow">and</span> <span class="n">child</span><span class="o">.</span><span class="n">weight_transform</span> <span class="o">==</span> <span class="s2">"identity"</span>
+        <span class="p">):</span>
+            <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">kaiming_normal_</span><span class="p">(</span><span class="n">child</span><span class="o">.</span><span class="n">pre_w</span><span class="p">)</span>
+            <span class="n">fan_ins</span><span class="p">[</span><span class="n">name</span> <span class="o">+</span> <span class="s2">".pre_w"</span><span class="p">]</span> <span class="o">=</span> <span class="n">child</span><span class="o">.</span><span class="n">K</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">child</span><span class="p">,</span> <span class="n">BlockLinear</span><span class="p">)</span> <span class="ow">and</span> <span class="n">child</span><span class="o">.</span><span class="n">weight_transform</span> <span class="o">==</span> <span class="s2">"identity"</span><span class="p">:</span>
+            <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">kaiming_normal_</span><span class="p">(</span><span class="n">child</span><span class="o">.</span><span class="n">log_weight</span><span class="p">)</span>
+            <span class="n">fan_ins</span><span class="p">[</span><span class="n">name</span> <span class="o">+</span> <span class="s2">".log_weight"</span><span class="p">]</span> <span class="o">=</span> <span class="n">child</span><span class="o">.</span><span class="n">block_size</span>
+    <span class="k">return</span> <span class="n">fan_ins</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">_ScalingModel</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">spec</span><span class="p">:</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">scaling_spec</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">spec</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">encoding</span> <span class="o">=</span> <span class="n">_InputEncoding</span><span class="p">(</span><span class="n">spec</span><span class="p">[</span><span class="s2">"input_dim"</span><span class="p">],</span> <span class="n">spec</span><span class="p">[</span><span class="s2">"input_encoding"</span><span class="p">])</span>
+        <span class="n">encoded_dim</span> <span class="o">=</span> <span class="n">spec</span><span class="p">[</span><span class="s2">"input_dim"</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span>
+            <span class="mi">2</span> <span class="k">if</span> <span class="n">spec</span><span class="p">[</span><span class="s2">"input_encoding"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"signed_split"</span> <span class="k">else</span> <span class="mi">1</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">encoded_input_dim</span> <span class="o">=</span> <span class="n">encoded_dim</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">layer_receipts</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">layers</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">input_dim</span> <span class="o">=</span> <span class="n">encoded_dim</span>
+        <span class="n">family</span><span class="p">,</span> <span class="n">width</span> <span class="o">=</span> <span class="n">spec</span><span class="p">[</span><span class="s2">"family"</span><span class="p">],</span> <span class="n">spec</span><span class="p">[</span><span class="s2">"width"</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">index</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">spec</span><span class="p">[</span><span class="s2">"network_depth"</span><span class="p">]):</span>
+            <span class="n">support_seed</span> <span class="o">=</span> <span class="n">spec</span><span class="p">[</span><span class="s2">"topology_seed"</span><span class="p">]</span> <span class="o">+</span> <span class="n">index</span> <span class="o">*</span> <span class="mi">104729</span>
+            <span class="n">receipt</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"layer"</span><span class="p">:</span> <span class="n">index</span><span class="p">,</span> <span class="s2">"input_dim"</span><span class="p">:</span> <span class="n">input_dim</span><span class="p">,</span> <span class="s2">"output_dim"</span><span class="p">:</span> <span class="n">width</span><span class="p">}</span>
+            <span class="k">if</span> <span class="n">family</span> <span class="o">==</span> <span class="s2">"dense"</span><span class="p">:</span>
+                <span class="n">affine</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">input_dim</span><span class="p">,</span> <span class="n">width</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">spec</span><span class="p">[</span><span class="s2">"initialization"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"fan_in"</span><span class="p">:</span>
+                    <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">kaiming_normal_</span><span class="p">(</span><span class="n">affine</span><span class="o">.</span><span class="n">weight</span><span class="p">)</span>
+                    <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">zeros_</span><span class="p">(</span><span class="n">affine</span><span class="o">.</span><span class="n">bias</span><span class="p">)</span>
+                <span class="n">layer</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span>
+                    <span class="n">affine</span><span class="p">,</span>
+                    <span class="n">_activation</span><span class="p">(</span><span class="n">spec</span><span class="p">[</span><span class="s2">"activation"</span><span class="p">],</span> <span class="n">width</span><span class="p">,</span> <span class="n">spec</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"activation_init"</span><span class="p">)),</span>
+                <span class="p">)</span>
+                <span class="n">receipt</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s2">"contacts_e"</span><span class="p">:</span> <span class="n">input_dim</span><span class="p">,</span> <span class="s2">"contacts_i"</span><span class="p">:</span> <span class="mi">0</span><span class="p">})</span>
+            <span class="k">elif</span> <span class="n">family</span> <span class="o">==</span> <span class="s2">"sparse"</span><span class="p">:</span>
+                <span class="n">contacts</span> <span class="o">=</span> <span class="n">_contacts</span><span class="p">(</span>
+                    <span class="n">spec</span><span class="p">[</span><span class="s2">"contacts_e"</span><span class="p">]</span> <span class="o">+</span> <span class="n">spec</span><span class="p">[</span><span class="s2">"contacts_i"</span><span class="p">],</span> <span class="n">input_dim</span><span class="p">,</span> <span class="n">spec</span>
+                <span class="p">)</span>
+                <span class="n">layer</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span>
+                    <span class="n">_SparseAffine</span><span class="p">(</span>
+                        <span class="n">input_dim</span><span class="p">,</span>
+                        <span class="n">width</span><span class="p">,</span>
+                        <span class="n">contacts</span><span class="p">,</span>
+                        <span class="n">support_seed</span><span class="p">,</span>
+                        <span class="n">spec</span><span class="p">[</span><span class="s2">"initialization"</span><span class="p">],</span>
+                        <span class="n">projection_backend</span><span class="o">=</span><span class="n">spec</span><span class="p">[</span><span class="s2">"projection_backend"</span><span class="p">],</span>
+                    <span class="p">),</span>
+                    <span class="n">_activation</span><span class="p">(</span><span class="n">spec</span><span class="p">[</span><span class="s2">"activation"</span><span class="p">],</span> <span class="n">width</span><span class="p">,</span> <span class="n">spec</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"activation_init"</span><span class="p">)),</span>
+                <span class="p">)</span>
+                <span class="n">receipt</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s2">"contacts_e"</span><span class="p">:</span> <span class="n">contacts</span><span class="p">,</span> <span class="s2">"contacts_i"</span><span class="p">:</span> <span class="mi">0</span><span class="p">})</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">contacts_e</span> <span class="o">=</span> <span class="n">_contacts</span><span class="p">(</span><span class="n">spec</span><span class="p">[</span><span class="s2">"contacts_e"</span><span class="p">],</span> <span class="n">input_dim</span><span class="p">,</span> <span class="n">spec</span><span class="p">)</span>
+                <span class="n">contacts_i</span> <span class="o">=</span> <span class="n">_contacts</span><span class="p">(</span><span class="n">spec</span><span class="p">[</span><span class="s2">"contacts_i"</span><span class="p">],</span> <span class="n">input_dim</span><span class="p">,</span> <span class="n">spec</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">family</span> <span class="o">==</span> <span class="s2">"grouped_gated"</span><span class="p">:</span>
+                    <span class="c1"># A zero I count does not remove the generic gate; it reuses</span>
+                    <span class="c1"># the declared value fan-in, with its full cost recorded.</span>
+                    <span class="n">contacts_i</span> <span class="o">=</span> <span class="n">contacts_i</span> <span class="ow">or</span> <span class="n">contacts_e</span>
+                    <span class="n">groups</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">_compartments</span><span class="p">(</span><span class="n">spec</span><span class="p">[</span><span class="s2">"branch_factors"</span><span class="p">])</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+                    <span class="n">layer</span> <span class="o">=</span> <span class="n">_GroupedGated</span><span class="p">(</span>
+                        <span class="n">input_dim</span><span class="p">,</span>
+                        <span class="n">width</span><span class="p">,</span>
+                        <span class="n">groups</span><span class="p">,</span>
+                        <span class="n">contacts_e</span><span class="p">,</span>
+                        <span class="n">contacts_i</span><span class="p">,</span>
+                        <span class="n">spec</span><span class="p">[</span><span class="s2">"activation"</span><span class="p">],</span>
+                        <span class="n">support_seed</span><span class="p">,</span>
+                        <span class="n">spec</span><span class="p">[</span><span class="s2">"initialization"</span><span class="p">],</span>
+                        <span class="n">projection_backend</span><span class="o">=</span><span class="n">spec</span><span class="p">[</span><span class="s2">"projection_backend"</span><span class="p">],</span>
+                        <span class="n">activation_init</span><span class="o">=</span><span class="n">spec</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"activation_init"</span><span class="p">),</span>
+                    <span class="p">)</span>
+                    <span class="n">receipt</span><span class="p">[</span><span class="s2">"parallel_groups"</span><span class="p">]</span> <span class="o">=</span> <span class="n">groups</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">config</span> <span class="o">=</span> <span class="n">_dendritic_config</span><span class="p">(</span>
+                        <span class="n">spec</span><span class="p">,</span> <span class="n">contacts_e</span><span class="p">,</span> <span class="n">contacts_i</span><span class="p">,</span> <span class="n">support_seed</span>
+                    <span class="p">)</span>
+                    <span class="n">layer</span> <span class="o">=</span> <span class="n">ConfigurableEINetwork</span><span class="p">(</span><span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span> <span class="n">input_dim</span><span class="o">=</span><span class="n">input_dim</span><span class="p">)</span>
+                    <span class="n">receipt</span><span class="p">[</span><span class="s2">"production_config"</span><span class="p">]</span> <span class="o">=</span> <span class="n">config</span>
+                    <span class="k">if</span> <span class="p">(</span>
+                        <span class="n">family</span> <span class="o">==</span> <span class="s2">"dendritic_signed"</span>
+                        <span class="ow">and</span> <span class="n">spec</span><span class="p">[</span><span class="s2">"initialization"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"fan_in"</span>
+                    <span class="p">):</span>
+                        <span class="n">receipt</span><span class="p">[</span><span class="s2">"final_signed_parameter_fan_ins"</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+                            <span class="n">_initialize_signed_dendritic_fan_in</span><span class="p">(</span><span class="n">layer</span><span class="p">)</span>
+                        <span class="p">)</span>
+                    <span class="k">elif</span> <span class="n">family</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">"dendritic_additive"</span><span class="p">,</span> <span class="s2">"dendritic_shunting"</span><span class="p">}:</span>
+                        <span class="n">receipt</span><span class="p">[</span><span class="s2">"final_positive_initialization"</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+                            <span class="s2">"production_analytical_expectation"</span>
+                        <span class="p">)</span>
+                <span class="n">receipt</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s2">"contacts_e"</span><span class="p">:</span> <span class="n">contacts_e</span><span class="p">,</span> <span class="s2">"contacts_i"</span><span class="p">:</span> <span class="n">contacts_i</span><span class="p">})</span>
+            <span class="n">layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">layer</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">layer_receipts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">receipt</span><span class="p">)</span>
+            <span class="n">input_dim</span> <span class="o">=</span> <span class="n">width</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">hidden</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span><span class="o">*</span><span class="n">layers</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">readout</span> <span class="o">=</span> <span class="n">_build_readout</span><span class="p">(</span><span class="n">spec</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">readout</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">hidden</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">encoding</span><span class="p">(</span><span class="n">x</span><span class="p">)))</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">build_model</span><span class="p">(</span><span class="n">spec</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Instantiate a seeded whole model without perturbing the caller's RNG.</span>
+
+<span class="sd">    ``seed`` controls initial parameters; ``topology_seed`` defaults to it and</span>
+<span class="sd">    controls static support. Defaults use a common signed-split input encoding</span>
+<span class="sd">    and ReLU at every hidden point/branch. Native-input point controls may opt</span>
+<span class="sd">    into ``input_encoding='raw'``; raw input is also supported by signed trees</span>
+<span class="sd">    and generic grouped gates. Supported activations are nonnegative</span>
+<span class="sd">    so successive positive-conductance layers receive valid inputs. Models are</span>
+<span class="sd">    created on CPU; callers select device/dtype explicitly afterward.</span>
+
+<span class="sd">    Learned ``param_relu`` and ``param_tanh`` gates require an explicit</span>
+<span class="sd">    ``activation_init={"gain": m, "threshold": b}``. The positive gain is m,</span>
+<span class="sd">    not its stored logarithm: gates evaluate m*relu(V-b) or</span>
+<span class="sd">    (tanh(m*(V-b))+1)/2. Both log(m) and b are learned and counted at every</span>
+<span class="sd">    hidden gate, including dendritic somas. Conventional controls use the same</span>
+<span class="sd">    production activation classes and settings. Initialization is fixed with</span>
+<span class="sd">    no implicit calibration; the caller must choose a threshold appropriate</span>
+<span class="sd">    to its voltage regime. For param_relu, gain must be &gt;=1e-8 to avoid the</span>
+<span class="sd">    production initializer's floor. Omitted options preserve historical specs,</span>
+<span class="sd">    state, and reports. Gate choices do not promise matched initial body weights.</span>
+
+<span class="sd">    ``initialization='fan_in'`` uses the registered production Kaiming-normal</span>
+<span class="sd">    sparse initializer, whose preweight variance is 2/K rather than 2/(K+width).</span>
+<span class="sd">    Signed dendritic projections and child couplings are reset after production</span>
+<span class="sd">    initialization using contacts/children as their row fan-in.</span>
+<span class="sd">    Dense hidden values use the same fan-in rule; grouped gate logits use gain</span>
+<span class="sd">    one. With no ``readout`` field, the affine readout retains ordinary PyTorch</span>
+<span class="sd">    fan-in initialization and the exact historical state/RNG sequence.</span>
+<span class="sd">    Positive weights retain the production analytical initializer, which</span>
+<span class="sd">    overwrites their constructor weights, and the softplus transform.</span>
+<span class="sd">    This removes a width confound, not all differences</span>
+<span class="sd">    in conditioning across morphologies or integration rules. The archival</span>
+<span class="sd">    ``legacy_xavier`` option reproduces this harness's original initialization.</span>
+
+<span class="sd">    ``projection_backend`` selects the production indexed-projection backend,</span>
+<span class="sd">    defaulting to ``eager``. It applies to every sparse value/gate/E/I bank;</span>
+<span class="sd">    dense models accept only the default. Explicit accelerator backends are</span>
+<span class="sd">    constructed on CPU but require a supported device at forward time. Backend</span>
+<span class="sd">    changes preserve parameters and support, not floating-point reduction order.</span>
+
+<span class="sd">    An optional ``readout`` dict selects signed production output allocation:</span>
+<span class="sd">    ``kind='dense'``, ``kind='indexed', topk=K``, or ``kind='low_rank', rank=r``.</span>
+<span class="sd">    All default to a counted affine bias and normal initialization with</span>
+<span class="sd">    ``init_std=0.02`` per stored weight (per factor for low rank). Thus explicit</span>
+<span class="sd">    dense initialization differs from the legacy omitted-field path. No</span>
+<span class="sd">    activation is inserted between low-rank factors. Optional ``parameter_seed``</span>
+<span class="sd">    isolates readout initialization from hidden-layer RNG consumption; if</span>
+<span class="sd">    omitted it inherits ``seed``. Indexed readouts additionally accept</span>
+<span class="sd">    ``topology_seed`` (inherits the core topology seed) and ``projection_backend``</span>
+<span class="sd">    (defaults to eager independently of core backend). Their fixed indices are</span>
+<span class="sd">    stored buffers, never learned candidate weights. Readout topk/rank are</span>
+<span class="sd">    never clipped by ``clip_contacts``.</span>
+<span class="sd">    """</span>
+    <span class="n">resolved</span> <span class="o">=</span> <span class="n">_normalize_spec</span><span class="p">(</span><span class="n">spec</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">fork_rng</span><span class="p">(</span><span class="n">devices</span><span class="o">=</span><span class="p">[]):</span>
+        <span class="n">torch</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_generator</span><span class="o">.</span><span class="n">manual_seed</span><span class="p">(</span><span class="n">resolved</span><span class="p">[</span><span class="s2">"seed"</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">_ScalingModel</span><span class="p">(</span><span class="n">resolved</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_dendrinet_inventory</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Inspect actual production populations; never infer counts from a label.</span>
+
+<span class="sd">    Depth zero is the soma, whereas ``forward_index`` runs from leaves to the</span>
+<span class="sd">    soma. A contact means a stored indexed synaptic weight, not a dense masked</span>
+<span class="sd">    candidate. Parameter roles form an exclusive partition of the whole model;</span>
+<span class="sd">    a tied parameter with multiple roles is counted once under ``shared``.</span>
+<span class="sd">    Registered buffers are reported separately from learned parameters and may</span>
+<span class="sd">    include mutable runtime state, so they are not all called fixed topology.</span>
+<span class="sd">    """</span>
+    <span class="n">dendrinets</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">module</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">module</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">named_modules</span><span class="p">()</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">DendriNet</span><span class="p">)</span>
+    <span class="p">]</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">dendrinets</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="n">role_names</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="s2">"excitatory_synapses"</span><span class="p">,</span>
+        <span class="s2">"inhibitory_synapses"</span><span class="p">,</span>
+        <span class="s2">"recurrent_synapses"</span><span class="p">,</span>
+        <span class="s2">"child_couplings"</span><span class="p">,</span>
+        <span class="s2">"reactivation"</span><span class="p">,</span>
+        <span class="s2">"readout"</span><span class="p">,</span>
+        <span class="s2">"shared"</span><span class="p">,</span>
+        <span class="s2">"other"</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">roles</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">assign_role</span><span class="p">(</span><span class="n">module</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="n">role</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">module</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">parameter</span> <span class="ow">in</span> <span class="n">module</span><span class="o">.</span><span class="n">parameters</span><span class="p">():</span>
+                <span class="n">roles</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="nb">id</span><span class="p">(</span><span class="n">parameter</span><span class="p">),</span> <span class="nb">set</span><span class="p">())</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">role</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">parameter_count</span><span class="p">(</span><span class="n">module</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">0</span> <span class="k">if</span> <span class="n">module</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="nb">sum</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">module</span><span class="o">.</span><span class="n">parameters</span><span class="p">())</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">bank_receipt</span><span class="p">(</span><span class="n">bank</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">bank</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">"module_type"</span><span class="p">:</span> <span class="nb">type</span><span class="p">(</span><span class="n">bank</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span>
+            <span class="s2">"total_parameters"</span><span class="p">:</span> <span class="n">parameter_count</span><span class="p">(</span><span class="n">bank</span><span class="p">),</span>
+            <span class="s2">"input_dim"</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">bank</span><span class="o">.</span><span class="n">in_features</span><span class="p">),</span>
+            <span class="s2">"output_dim"</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">bank</span><span class="o">.</span><span class="n">out_features</span><span class="p">),</span>
+            <span class="s2">"weight_transform"</span><span class="p">:</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">bank</span><span class="p">,</span> <span class="s2">"weight_transform"</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+        <span class="p">}</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">bank</span><span class="p">,</span> <span class="n">IndexedSparseLinear</span><span class="p">):</span>
+            <span class="n">indices</span> <span class="o">=</span> <span class="n">bank</span><span class="o">.</span><span class="n">connection_indices</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">contiguous</span><span class="p">()</span>
+            <span class="n">result</span><span class="o">.</span><span class="n">update</span><span class="p">(</span>
+                <span class="p">{</span>
+                    <span class="s2">"contacts_per_compartment"</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">bank</span><span class="o">.</span><span class="n">K</span><span class="p">),</span>
+                    <span class="s2">"stored_contacts"</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">bank</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">numel</span><span class="p">()),</span>
+                    <span class="s2">"connection_indices_shape"</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">indices</span><span class="o">.</span><span class="n">shape</span><span class="p">),</span>
+                    <span class="s2">"connection_indices_bytes"</span><span class="p">:</span> <span class="n">indices</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span>
+                    <span class="o">*</span> <span class="n">indices</span><span class="o">.</span><span class="n">element_size</span><span class="p">(),</span>
+                    <span class="s2">"connection_indices_sha256"</span><span class="p">:</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha256</span><span class="p">(</span>
+                        <span class="n">indices</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span><span class="o">.</span><span class="n">tobytes</span><span class="p">()</span>
+                    <span class="p">)</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">(),</span>
+                    <span class="s2">"support_policy"</span><span class="p">:</span> <span class="s2">"static_indexed"</span><span class="p">,</span>
+                <span class="p">}</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="n">result</span>
+
+    <span class="n">populations</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">dendrinet</span> <span class="ow">in</span> <span class="n">dendrinets</span><span class="p">:</span>
+        <span class="n">depths</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">forward_index</span><span class="p">,</span> <span class="n">branch</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">dendrinet</span><span class="o">.</span><span class="n">branch_layers</span><span class="p">):</span>
+            <span class="n">excitation</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">branch</span><span class="p">,</span> <span class="s2">"branch_excitation"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+            <span class="n">inhibition</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">branch</span><span class="p">,</span> <span class="s2">"branch_inhibition"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+            <span class="n">coupling</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">branch</span><span class="p">,</span> <span class="s2">"branches_to_output"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+            <span class="n">gate</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">branch</span><span class="p">,</span> <span class="s2">"reactivation"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+            <span class="n">assign_role</span><span class="p">(</span><span class="n">excitation</span><span class="p">,</span> <span class="s2">"excitatory_synapses"</span><span class="p">)</span>
+            <span class="n">assign_role</span><span class="p">(</span><span class="n">inhibition</span><span class="p">,</span> <span class="s2">"inhibitory_synapses"</span><span class="p">)</span>
+            <span class="n">assign_role</span><span class="p">(</span><span class="n">coupling</span><span class="p">,</span> <span class="s2">"child_couplings"</span><span class="p">)</span>
+            <span class="n">assign_role</span><span class="p">(</span><span class="n">gate</span><span class="p">,</span> <span class="s2">"reactivation"</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">recurrent_name</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"branch_recurrent"</span><span class="p">,</span> <span class="s2">"branch_rec_inhibition"</span><span class="p">):</span>
+                <span class="n">assign_role</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">branch</span><span class="p">,</span> <span class="n">recurrent_name</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span> <span class="s2">"recurrent_synapses"</span><span class="p">)</span>
+            <span class="n">excitation_receipt</span> <span class="o">=</span> <span class="n">bank_receipt</span><span class="p">(</span><span class="n">excitation</span><span class="p">)</span>
+            <span class="n">inhibition_receipt</span> <span class="o">=</span> <span class="n">bank_receipt</span><span class="p">(</span><span class="n">inhibition</span><span class="p">)</span>
+            <span class="n">depths</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="p">{</span>
+                    <span class="s2">"module_name"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">.branch_layers.</span><span class="si">{</span><span class="n">forward_index</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
+                    <span class="s2">"forward_index"</span><span class="p">:</span> <span class="n">forward_index</span><span class="p">,</span>
+                    <span class="s2">"depth_from_soma"</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">branch</span><span class="o">.</span><span class="n">layer_idx</span><span class="p">),</span>
+                    <span class="s2">"is_soma"</span><span class="p">:</span> <span class="n">branch</span><span class="o">.</span><span class="n">layer_idx</span> <span class="o">==</span> <span class="mi">0</span><span class="p">,</span>
+                    <span class="s2">"compartment_count"</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">branch</span><span class="o">.</span><span class="n">n_branches</span><span class="p">),</span>
+                    <span class="s2">"compartments_per_soma"</span><span class="p">:</span> <span class="n">branch</span><span class="o">.</span><span class="n">n_branches</span> <span class="o">//</span> <span class="n">dendrinet</span><span class="o">.</span><span class="n">n_soma</span><span class="p">,</span>
+                    <span class="s2">"contacts_e_per_compartment"</span><span class="p">:</span> <span class="p">(</span>
+                        <span class="n">excitation_receipt</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"contacts_per_compartment"</span><span class="p">)</span>
+                        <span class="k">if</span> <span class="n">excitation_receipt</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+                        <span class="k">else</span> <span class="mi">0</span>
+                    <span class="p">),</span>
+                    <span class="s2">"contacts_i_per_compartment"</span><span class="p">:</span> <span class="p">(</span>
+                        <span class="n">inhibition_receipt</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"contacts_per_compartment"</span><span class="p">)</span>
+                        <span class="k">if</span> <span class="n">inhibition_receipt</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+                        <span class="k">else</span> <span class="mi">0</span>
+                    <span class="p">),</span>
+                    <span class="s2">"input_banks"</span><span class="p">:</span> <span class="p">{</span>
+                        <span class="s2">"excitatory"</span><span class="p">:</span> <span class="n">excitation_receipt</span><span class="p">,</span>
+                        <span class="s2">"inhibitory"</span><span class="p">:</span> <span class="n">inhibition_receipt</span><span class="p">,</span>
+                    <span class="p">},</span>
+                    <span class="s2">"input_synapse_parameters"</span><span class="p">:</span> <span class="n">parameter_count</span><span class="p">(</span><span class="n">excitation</span><span class="p">)</span>
+                    <span class="o">+</span> <span class="n">parameter_count</span><span class="p">(</span><span class="n">inhibition</span><span class="p">),</span>
+                    <span class="s2">"children_per_compartment"</span><span class="p">:</span> <span class="p">(</span>
+                        <span class="nb">int</span><span class="p">(</span><span class="n">coupling</span><span class="o">.</span><span class="n">block_size</span><span class="p">)</span> <span class="k">if</span> <span class="n">coupling</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="mi">0</span>
+                    <span class="p">),</span>
+                    <span class="s2">"child_coupling_parameters"</span><span class="p">:</span> <span class="n">parameter_count</span><span class="p">(</span><span class="n">coupling</span><span class="p">),</span>
+                    <span class="s2">"gate_enabled"</span><span class="p">:</span> <span class="nb">bool</span><span class="p">(</span><span class="n">branch</span><span class="o">.</span><span class="n">reactivate</span><span class="p">),</span>
+                    <span class="s2">"gate_type"</span><span class="p">:</span> <span class="nb">type</span><span class="p">(</span><span class="n">gate</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span> <span class="k">if</span> <span class="n">gate</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+                    <span class="s2">"gate_parameters"</span><span class="p">:</span> <span class="n">parameter_count</span><span class="p">(</span><span class="n">gate</span><span class="p">),</span>
+                    <span class="s2">"integration"</span><span class="p">:</span> <span class="s2">"shunting"</span> <span class="k">if</span> <span class="n">branch</span><span class="o">.</span><span class="n">use_shunting</span> <span class="k">else</span> <span class="s2">"additive"</span><span class="p">,</span>
+                    <span class="s2">"additive_mode"</span><span class="p">:</span> <span class="n">branch</span><span class="o">.</span><span class="n">additive_mode</span><span class="p">,</span>
+                    <span class="s2">"weight_transform"</span><span class="p">:</span> <span class="n">branch</span><span class="o">.</span><span class="n">weight_transform</span><span class="p">,</span>
+                    <span class="s2">"total_parameters"</span><span class="p">:</span> <span class="n">parameter_count</span><span class="p">(</span><span class="n">branch</span><span class="p">),</span>
+                <span class="p">}</span>
+            <span class="p">)</span>
+        <span class="n">contacted_depths</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">d</span><span class="p">[</span><span class="s2">"depth_from_soma"</span><span class="p">]</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">depths</span> <span class="k">if</span> <span class="n">d</span><span class="p">[</span><span class="s2">"input_synapse_parameters"</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span>
+        <span class="p">]</span>
+        <span class="n">expected_nonsomatic</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">dendrinet</span><span class="o">.</span><span class="n">n_branch_layers</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">contacted_depths</span> <span class="o">==</span> <span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+            <span class="n">placement</span> <span class="o">=</span> <span class="s2">"soma_only"</span>
+        <span class="k">elif</span> <span class="n">contacted_depths</span> <span class="o">==</span> <span class="n">expected_nonsomatic</span> <span class="ow">and</span> <span class="n">expected_nonsomatic</span><span class="p">:</span>
+            <span class="n">placement</span> <span class="o">=</span> <span class="s2">"all_nonsomatic_depths"</span>
+        <span class="k">elif</span> <span class="n">contacted_depths</span> <span class="o">==</span> <span class="p">[</span><span class="o">*</span><span class="n">expected_nonsomatic</span><span class="p">,</span> <span class="mi">0</span><span class="p">]:</span>
+            <span class="n">placement</span> <span class="o">=</span> <span class="s2">"all_depths_including_soma"</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">placement</span> <span class="o">=</span> <span class="s2">"explicit_contacted_depths"</span>
+        <span class="n">populations</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="p">{</span>
+                <span class="s2">"module_name"</span><span class="p">:</span> <span class="n">name</span><span class="p">,</span>
+                <span class="s2">"module_type"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">dendrinet</span><span class="p">)</span><span class="o">.</span><span class="vm">__module__</span><span class="si">}</span><span class="s2">.</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">dendrinet</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
+                <span class="s2">"n_soma"</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">dendrinet</span><span class="o">.</span><span class="n">n_soma</span><span class="p">),</span>
+                <span class="s2">"branch_factors"</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">dendrinet</span><span class="o">.</span><span class="n">branch_factors</span><span class="p">),</span>
+                <span class="s2">"internal_branch_depth"</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">dendrinet</span><span class="o">.</span><span class="n">n_branch_layers</span><span class="p">),</span>
+                <span class="s2">"compartment_count"</span><span class="p">:</span> <span class="nb">sum</span><span class="p">(</span><span class="n">d</span><span class="p">[</span><span class="s2">"compartment_count"</span><span class="p">]</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">depths</span><span class="p">),</span>
+                <span class="s2">"contact_placement"</span><span class="p">:</span> <span class="n">placement</span><span class="p">,</span>
+                <span class="s2">"contacted_depths_from_soma"</span><span class="p">:</span> <span class="n">contacted_depths</span><span class="p">,</span>
+                <span class="s2">"total_parameters"</span><span class="p">:</span> <span class="n">parameter_count</span><span class="p">(</span><span class="n">dendrinet</span><span class="p">),</span>
+                <span class="s2">"depths"</span><span class="p">:</span> <span class="n">depths</span><span class="p">,</span>
+            <span class="p">}</span>
+        <span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">_ScalingModel</span><span class="p">):</span>
+        <span class="n">assign_role</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">readout</span><span class="p">,</span> <span class="s2">"readout"</span><span class="p">)</span>
+    <span class="n">partition</span> <span class="o">=</span> <span class="nb">dict</span><span class="o">.</span><span class="n">fromkeys</span><span class="p">(</span><span class="n">role_names</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="n">trainable_partition</span> <span class="o">=</span> <span class="nb">dict</span><span class="o">.</span><span class="n">fromkeys</span><span class="p">(</span><span class="n">role_names</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="n">parameter_roles</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">parameter</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">named_parameters</span><span class="p">():</span>
+        <span class="n">candidates</span> <span class="o">=</span> <span class="n">roles</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="nb">id</span><span class="p">(</span><span class="n">parameter</span><span class="p">),</span> <span class="nb">set</span><span class="p">())</span>
+        <span class="n">role</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="nb">next</span><span class="p">(</span><span class="nb">iter</span><span class="p">(</span><span class="n">candidates</span><span class="p">))</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">candidates</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+            <span class="k">else</span> <span class="p">(</span><span class="s2">"shared"</span> <span class="k">if</span> <span class="n">candidates</span> <span class="k">else</span> <span class="s2">"other"</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="n">partition</span><span class="p">[</span><span class="n">role</span><span class="p">]</span> <span class="o">+=</span> <span class="n">parameter</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">parameter</span><span class="o">.</span><span class="n">requires_grad</span><span class="p">:</span>
+            <span class="n">trainable_partition</span><span class="p">[</span><span class="n">role</span><span class="p">]</span> <span class="o">+=</span> <span class="n">parameter</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span>
+        <span class="n">parameter_roles</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">role</span>
+
+    <span class="n">buffers</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">buffer</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">named_buffers</span><span class="p">():</span>
+        <span class="n">owner_name</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">local_name</span> <span class="o">=</span> <span class="n">name</span><span class="o">.</span><span class="n">rpartition</span><span class="p">(</span><span class="s2">"."</span><span class="p">)</span>
+        <span class="n">owner</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">get_submodule</span><span class="p">(</span><span class="n">owner_name</span><span class="p">)</span> <span class="k">if</span> <span class="n">owner_name</span> <span class="k">else</span> <span class="n">model</span>
+        <span class="n">buffers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="p">{</span>
+                <span class="s2">"name"</span><span class="p">:</span> <span class="n">name</span><span class="p">,</span>
+                <span class="s2">"shape"</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">buffer</span><span class="o">.</span><span class="n">shape</span><span class="p">),</span>
+                <span class="s2">"dtype"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">buffer</span><span class="o">.</span><span class="n">dtype</span><span class="p">),</span>
+                <span class="s2">"numel"</span><span class="p">:</span> <span class="n">buffer</span><span class="o">.</span><span class="n">numel</span><span class="p">(),</span>
+                <span class="s2">"bytes"</span><span class="p">:</span> <span class="n">buffer</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span> <span class="o">*</span> <span class="n">buffer</span><span class="o">.</span><span class="n">element_size</span><span class="p">(),</span>
+                <span class="s2">"persistent"</span><span class="p">:</span> <span class="n">local_name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">owner</span><span class="o">.</span><span class="n">_non_persistent_buffers_set</span><span class="p">,</span>
+            <span class="p">}</span>
+        <span class="p">)</span>
+    <span class="n">somas</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s2">"n_soma"</span><span class="p">]</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">populations</span><span class="p">)</span>
+    <span class="n">compartments</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s2">"compartment_count"</span><span class="p">]</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">populations</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s2">"schema_version"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="s2">"population_count"</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">populations</span><span class="p">),</span>
+        <span class="s2">"total_somas"</span><span class="p">:</span> <span class="n">somas</span><span class="p">,</span>
+        <span class="s2">"total_compartments"</span><span class="p">:</span> <span class="n">compartments</span><span class="p">,</span>
+        <span class="s2">"total_nonsomatic_compartments"</span><span class="p">:</span> <span class="n">compartments</span> <span class="o">-</span> <span class="n">somas</span><span class="p">,</span>
+        <span class="s2">"parameter_partition"</span><span class="p">:</span> <span class="n">partition</span><span class="p">,</span>
+        <span class="s2">"trainable_parameter_partition"</span><span class="p">:</span> <span class="n">trainable_partition</span><span class="p">,</span>
+        <span class="s2">"parameter_roles"</span><span class="p">:</span> <span class="n">parameter_roles</span><span class="p">,</span>
+        <span class="s2">"registered_buffer_inventory"</span><span class="p">:</span> <span class="n">buffers</span><span class="p">,</span>
+        <span class="s2">"populations"</span><span class="p">:</span> <span class="n">populations</span><span class="p">,</span>
+        <span class="s2">"interpretation"</span><span class="p">:</span> <span class="p">(</span>
+            <span class="s2">"Observed registered architecture and storage, not effective function "</span>
+            <span class="s2">"dimension or active nonlinear-region count. Configured ReLU gates "</span>
+            <span class="s2">"can act linearly on nonnegative branch voltages."</span>
+        <span class="p">),</span>
+    <span class="p">}</span>
+
+
+<div class="viewcode-block" id="model_report">
+<a class="viewcode-back" href="../../../../api_reference.html#dendritic_modeling.networks.benchmarks.parameter_budget.model_report">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">model_report</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Count unique registered scalars and storage, including the affine head."""</span>
+    <span class="n">parameters</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">parameters</span><span class="p">())</span>
+    <span class="n">buffers</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">buffers</span><span class="p">())</span>
+    <span class="n">topology</span> <span class="o">=</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha256</span><span class="p">()</span>
+    <span class="n">topology_bytes</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">buffer</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">named_buffers</span><span class="p">():</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">buffer</span><span class="o">.</span><span class="n">is_floating_point</span><span class="p">()</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">buffer</span><span class="o">.</span><span class="n">is_complex</span><span class="p">():</span>
+            <span class="n">topology</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">name</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+            <span class="n">topology</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">buffer</span><span class="o">.</span><span class="n">shape</span><span class="p">))</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+            <span class="n">topology</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">buffer</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">contiguous</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span><span class="o">.</span><span class="n">tobytes</span><span class="p">())</span>
+            <span class="n">topology_bytes</span> <span class="o">+=</span> <span class="n">buffer</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span> <span class="o">*</span> <span class="n">buffer</span><span class="o">.</span><span class="n">element_size</span><span class="p">()</span>
+    <span class="n">report</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">"total_parameters"</span><span class="p">:</span> <span class="nb">sum</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">parameters</span><span class="p">),</span>
+        <span class="s2">"trainable_parameters"</span><span class="p">:</span> <span class="nb">sum</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">parameters</span> <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">requires_grad</span><span class="p">),</span>
+        <span class="s2">"parameter_bytes"</span><span class="p">:</span> <span class="nb">sum</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span> <span class="o">*</span> <span class="n">p</span><span class="o">.</span><span class="n">element_size</span><span class="p">()</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">parameters</span><span class="p">),</span>
+        <span class="s2">"buffer_bytes"</span><span class="p">:</span> <span class="nb">sum</span><span class="p">(</span><span class="n">b</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span> <span class="o">*</span> <span class="n">b</span><span class="o">.</span><span class="n">element_size</span><span class="p">()</span> <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">buffers</span><span class="p">),</span>
+        <span class="s2">"topology_bytes"</span><span class="p">:</span> <span class="n">topology_bytes</span><span class="p">,</span>
+        <span class="s2">"topology_sha256"</span><span class="p">:</span> <span class="n">topology</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">(),</span>
+        <span class="s2">"parameter_shapes"</span><span class="p">:</span> <span class="p">{</span>
+            <span class="n">name</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">named_parameters</span><span class="p">()</span>
+        <span class="p">},</span>
+        <span class="s2">"indexed_projection_backends"</span><span class="p">:</span> <span class="p">{</span>
+            <span class="n">name</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s2">"requested"</span><span class="p">:</span> <span class="n">module</span><span class="o">.</span><span class="n">projection_backend</span><span class="p">,</span>
+                <span class="s2">"resolved"</span><span class="p">:</span> <span class="n">module</span><span class="o">.</span><span class="n">_last_resolved_projection_backend</span><span class="p">,</span>
+                <span class="s2">"device"</span><span class="p">:</span> <span class="p">(</span>
+                    <span class="nb">str</span><span class="p">(</span><span class="n">module</span><span class="o">.</span><span class="n">_last_projection_device</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">module</span><span class="o">.</span><span class="n">_last_projection_device</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+                    <span class="k">else</span> <span class="kc">None</span>
+                <span class="p">),</span>
+            <span class="p">}</span>
+            <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">module</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">named_modules</span><span class="p">()</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">IndexedSparseLinear</span><span class="p">)</span>
+        <span class="p">},</span>
+    <span class="p">}</span>
+    <span class="n">dendrinet_inventory</span> <span class="o">=</span> <span class="n">_dendrinet_inventory</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">dendrinet_inventory</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">report</span><span class="p">[</span><span class="s2">"dendrinet_inventory"</span><span class="p">]</span> <span class="o">=</span> <span class="n">dendrinet_inventory</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">_ScalingModel</span><span class="p">):</span>
+        <span class="n">spec</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">scaling_spec</span><span class="p">)</span>
+        <span class="n">report</span><span class="o">.</span><span class="n">update</span><span class="p">(</span>
+            <span class="p">{</span>
+                <span class="s2">"resolved_spec"</span><span class="p">:</span> <span class="n">spec</span><span class="p">,</span>
+                <span class="s2">"family"</span><span class="p">:</span> <span class="n">spec</span><span class="p">[</span><span class="s2">"family"</span><span class="p">],</span>
+                <span class="s2">"input_encoding"</span><span class="p">:</span> <span class="n">spec</span><span class="p">[</span><span class="s2">"input_encoding"</span><span class="p">],</span>
+                <span class="s2">"initialization"</span><span class="p">:</span> <span class="n">spec</span><span class="p">[</span><span class="s2">"initialization"</span><span class="p">],</span>
+                <span class="s2">"projection_backend"</span><span class="p">:</span> <span class="n">spec</span><span class="p">[</span><span class="s2">"projection_backend"</span><span class="p">],</span>
+                <span class="s2">"encoded_input_dim"</span><span class="p">:</span> <span class="n">model</span><span class="o">.</span><span class="n">encoded_input_dim</span><span class="p">,</span>
+                <span class="s2">"hidden_parameters"</span><span class="p">:</span> <span class="nb">sum</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">hidden</span><span class="o">.</span><span class="n">parameters</span><span class="p">()),</span>
+                <span class="s2">"readout_parameters"</span><span class="p">:</span> <span class="nb">sum</span><span class="p">(</span>
+                    <span class="n">p</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">readout</span><span class="o">.</span><span class="n">parameters</span><span class="p">()</span>
+                <span class="p">),</span>
+                <span class="s2">"layer_receipts"</span><span class="p">:</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">layer_receipts</span><span class="p">),</span>
+                <span class="s2">"support_policy"</span><span class="p">:</span> <span class="p">(</span>
+                    <span class="s2">"static_indexed"</span> <span class="k">if</span> <span class="n">spec</span><span class="p">[</span><span class="s2">"family"</span><span class="p">]</span> <span class="o">!=</span> <span class="s2">"dense"</span> <span class="k">else</span> <span class="s2">"dense"</span>
+                <span class="p">),</span>
+                <span class="s2">"compartments_per_soma"</span><span class="p">:</span> <span class="p">(</span>
+                    <span class="n">_compartments</span><span class="p">(</span><span class="n">spec</span><span class="p">[</span><span class="s2">"branch_factors"</span><span class="p">])</span>
+                    <span class="k">if</span> <span class="n">spec</span><span class="p">[</span><span class="s2">"family"</span><span class="p">]</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">"dendritic_"</span><span class="p">)</span>
+                    <span class="k">else</span> <span class="kc">None</span>
+                <span class="p">),</span>
+            <span class="p">}</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="s2">"readout"</span> <span class="ow">in</span> <span class="n">spec</span><span class="p">:</span>
+            <span class="n">readout</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">spec</span><span class="p">[</span><span class="s2">"readout"</span><span class="p">])</span>
+            <span class="n">readout_inventory</span> <span class="o">=</span> <span class="n">model_report</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">readout</span><span class="p">)</span>
+            <span class="n">readout</span><span class="p">[</span><span class="s2">"parameter_seed"</span><span class="p">]</span> <span class="o">=</span> <span class="n">readout</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"parameter_seed"</span><span class="p">,</span> <span class="n">spec</span><span class="p">[</span><span class="s2">"seed"</span><span class="p">])</span>
+            <span class="n">referenced_columns</span> <span class="o">=</span> <span class="n">spec</span><span class="p">[</span><span class="s2">"width"</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">readout</span><span class="p">[</span><span class="s2">"kind"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"indexed"</span><span class="p">:</span>
+                <span class="n">readout</span><span class="p">[</span><span class="s2">"topology_seed"</span><span class="p">]</span> <span class="o">=</span> <span class="n">readout</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+                    <span class="s2">"topology_seed"</span><span class="p">,</span> <span class="n">spec</span><span class="p">[</span><span class="s2">"topology_seed"</span><span class="p">]</span>
+                <span class="p">)</span>
+                <span class="n">referenced_columns</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span>
+                    <span class="n">model</span><span class="o">.</span><span class="n">readout</span><span class="o">.</span><span class="n">projection</span><span class="o">.</span><span class="n">connection_indices</span><span class="o">.</span><span class="n">unique</span><span class="p">()</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span>
+                <span class="p">)</span>
+            <span class="n">readout</span><span class="o">.</span><span class="n">update</span><span class="p">(</span>
+                <span class="p">{</span>
+                    <span class="s2">"factory"</span><span class="p">:</span> <span class="s2">"networks.utils.readouts.make_signed_readout"</span><span class="p">,</span>
+                    <span class="s2">"weight_transform"</span><span class="p">:</span> <span class="s2">"identity"</span><span class="p">,</span>
+                    <span class="s2">"initialization"</span><span class="p">:</span> <span class="s2">"normal_per_stored_weight"</span><span class="p">,</span>
+                    <span class="s2">"input_dim"</span><span class="p">:</span> <span class="n">spec</span><span class="p">[</span><span class="s2">"width"</span><span class="p">],</span>
+                    <span class="s2">"output_dim"</span><span class="p">:</span> <span class="n">spec</span><span class="p">[</span><span class="s2">"output_dim"</span><span class="p">],</span>
+                    <span class="s2">"total_parameters"</span><span class="p">:</span> <span class="n">report</span><span class="p">[</span><span class="s2">"readout_parameters"</span><span class="p">],</span>
+                    <span class="s2">"parameter_bytes"</span><span class="p">:</span> <span class="n">readout_inventory</span><span class="p">[</span><span class="s2">"parameter_bytes"</span><span class="p">],</span>
+                    <span class="s2">"buffer_bytes"</span><span class="p">:</span> <span class="n">readout_inventory</span><span class="p">[</span><span class="s2">"buffer_bytes"</span><span class="p">],</span>
+                    <span class="s2">"topology_bytes"</span><span class="p">:</span> <span class="n">readout_inventory</span><span class="p">[</span><span class="s2">"topology_bytes"</span><span class="p">],</span>
+                    <span class="s2">"topology_sha256"</span><span class="p">:</span> <span class="n">readout_inventory</span><span class="p">[</span><span class="s2">"topology_sha256"</span><span class="p">],</span>
+                    <span class="s2">"referenced_input_columns"</span><span class="p">:</span> <span class="n">referenced_columns</span><span class="p">,</span>
+                    <span class="s2">"unreferenced_input_columns"</span><span class="p">:</span> <span class="n">spec</span><span class="p">[</span><span class="s2">"width"</span><span class="p">]</span> <span class="o">-</span> <span class="n">referenced_columns</span><span class="p">,</span>
+                    <span class="s2">"support_policy"</span><span class="p">:</span> <span class="p">(</span>
+                        <span class="s2">"static_indexed"</span> <span class="k">if</span> <span class="n">readout</span><span class="p">[</span><span class="s2">"kind"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"indexed"</span> <span class="k">else</span> <span class="s2">"dense"</span>
+                    <span class="p">),</span>
+                    <span class="s2">"learned_factors"</span><span class="p">:</span> <span class="mi">2</span> <span class="k">if</span> <span class="n">readout</span><span class="p">[</span><span class="s2">"kind"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"low_rank"</span> <span class="k">else</span> <span class="mi">1</span><span class="p">,</span>
+                <span class="p">}</span>
+            <span class="p">)</span>
+            <span class="n">report</span><span class="p">[</span><span class="s2">"readout"</span><span class="p">]</span> <span class="o">=</span> <span class="n">readout</span>
+            <span class="k">if</span> <span class="n">readout</span><span class="p">[</span><span class="s2">"kind"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"indexed"</span><span class="p">:</span>
+                <span class="n">report</span><span class="p">[</span><span class="s2">"support_policy"</span><span class="p">]</span> <span class="o">=</span> <span class="s2">"static_indexed"</span>
+    <span class="k">return</span> <span class="n">report</span></div>
+
+
+
+<div class="viewcode-block" id="match_parameter_budget">
+<a class="viewcode-back" href="../../../../api_reference.html#dendritic_modeling.networks.benchmarks.parameter_budget.match_parameter_budget">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">match_parameter_budget</span><span class="p">(</span>
+    <span class="n">spec</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">target_parameters</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">tolerance</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.02</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">dict</span><span class="p">,</span> <span class="nb">dict</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Find the nearest feasible integer width by counted monotone search.</span>
+
+<span class="sd">    All fields other than width remain fixed. A match is accepted only when the</span>
+<span class="sd">    instantiated *whole-model* count differs from target by at most tolerance.</span>
+<span class="sd">    Failure is explicit; neither extra inert weights nor an over-budget-only</span>
+<span class="sd">    convention is used. Matching does not equalize compute or activation memory.</span>
+<span class="sd">    """</span>
+    <span class="n">target</span> <span class="o">=</span> <span class="n">_integer</span><span class="p">(</span><span class="n">target_parameters</span><span class="p">,</span> <span class="s2">"target_parameters"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="p">(</span>
+        <span class="nb">isinstance</span><span class="p">(</span><span class="n">tolerance</span><span class="p">,</span> <span class="nb">bool</span><span class="p">)</span>
+        <span class="ow">or</span> <span class="ow">not</span> <span class="n">math</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">tolerance</span><span class="p">)</span>
+        <span class="ow">or</span> <span class="ow">not</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">tolerance</span> <span class="o">&lt;</span> <span class="mi">1</span>
+    <span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"tolerance must be finite and in [0, 1)"</span><span class="p">)</span>
+    <span class="n">resolved</span> <span class="o">=</span> <span class="n">_normalize_spec</span><span class="p">(</span><span class="n">spec</span><span class="p">)</span>
+    <span class="n">minimum_width</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="k">if</span> <span class="n">resolved</span><span class="p">[</span><span class="s2">"network_depth"</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">resolved</span><span class="p">[</span><span class="s2">"clip_contacts"</span><span class="p">]:</span>
+        <span class="k">if</span> <span class="n">resolved</span><span class="p">[</span><span class="s2">"family"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"sparse"</span><span class="p">:</span>
+            <span class="n">minimum_width</span> <span class="o">=</span> <span class="n">resolved</span><span class="p">[</span><span class="s2">"contacts_e"</span><span class="p">]</span> <span class="o">+</span> <span class="n">resolved</span><span class="p">[</span><span class="s2">"contacts_i"</span><span class="p">]</span>
+        <span class="k">elif</span> <span class="n">resolved</span><span class="p">[</span><span class="s2">"family"</span><span class="p">]</span> <span class="o">!=</span> <span class="s2">"dense"</span><span class="p">:</span>
+            <span class="n">minimum_width</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">resolved</span><span class="p">[</span><span class="s2">"contacts_e"</span><span class="p">],</span> <span class="n">resolved</span><span class="p">[</span><span class="s2">"contacts_i"</span><span class="p">])</span>
+    <span class="n">readout</span> <span class="o">=</span> <span class="n">resolved</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"readout"</span><span class="p">,</span> <span class="p">{})</span>
+    <span class="n">minimum_width</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">minimum_width</span><span class="p">,</span> <span class="n">readout</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"topk"</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">readout</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"rank"</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+    <span class="n">cache</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">dict</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">count</span><span class="p">(</span><span class="n">width</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">width</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">cache</span><span class="p">:</span>
+            <span class="n">candidate</span> <span class="o">=</span> <span class="p">{</span><span class="o">**</span><span class="n">resolved</span><span class="p">,</span> <span class="s2">"width"</span><span class="p">:</span> <span class="n">width</span><span class="p">}</span>
+            <span class="n">cache</span><span class="p">[</span><span class="n">width</span><span class="p">]</span> <span class="o">=</span> <span class="n">model_report</span><span class="p">(</span><span class="n">build_model</span><span class="p">(</span><span class="n">candidate</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">cache</span><span class="p">[</span><span class="n">width</span><span class="p">][</span><span class="s2">"total_parameters"</span><span class="p">]</span>
+
+    <span class="n">low</span> <span class="o">=</span> <span class="n">minimum_width</span>
+    <span class="n">low_count</span> <span class="o">=</span> <span class="n">count</span><span class="p">(</span><span class="n">low</span><span class="p">)</span>
+    <span class="n">high</span> <span class="o">=</span> <span class="n">low</span>
+    <span class="k">if</span> <span class="n">low_count</span> <span class="o">&lt;</span> <span class="n">target</span><span class="p">:</span>
+        <span class="n">high</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">low</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">resolved</span><span class="p">[</span><span class="s2">"width"</span><span class="p">])</span>
+        <span class="k">while</span> <span class="n">count</span><span class="p">(</span><span class="n">high</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">target</span><span class="p">:</span>
+            <span class="n">low</span> <span class="o">=</span> <span class="n">high</span>
+            <span class="n">high</span> <span class="o">*=</span> <span class="mi">2</span>
+        <span class="k">while</span> <span class="n">high</span> <span class="o">-</span> <span class="n">low</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">middle</span> <span class="o">=</span> <span class="p">(</span><span class="n">low</span> <span class="o">+</span> <span class="n">high</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span>
+            <span class="k">if</span> <span class="n">count</span><span class="p">(</span><span class="n">middle</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">target</span><span class="p">:</span>
+                <span class="n">low</span> <span class="o">=</span> <span class="n">middle</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">high</span> <span class="o">=</span> <span class="n">middle</span>
+    <span class="n">best</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span>
+        <span class="p">{</span><span class="n">low</span><span class="p">,</span> <span class="n">high</span><span class="p">},</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">width</span><span class="p">:</span> <span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">count</span><span class="p">(</span><span class="n">width</span><span class="p">)</span> <span class="o">-</span> <span class="n">target</span><span class="p">),</span> <span class="n">count</span><span class="p">(</span><span class="n">width</span><span class="p">))</span>
+    <span class="p">)</span>
+    <span class="n">report</span> <span class="o">=</span> <span class="n">cache</span><span class="p">[</span><span class="n">best</span><span class="p">]</span>
+    <span class="n">error</span> <span class="o">=</span> <span class="nb">abs</span><span class="p">(</span><span class="n">report</span><span class="p">[</span><span class="s2">"total_parameters"</span><span class="p">]</span> <span class="o">-</span> <span class="n">target</span><span class="p">)</span> <span class="o">/</span> <span class="n">target</span>
+    <span class="k">if</span> <span class="n">error</span> <span class="o">&gt;</span> <span class="n">tolerance</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"No width matches target_parameters=</span><span class="si">{</span><span class="n">target</span><span class="si">}</span><span class="s2"> within tolerance=</span><span class="si">{</span><span class="n">tolerance</span><span class="si">:</span><span class="s2">g</span><span class="si">}</span><span class="s2">; "</span>
+            <span class="sa">f</span><span class="s2">"nearest feasible width=</span><span class="si">{</span><span class="n">best</span><span class="si">}</span><span class="s2"> has </span><span class="si">{</span><span class="n">report</span><span class="p">[</span><span class="s1">'total_parameters'</span><span class="p">]</span><span class="si">}</span><span class="s2"> parameters "</span>
+            <span class="sa">f</span><span class="s2">"(relative error=</span><span class="si">{</span><span class="n">error</span><span class="si">:</span><span class="s2">.6g</span><span class="si">}</span><span class="s2">)."</span>
+        <span class="p">)</span>
+    <span class="n">report</span><span class="o">.</span><span class="n">update</span><span class="p">(</span>
+        <span class="p">{</span>
+            <span class="s2">"target_parameters"</span><span class="p">:</span> <span class="n">target</span><span class="p">,</span>
+            <span class="s2">"budget_tolerance"</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">tolerance</span><span class="p">),</span>
+            <span class="s2">"budget_relative_error"</span><span class="p">:</span> <span class="n">error</span><span class="p">,</span>
+            <span class="s2">"budget_matched"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="p">}</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">report</span><span class="p">[</span><span class="s2">"resolved_spec"</span><span class="p">]),</span> <span class="n">report</span></div>
+
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"FAMILIES"</span><span class="p">,</span> <span class="s2">"build_model"</span><span class="p">,</span> <span class="s2">"match_parameter_budget"</span><span class="p">,</span> <span class="s2">"model_report"</span><span class="p">]</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024-2026, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

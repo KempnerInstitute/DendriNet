@@ -58,8 +58,8 @@
   <text x="90" y="552" class="small">optional, recurrent only</text>
 
   <rect x="332" y="188" width="544" height="256" class="panel"/>
-  <text x="362" y="230" class="label">Layer 2: distal branches</text>
-  <text x="362" y="258" class="small">per-branch TopK E/I banks</text>
+  <text x="362" y="230" class="label">Depth 2: distal branches</text>
+  <text x="362" y="258" class="small">per-branch Top-K E/I banks</text>
 
   <rect x="362" y="280" width="214" height="34" class="exc"/>
   <text x="378" y="302" class="small">TopKLinear(W_E, K_E)</text>
@@ -83,7 +83,7 @@
   <text x="414" y="425" class="tiny">6 branches on one feature axis</text>
 
   <rect x="392" y="488" width="420" height="190" class="panel"/>
-  <text x="500" y="530" class="label">Layer 1: proximal branches</text>
+  <text x="500" y="530" class="label">Depth 1: proximal branches</text>
   <text x="500" y="558" class="small">BlockLinear groups siblings</text>
   <text x="500" y="582" class="small">local E/I banks are added again</text>
 
@@ -98,9 +98,9 @@
   <text x="454" y="679" class="tiny">BlockLinear(branch_factor=2)</text>
 
   <rect x="480" y="724" width="250" height="202" class="panel"/>
-  <text x="508" y="766" class="label">Layer 0: soma</text>
+  <text x="508" y="766" class="label">Depth 0: soma</text>
   <text x="508" y="794" class="small">aggregates the final child branches</text>
-  <text x="508" y="818" class="small">optional direct E and I TopK banks</text>
+  <text x="508" y="818" class="small">optional direct E and I Top-K banks</text>
   <circle cx="605" cy="878" r="34" class="branch-soma"/>
 
   <path d="M406 374 L472 578" class="fan"/>
@@ -149,5 +149,5 @@
   <text x="416" y="708" class="tiny">siblings merge before the next level</text>
 
   <rect x="60" y="1008" width="1320" height="30" class="takeaway"/>
-  <text x="84" y="1028" class="small">Takeaway: each neuron is a small dendritic tree that reads sparse inputs and then merges branch states hierarchically toward the soma.</text>
+  <text x="84" y="1028" class="small">Each neuron is a small dendritic tree that reads sparse inputs and then merges branch states hierarchically toward the soma.</text>
 </svg>

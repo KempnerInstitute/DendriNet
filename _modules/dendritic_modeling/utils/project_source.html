@@ -1,0 +1,604 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>dendritic_modeling.utils.project_source &mdash; DendriNet v0.2.0</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=938c9ccc"></script>
+      <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            DendriNet
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../examples.html">Example configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Building models</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../network_architectures.html">Model architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../dendritic_neurons.html">Dendritic neurons</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../synapses.html">Synapses and connectivity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../population_networks.html">Population networks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../temporal_dynamics.html">Temporal dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../structured_ei_cores.html">Structured E/I cores</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../conductance_options.html">Conductance options</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../comparison_models.html">Baselines and comparison models</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Configuration</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../configuration_guide.html">Configuration guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../config_reference.html">Annotated reference configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../training_strategies.html">Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../distributed_training.html">Distributed training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../performance_kernels.html">Sparse execution and performance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Data and analysis</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../datasets.html">Datasets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../analysis.html">Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../analyzers.html">Analyzer reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../checkpoint_analysis.html">Analyzing saved checkpoints</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Running experiments</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../runs_and_outputs.html">Runs and outputs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../sweeps.html">Parameter sweeps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../model_compression.html">Compact checkpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../project_provenance.html">Project provenance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../available_components.html">Component catalogue</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../options_reference.html">Options reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../cli_reference.html">Command-line reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api_reference.html">Python API</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../extending.html">Extending DendriNet</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../engineering_architecture.html">Engineering architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../contributing.html">Contributing</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">DendriNet</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">dendritic_modeling.utils.project_source</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for dendritic_modeling.utils.project_source</h1><div class="highlight"><pre>
+<span></span><span class="sd">"""Verify and run paper entry points against an explicit immutable library pin.</span>
+
+<span class="sd">A paper repository declares the library it runs on in ``dendrinet.project.json``:</span>
+<span class="sd">the exact commit and tag, the maintained branch whose history must contain that</span>
+<span class="sd">commit, and optionally a release bridge for a release built by squashing.</span>
+<span class="sd">``check`` verifies the declaration against a library checkout and prints a</span>
+<span class="sd">receipt; ``run`` then executes a declared entry point with the verified package</span>
+<span class="sd">and writes the receipt to a new file.</span>
+
+<span class="sd">This module deliberately uses only the standard library. It can be executed</span>
+<span class="sd">by filename before importing DendriNet, including when the selected historical</span>
+<span class="sd">library predates this utility. It never edits a checkout or updates Git refs.</span>
+<span class="sd">"""</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="c1"># Direct execution otherwise exposes utils/math as the stdlib math module.</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">__package__</span><span class="p">:</span>
+    <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">hashlib</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">importlib</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">runpy</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">subprocess</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
+
+
+<div class="viewcode-block" id="SourceContractError">
+<a class="viewcode-back" href="../../../api_reference.html#dendritic_modeling.utils.project_source.SourceContractError">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">SourceContractError</span><span class="p">(</span><span class="ne">RuntimeError</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""The selected source does not satisfy a project's declared dependency."""</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_git</span><span class="p">(</span><span class="n">root</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">root</span> <span class="o">/</span> <span class="s2">".git"</span><span class="p">)</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+        <span class="k">raise</span> <span class="n">SourceContractError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"No Git marker at declared source root: </span><span class="si">{</span><span class="n">root</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
+        <span class="p">[</span><span class="s2">"git"</span><span class="p">,</span> <span class="s2">"-C"</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">root</span><span class="p">),</span> <span class="o">*</span><span class="n">args</span><span class="p">],</span>
+        <span class="n">env</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">,</span> <span class="n">GIT_OPTIONAL_LOCKS</span><span class="o">=</span><span class="s2">"0"</span><span class="p">),</span>
+        <span class="n">text</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">capture_output</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">check</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">returncode</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">SourceContractError</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">stderr</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="ow">or</span> <span class="s2">"Git source check failed"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">result</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_is_ancestor</span><span class="p">(</span><span class="n">root</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">ancestor</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">descendant</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Whether commit ``ancestor`` is ``descendant`` or one of its ancestors."""</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
+        <span class="p">[</span><span class="s2">"git"</span><span class="p">,</span> <span class="s2">"-C"</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">root</span><span class="p">),</span> <span class="s2">"merge-base"</span><span class="p">,</span> <span class="s2">"--is-ancestor"</span><span class="p">,</span> <span class="n">ancestor</span><span class="p">,</span> <span class="n">descendant</span><span class="p">],</span>
+        <span class="n">env</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">,</span> <span class="n">GIT_OPTIONAL_LOCKS</span><span class="o">=</span><span class="s2">"0"</span><span class="p">),</span>
+        <span class="n">text</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">capture_output</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">check</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">returncode</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="n">SourceContractError</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">stderr</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="ow">or</span> <span class="s2">"Git ancestry check failed"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">result</span><span class="o">.</span><span class="n">returncode</span> <span class="o">==</span> <span class="mi">0</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_inside</span><span class="p">(</span><span class="n">root</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">relative</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Path</span><span class="p">:</span>
+    <span class="n">value</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">relative</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">value</span><span class="o">.</span><span class="n">is_absolute</span><span class="p">()</span> <span class="ow">or</span> <span class="s2">".."</span> <span class="ow">in</span> <span class="n">value</span><span class="o">.</span><span class="n">parts</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">SourceContractError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Expected a contained relative path: </span><span class="si">{</span><span class="n">relative</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="n">resolved</span> <span class="o">=</span> <span class="p">(</span><span class="n">root</span> <span class="o">/</span> <span class="n">value</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">resolved</span><span class="o">.</span><span class="n">is_relative_to</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">resolve</span><span class="p">()):</span>
+        <span class="k">raise</span> <span class="n">SourceContractError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Path escapes declared root: </span><span class="si">{</span><span class="n">relative</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">resolved</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_clean</span><span class="p">(</span><span class="n">root</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">paths</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="n">paths</span><span class="p">:</span>
+        <span class="n">_inside</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">path</span><span class="p">)</span>
+    <span class="n">status</span> <span class="o">=</span> <span class="n">_git</span><span class="p">(</span>
+        <span class="n">root</span><span class="p">,</span> <span class="s2">"status"</span><span class="p">,</span> <span class="s2">"--porcelain=v1"</span><span class="p">,</span> <span class="s2">"--untracked-files=all"</span><span class="p">,</span> <span class="s2">"--"</span><span class="p">,</span> <span class="o">*</span><span class="n">paths</span>
+    <span class="p">)</span>
+    <span class="k">if</span> <span class="n">status</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">SourceContractError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Uncommitted source in </span><span class="si">{</span><span class="n">root</span><span class="si">}</span><span class="s2">:</span><span class="se">\n</span><span class="si">{</span><span class="n">status</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="n">ignored</span> <span class="o">=</span> <span class="n">_git</span><span class="p">(</span>
+        <span class="n">root</span><span class="p">,</span> <span class="s2">"ls-files"</span><span class="p">,</span> <span class="s2">"--others"</span><span class="p">,</span> <span class="s2">"--ignored"</span><span class="p">,</span> <span class="s2">"--exclude-standard"</span><span class="p">,</span> <span class="s2">"--"</span><span class="p">,</span> <span class="o">*</span><span class="n">paths</span>
+    <span class="p">)</span>
+    <span class="n">source_suffixes</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">".py"</span><span class="p">,</span>
+        <span class="s2">".so"</span><span class="p">,</span>
+        <span class="s2">".pyd"</span><span class="p">,</span>
+        <span class="s2">".yaml"</span><span class="p">,</span>
+        <span class="s2">".yml"</span><span class="p">,</span>
+        <span class="s2">".json"</span><span class="p">,</span>
+        <span class="s2">".jsonl"</span><span class="p">,</span>
+        <span class="s2">".toml"</span><span class="p">,</span>
+        <span class="s2">".sh"</span><span class="p">,</span>
+        <span class="s2">".sbatch"</span><span class="p">,</span>
+        <span class="s2">".slurm"</span><span class="p">,</span>
+        <span class="s2">".ipynb"</span><span class="p">,</span>
+    <span class="p">}</span>
+    <span class="n">shadows</span> <span class="o">=</span> <span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">ignored</span><span class="o">.</span><span class="n">splitlines</span><span class="p">()</span> <span class="k">if</span> <span class="n">Path</span><span class="p">(</span><span class="n">p</span><span class="p">)</span><span class="o">.</span><span class="n">suffix</span> <span class="ow">in</span> <span class="n">source_suffixes</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">shadows</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">SourceContractError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Ignored source could affect execution: </span><span class="si">{</span><span class="n">shadows</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">_git</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="s2">"ls-files"</span><span class="p">,</span> <span class="s2">"--stage"</span><span class="p">,</span> <span class="s2">"--"</span><span class="p">,</span> <span class="o">*</span><span class="n">paths</span><span class="p">)</span><span class="o">.</span><span class="n">splitlines</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">row</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">"120000 "</span><span class="p">):</span>
+            <span class="n">path</span> <span class="o">=</span> <span class="n">row</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">"</span><span class="se">\t</span><span class="s2">"</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="k">raise</span> <span class="n">SourceContractError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"Source symlink requires explicit resolution: </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">)</span>
+
+
+<span class="n">_SHA</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="sa">r</span><span class="s2">"[0-9a-f]</span><span class="si">{40}</span><span class="s2">"</span><span class="p">)</span>
+<span class="n">_BRIDGE_KEYS</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"source_commit"</span><span class="p">,</span> <span class="s2">"release_commit"</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="read_contract">
+<a class="viewcode-back" href="../../../api_reference.html#dendritic_modeling.utils.project_source.read_contract">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">read_contract</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Load the small, versioned source contract stored with a paper's code.</span>
+
+<span class="sd">    ``library.line`` is ``core``, ``llm`` or ``historical``. A ``core`` or</span>
+<span class="sd">    ``llm`` contract names ``library.maintained_ref``, the full branch ref</span>
+<span class="sd">    (``refs/heads/...`` or ``refs/remotes/...``) whose history must contain the</span>
+<span class="sd">    pinned commit; a ``historical`` contract records an original source and</span>
+<span class="sd">    names no maintained branch. ``library.release_bridge`` optionally names a</span>
+<span class="sd">    ``source_commit`` and a ``release_commit`` for a release built by</span>
+<span class="sd">    squashing (see :func:`verify_contract`). Raises</span>
+<span class="sd">    :class:`SourceContractError` for a malformed contract.</span>
+<span class="sd">    """</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">path</span><span class="o">.</span><span class="n">read_text</span><span class="p">())</span>
+    <span class="k">if</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"schema_version"</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"project"</span><span class="p">),</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="n">SourceContractError</span><span class="p">(</span><span class="s2">"Expected schema_version=1 and a project name"</span><span class="p">)</span>
+    <span class="n">library</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"library"</span><span class="p">,</span> <span class="p">{})</span>
+    <span class="k">if</span> <span class="n">library</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"line"</span><span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">"core"</span><span class="p">,</span> <span class="s2">"llm"</span><span class="p">,</span> <span class="s2">"historical"</span><span class="p">}:</span>
+        <span class="k">raise</span> <span class="n">SourceContractError</span><span class="p">(</span><span class="s2">"Library line must be core, llm, or historical"</span><span class="p">)</span>
+    <span class="n">maintained_ref</span> <span class="o">=</span> <span class="n">library</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"maintained_ref"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">library</span><span class="p">[</span><span class="s2">"line"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"historical"</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"maintained_ref"</span><span class="p">,</span> <span class="s2">"release_bridge"</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">library</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">SourceContractError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Historical sources cannot declare </span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="s2">"maintained_ref"</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">library</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">SourceContractError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"A </span><span class="si">{</span><span class="n">library</span><span class="p">[</span><span class="s1">'line'</span><span class="p">]</span><span class="si">!r}</span><span class="s2"> library contract must name library."</span>
+            <span class="s2">"maintained_ref: the full branch ref (refs/heads/... or "</span>
+            <span class="s2">"refs/remotes/...) whose history must contain the pinned commit"</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="s2">"maintained_ref"</span> <span class="ow">in</span> <span class="n">library</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">maintained_ref</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">maintained_ref</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span>
+            <span class="p">(</span><span class="s2">"refs/heads/"</span><span class="p">,</span> <span class="s2">"refs/remotes/"</span><span class="p">)</span>
+        <span class="p">):</span>
+            <span class="k">raise</span> <span class="n">SourceContractError</span><span class="p">(</span>
+                <span class="s2">"maintained_ref must name a full local or remote-tracking branch ref"</span>
+            <span class="p">)</span>
+    <span class="k">if</span> <span class="s2">"release_bridge"</span> <span class="ow">in</span> <span class="n">library</span><span class="p">:</span>
+        <span class="n">bridge</span> <span class="o">=</span> <span class="n">library</span><span class="p">[</span><span class="s2">"release_bridge"</span><span class="p">]</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">bridge</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">bridge</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">_BRIDGE_KEYS</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">SourceContractError</span><span class="p">(</span>
+                <span class="s2">"library.release_bridge must hold exactly source_commit and "</span>
+                <span class="s2">"release_commit"</span>
+            <span class="p">)</span>
+        <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">_BRIDGE_KEYS</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">bridge</span><span class="p">[</span><span class="n">key</span><span class="p">],</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">_SHA</span><span class="o">.</span><span class="n">fullmatch</span><span class="p">(</span><span class="n">bridge</span><span class="p">[</span><span class="n">key</span><span class="p">]):</span>
+                <span class="k">raise</span> <span class="n">SourceContractError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">"library.release_bridge.</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2"> must be an exact 40-character SHA"</span>
+                <span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">_SHA</span><span class="o">.</span><span class="n">fullmatch</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">library</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"commit"</span><span class="p">,</span> <span class="s2">""</span><span class="p">))):</span>
+        <span class="k">raise</span> <span class="n">SourceContractError</span><span class="p">(</span><span class="s2">"Library commit must be an exact 40-character SHA"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">library</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"ref"</span><span class="p">),</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">library</span><span class="p">[</span><span class="s2">"ref"</span><span class="p">]</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span>
+        <span class="s2">"refs/tags/"</span>
+    <span class="p">):</span>
+        <span class="k">raise</span> <span class="n">SourceContractError</span><span class="p">(</span><span class="s2">"Library ref must name a durable refs/tags/... pin"</span><span class="p">)</span>
+    <span class="n">source_paths</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"source_paths"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="p">(</span>
+        <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">source_paths</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span>
+        <span class="ow">or</span> <span class="ow">not</span> <span class="n">source_paths</span>
+        <span class="ow">or</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">source_paths</span><span class="p">)</span>
+    <span class="p">):</span>
+        <span class="k">raise</span> <span class="n">SourceContractError</span><span class="p">(</span><span class="s2">"Declare the paper's nonempty source_paths list"</span><span class="p">)</span>
+    <span class="n">entries</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"entry_points"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">entries</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">entries</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">SourceContractError</span><span class="p">(</span><span class="s2">"Declare named Python entry_points"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">data</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_verify_release_bridge</span><span class="p">(</span>
+    <span class="n">root</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span>
+    <span class="n">bridge</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">pinned</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">maintained_ref</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">maintained_commit</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Check that a squash release carries the pinned commit; return its record."""</span>
+    <span class="n">source</span> <span class="o">=</span> <span class="n">bridge</span><span class="p">[</span><span class="s2">"source_commit"</span><span class="p">]</span>
+    <span class="n">release</span> <span class="o">=</span> <span class="n">bridge</span><span class="p">[</span><span class="s2">"release_commit"</span><span class="p">]</span>
+    <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">sha</span> <span class="ow">in</span> <span class="p">((</span><span class="s2">"source_commit"</span><span class="p">,</span> <span class="n">source</span><span class="p">),</span> <span class="p">(</span><span class="s2">"release_commit"</span><span class="p">,</span> <span class="n">release</span><span class="p">)):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">found</span> <span class="o">=</span> <span class="n">_git</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="s2">"rev-parse"</span><span class="p">,</span> <span class="s2">"--verify"</span><span class="p">,</span> <span class="s2">"--quiet"</span><span class="p">,</span> <span class="n">sha</span> <span class="o">+</span> <span class="s2">"^</span><span class="si">{commit}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">SourceContractError</span> <span class="k">as</span> <span class="n">error</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">SourceContractError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"library.release_bridge.</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">sha</span><span class="si">}</span><span class="s2"> is not a commit of </span><span class="si">{</span><span class="n">root</span><span class="si">}</span><span class="s2">; "</span>
+                <span class="s2">"fetch it before verification"</span>
+            <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">error</span>
+        <span class="k">if</span> <span class="n">found</span> <span class="o">!=</span> <span class="n">sha</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">SourceContractError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"library.release_bridge.</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">sha</span><span class="si">}</span><span class="s2"> resolves to </span><span class="si">{</span><span class="n">found</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">_is_ancestor</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">pinned</span><span class="p">,</span> <span class="n">source</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="n">SourceContractError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"The pinned commit </span><span class="si">{</span><span class="n">pinned</span><span class="si">}</span><span class="s2"> is not library.release_bridge."</span>
+            <span class="sa">f</span><span class="s2">"source_commit </span><span class="si">{</span><span class="n">source</span><span class="si">}</span><span class="s2"> or one of its ancestors, so the release "</span>
+            <span class="s2">"does not contain it"</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">_is_ancestor</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">release</span><span class="p">,</span> <span class="n">maintained_commit</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="n">SourceContractError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"library.release_bridge.release_commit </span><span class="si">{</span><span class="n">release</span><span class="si">}</span><span class="s2"> is not in the "</span>
+            <span class="sa">f</span><span class="s2">"history of </span><span class="si">{</span><span class="n">maintained_ref</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">maintained_commit</span><span class="si">}</span><span class="s2">)"</span>
+        <span class="p">)</span>
+    <span class="n">source_tree</span> <span class="o">=</span> <span class="n">_git</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="s2">"rev-parse"</span><span class="p">,</span> <span class="s2">"--verify"</span><span class="p">,</span> <span class="n">source</span> <span class="o">+</span> <span class="s2">"^</span><span class="si">{tree}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="n">release_tree</span> <span class="o">=</span> <span class="n">_git</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="s2">"rev-parse"</span><span class="p">,</span> <span class="s2">"--verify"</span><span class="p">,</span> <span class="n">release</span> <span class="o">+</span> <span class="s2">"^</span><span class="si">{tree}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">source_tree</span> <span class="o">!=</span> <span class="n">release_tree</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">SourceContractError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"library.release_bridge trees differ: source_commit </span><span class="si">{</span><span class="n">source</span><span class="si">}</span><span class="s2"> has "</span>
+            <span class="sa">f</span><span class="s2">"tree </span><span class="si">{</span><span class="n">source_tree</span><span class="si">}</span><span class="s2">, release_commit </span><span class="si">{</span><span class="n">release</span><span class="si">}</span><span class="s2"> has tree "</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">release_tree</span><span class="si">}</span><span class="s2">, so the release is not a squash of the source"</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"source_commit"</span><span class="p">:</span> <span class="n">source</span><span class="p">,</span> <span class="s2">"release_commit"</span><span class="p">:</span> <span class="n">release</span><span class="p">,</span> <span class="s2">"tree"</span><span class="p">:</span> <span class="n">source_tree</span><span class="p">}</span>
+
+
+<div class="viewcode-block" id="verify_contract">
+<a class="viewcode-back" href="../../../api_reference.html#dendritic_modeling.utils.project_source.verify_contract">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">verify_contract</span><span class="p">(</span><span class="n">contract_path</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">library_root</span><span class="p">:</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Check exact source identity and cleanliness without running paper code.</span>
+
+<span class="sd">    The library checkout must be clean, its ``HEAD`` and ``library.ref`` must</span>
+<span class="sd">    both be ``library.commit``, and for a ``core`` or ``llm`` contract that</span>
+<span class="sd">    commit must be ``library.maintained_ref`` or one of its ancestors. A release</span>
+<span class="sd">    built by squashing has none of the source commits as ancestors; for it the</span>
+<span class="sd">    contract declares ``library.release_bridge`` instead, and verification</span>
+<span class="sd">    requires that the pinned commit is ``source_commit`` or one of its</span>
+<span class="sd">    ancestors, that ``release_commit`` is the maintained ref or one of its</span>
+<span class="sd">    ancestors, and that both commits have the same tree. The paper checkout</span>
+<span class="sd">    must be clean and hold every declared source path and entry point.</span>
+
+<span class="sd">    Returns the receipt: contract, paper and library identities, the</span>
+<span class="sd">    maintained ref and its commit, the verified bridge with its tree (only</span>
+<span class="sd">    when one is declared), the package and configuration roots and the</span>
+<span class="sd">    interpreter. Raises :class:`SourceContractError` when a check fails.</span>
+<span class="sd">    """</span>
+    <span class="n">contract_path</span> <span class="o">=</span> <span class="n">contract_path</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
+    <span class="n">paper</span> <span class="o">=</span> <span class="n">contract_path</span><span class="o">.</span><span class="n">parent</span>
+    <span class="n">root</span> <span class="o">=</span> <span class="n">library_root</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
+    <span class="n">contract</span> <span class="o">=</span> <span class="n">read_contract</span><span class="p">(</span><span class="n">contract_path</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">checkout</span> <span class="ow">in</span> <span class="p">(</span><span class="n">paper</span><span class="p">,</span> <span class="n">root</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">Path</span><span class="p">(</span><span class="n">_git</span><span class="p">(</span><span class="n">checkout</span><span class="p">,</span> <span class="s2">"rev-parse"</span><span class="p">,</span> <span class="s2">"--show-toplevel"</span><span class="p">))</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span> <span class="o">!=</span> <span class="n">checkout</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">SourceContractError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"Declared path is not a repository root: </span><span class="si">{</span><span class="n">checkout</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">)</span>
+    <span class="n">expected</span> <span class="o">=</span> <span class="n">contract</span><span class="p">[</span><span class="s2">"library"</span><span class="p">][</span><span class="s2">"commit"</span><span class="p">]</span>
+    <span class="n">head</span> <span class="o">=</span> <span class="n">_git</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="s2">"rev-parse"</span><span class="p">,</span> <span class="s2">"HEAD"</span><span class="p">)</span>
+    <span class="n">pinned</span> <span class="o">=</span> <span class="n">_git</span><span class="p">(</span>
+        <span class="n">root</span><span class="p">,</span> <span class="s2">"rev-parse"</span><span class="p">,</span> <span class="s2">"--verify"</span><span class="p">,</span> <span class="n">contract</span><span class="p">[</span><span class="s2">"library"</span><span class="p">][</span><span class="s2">"ref"</span><span class="p">]</span> <span class="o">+</span> <span class="s2">"^</span><span class="si">{commit}</span><span class="s2">"</span>
+    <span class="p">)</span>
+    <span class="k">if</span> <span class="n">head</span> <span class="o">!=</span> <span class="n">expected</span> <span class="ow">or</span> <span class="n">pinned</span> <span class="o">!=</span> <span class="n">expected</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">SourceContractError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"Library HEAD/tag mismatch: expected </span><span class="si">{</span><span class="n">expected</span><span class="si">}</span><span class="s2">; HEAD=</span><span class="si">{</span><span class="n">head</span><span class="si">}</span><span class="s2">; tag=</span><span class="si">{</span><span class="n">pinned</span><span class="si">}</span><span class="s2">"</span>
+        <span class="p">)</span>
+    <span class="n">line</span> <span class="o">=</span> <span class="n">contract</span><span class="p">[</span><span class="s2">"library"</span><span class="p">][</span><span class="s2">"line"</span><span class="p">]</span>
+    <span class="n">maintained_ref</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">maintained_commit</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">bridge_record</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">line</span> <span class="o">!=</span> <span class="s2">"historical"</span><span class="p">:</span>
+        <span class="n">maintained_ref</span> <span class="o">=</span> <span class="n">contract</span><span class="p">[</span><span class="s2">"library"</span><span class="p">][</span><span class="s2">"maintained_ref"</span><span class="p">]</span>
+        <span class="n">_git</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="s2">"check-ref-format"</span><span class="p">,</span> <span class="n">maintained_ref</span><span class="p">)</span>
+        <span class="n">maintained_commit</span> <span class="o">=</span> <span class="n">_git</span><span class="p">(</span>
+            <span class="n">root</span><span class="p">,</span> <span class="s2">"rev-parse"</span><span class="p">,</span> <span class="s2">"--verify"</span><span class="p">,</span> <span class="n">maintained_ref</span> <span class="o">+</span> <span class="s2">"^</span><span class="si">{commit}</span><span class="s2">"</span>
+        <span class="p">)</span>
+        <span class="n">bridge</span> <span class="o">=</span> <span class="n">contract</span><span class="p">[</span><span class="s2">"library"</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"release_bridge"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">bridge</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">_git</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="s2">"merge-base"</span><span class="p">,</span> <span class="s2">"--is-ancestor"</span><span class="p">,</span> <span class="n">expected</span><span class="p">,</span> <span class="n">maintained_commit</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">bridge_record</span> <span class="o">=</span> <span class="n">_verify_release_bridge</span><span class="p">(</span>
+                <span class="n">root</span><span class="p">,</span>
+                <span class="n">bridge</span><span class="p">,</span>
+                <span class="n">pinned</span><span class="o">=</span><span class="n">expected</span><span class="p">,</span>
+                <span class="n">maintained_ref</span><span class="o">=</span><span class="n">maintained_ref</span><span class="p">,</span>
+                <span class="n">maintained_commit</span><span class="o">=</span><span class="n">maintained_commit</span><span class="p">,</span>
+            <span class="p">)</span>
+    <span class="n">package</span> <span class="o">=</span> <span class="n">root</span> <span class="o">/</span> <span class="s2">"src"</span> <span class="o">/</span> <span class="s2">"dendritic_modeling"</span> <span class="o">/</span> <span class="s2">"__init__.py"</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">package</span><span class="o">.</span><span class="n">is_file</span><span class="p">():</span>
+        <span class="k">raise</span> <span class="n">SourceContractError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"No maintained package at </span><span class="si">{</span><span class="n">package</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="n">_clean</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="p">[</span><span class="s2">"src"</span><span class="p">,</span> <span class="s2">"configs"</span><span class="p">,</span> <span class="s2">"pyproject.toml"</span><span class="p">,</span> <span class="s2">"setup.py"</span><span class="p">,</span> <span class="s2">"requirements.txt"</span><span class="p">])</span>
+    <span class="n">paper_paths</span> <span class="o">=</span> <span class="p">[</span><span class="o">*</span><span class="n">contract</span><span class="p">[</span><span class="s2">"source_paths"</span><span class="p">],</span> <span class="n">contract_path</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
+    <span class="n">_clean</span><span class="p">(</span><span class="n">paper</span><span class="p">,</span> <span class="n">paper_paths</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">relative</span> <span class="ow">in</span> <span class="n">paper_paths</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">_inside</span><span class="p">(</span><span class="n">paper</span><span class="p">,</span> <span class="n">relative</span><span class="p">)</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="n">SourceContractError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Declared paper source is missing: </span><span class="si">{</span><span class="n">relative</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">relative</span> <span class="ow">in</span> <span class="n">contract</span><span class="p">[</span><span class="s2">"entry_points"</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">relative</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">SourceContractError</span><span class="p">(</span>
+                <span class="s2">"Entry point names and script paths must be strings"</span>
+            <span class="p">)</span>
+        <span class="n">entry</span> <span class="o">=</span> <span class="n">_inside</span><span class="p">(</span><span class="n">paper</span><span class="p">,</span> <span class="n">relative</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">entry</span><span class="o">.</span><span class="n">suffix</span> <span class="o">!=</span> <span class="s2">".py"</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">entry</span><span class="o">.</span><span class="n">is_file</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="n">SourceContractError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Missing Python entry point: </span><span class="si">{</span><span class="n">relative</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span>
+            <span class="n">entry</span><span class="o">.</span><span class="n">is_relative_to</span><span class="p">(</span><span class="n">_inside</span><span class="p">(</span><span class="n">paper</span><span class="p">,</span> <span class="n">scope</span><span class="p">))</span>
+            <span class="k">for</span> <span class="n">scope</span> <span class="ow">in</span> <span class="n">contract</span><span class="p">[</span><span class="s2">"source_paths"</span><span class="p">]</span>
+        <span class="p">):</span>
+            <span class="k">raise</span> <span class="n">SourceContractError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"Entry point is outside checked source_paths: </span><span class="si">{</span><span class="n">relative</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">)</span>
+        <span class="n">_git</span><span class="p">(</span><span class="n">paper</span><span class="p">,</span> <span class="s2">"ls-files"</span><span class="p">,</span> <span class="s2">"--error-unmatch"</span><span class="p">,</span> <span class="s2">"--"</span><span class="p">,</span> <span class="n">relative</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s2">"schema_version"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="s2">"project"</span><span class="p">:</span> <span class="n">contract</span><span class="p">[</span><span class="s2">"project"</span><span class="p">],</span>
+        <span class="s2">"contract"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">contract_path</span><span class="p">),</span>
+        <span class="s2">"contract_sha256"</span><span class="p">:</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha256</span><span class="p">(</span><span class="n">contract_path</span><span class="o">.</span><span class="n">read_bytes</span><span class="p">())</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">(),</span>
+        <span class="s2">"paper_commit"</span><span class="p">:</span> <span class="n">_git</span><span class="p">(</span><span class="n">paper</span><span class="p">,</span> <span class="s2">"rev-parse"</span><span class="p">,</span> <span class="s2">"HEAD"</span><span class="p">),</span>
+        <span class="s2">"library_commit"</span><span class="p">:</span> <span class="n">head</span><span class="p">,</span>
+        <span class="s2">"library_ref"</span><span class="p">:</span> <span class="n">contract</span><span class="p">[</span><span class="s2">"library"</span><span class="p">][</span><span class="s2">"ref"</span><span class="p">],</span>
+        <span class="s2">"library_line"</span><span class="p">:</span> <span class="n">contract</span><span class="p">[</span><span class="s2">"library"</span><span class="p">][</span><span class="s2">"line"</span><span class="p">],</span>
+        <span class="s2">"maintained_ref"</span><span class="p">:</span> <span class="n">maintained_ref</span><span class="p">,</span>
+        <span class="s2">"maintained_commit"</span><span class="p">:</span> <span class="n">maintained_commit</span><span class="p">,</span>
+        <span class="o">**</span><span class="p">({}</span> <span class="k">if</span> <span class="n">bridge_record</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="p">{</span><span class="s2">"release_bridge"</span><span class="p">:</span> <span class="n">bridge_record</span><span class="p">}),</span>
+        <span class="s2">"library_root"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">root</span><span class="p">),</span>
+        <span class="s2">"configuration_root"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">root</span> <span class="o">/</span> <span class="s2">"configs"</span><span class="p">),</span>
+        <span class="s2">"package_file"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">package</span><span class="o">.</span><span class="n">resolve</span><span class="p">()),</span>
+        <span class="s2">"python_executable"</span><span class="p">:</span> <span class="n">sys</span><span class="o">.</span><span class="n">executable</span><span class="p">,</span>
+        <span class="s2">"python_version"</span><span class="p">:</span> <span class="n">sys</span><span class="o">.</span><span class="n">version</span><span class="p">,</span>
+        <span class="s2">"status"</span><span class="p">:</span> <span class="s2">"source_verified"</span><span class="p">,</span>
+        <span class="s2">"scientific_equivalence"</span><span class="p">:</span> <span class="s2">"not assessed by source verification"</span><span class="p">,</span>
+    <span class="p">}</span></div>
+
+
+
+<div class="viewcode-block" id="activate_source">
+<a class="viewcode-back" href="../../../api_reference.html#dendritic_modeling.utils.project_source.activate_source">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">activate_source</span><span class="p">(</span><span class="n">receipt</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Select the verified package and reject an already imported wrong copy."""</span>
+    <span class="n">expected</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">receipt</span><span class="p">[</span><span class="s2">"package_file"</span><span class="p">])</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
+    <span class="n">existing</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">modules</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"dendritic_modeling"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">existing</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">Path</span><span class="p">(</span><span class="n">existing</span><span class="o">.</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span> <span class="o">!=</span> <span class="n">expected</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">SourceContractError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"DendriNet was already imported from </span><span class="si">{</span><span class="n">existing</span><span class="o">.</span><span class="vm">__file__</span><span class="si">}</span><span class="s2">"</span>
+        <span class="p">)</span>
+    <span class="n">src</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="n">receipt</span><span class="p">[</span><span class="s2">"library_root"</span><span class="p">])</span> <span class="o">/</span> <span class="s2">"src"</span><span class="p">)</span>
+    <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">src</span><span class="p">)</span>
+    <span class="n">importlib</span><span class="o">.</span><span class="n">invalidate_caches</span><span class="p">()</span>
+    <span class="n">module</span> <span class="o">=</span> <span class="n">importlib</span><span class="o">.</span><span class="n">import_module</span><span class="p">(</span><span class="s2">"dendritic_modeling"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">Path</span><span class="p">(</span><span class="n">module</span><span class="o">.</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span> <span class="o">!=</span> <span class="n">expected</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">SourceContractError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Unexpected imported package: </span><span class="si">{</span><span class="n">module</span><span class="o">.</span><span class="vm">__file__</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">"DENDRINET_LIBRARY_ROOT"</span><span class="p">]</span> <span class="o">=</span> <span class="n">receipt</span><span class="p">[</span><span class="s2">"library_root"</span><span class="p">]</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">"DENDRINET_CONFIG_ROOT"</span><span class="p">]</span> <span class="o">=</span> <span class="n">receipt</span><span class="p">[</span><span class="s2">"configuration_root"</span><span class="p">]</span>
+    <span class="c1"># Child Python processes inherit the same first-choice package location.</span>
+    <span class="n">previous</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"PYTHONPATH"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">"PYTHONPATH"</span><span class="p">]</span> <span class="o">=</span> <span class="n">src</span> <span class="o">+</span> <span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">pathsep</span> <span class="o">+</span> <span class="n">previous</span> <span class="k">if</span> <span class="n">previous</span> <span class="k">else</span> <span class="s2">""</span><span class="p">)</span>
+    <span class="n">receipt</span><span class="p">[</span><span class="s2">"imported_package_file"</span><span class="p">]</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="n">module</span><span class="o">.</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">())</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">(</span><span class="n">argv</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+    <span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span>
+        <span class="n">description</span><span class="o">=</span><span class="vm">__doc__</span><span class="p">,</span> <span class="n">formatter_class</span><span class="o">=</span><span class="n">argparse</span><span class="o">.</span><span class="n">RawDescriptionHelpFormatter</span>
+    <span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s2">"action"</span><span class="p">,</span>
+        <span class="n">choices</span><span class="o">=</span><span class="p">[</span><span class="s2">"check"</span><span class="p">,</span> <span class="s2">"run"</span><span class="p">],</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">"check: verify and print the receipt; run: verify, then run --entry"</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s2">"--contract"</span><span class="p">,</span>
+        <span class="nb">type</span><span class="o">=</span><span class="n">Path</span><span class="p">,</span>
+        <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">"the paper's dendrinet.project.json, at its repository root"</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s2">"--library-root"</span><span class="p">,</span>
+        <span class="nb">type</span><span class="o">=</span><span class="n">Path</span><span class="p">,</span>
+        <span class="n">default</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"DENDRINET_LIBRARY_ROOT"</span><span class="p">),</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">"root of the library checkout to verify "</span>
+        <span class="s2">"(default: $DENDRINET_LIBRARY_ROOT)"</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"--entry"</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">"run: name of a declared entry point"</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s2">"--receipt"</span><span class="p">,</span>
+        <span class="nb">type</span><span class="o">=</span><span class="n">Path</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">"run: new receipt file outside the paper and library checkouts"</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">raw</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="k">if</span> <span class="n">argv</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">argv</span><span class="p">)</span>
+    <span class="n">split</span> <span class="o">=</span> <span class="n">raw</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="s2">"--"</span><span class="p">)</span> <span class="k">if</span> <span class="s2">"--"</span> <span class="ow">in</span> <span class="n">raw</span> <span class="k">else</span> <span class="nb">len</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span>
+    <span class="n">args</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">(</span><span class="n">raw</span><span class="p">[:</span><span class="n">split</span><span class="p">])</span>
+    <span class="n">extra</span> <span class="o">=</span> <span class="n">raw</span><span class="p">[</span><span class="n">split</span> <span class="o">+</span> <span class="mi">1</span> <span class="p">:]</span> <span class="k">if</span> <span class="n">split</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span> <span class="k">else</span> <span class="p">[]</span>
+    <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">library_root</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">parser</span><span class="o">.</span><span class="n">error</span><span class="p">(</span>
+            <span class="s2">"Set --library-root or DENDRINET_LIBRARY_ROOT; no editable-install fallback"</span>
+        <span class="p">)</span>
+    <span class="n">receipt</span> <span class="o">=</span> <span class="n">verify_contract</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">contract</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">library_root</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">action</span> <span class="o">==</span> <span class="s2">"check"</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">receipt</span><span class="p">,</span> <span class="n">indent</span><span class="o">=</span><span class="mi">2</span><span class="p">))</span>
+        <span class="k">return</span> <span class="mi">0</span>
+    <span class="n">contract</span> <span class="o">=</span> <span class="n">read_contract</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">contract</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">entry</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">contract</span><span class="p">[</span><span class="s2">"entry_points"</span><span class="p">]</span> <span class="ow">or</span> <span class="n">args</span><span class="o">.</span><span class="n">receipt</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">parser</span><span class="o">.</span><span class="n">error</span><span class="p">(</span>
+            <span class="s2">"run requires a declared --entry and a new external --receipt path"</span>
+        <span class="p">)</span>
+    <span class="n">paper</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">contract</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span><span class="o">.</span><span class="n">parent</span>
+    <span class="n">receipt_path</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">receipt</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">receipt_path</span><span class="o">.</span><span class="n">is_relative_to</span><span class="p">(</span><span class="n">paper</span><span class="p">)</span> <span class="ow">or</span> <span class="n">receipt_path</span><span class="o">.</span><span class="n">is_relative_to</span><span class="p">(</span>
+        <span class="n">Path</span><span class="p">(</span><span class="n">receipt</span><span class="p">[</span><span class="s2">"library_root"</span><span class="p">])</span>
+    <span class="p">):</span>
+        <span class="k">raise</span> <span class="n">SourceContractError</span><span class="p">(</span>
+            <span class="s2">"Run receipts belong outside paper and library checkouts"</span>
+        <span class="p">)</span>
+    <span class="n">receipt_path</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="c1"># Exclusive creation protects an earlier run's evidence even on failure.</span>
+    <span class="k">with</span> <span class="n">receipt_path</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="s2">"x"</span><span class="p">)</span> <span class="k">as</span> <span class="n">stream</span><span class="p">:</span>
+        <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">receipt</span><span class="p">,</span> <span class="n">stream</span><span class="p">,</span> <span class="n">indent</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+        <span class="n">stream</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="p">)</span>
+    <span class="n">entry</span> <span class="o">=</span> <span class="n">_inside</span><span class="p">(</span><span class="n">paper</span><span class="p">,</span> <span class="n">contract</span><span class="p">[</span><span class="s2">"entry_points"</span><span class="p">][</span><span class="n">args</span><span class="o">.</span><span class="n">entry</span><span class="p">])</span>
+    <span class="n">receipt</span><span class="o">.</span><span class="n">update</span><span class="p">(</span>
+        <span class="n">entry_point</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">entry</span><span class="p">,</span> <span class="n">script</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">entry</span><span class="p">),</span> <span class="n">arguments</span><span class="o">=</span><span class="n">extra</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="s2">"started"</span>
+    <span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">activate_source</span><span class="p">(</span><span class="n">receipt</span><span class="p">)</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">chdir</span><span class="p">(</span><span class="n">paper</span><span class="p">)</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">entry</span><span class="o">.</span><span class="n">parent</span><span class="p">))</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">paper</span><span class="p">))</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">argv</span> <span class="o">=</span> <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">entry</span><span class="p">),</span> <span class="o">*</span><span class="n">extra</span><span class="p">]</span>
+        <span class="n">runpy</span><span class="o">.</span><span class="n">run_path</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">entry</span><span class="p">),</span> <span class="n">run_name</span><span class="o">=</span><span class="s2">"__main__"</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">SystemExit</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+        <span class="n">code</span> <span class="o">=</span> <span class="n">exc</span><span class="o">.</span><span class="n">code</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">exc</span><span class="o">.</span><span class="n">code</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span> <span class="k">else</span> <span class="p">(</span><span class="mi">0</span> <span class="k">if</span> <span class="n">exc</span><span class="o">.</span><span class="n">code</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">receipt</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="s2">"completed"</span> <span class="k">if</span> <span class="n">code</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="s2">"failed"</span><span class="p">,</span> <span class="n">exit_code</span><span class="o">=</span><span class="n">code</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">code</span>
+    <span class="k">except</span> <span class="ne">BaseException</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+        <span class="n">receipt</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="s2">"failed"</span><span class="p">,</span> <span class="n">error_type</span><span class="o">=</span><span class="nb">type</span><span class="p">(</span><span class="n">exc</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span> <span class="n">error</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">exc</span><span class="p">))</span>
+        <span class="k">raise</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">receipt</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="s2">"completed"</span><span class="p">,</span> <span class="n">exit_code</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="k">return</span> <span class="mi">0</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="n">receipt_path</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">receipt</span><span class="p">,</span> <span class="n">indent</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="p">)</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="k">raise</span> <span class="ne">SystemExit</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024-2026, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

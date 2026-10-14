@@ -1,0 +1,814 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>dendritic_modeling.networks.checkpoints &mdash; DendriNet v0.2.0</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=938c9ccc"></script>
+      <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            DendriNet
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../examples.html">Example configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Building models</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../network_architectures.html">Model architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../dendritic_neurons.html">Dendritic neurons</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../synapses.html">Synapses and connectivity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../population_networks.html">Population networks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../temporal_dynamics.html">Temporal dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../structured_ei_cores.html">Structured E/I cores</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../conductance_options.html">Conductance options</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../comparison_models.html">Baselines and comparison models</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Configuration</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../configuration_guide.html">Configuration guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../config_reference.html">Annotated reference configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../training_strategies.html">Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../distributed_training.html">Distributed training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../performance_kernels.html">Sparse execution and performance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Data and analysis</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../datasets.html">Datasets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../analysis.html">Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../analyzers.html">Analyzer reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../checkpoint_analysis.html">Analyzing saved checkpoints</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Running experiments</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../runs_and_outputs.html">Runs and outputs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../sweeps.html">Parameter sweeps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../model_compression.html">Compact checkpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../project_provenance.html">Project provenance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../available_components.html">Component catalogue</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../options_reference.html">Options reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../cli_reference.html">Command-line reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api_reference.html">Python API</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../extending.html">Extending DendriNet</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../engineering_architecture.html">Engineering architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../contributing.html">Contributing</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">DendriNet</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">dendritic_modeling.networks.checkpoints</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for dendritic_modeling.networks.checkpoints</h1><div class="highlight"><pre>
+<span></span><span class="sd">"""Safe helpers for strict model-state checkpoint loading."""</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">hashlib</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">secrets</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">OrderedDict</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Collection</span><span class="p">,</span> <span class="n">Mapping</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch.nn</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">nn</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.state_versions</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">clear_legacy_state</span><span class="p">,</span>
+    <span class="n">collect_legacy_state</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">_BITMASK_SUFFIX</span> <span class="o">=</span> <span class="s2">".__bitmask"</span>
+<span class="n">_BITMASK_METADATA_SUFFIX</span> <span class="o">=</span> <span class="s2">".__bitmask_metadata"</span>
+<span class="n">_BITMASK_SLOT_ORDER_SUFFIX</span> <span class="o">=</span> <span class="s2">".__bitmask_slot_order"</span>
+<span class="c1"># Fourth bitmask metadata entry: the rows keep their stored contact order, and</span>
+<span class="c1"># ``&lt;key&gt;.__bitmask_slot_order`` holds the slot of each ascending contact.</span>
+<span class="c1"># Decoders before 2026-10-13 accept only three entries, so they refuse such a</span>
+<span class="c1"># file instead of misreading it.</span>
+<span class="n">_BITMASK_SLOT_ORDER_LAYOUT</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="c1"># ``sparse_index_encoding`` labels of the two bitmask layouts.</span>
+<span class="n">BITMASK_ASCENDING_ENCODING</span> <span class="o">=</span> <span class="s2">"bitmask"</span>
+<span class="n">BITMASK_SLOT_ORDER_ENCODING</span> <span class="o">=</span> <span class="s2">"bitmask_slot_order"</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">create_temporary_file</span><span class="p">(</span><span class="n">directory</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">,</span> <span class="n">prefix</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Path</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Create an empty temporary file whose mode follows the process umask.</span>
+
+<span class="sd">    ``tempfile.mkstemp`` creates owner-only files, which ``os.replace`` would</span>
+<span class="sd">    carry onto shared checkpoints.</span>
+<span class="sd">    """</span>
+    <span class="n">directory</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">directory</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">100</span><span class="p">):</span>
+        <span class="n">candidate</span> <span class="o">=</span> <span class="n">directory</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">".</span><span class="si">{</span><span class="n">prefix</span><span class="si">}</span><span class="s2">.</span><span class="si">{</span><span class="n">secrets</span><span class="o">.</span><span class="n">token_hex</span><span class="p">(</span><span class="mi">6</span><span class="p">)</span><span class="si">}</span><span class="s2">.tmp"</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">descriptor</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">candidate</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">O_CREAT</span> <span class="o">|</span> <span class="n">os</span><span class="o">.</span><span class="n">O_EXCL</span> <span class="o">|</span> <span class="n">os</span><span class="o">.</span><span class="n">O_WRONLY</span><span class="p">,</span> <span class="mo">0o666</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">FileExistsError</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">close</span><span class="p">(</span><span class="n">descriptor</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">candidate</span>
+    <span class="k">raise</span> <span class="ne">FileExistsError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"could not create a temporary file in </span><span class="si">{</span><span class="n">directory</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_fsync</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">directory</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">flags</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">O_RDONLY</span> <span class="o">|</span> <span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">os</span><span class="p">,</span> <span class="s2">"O_DIRECTORY"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="k">if</span> <span class="n">directory</span> <span class="k">else</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="n">descriptor</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">flags</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">fsync</span><span class="p">(</span><span class="n">descriptor</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">directory</span><span class="p">:</span>  <span class="c1"># some filesystems cannot sync a directory</span>
+            <span class="k">raise</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">close</span><span class="p">(</span><span class="n">descriptor</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">commit_temporary_file</span><span class="p">(</span><span class="n">temporary</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">,</span> <span class="n">destination</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Flush ``temporary`` to disk and rename it onto ``destination``."""</span>
+    <span class="n">temporary</span><span class="p">,</span> <span class="n">destination</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">temporary</span><span class="p">),</span> <span class="n">Path</span><span class="p">(</span><span class="n">destination</span><span class="p">)</span>
+    <span class="n">_fsync</span><span class="p">(</span><span class="n">temporary</span><span class="p">)</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">temporary</span><span class="p">,</span> <span class="n">destination</span><span class="p">)</span>
+    <span class="n">_fsync</span><span class="p">(</span><span class="n">destination</span><span class="o">.</span><span class="n">parent</span><span class="p">,</span> <span class="n">directory</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">atomic_torch_save</span><span class="p">(</span><span class="n">payload</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">destination</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Save a PyTorch payload so ``destination`` is never partial.</span>
+
+<span class="sd">    The payload is written to a temporary file next to ``destination``,</span>
+<span class="sd">    flushed to disk and renamed over it, so an interrupted save leaves the</span>
+<span class="sd">    previous file intact. The file mode follows the umask.</span>
+<span class="sd">    """</span>
+
+    <span class="n">resolved</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">destination</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
+    <span class="n">resolved</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">temporary</span> <span class="o">=</span> <span class="n">create_temporary_file</span><span class="p">(</span><span class="n">resolved</span><span class="o">.</span><span class="n">parent</span><span class="p">,</span> <span class="n">resolved</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">torch</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">payload</span><span class="p">,</span> <span class="n">temporary</span><span class="p">)</span>
+        <span class="n">commit_temporary_file</span><span class="p">(</span><span class="n">temporary</span><span class="p">,</span> <span class="n">resolved</span><span class="p">)</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="n">temporary</span><span class="o">.</span><span class="n">unlink</span><span class="p">(</span><span class="n">missing_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_same_state</span><span class="p">(</span><span class="n">state</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">other</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+    <span class="k">if</span> <span class="nb">list</span><span class="p">(</span><span class="n">state</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">list</span><span class="p">(</span><span class="n">other</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"_metadata"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="s2">"_metadata"</span><span class="p">,</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">state</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">stored</span> <span class="o">=</span> <span class="n">other</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">is_tensor</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="o">!=</span> <span class="n">torch</span><span class="o">.</span><span class="n">is_tensor</span><span class="p">(</span><span class="n">stored</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">torch</span><span class="o">.</span><span class="n">is_tensor</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">value</span> <span class="o">!=</span> <span class="n">stored</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">elif</span> <span class="p">(</span>
+            <span class="n">value</span><span class="o">.</span><span class="n">dtype</span> <span class="o">!=</span> <span class="n">stored</span><span class="o">.</span><span class="n">dtype</span>
+            <span class="ow">or</span> <span class="n">value</span><span class="o">.</span><span class="n">shape</span> <span class="o">!=</span> <span class="n">stored</span><span class="o">.</span><span class="n">shape</span>
+            <span class="ow">or</span> <span class="ow">not</span> <span class="n">torch</span><span class="o">.</span><span class="n">equal</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">(),</span> <span class="n">stored</span><span class="p">)</span>
+        <span class="p">):</span>
+            <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">return</span> <span class="kc">True</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">save_state_dict</span><span class="p">(</span>
+    <span class="n">state_dict</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="n">destination</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">identical_to</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Atomically save ``state_dict``, or link a file that already holds it.</span>
+
+<span class="sd">    ``identical_to`` names a checkpoint that may hold the same state, such as</span>
+<span class="sd">    the best-validation checkpoint after training restored it. When its</span>
+<span class="sd">    tensors, keys and metadata equal ``state_dict``, ``destination`` becomes a</span>
+<span class="sd">    hard link to it, so the run keeps one copy on disk under both names.</span>
+<span class="sd">    Otherwise (or where the filesystem refuses the link) the state is saved.</span>
+<span class="sd">    Returns ``"linked"`` or ``"saved"``.</span>
+<span class="sd">    """</span>
+    <span class="n">resolved</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">destination</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">identical_to</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">Path</span><span class="p">(</span><span class="n">identical_to</span><span class="p">)</span><span class="o">.</span><span class="n">is_file</span><span class="p">():</span>
+        <span class="n">existing</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">identical_to</span><span class="p">,</span> <span class="n">map_location</span><span class="o">=</span><span class="s2">"cpu"</span><span class="p">,</span> <span class="n">weights_only</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">existing</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">)</span> <span class="ow">and</span> <span class="n">_same_state</span><span class="p">(</span><span class="n">state_dict</span><span class="p">,</span> <span class="n">existing</span><span class="p">):</span>
+            <span class="n">resolved</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">temporary</span> <span class="o">=</span> <span class="n">resolved</span><span class="o">.</span><span class="n">parent</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">".</span><span class="si">{</span><span class="n">resolved</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">.</span><span class="si">{</span><span class="n">secrets</span><span class="o">.</span><span class="n">token_hex</span><span class="p">(</span><span class="mi">6</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">link</span><span class="p">(</span><span class="n">identical_to</span><span class="p">,</span> <span class="n">temporary</span><span class="p">)</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">temporary</span><span class="p">,</span> <span class="n">resolved</span><span class="p">)</span>
+                <span class="n">_fsync</span><span class="p">(</span><span class="n">resolved</span><span class="o">.</span><span class="n">parent</span><span class="p">,</span> <span class="n">directory</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                <span class="k">return</span> <span class="s2">"linked"</span>
+            <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
+                <span class="n">temporary</span><span class="o">.</span><span class="n">unlink</span><span class="p">(</span><span class="n">missing_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">atomic_torch_save</span><span class="p">(</span><span class="n">state_dict</span><span class="p">,</span> <span class="n">resolved</span><span class="p">)</span>
+    <span class="k">return</span> <span class="s2">"saved"</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">atomic_torch_save_candidates</span><span class="p">(</span>
+    <span class="n">payloads</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="n">destination</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Serialize candidate payloads and atomically keep the smallest one.</span>
+
+<span class="sd">    Topology encodings have different break-even points: integer indices are</span>
+<span class="sd">    compact at low fan-in, while row-wise bitmasks can win for denser rows.</span>
+<span class="sd">    Comparing tensor ``numel`` is insufficient because ``torch.save`` adds</span>
+<span class="sd">    storage and metadata overhead.  This helper serializes every complete</span>
+<span class="sd">    candidate payload in the destination directory, compares the actual file</span>
+<span class="sd">    sizes, and moves the smallest byte-for-byte candidate into place.</span>
+
+<span class="sd">    Ties are resolved by sorted candidate name so repeated exports are</span>
+<span class="sd">    deterministic.  Candidate sizes describe the exact payloads considered;</span>
+<span class="sd">    the selected file is not reserialized after selection.</span>
+<span class="sd">    """</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">payloads</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"payloads must contain at least one candidate"</span><span class="p">)</span>
+    <span class="n">resolved</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">destination</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
+    <span class="n">resolved</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">temporaries</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Path</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">candidate_bytes</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">candidate</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">payloads</span><span class="p">):</span>
+            <span class="n">temporary</span> <span class="o">=</span> <span class="n">create_temporary_file</span><span class="p">(</span>
+                <span class="n">resolved</span><span class="o">.</span><span class="n">parent</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">resolved</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">.</span><span class="si">{</span><span class="n">candidate</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">)</span>
+            <span class="n">temporaries</span><span class="p">[</span><span class="n">candidate</span><span class="p">]</span> <span class="o">=</span> <span class="n">temporary</span>
+            <span class="n">torch</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">payloads</span><span class="p">[</span><span class="n">candidate</span><span class="p">],</span> <span class="n">temporary</span><span class="p">)</span>
+            <span class="n">candidate_bytes</span><span class="p">[</span><span class="n">candidate</span><span class="p">]</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">temporary</span><span class="o">.</span><span class="n">stat</span><span class="p">()</span><span class="o">.</span><span class="n">st_size</span><span class="p">)</span>
+        <span class="n">selected</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span>
+            <span class="n">candidate_bytes</span><span class="p">,</span>
+            <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">candidate</span><span class="p">:</span> <span class="p">(</span><span class="n">candidate_bytes</span><span class="p">[</span><span class="n">candidate</span><span class="p">],</span> <span class="n">candidate</span><span class="p">),</span>
+        <span class="p">)</span>
+        <span class="n">commit_temporary_file</span><span class="p">(</span><span class="n">temporaries</span><span class="p">[</span><span class="n">selected</span><span class="p">],</span> <span class="n">resolved</span><span class="p">)</span>
+        <span class="n">temporaries</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">selected</span><span class="p">)</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">temporary</span> <span class="ow">in</span> <span class="n">temporaries</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="n">temporary</span><span class="o">.</span><span class="n">unlink</span><span class="p">(</span><span class="n">missing_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s2">"selection_basis"</span><span class="p">:</span> <span class="s2">"minimum_complete_torch_serialized_payload_bytes"</span><span class="p">,</span>
+        <span class="s2">"selected"</span><span class="p">:</span> <span class="n">selected</span><span class="p">,</span>
+        <span class="s2">"candidate_bytes"</span><span class="p">:</span> <span class="n">candidate_bytes</span><span class="p">,</span>
+        <span class="s2">"output_bytes"</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">resolved</span><span class="o">.</span><span class="n">stat</span><span class="p">()</span><span class="o">.</span><span class="n">st_size</span><span class="p">),</span>
+        <span class="s2">"output_sha256"</span><span class="p">:</span> <span class="n">sha256_file</span><span class="p">(</span><span class="n">resolved</span><span class="p">),</span>
+    <span class="p">}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">compact_sparse_index_state_dict</span><span class="p">(</span>
+    <span class="n">state_dict</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]:</span>
+<span class="w">    </span><span class="sd">"""Pack non-negative sparse topology indices for checkpoint storage.</span>
+
+<span class="sd">    Runtime indexed layers use signed 32- or 64-bit integer buffers for broad</span>
+<span class="sd">    operator compatibility. Checkpoints do not need that overhead: non-negative</span>
+<span class="sd">    topologies can be stored as unsigned 16- or 32-bit integers and are cast</span>
+<span class="sd">    back to the destination buffer dtype by ``load_state_dict``. Both signed</span>
+<span class="sd">    input dtypes normalize to the same packed output for equal index values.</span>
+<span class="sd">    """</span>
+
+    <span class="n">compact</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">encoding</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">state_dict</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">key</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">"._last_forward_param_tensor"</span><span class="p">)</span> <span class="ow">or</span> <span class="n">key</span> <span class="o">==</span> <span class="p">(</span>
+            <span class="s2">"_last_forward_param_tensor"</span>
+        <span class="p">):</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="n">key</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">"connection_indices"</span><span class="p">)</span> <span class="ow">and</span> <span class="n">value</span><span class="o">.</span><span class="n">dtype</span> <span class="ow">in</span> <span class="p">(</span>
+            <span class="n">torch</span><span class="o">.</span><span class="n">int32</span><span class="p">,</span>
+            <span class="n">torch</span><span class="o">.</span><span class="n">int64</span><span class="p">,</span>
+            <span class="n">torch</span><span class="o">.</span><span class="n">uint16</span><span class="p">,</span>
+            <span class="n">torch</span><span class="o">.</span><span class="n">uint32</span><span class="p">,</span>
+        <span class="p">):</span>
+            <span class="c1"># Re-normalize already compact unsigned checkpoints as well as</span>
+            <span class="c1"># runtime signed buffers. This makes the codec idempotent and lets</span>
+            <span class="c1"># validators prove that stored uint topology is canonical.</span>
+            <span class="n">indices</span> <span class="o">=</span> <span class="n">value</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">int64</span><span class="p">)</span>
+            <span class="n">max_index</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">indices</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">())</span> <span class="k">if</span> <span class="n">indices</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span> <span class="k">else</span> <span class="mi">0</span>
+            <span class="n">min_index</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">indices</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">())</span> <span class="k">if</span> <span class="n">indices</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span> <span class="k">else</span> <span class="mi">0</span>
+            <span class="k">if</span> <span class="n">min_index</span> <span class="o">&gt;=</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">max_index</span> <span class="o">&lt;=</span> <span class="mi">65_535</span><span class="p">:</span>
+                <span class="n">value</span> <span class="o">=</span> <span class="n">indices</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">uint16</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">min_index</span> <span class="o">&gt;=</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">max_index</span> <span class="o">&lt;=</span> <span class="mi">4_294_967_295</span><span class="p">:</span>
+                <span class="n">value</span> <span class="o">=</span> <span class="n">indices</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">uint32</span><span class="p">)</span>
+            <span class="n">encoding</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span><span class="o">.</span><span class="n">removeprefix</span><span class="p">(</span><span class="s2">"torch."</span><span class="p">)</span>
+        <span class="n">compact</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+    <span class="k">return</span> <span class="n">compact</span><span class="p">,</span> <span class="n">encoding</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_slot_order_dtype</span><span class="p">(</span><span class="n">k</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">dtype</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Narrowest integer dtype that holds the slot numbers ``0 .. k - 1``."""</span>
+    <span class="k">if</span> <span class="n">k</span> <span class="o">&lt;=</span> <span class="mi">1</span> <span class="o">&lt;&lt;</span> <span class="mi">8</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">uint8</span>
+    <span class="k">if</span> <span class="n">k</span> <span class="o">&lt;=</span> <span class="mi">1</span> <span class="o">&lt;&lt;</span> <span class="mi">16</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">uint16</span>
+    <span class="k">if</span> <span class="n">k</span> <span class="o">&lt;=</span> <span class="mi">1</span> <span class="o">&lt;&lt;</span> <span class="mi">32</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">uint32</span>
+    <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">int64</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">per_contact_tensors</span><span class="p">(</span>
+    <span class="n">state_dict</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span>
+    <span class="n">key</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Other tensors of the module owning ``key`` with one entry per contact.</span>
+
+<span class="sd">    ``key`` names a ``connection_indices`` tensor of shape ``[rows,</span>
+<span class="sd">    contacts]``. The result lists the module's direct entries (no further dot</span>
+<span class="sd">    after its prefix), other than the indices and ``pre_w``, whose first two</span>
+<span class="sd">    dimensions are ``[rows, contacts]``. The bitmask encoding uses it only to</span>
+<span class="sd">    refuse a reordering that would leave such a tensor behind.</span>
+<span class="sd">    """</span>
+    <span class="n">prefix</span> <span class="o">=</span> <span class="n">key</span><span class="p">[:</span> <span class="o">-</span><span class="nb">len</span><span class="p">(</span><span class="s2">"connection_indices"</span><span class="p">)]</span>
+    <span class="n">shape</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">state_dict</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="mi">2</span><span class="p">])</span>
+    <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span>
+        <span class="n">other</span>
+        <span class="k">for</span> <span class="n">other</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">state_dict</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">other</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="n">prefix</span><span class="p">)</span>
+        <span class="ow">and</span> <span class="s2">"."</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">other</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">prefix</span><span class="p">)</span> <span class="p">:]</span>
+        <span class="ow">and</span> <span class="n">other</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">prefix</span><span class="si">}</span><span class="s2">pre_w"</span><span class="p">)</span>
+        <span class="ow">and</span> <span class="n">torch</span><span class="o">.</span><span class="n">is_tensor</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+        <span class="ow">and</span> <span class="n">value</span><span class="o">.</span><span class="n">ndim</span> <span class="o">&gt;=</span> <span class="mi">2</span>
+        <span class="ow">and</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="mi">2</span><span class="p">])</span> <span class="o">==</span> <span class="n">shape</span>
+    <span class="p">)</span>
+
+
+<div class="viewcode-block" id="compact_sparse_bitmask_state_dict">
+<a class="viewcode-back" href="../../../api_reference.html#dendritic_modeling.networks.checkpoints.compact_sparse_bitmask_state_dict">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">compact_sparse_bitmask_state_dict</span><span class="p">(</span>
+    <span class="n">state_dict</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">keep_slot_order</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="n">Collection</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]:</span>
+<span class="w">    </span><span class="sd">"""Encode row-wise topology as bitmasks instead of integer indices.</span>
+
+<span class="sd">    This is useful for moderately dense topology, where even uint16 costs two</span>
+<span class="sd">    index bytes per retained weight while a bitmask costs one bit per possible</span>
+<span class="sd">    connection. Every ``connection_indices`` tensor with a ``pre_w`` of the</span>
+<span class="sd">    same shape is encoded. A bitmask records which inputs a row contacts, not</span>
+<span class="sd">    in which slot each contact is stored, so each key uses one of two</span>
+<span class="sd">    layouts:</span>
+
+<span class="sd">    ``ascending`` (default; label ``"bitmask"``)</span>
+<span class="sd">       The contacts of each row and the matching ``pre_w`` entries are</span>
+<span class="sd">       reordered into ascending input order, so the mask and the weights</span>
+<span class="sd">       reconstruct the layer. This suits a layer whose only per-contact tensor</span>
+<span class="sd">       is ``pre_w`` and whose training updates do not depend on the slot</span>
+<span class="sd">       order, such as a fixed ``IndexedSparseLinear``; its outputs can differ</span>
+<span class="sd">       in the last bits because the contacts are summed in another order. A</span>
+<span class="sd">       row that is not already ascending raises ``ValueError`` when the module</span>
+<span class="sd">       holds another tensor with one entry per contact (``indexed_release``</span>
+<span class="sd">       impact and ages, for example), which the reordering would misalign.</span>
+<span class="sd">    ``slot order`` (keys in ``keep_slot_order``; label ``"bitmask_slot_order"``)</span>
+<span class="sd">       The contacts keep their slots and no other tensor changes. A key with a</span>
+<span class="sd">       row that is not ascending also stores, under</span>
+<span class="sd">       ``&lt;key&gt;.__bitmask_slot_order``, the slot of each ascending contact</span>
+<span class="sd">       (one byte per contact up to 256 contacts per row, two up to 65,536),</span>
+<span class="sd">       and its metadata gains a fourth entry. Decoding restores the indices</span>
+<span class="sd">       exactly. Library versions before 2026-10-13 cannot decode such keys and</span>
+<span class="sd">       raise.</span>
+
+<span class="sd">    ``keep_slot_order`` is ``True`` (every key), ``False`` (none) or the</span>
+<span class="sd">    ``connection_indices`` keys that keep their slot order.</span>
+<span class="sd">    """</span>
+
+    <span class="n">compact</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="n">key</span><span class="p">:</span> <span class="n">value</span>
+        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">state_dict</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">key</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">"._last_forward_param_tensor"</span><span class="p">)</span>
+        <span class="ow">and</span> <span class="n">key</span> <span class="o">!=</span> <span class="s2">"_last_forward_param_tensor"</span>
+    <span class="p">}</span>
+    <span class="n">original</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">compact</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">keep_slot_order</span><span class="p">,</span> <span class="nb">bool</span><span class="p">):</span>
+        <span class="n">keep_all</span><span class="p">,</span> <span class="n">keep_keys</span> <span class="o">=</span> <span class="n">keep_slot_order</span><span class="p">,</span> <span class="nb">frozenset</span><span class="p">()</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">keep_slot_order</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">"keep_slot_order must be a bool or a collection of keys"</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">keep_all</span><span class="p">,</span> <span class="n">keep_keys</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="nb">frozenset</span><span class="p">(</span><span class="n">keep_slot_order</span><span class="p">)</span>
+    <span class="n">encoding</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">integer_dtypes</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="n">torch</span><span class="o">.</span><span class="n">int8</span><span class="p">,</span>
+        <span class="n">torch</span><span class="o">.</span><span class="n">int16</span><span class="p">,</span>
+        <span class="n">torch</span><span class="o">.</span><span class="n">int32</span><span class="p">,</span>
+        <span class="n">torch</span><span class="o">.</span><span class="n">int64</span><span class="p">,</span>
+        <span class="n">torch</span><span class="o">.</span><span class="n">uint8</span><span class="p">,</span>
+        <span class="n">torch</span><span class="o">.</span><span class="n">uint16</span><span class="p">,</span>
+        <span class="n">torch</span><span class="o">.</span><span class="n">uint32</span><span class="p">,</span>
+        <span class="n">torch</span><span class="o">.</span><span class="n">uint64</span><span class="p">,</span>
+    <span class="p">}</span>
+    <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">compact</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">key</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">"connection_indices"</span><span class="p">):</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="n">value</span><span class="o">.</span><span class="n">ndim</span> <span class="o">!=</span> <span class="mi">2</span> <span class="ow">or</span> <span class="n">value</span><span class="o">.</span><span class="n">dtype</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">integer_dtypes</span><span class="p">:</span>
+            <span class="k">continue</span>
+
+        <span class="n">weight_key</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">key</span><span class="p">[:</span><span class="w"> </span><span class="o">-</span><span class="nb">len</span><span class="p">(</span><span class="s1">'connection_indices'</span><span class="p">)]</span><span class="si">}</span><span class="s2">pre_w"</span>
+        <span class="n">weight</span> <span class="o">=</span> <span class="n">compact</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">weight_key</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">weight</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">weight</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">shape</span><span class="p">):</span>
+            <span class="k">continue</span>
+
+        <span class="n">indices</span> <span class="o">=</span> <span class="n">value</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">indices</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span> <span class="ow">and</span> <span class="nb">bool</span><span class="p">((</span><span class="n">indices</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">()):</span>
+            <span class="k">continue</span>
+        <span class="n">sorted_indices</span><span class="p">,</span> <span class="n">order</span> <span class="o">=</span> <span class="n">indices</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">sorted_indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="ow">and</span> <span class="nb">bool</span><span class="p">(</span>
+            <span class="p">(</span><span class="n">sorted_indices</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">:]</span> <span class="o">==</span> <span class="n">sorted_indices</span><span class="p">[:,</span> <span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span><span class="o">.</span><span class="n">any</span><span class="p">()</span>
+        <span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Topology indices must be unique within each row: </span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+        <span class="n">n_rows</span><span class="p">,</span> <span class="n">k</span> <span class="o">=</span> <span class="n">sorted_indices</span><span class="o">.</span><span class="n">shape</span>
+        <span class="n">n_inputs</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">sorted_indices</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">())</span> <span class="o">+</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">k</span> <span class="k">else</span> <span class="mi">0</span>
+        <span class="n">n_bytes</span> <span class="o">=</span> <span class="p">(</span><span class="n">n_inputs</span> <span class="o">+</span> <span class="mi">7</span><span class="p">)</span> <span class="o">//</span> <span class="mi">8</span>
+        <span class="n">packed</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span>
+            <span class="p">(</span><span class="n">n_rows</span><span class="p">,</span> <span class="n">n_bytes</span><span class="p">),</span>
+            <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">int16</span><span class="p">,</span>
+            <span class="n">device</span><span class="o">=</span><span class="n">sorted_indices</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">k</span><span class="p">:</span>
+            <span class="n">byte_indices</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">div</span><span class="p">(</span><span class="n">sorted_indices</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="n">rounding_mode</span><span class="o">=</span><span class="s2">"floor"</span><span class="p">)</span>
+            <span class="n">bit_values</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">bitwise_left_shift</span><span class="p">(</span>
+                <span class="n">torch</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">sorted_indices</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">int16</span><span class="p">),</span>
+                <span class="n">torch</span><span class="o">.</span><span class="n">remainder</span><span class="p">(</span><span class="n">sorted_indices</span><span class="p">,</span> <span class="mi">8</span><span class="p">),</span>
+            <span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">int16</span><span class="p">)</span>
+            <span class="n">packed</span><span class="o">.</span><span class="n">scatter_add_</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">byte_indices</span><span class="p">,</span> <span class="n">bit_values</span><span class="p">)</span>
+
+        <span class="n">ascending</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">equal</span><span class="p">(</span><span class="n">sorted_indices</span><span class="p">,</span> <span class="n">indices</span><span class="p">))</span>
+        <span class="n">metadata</span> <span class="o">=</span> <span class="p">[</span><span class="n">n_rows</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">n_inputs</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">keep_all</span> <span class="ow">or</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">keep_keys</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">ascending</span><span class="p">:</span>
+                <span class="n">compact</span><span class="p">[</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">key</span><span class="si">}{</span><span class="n">_BITMASK_SLOT_ORDER_SUFFIX</span><span class="si">}</span><span class="s2">"</span><span class="p">]</span> <span class="o">=</span> <span class="n">order</span><span class="o">.</span><span class="n">to</span><span class="p">(</span>
+                    <span class="n">dtype</span><span class="o">=</span><span class="n">_slot_order_dtype</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
+                <span class="p">)</span>
+                <span class="n">metadata</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">_BITMASK_SLOT_ORDER_LAYOUT</span><span class="p">)</span>
+            <span class="n">encoding</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">BITMASK_SLOT_ORDER_ENCODING</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">ascending</span><span class="p">:</span>
+                <span class="n">companions</span> <span class="o">=</span> <span class="n">per_contact_tensors</span><span class="p">(</span><span class="n">original</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">companions</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">"Reordering the contacts of </span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2"> into ascending input "</span>
+                        <span class="sa">f</span><span class="s2">"order would misalign </span><span class="si">{</span><span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">companions</span><span class="p">)</span><span class="si">}</span><span class="s2">, which "</span>
+                        <span class="s2">"hold one entry per contact; encode it with "</span>
+                        <span class="s2">"keep_slot_order"</span>
+                    <span class="p">)</span>
+            <span class="n">compact</span><span class="p">[</span><span class="n">weight_key</span><span class="p">]</span> <span class="o">=</span> <span class="n">weight</span><span class="o">.</span><span class="n">gather</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">order</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">weight</span><span class="o">.</span><span class="n">device</span><span class="p">))</span>
+            <span class="n">encoding</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">BITMASK_ASCENDING_ENCODING</span>
+        <span class="k">del</span> <span class="n">compact</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+        <span class="n">compact</span><span class="p">[</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">key</span><span class="si">}{</span><span class="n">_BITMASK_SUFFIX</span><span class="si">}</span><span class="s2">"</span><span class="p">]</span> <span class="o">=</span> <span class="n">packed</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">uint8</span><span class="p">)</span>
+        <span class="n">compact</span><span class="p">[</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">key</span><span class="si">}{</span><span class="n">_BITMASK_METADATA_SUFFIX</span><span class="si">}</span><span class="s2">"</span><span class="p">]</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span>
+            <span class="n">metadata</span><span class="p">,</span>
+            <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">int64</span><span class="p">,</span>
+            <span class="n">device</span><span class="o">=</span><span class="n">indices</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="n">compact</span><span class="p">,</span> <span class="n">encoding</span></div>
+
+
+
+<div class="viewcode-block" id="decode_sparse_bitmask_state_dict">
+<a class="viewcode-back" href="../../../api_reference.html#dendritic_modeling.networks.checkpoints.decode_sparse_bitmask_state_dict">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">decode_sparse_bitmask_state_dict</span><span class="p">(</span>
+    <span class="n">state_dict</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Restore row-wise indices from :func:`compact_sparse_bitmask_state_dict`.</span>
+
+<span class="sd">    Keys in the ascending layout decode to ascending indices, aligned with the</span>
+<span class="sd">    stored (reordered) ``pre_w``; keys with a stored slot order decode to the</span>
+<span class="sd">    indices in their original slots. Malformed or inconsistent entries raise</span>
+<span class="sd">    ``RuntimeError``.</span>
+<span class="sd">    """</span>
+
+    <span class="n">decoded</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">consumed_slot_orders</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">state_dict</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">key</span><span class="o">.</span><span class="n">endswith</span><span class="p">((</span><span class="n">_BITMASK_METADATA_SUFFIX</span><span class="p">,</span> <span class="n">_BITMASK_SLOT_ORDER_SUFFIX</span><span class="p">)):</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">key</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="n">_BITMASK_SUFFIX</span><span class="p">):</span>
+            <span class="n">decoded</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+            <span class="k">continue</span>
+
+        <span class="n">original_key</span> <span class="o">=</span> <span class="n">key</span><span class="o">.</span><span class="n">removesuffix</span><span class="p">(</span><span class="n">_BITMASK_SUFFIX</span><span class="p">)</span>
+        <span class="n">metadata_key</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">original_key</span><span class="si">}{</span><span class="n">_BITMASK_METADATA_SUFFIX</span><span class="si">}</span><span class="s2">"</span>
+        <span class="k">if</span> <span class="n">metadata_key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">state_dict</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Missing bitmask metadata for </span><span class="si">{</span><span class="n">original_key</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="n">metadata</span> <span class="o">=</span> <span class="n">state_dict</span><span class="p">[</span><span class="n">metadata_key</span><span class="p">]</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">metadata</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span>
+            <span class="n">metadata</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span> <span class="o">==</span> <span class="mi">4</span>
+            <span class="ow">and</span> <span class="nb">int</span><span class="p">(</span><span class="n">metadata</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">.</span><span class="n">item</span><span class="p">())</span> <span class="o">!=</span> <span class="n">_BITMASK_SLOT_ORDER_LAYOUT</span>
+        <span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Invalid bitmask metadata for </span><span class="si">{</span><span class="n">original_key</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="n">n_rows</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">n_inputs</span> <span class="o">=</span> <span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">item</span><span class="p">)</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">metadata</span><span class="p">[:</span><span class="mi">3</span><span class="p">]</span><span class="o">.</span><span class="n">tolist</span><span class="p">())</span>
+        <span class="k">if</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">!=</span> <span class="p">(</span><span class="n">n_rows</span><span class="p">,</span> <span class="p">(</span><span class="n">n_inputs</span> <span class="o">+</span> <span class="mi">7</span><span class="p">)</span> <span class="o">//</span> <span class="mi">8</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Invalid packed bitmask shape for </span><span class="si">{</span><span class="n">original_key</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+        <span class="n">bit_offsets</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">value</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">uint8</span><span class="p">)</span>
+        <span class="n">present</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">bitwise_and</span><span class="p">(</span>
+            <span class="n">torch</span><span class="o">.</span><span class="n">bitwise_right_shift</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">),</span> <span class="n">bit_offsets</span><span class="p">),</span>
+            <span class="mi">1</span><span class="p">,</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">n_rows</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)[:,</span> <span class="p">:</span><span class="n">n_inputs</span><span class="p">]</span>
+        <span class="n">counts</span> <span class="o">=</span> <span class="n">present</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">bool</span><span class="p">((</span><span class="n">counts</span> <span class="o">!=</span> <span class="n">k</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">()):</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"Packed bitmask row counts do not match K for </span><span class="si">{</span><span class="n">original_key</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">)</span>
+        <span class="n">coordinates</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nonzero</span><span class="p">(</span><span class="n">present</span><span class="p">,</span> <span class="n">as_tuple</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="n">indices</span> <span class="o">=</span> <span class="n">coordinates</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">n_rows</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">)</span>
+
+        <span class="n">slot_order_key</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">original_key</span><span class="si">}{</span><span class="n">_BITMASK_SLOT_ORDER_SUFFIX</span><span class="si">}</span><span class="s2">"</span>
+        <span class="k">if</span> <span class="n">metadata</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span> <span class="o">==</span> <span class="mi">4</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">slot_order_key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">state_dict</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Missing bitmask slot order for </span><span class="si">{</span><span class="n">original_key</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+            <span class="n">slots</span> <span class="o">=</span> <span class="n">state_dict</span><span class="p">[</span><span class="n">slot_order_key</span><span class="p">]</span><span class="o">.</span><span class="n">to</span><span class="p">(</span>
+                <span class="n">device</span><span class="o">=</span><span class="n">indices</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">slots</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">!=</span> <span class="p">(</span><span class="n">n_rows</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">torch</span><span class="o">.</span><span class="n">equal</span><span class="p">(</span>
+                <span class="n">slots</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+                <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">slots</span><span class="o">.</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">n_rows</span><span class="p">,</span> <span class="n">k</span><span class="p">),</span>
+            <span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">"Bitmask slot order of </span><span class="si">{</span><span class="n">original_key</span><span class="si">}</span><span class="s2"> is not a permutation "</span>
+                    <span class="s2">"of the contact slots in every row"</span>
+                <span class="p">)</span>
+            <span class="n">indices</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">empty_like</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span><span class="o">.</span><span class="n">scatter_</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">slots</span><span class="p">,</span> <span class="n">indices</span><span class="p">)</span>
+            <span class="n">consumed_slot_orders</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">slot_order_key</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">slot_order_key</span> <span class="ow">in</span> <span class="n">state_dict</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"Bitmask slot order of </span><span class="si">{</span><span class="n">original_key</span><span class="si">}</span><span class="s2"> without slot-order metadata"</span>
+            <span class="p">)</span>
+        <span class="n">decoded</span><span class="p">[</span><span class="n">original_key</span><span class="p">]</span> <span class="o">=</span> <span class="n">indices</span>
+    <span class="n">orphans</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span>
+        <span class="n">key</span>
+        <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">state_dict</span>
+        <span class="k">if</span> <span class="n">key</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="n">_BITMASK_SLOT_ORDER_SUFFIX</span><span class="p">)</span> <span class="ow">and</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">consumed_slot_orders</span>
+    <span class="p">)</span>
+    <span class="k">if</span> <span class="n">orphans</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Bitmask slot orders without a bitmask: </span><span class="si">{</span><span class="n">orphans</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">decoded</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">compact_model_state_dict</span><span class="p">(</span>
+    <span class="n">state_dict</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">topology_encoding</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"uint"</span><span class="p">,</span>
+    <span class="n">keep_slot_order</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="n">Collection</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]:</span>
+<span class="w">    </span><span class="sd">"""Return a deployment state dictionary with compact sparse topology.</span>
+
+<span class="sd">    ``keep_slot_order`` applies to the ``bitmask`` encoding (see</span>
+<span class="sd">    :func:`compact_sparse_bitmask_state_dict`); ``uint`` keeps every slot.</span>
+<span class="sd">    """</span>
+
+    <span class="n">normalized</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">topology_encoding</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">normalized</span> <span class="o">==</span> <span class="s2">"uint"</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">compact_sparse_index_state_dict</span><span class="p">(</span><span class="n">state_dict</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">normalized</span> <span class="o">==</span> <span class="s2">"bitmask"</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">compact_sparse_bitmask_state_dict</span><span class="p">(</span>
+            <span class="n">state_dict</span><span class="p">,</span> <span class="n">keep_slot_order</span><span class="o">=</span><span class="n">keep_slot_order</span>
+        <span class="p">)</span>
+    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"topology_encoding must be 'uint' or 'bitmask'"</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">topology_encoding_candidates</span><span class="p">(</span><span class="n">requested</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Resolve an explicit or artifact-size-selected topology policy."""</span>
+
+    <span class="n">normalized</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">requested</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">normalized</span> <span class="o">==</span> <span class="s2">"auto"</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">(</span><span class="s2">"uint"</span><span class="p">,</span> <span class="s2">"bitmask"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">normalized</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">"uint"</span><span class="p">,</span> <span class="s2">"bitmask"</span><span class="p">}:</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">normalized</span><span class="p">,)</span>
+    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"topology_encoding must be 'auto', 'uint', or 'bitmask'"</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">compact_model_state_dict_candidates</span><span class="p">(</span>
+    <span class="n">state_dict</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">topology_encoding</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"auto"</span><span class="p">,</span>
+    <span class="n">keep_slot_order</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="n">Collection</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]]:</span>
+<span class="w">    </span><span class="sd">"""Build every state candidate required by a topology encoding policy."""</span>
+
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="n">encoding</span><span class="p">:</span> <span class="n">compact_model_state_dict</span><span class="p">(</span>
+            <span class="n">state_dict</span><span class="p">,</span>
+            <span class="n">topology_encoding</span><span class="o">=</span><span class="n">encoding</span><span class="p">,</span>
+            <span class="n">keep_slot_order</span><span class="o">=</span><span class="n">keep_slot_order</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">for</span> <span class="n">encoding</span> <span class="ow">in</span> <span class="n">topology_encoding_candidates</span><span class="p">(</span><span class="n">topology_encoding</span><span class="p">)</span>
+    <span class="p">}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">sha256_file</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return the SHA-256 digest of one regular file."""</span>
+
+    <span class="n">resolved</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">resolved</span><span class="o">.</span><span class="n">is_file</span><span class="p">():</span>
+        <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="n">resolved</span><span class="p">)</span>
+    <span class="n">digest</span> <span class="o">=</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha256</span><span class="p">()</span>
+    <span class="k">with</span> <span class="n">resolved</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="s2">"rb"</span><span class="p">)</span> <span class="k">as</span> <span class="n">handle</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="nb">iter</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="n">handle</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="mi">1024</span> <span class="o">*</span> <span class="mi">1024</span><span class="p">),</span> <span class="sa">b</span><span class="s2">""</span><span class="p">):</span>
+            <span class="n">digest</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">chunk</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">digest</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">()</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">strip_ddp_prefix</span><span class="p">(</span><span class="n">key</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Remove a DistributedDataParallel ``module.`` prefix from a state key."""</span>
+    <span class="k">return</span> <span class="n">key</span><span class="p">[</span><span class="mi">7</span><span class="p">:]</span> <span class="k">if</span> <span class="n">key</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">"module."</span><span class="p">)</span> <span class="k">else</span> <span class="n">key</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">copy_state_metadata</span><span class="p">(</span>
+    <span class="n">source</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="n">target</span><span class="p">:</span> <span class="n">OrderedDict</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">strip_prefix</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">OrderedDict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Give ``target`` the per-module ``_metadata`` (versions) of ``source``.</span>
+
+<span class="sd">    Module load hooks read their saved ``_version`` from it; a state dict</span>
+<span class="sd">    rebuilt without it loads every module as if it predated all versions.</span>
+<span class="sd">    ``strip_prefix`` maps a DDP wrapper's ``module`` entries to the bare</span>
+<span class="sd">    model's module names.</span>
+<span class="sd">    """</span>
+    <span class="n">metadata</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="s2">"_metadata"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">metadata</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">target</span>
+    <span class="n">copied</span><span class="p">:</span> <span class="n">OrderedDict</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">metadata</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">strip_prefix</span> <span class="ow">and</span> <span class="n">key</span> <span class="o">==</span> <span class="s2">"module"</span><span class="p">:</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="s2">""</span>
+        <span class="k">elif</span> <span class="n">strip_prefix</span><span class="p">:</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="n">strip_ddp_prefix</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="n">copied</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+    <span class="n">target</span><span class="o">.</span><span class="n">_metadata</span> <span class="o">=</span> <span class="n">copied</span>
+    <span class="k">return</span> <span class="n">target</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">extract_model_state_dict</span><span class="p">(</span><span class="n">payload</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">OrderedDict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Extract a tensor-only model state from a standard checkpoint payload.</span>
+
+<span class="sd">    A DDP ``module.`` prefix is removed, and the per-module version metadata</span>
+<span class="sd">    is kept.</span>
+<span class="sd">    """</span>
+
+    <span class="n">candidate</span> <span class="o">=</span> <span class="n">payload</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">payload</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"model_state_dict"</span><span class="p">,</span> <span class="s2">"state_dict"</span><span class="p">,</span> <span class="s2">"model"</span><span class="p">):</span>
+            <span class="n">nested</span> <span class="o">=</span> <span class="n">payload</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">nested</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">):</span>
+                <span class="n">candidate</span> <span class="o">=</span> <span class="n">nested</span>
+                <span class="k">break</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">candidate</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">candidate</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">"Checkpoint does not contain a non-empty model state mapping"</span><span class="p">)</span>
+    <span class="n">state</span><span class="p">:</span> <span class="n">OrderedDict</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">candidate</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">"Model state must map string keys to tensors only"</span><span class="p">)</span>
+        <span class="n">normalized</span> <span class="o">=</span> <span class="n">strip_ddp_prefix</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">normalized</span> <span class="ow">in</span> <span class="n">state</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"Checkpoint contains duplicate normalized key </span><span class="si">{</span><span class="n">normalized</span><span class="si">!r}</span><span class="s2">"</span>
+            <span class="p">)</span>
+        <span class="n">state</span><span class="p">[</span><span class="n">normalized</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+    <span class="k">return</span> <span class="n">copy_state_metadata</span><span class="p">(</span><span class="n">candidate</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span> <span class="n">strip_prefix</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">load_state_dict_with_record</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="o">*</span><span class="p">,</span> <span class="n">strict</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Load ``state`` into ``model`` and return what the load did.</span>
+
+<span class="sd">    The record lists missing and unexpected keys and ``legacy_state``: keys a</span>
+<span class="sd">    module filled or interpreted under a legacy rule because the file predates</span>
+<span class="sd">    them (see :mod:`dendritic_modeling.networks.state_versions`).</span>
+<span class="sd">    """</span>
+    <span class="n">clear_legacy_state</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>
+    <span class="n">incompatibilities</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">load_state_dict</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="nb">bool</span><span class="p">(</span><span class="n">strict</span><span class="p">))</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s2">"missing_keys"</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">incompatibilities</span><span class="o">.</span><span class="n">missing_keys</span><span class="p">),</span>
+        <span class="s2">"unexpected_keys"</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">incompatibilities</span><span class="o">.</span><span class="n">unexpected_keys</span><span class="p">),</span>
+        <span class="s2">"legacy_state"</span><span class="p">:</span> <span class="n">collect_legacy_state</span><span class="p">(</span><span class="n">model</span><span class="p">),</span>
+    <span class="p">}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">load_model_state_checkpoint</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">OrderedDict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Load a state dictionary with PyTorch's restricted weights-only loader."""</span>
+
+    <span class="n">resolved</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">resolved</span><span class="o">.</span><span class="n">is_file</span><span class="p">():</span>
+        <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="n">resolved</span><span class="p">)</span>
+    <span class="n">payload</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">resolved</span><span class="p">,</span> <span class="n">map_location</span><span class="o">=</span><span class="s2">"cpu"</span><span class="p">,</span> <span class="n">weights_only</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">extract_model_state_dict</span><span class="p">(</span><span class="n">payload</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">load_initial_model_checkpoint</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span>
+    <span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">expected_sha256</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">strict</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Strictly load a model warm start and return an auditable record."""</span>
+
+    <span class="n">resolved</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
+    <span class="n">observed_sha256</span> <span class="o">=</span> <span class="n">sha256_file</span><span class="p">(</span><span class="n">resolved</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">expected_sha256</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">normalized_expected</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">expected_sha256</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">observed_sha256</span> <span class="o">!=</span> <span class="n">normalized_expected</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">"Initial checkpoint SHA-256 mismatch: "</span>
+                <span class="sa">f</span><span class="s2">"expected </span><span class="si">{</span><span class="n">normalized_expected</span><span class="si">}</span><span class="s2">, observed </span><span class="si">{</span><span class="n">observed_sha256</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">)</span>
+    <span class="n">state</span> <span class="o">=</span> <span class="n">load_model_state_checkpoint</span><span class="p">(</span><span class="n">resolved</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s2">"schema_version"</span><span class="p">:</span> <span class="s2">"initial_model_checkpoint_v1"</span><span class="p">,</span>
+        <span class="s2">"path"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">resolved</span><span class="p">),</span>
+        <span class="s2">"sha256"</span><span class="p">:</span> <span class="n">observed_sha256</span><span class="p">,</span>
+        <span class="s2">"strict"</span><span class="p">:</span> <span class="nb">bool</span><span class="p">(</span><span class="n">strict</span><span class="p">),</span>
+        <span class="s2">"state_dict_key_count"</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">state</span><span class="p">),</span>
+        <span class="o">**</span><span class="n">load_state_dict_with_record</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="n">strict</span><span class="p">),</span>
+    <span class="p">}</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024-2026, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

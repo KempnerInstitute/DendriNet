@@ -5,14 +5,14 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Index &mdash; Dendritic Modeling Framework v0.1.0</title>
+  <title>Index &mdash; DendriNet v0.2.0</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
 
   
       <script src="_static/jquery.js?v=5d32c60e"></script>
       <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="_static/documentation_options.js?v=01f34227"></script>
+      <script src="_static/documentation_options.js?v=938c9ccc"></script>
       <script src="_static/doctools.js?v=fd6eb6e6"></script>
       <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/js/theme.js"></script>
@@ -29,7 +29,7 @@
           
           
           <a href="index.html" class="icon icon-home">
-            Dendritic Modeling Framework
+            DendriNet
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
@@ -39,29 +39,59 @@
   </form>
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
-              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+              <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quick Start</a></li>
-<li class="toctree-l1"><a class="reference internal" href="examples.html">Runnable Config Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Example configurations</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
+<p class="caption" role="heading"><span class="caption-text">Building models</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="network_architectures.html">Network Architectures</a></li>
-<li class="toctree-l1"><a class="reference internal" href="training_strategies.html">Training Strategies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="network_architectures.html">Model architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dendritic_neurons.html">Dendritic neurons</a></li>
+<li class="toctree-l1"><a class="reference internal" href="synapses.html">Synapses and connectivity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="population_networks.html">Population networks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="temporal_dynamics.html">Temporal dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="structured_ei_cores.html">Structured E/I cores</a></li>
+<li class="toctree-l1"><a class="reference internal" href="conductance_options.html">Conductance options</a></li>
+<li class="toctree-l1"><a class="reference internal" href="comparison_models.html">Baselines and comparison models</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Configuration</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="configuration_guide.html">Configuration guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config_reference.html">Annotated reference configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="training_strategies.html">Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="distributed_training.html">Distributed training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="performance_kernels.html">Sparse execution and performance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Data and analysis</span></p>
+<ul>
 <li class="toctree-l1"><a class="reference internal" href="datasets.html">Datasets</a></li>
 <li class="toctree-l1"><a class="reference internal" href="analysis.html">Analysis</a></li>
-<li class="toctree-l1"><a class="reference internal" href="engineering_architecture.html">Engineering Architecture</a></li>
-<li class="toctree-l1"><a class="reference internal" href="configuration_guide.html">Configuration Guide</a></li>
-<li class="toctree-l1"><a class="reference internal" href="transformer_llm_scaling.html">Dendritic LLM Scaling Workflow</a></li>
-<li class="toctree-l1"><a class="reference internal" href="initialization_comparison_policy.html">Initialization Comparison Policy</a></li>
-<li class="toctree-l1"><a class="reference internal" href="sweeps.html">Parameter Sweeps</a></li>
-<li class="toctree-l1"><a class="reference internal" href="fsdp_troubleshooting.html">Distributed Training Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="analyzers.html">Analyzer reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="checkpoint_analysis.html">Analyzing saved checkpoints</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Running experiments</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="runs_and_outputs.html">Runs and outputs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sweeps.html">Parameter sweeps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="model_compression.html">Compact checkpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="project_provenance.html">Project provenance</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Reference</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="config_reference.html">Population-Network Reference Config</a></li>
-<li class="toctree-l1"><a class="reference internal" href="available_components.html">Available Components</a></li>
+<li class="toctree-l1"><a class="reference internal" href="available_components.html">Component catalogue</a></li>
+<li class="toctree-l1"><a class="reference internal" href="options_reference.html">Options reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cli_reference.html">Command-line reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api_reference.html">Python API</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="extending.html">Extending DendriNet</a></li>
+<li class="toctree-l1"><a class="reference internal" href="engineering_architecture.html">Engineering architecture</a></li>
 <li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
 </ul>
 
@@ -71,7 +101,7 @@
 
     <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-          <a href="index.html">Dendritic Modeling Framework</a>
+          <a href="index.html">DendriNet</a>
       </nav>
 
       <div class="wy-nav-content">
@@ -92,8 +122,240 @@
 <h1 id="index">Index</h1>
 
 <div class="genindex-jumpbox">
+ <a href="#A"><strong>A</strong></a>
+ | <a href="#B"><strong>B</strong></a>
+ | <a href="#C"><strong>C</strong></a>
+ | <a href="#D"><strong>D</strong></a>
+ | <a href="#E"><strong>E</strong></a>
+ | <a href="#F"><strong>F</strong></a>
+ | <a href="#G"><strong>G</strong></a>
+ | <a href="#L"><strong>L</strong></a>
+ | <a href="#M"><strong>M</strong></a>
+ | <a href="#P"><strong>P</strong></a>
+ | <a href="#R"><strong>R</strong></a>
+ | <a href="#S"><strong>S</strong></a>
+ | <a href="#T"><strong>T</strong></a>
+ | <a href="#V"><strong>V</strong></a>
  
 </div>
+<h2 id="A">A</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api_reference.html#dendritic_modeling.plugins.activate_plugin">activate_plugin() (in module dendritic_modeling.plugins)</a>
+</li>
+      <li><a href="api_reference.html#dendritic_modeling.utils.project_source.activate_source">activate_source() (in module dendritic_modeling.utils.project_source)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api_reference.html#dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_dynamics.AdditiveRule">AdditiveRule (class in dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_dynamics)</a>
+</li>
+      <li><a href="api_reference.html#dendritic_modeling.analysis.managers.analysis_manager.AnalysisManager">AnalysisManager (class in dendritic_modeling.analysis.managers.analysis_manager)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="B">B</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api_reference.html#dendritic_modeling.utils.exact_file_inventory.balanced_assignment">balanced_assignment() (in module dendritic_modeling.utils.exact_file_inventory)</a>
+</li>
+      <li><a href="api_reference.html#dendritic_modeling.networks.architectures.biological_constraints.biological_violations">biological_violations() (in module dendritic_modeling.networks.architectures.biological_constraints)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api_reference.html#dendritic_modeling.deployment.compression.bitmask_slot_order_keys">bitmask_slot_order_keys() (in module dendritic_modeling.deployment.compression)</a>
+</li>
+      <li><a href="api_reference.html#dendritic_modeling.utils.exact_file_inventory.build_inventory">build_inventory() (in module dendritic_modeling.utils.exact_file_inventory)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="C">C</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api_reference.html#dendritic_modeling.utils.exact_file_inventory.canonical_sha256">canonical_sha256() (in module dendritic_modeling.utils.exact_file_inventory)</a>
+</li>
+      <li><a href="api_reference.html#dendritic_modeling.training.state.capture_random_state">capture_random_state() (in module dendritic_modeling.training.state)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api_reference.html#dendritic_modeling.utils.project_evidence.check_evidence">check_evidence() (in module dendritic_modeling.utils.project_evidence)</a>
+</li>
+      <li><a href="api_reference.html#dendritic_modeling.networks.checkpoints.compact_sparse_bitmask_state_dict">compact_sparse_bitmask_state_dict() (in module dendritic_modeling.networks.checkpoints)</a>
+</li>
+      <li><a href="api_reference.html#dendritic_modeling.config.config_from_mapping">config_from_mapping() (in module dendritic_modeling.config)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="D">D</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api_reference.html#dendritic_modeling.networks.checkpoints.decode_sparse_bitmask_state_dict">decode_sparse_bitmask_state_dict() (in module dendritic_modeling.networks.checkpoints)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="E">E</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api_reference.html#dendritic_modeling.networks.architectures.excitation_inhibition.synapse.indexed_sparse.IndexedSparseLinear.effective_sparse_weight">effective_sparse_weight() (dendritic_modeling.networks.architectures.excitation_inhibition.synapse.indexed_sparse.IndexedSparseLinear method)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api_reference.html#dendritic_modeling.utils.project_evidence.EvidenceError">EvidenceError</a>
+</li>
+      <li><a href="api_reference.html#dendritic_modeling.utils.project_export.export_project">export_project() (in module dendritic_modeling.utils.project_export)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="F">F</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api_reference.html#dendritic_modeling.utils.exact_file_inventory.file_snapshot">file_snapshot() (in module dendritic_modeling.utils.exact_file_inventory)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api_reference.html#dendritic_modeling.deployment.compression.freeze_sparse_topology_">freeze_sparse_topology_() (in module dendritic_modeling.deployment.compression)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="G">G</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api_reference.html#dendritic_modeling.networks.architectures.factory.get_architecture">get_architecture() (in module dendritic_modeling.networks.architectures.factory)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="L">L</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api_reference.html#dendritic_modeling.config.load_analysis_config">load_analysis_config() (in module dendritic_modeling.config)</a>
+</li>
+      <li><a href="api_reference.html#dendritic_modeling.config.load_config">load_config() (in module dendritic_modeling.config)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api_reference.html#dendritic_modeling.plugins.load_plugins">load_plugins() (in module dendritic_modeling.plugins)</a>
+</li>
+      <li><a href="api_reference.html#dendritic_modeling.plugins.loaded_plugins">loaded_plugins() (in module dendritic_modeling.plugins)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="M">M</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api_reference.html#dendritic_modeling.networks.utils.readouts.make_signed_readout">make_signed_readout() (in module dendritic_modeling.networks.utils.readouts)</a>
+</li>
+      <li><a href="api_reference.html#dendritic_modeling.networks.benchmarks.parameter_budget.match_parameter_budget">match_parameter_budget() (in module dendritic_modeling.networks.benchmarks.parameter_budget)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api_reference.html#dendritic_modeling.utils.exact_file_inventory.merge_verified_shards">merge_verified_shards() (in module dendritic_modeling.utils.exact_file_inventory)</a>
+</li>
+      <li><a href="api_reference.html#dendritic_modeling.networks.benchmarks.parameter_budget.model_report">model_report() (in module dendritic_modeling.networks.benchmarks.parameter_budget)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="P">P</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api_reference.html#dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.passive_equilibrium.passive_star_soma_voltage">passive_star_soma_voltage() (in module dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.passive_equilibrium)</a>
+</li>
+      <li><a href="api_reference.html#dendritic_modeling.plugins.PluginLoadError">PluginLoadError</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api_reference.html#dendritic_modeling.plugins.PluginRecord">PluginRecord (class in dendritic_modeling.plugins)</a>
+</li>
+      <li><a href="api_reference.html#dendritic_modeling.networks.architectures.excitation_inhibition.synapse.indexed_sparse.IndexedSparseLinear.project_with_weights">project_with_weights() (dendritic_modeling.networks.architectures.excitation_inhibition.synapse.indexed_sparse.IndexedSparseLinear method)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="R">R</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api_reference.html#dendritic_modeling.utils.project_source.read_contract">read_contract() (in module dendritic_modeling.utils.project_source)</a>
+</li>
+      <li><a href="api_reference.html#dendritic_modeling.networks.activations.factory.register_activation_builder">register_activation_builder() (in module dendritic_modeling.networks.activations.factory)</a>
+</li>
+      <li><a href="api_reference.html#dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_dynamics.register_additive_rule">register_additive_rule() (in module dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_dynamics)</a>
+</li>
+      <li><a href="api_reference.html#dendritic_modeling.analysis.registry.register_analyzer">register_analyzer() (in module dendritic_modeling.analysis.registry)</a>
+</li>
+      <li><a href="api_reference.html#dendritic_modeling.networks.architectures.registry.register_architecture">register_architecture() (in module dendritic_modeling.networks.architectures.registry)</a>
+</li>
+      <li><a href="api_reference.html#dendritic_modeling.config.extensions.register_config_migration">register_config_migration() (in module dendritic_modeling.config.extensions)</a>
+</li>
+      <li><a href="api_reference.html#dendritic_modeling.config.extensions.register_config_section">register_config_section() (in module dendritic_modeling.config.extensions)</a>
+</li>
+      <li><a href="api_reference.html#dendritic_modeling.datasets.registry.register_dataset">register_dataset() (in module dendritic_modeling.datasets.registry)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api_reference.html#dendritic_modeling.training.loss.functions.register_loss_function">register_loss_function() (in module dendritic_modeling.training.loss.functions)</a>
+</li>
+      <li><a href="api_reference.html#dendritic_modeling.models.builders.register_model_builder">register_model_builder() (in module dendritic_modeling.models.builders)</a>
+</li>
+      <li><a href="api_reference.html#dendritic_modeling.training.optimizers.factory.register_optimizer">register_optimizer() (in module dendritic_modeling.training.optimizers.factory)</a>
+</li>
+      <li><a href="api_reference.html#dendritic_modeling.datasets.sequence.builders.registry.register_sequence_dataset_builder">register_sequence_dataset_builder() (in module dendritic_modeling.datasets.sequence.builders.registry)</a>
+</li>
+      <li><a href="api_reference.html#dendritic_modeling.networks.architectures.excitation_inhibition.synapse.factory.register_sparse_layer">register_sparse_layer() (in module dendritic_modeling.networks.architectures.excitation_inhibition.synapse.factory)</a>
+</li>
+      <li><a href="api_reference.html#dendritic_modeling.training.factory.register_trainer_strategy">register_trainer_strategy() (in module dendritic_modeling.training.factory)</a>
+</li>
+      <li><a href="api_reference.html#dendritic_modeling.training.state.restore_random_state">restore_random_state() (in module dendritic_modeling.training.state)</a>
+</li>
+      <li><a href="api_reference.html#dendritic_modeling.analysis.managers.analysis_manager.AnalysisManager.run_analysis">run_analysis() (dendritic_modeling.analysis.managers.analysis_manager.AnalysisManager method)</a>
+</li>
+      <li><a href="api_reference.html#dendritic_modeling.scripts.analysis.run_checkpoint_analysis.run_checkpoint_analysis">run_checkpoint_analysis() (in module dendritic_modeling.scripts.analysis.run_checkpoint_analysis)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="S">S</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api_reference.html#dendritic_modeling.utils.project_evidence.sha256_file">sha256_file() (in module dendritic_modeling.utils.project_evidence)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api_reference.html#dendritic_modeling.utils.project_source.SourceContractError">SourceContractError</a>
+</li>
+      <li><a href="api_reference.html#dendritic_modeling.analysis.utils.streaming_covariance.StreamingCovariance">StreamingCovariance (class in dendritic_modeling.analysis.utils.streaming_covariance)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="T">T</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api_reference.html#dendritic_modeling.analysis.utils.model_resources.topk_parameter_inventory">topk_parameter_inventory() (in module dendritic_modeling.analysis.utils.model_resources)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="V">V</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api_reference.html#dendritic_modeling.utils.exact_file_inventory.validate_inventory">validate_inventory() (in module dendritic_modeling.utils.exact_file_inventory)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api_reference.html#dendritic_modeling.utils.project_source.verify_contract">verify_contract() (in module dendritic_modeling.utils.project_source)</a>
+</li>
+      <li><a href="api_reference.html#dendritic_modeling.utils.exact_file_inventory.verify_shard">verify_shard() (in module dendritic_modeling.utils.exact_file_inventory)</a>
+</li>
+  </ul></td>
+</tr></table>
+
 
 
            </div>
@@ -103,7 +365,7 @@
   <hr/>
 
   <div role="contentinfo">
-    <p>&#169; Copyright 2025, Kempner Institute.</p>
+    <p>&#169; Copyright 2024-2026, Kempner Institute.</p>
   </div>
 
   Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a

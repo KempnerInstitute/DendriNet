@@ -1,0 +1,416 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>dendritic_modeling.scripts.analysis.run_checkpoint_analysis &mdash; DendriNet v0.2.0</title>
+      <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../../_static/documentation_options.js?v=938c9ccc"></script>
+      <script src="../../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../../index.html" class="icon icon-home">
+            DendriNet
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../examples.html">Example configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Building models</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../network_architectures.html">Model architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../dendritic_neurons.html">Dendritic neurons</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../synapses.html">Synapses and connectivity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../population_networks.html">Population networks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../temporal_dynamics.html">Temporal dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../structured_ei_cores.html">Structured E/I cores</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../conductance_options.html">Conductance options</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../comparison_models.html">Baselines and comparison models</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Configuration</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../configuration_guide.html">Configuration guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../config_reference.html">Annotated reference configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../training_strategies.html">Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../distributed_training.html">Distributed training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../performance_kernels.html">Sparse execution and performance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Data and analysis</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../datasets.html">Datasets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../analysis.html">Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../analyzers.html">Analyzer reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../checkpoint_analysis.html">Analyzing saved checkpoints</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Running experiments</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../runs_and_outputs.html">Runs and outputs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../sweeps.html">Parameter sweeps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../model_compression.html">Compact checkpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../project_provenance.html">Project provenance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../available_components.html">Component catalogue</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../options_reference.html">Options reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../cli_reference.html">Command-line reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../api_reference.html">Python API</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../extending.html">Extending DendriNet</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../engineering_architecture.html">Engineering architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../contributing.html">Contributing</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">DendriNet</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">dendritic_modeling.scripts.analysis.run_checkpoint_analysis</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for dendritic_modeling.scripts.analysis.run_checkpoint_analysis</h1><div class="highlight"><pre>
+<span></span><span class="sd">"""Run config-declared analyses on one frozen model checkpoint.</span>
+
+<span class="sd">This entry point reconstructs the model and canonical dataset splits from the</span>
+<span class="sd">original training config, loads a frozen state dictionary, and executes a</span>
+<span class="sd">standalone analysis YAML through :class:`~dendritic_modeling.analysis.AnalysisManager`.</span>
+<span class="sd">It never trains or modifies the checkpoint.</span>
+<span class="sd">"""</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">hashlib</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">OrderedDict</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Mapping</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.analysis</span><span class="w"> </span><span class="kn">import</span> <span class="n">AnalysisManager</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.analysis.registry</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_registered_analyzers</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_analysis_config</span><span class="p">,</span> <span class="n">load_config</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config.analysis</span><span class="w"> </span><span class="kn">import</span> <span class="n">analysis_section</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.checkpoints</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">copy_state_metadata</span><span class="p">,</span>
+    <span class="n">load_state_dict_with_record</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.scripts.script_utils.setup_utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">setup_environment</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.scripts.sweeps.control_plane</span><span class="w"> </span><span class="kn">import</span> <span class="n">discover_source_identity</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">resolve_experiment_seeds</span><span class="p">,</span> <span class="n">save_dict</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.utils.logging_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">setup_logging</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+<span class="n">SCHEMA_VERSION</span> <span class="o">=</span> <span class="s2">"checkpoint_analysis_run_v1"</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_repo_root</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Path</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span><span class="o">.</span><span class="n">parents</span><span class="p">[</span><span class="mi">4</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_sha256_file</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">chunk_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2</span><span class="o">**</span><span class="mi">20</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="n">digest</span> <span class="o">=</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha256</span><span class="p">()</span>
+    <span class="k">with</span> <span class="n">path</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="s2">"rb"</span><span class="p">)</span> <span class="k">as</span> <span class="n">handle</span><span class="p">:</span>
+        <span class="k">while</span> <span class="n">chunk</span> <span class="o">:=</span> <span class="n">handle</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">chunk_size</span><span class="p">):</span>
+            <span class="n">digest</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">chunk</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">digest</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">()</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_extract_state_dict</span><span class="p">(</span><span class="n">payload</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Extract a model state dictionary from common checkpoint layouts."""</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">payload</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"model_state_dict"</span><span class="p">,</span> <span class="s2">"state_dict"</span><span class="p">,</span> <span class="s2">"model"</span><span class="p">):</span>
+            <span class="n">candidate</span> <span class="o">=</span> <span class="n">payload</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">candidate</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">):</span>
+                <span class="k">return</span> <span class="n">candidate</span>
+        <span class="k">if</span> <span class="n">payload</span> <span class="ow">and</span> <span class="nb">all</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">is_tensor</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">payload</span><span class="o">.</span><span class="n">values</span><span class="p">()):</span>
+            <span class="k">return</span> <span class="n">payload</span>
+    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+        <span class="s2">"Checkpoint must be a state dictionary or contain model_state_dict, "</span>
+        <span class="s2">"state_dict, or model"</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_normalize_state_dict_keys</span><span class="p">(</span>
+    <span class="n">state_dict</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">OrderedDict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Remove a uniform DDP ``module.`` prefix, keeping module version metadata."""</span>
+
+    <span class="n">keys</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">state_dict</span><span class="p">)</span>
+    <span class="n">uniform</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">keys</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">all</span><span class="p">(</span><span class="n">key</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">"module."</span><span class="p">)</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">)</span>
+    <span class="n">normalized</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">(</span>
+        <span class="p">(</span><span class="n">key</span><span class="p">[</span><span class="mi">7</span><span class="p">:]</span> <span class="k">if</span> <span class="n">uniform</span> <span class="k">else</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span> <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">state_dict</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">copy_state_metadata</span><span class="p">(</span><span class="n">state_dict</span><span class="p">,</span> <span class="n">normalized</span><span class="p">,</span> <span class="n">strip_prefix</span><span class="o">=</span><span class="n">uniform</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_enabled_analyzer_names</span><span class="p">(</span><span class="n">analysis_config</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Return enabled analyzer registry names in stable order."""</span>
+
+    <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span>
+        <span class="n">name</span>
+        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">spec</span> <span class="ow">in</span> <span class="n">get_registered_analyzers</span><span class="p">()</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+        <span class="k">if</span> <span class="nb">bool</span><span class="p">(</span>
+            <span class="nb">getattr</span><span class="p">(</span>
+                <span class="n">analysis_section</span><span class="p">(</span><span class="n">analysis_config</span><span class="p">,</span> <span class="n">spec</span><span class="o">.</span><span class="n">config_field</span><span class="p">),</span>
+                <span class="s2">"enabled"</span><span class="p">,</span>
+                <span class="kc">False</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+    <span class="p">)</span>
+
+
+<div class="viewcode-block" id="run_checkpoint_analysis">
+<a class="viewcode-back" href="../../../../api_reference.html#dendritic_modeling.scripts.analysis.run_checkpoint_analysis.run_checkpoint_analysis">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">run_checkpoint_analysis</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">config_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">,</span>
+    <span class="n">checkpoint_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">,</span>
+    <span class="n">analysis_config_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">,</span>
+    <span class="n">output_dir</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">,</span>
+    <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"final"</span><span class="p">,</span>
+    <span class="n">device</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">strict</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Execute one reproducible, post-training checkpoint analysis.</span>
+
+<span class="sd">    Returns the run directory the analyzers wrote into, the files it holds and</span>
+<span class="sd">    the provenance record (also saved as ``checkpoint_analysis_provenance.json``),</span>
+<span class="sd">    which includes the completion status of every requested analyzer.</span>
+<span class="sd">    """</span>
+
+    <span class="n">config_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">config_path</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
+    <span class="n">checkpoint_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">checkpoint_path</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
+    <span class="n">analysis_config_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">analysis_config_path</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
+    <span class="n">output_dir</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">output_dir</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="p">(</span><span class="n">config_path</span><span class="p">,</span> <span class="n">checkpoint_path</span><span class="p">,</span> <span class="n">analysis_config_path</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">path</span><span class="o">.</span><span class="n">is_file</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+
+    <span class="n">config</span> <span class="o">=</span> <span class="n">load_config</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">config_path</span><span class="p">))</span>
+    <span class="n">config</span><span class="o">.</span><span class="n">analysis</span> <span class="o">=</span> <span class="n">load_analysis_config</span><span class="p">(</span>
+        <span class="nb">str</span><span class="p">(</span><span class="n">analysis_config_path</span><span class="p">),</span>
+        <span class="n">distributed_mode</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">distributed</span><span class="p">,</span> <span class="s2">"mode"</span><span class="p">,</span> <span class="s2">"none"</span><span class="p">)),</span>
+    <span class="p">)</span>
+    <span class="n">config</span><span class="o">.</span><span class="n">outputs</span><span class="o">.</span><span class="n">results_dir</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">output_dir</span><span class="p">)</span>
+    <span class="n">config</span><span class="o">.</span><span class="n">outputs</span><span class="o">.</span><span class="n">run_name</span> <span class="o">=</span> <span class="s2">"checkpoint_analysis"</span>
+    <span class="n">config</span><span class="o">.</span><span class="n">outputs</span><span class="o">.</span><span class="n">exact_run_dir</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="c1"># Training provenance may request a complete dataset inventory. Re-emitting</span>
+    <span class="c1"># that inventory for every frozen-checkpoint analysis is redundant and can</span>
+    <span class="c1"># be multi-gigabyte for ImageFolder datasets. The analysis provenance below</span>
+    <span class="c1"># already binds the training config, checkpoint, analysis config, and code.</span>
+    <span class="n">config</span><span class="o">.</span><span class="n">experiment</span><span class="o">.</span><span class="n">record_dataset_fingerprints</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="n">run_save_path</span><span class="p">,</span> <span class="n">train_ds</span><span class="p">,</span> <span class="n">valid_ds</span><span class="p">,</span> <span class="n">test_ds</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">setup_environment</span><span class="p">(</span>
+        <span class="n">model_config</span><span class="o">=</span><span class="n">config</span><span class="o">.</span><span class="n">model</span><span class="p">,</span>
+        <span class="n">training_config</span><span class="o">=</span><span class="n">config</span><span class="o">.</span><span class="n">training</span><span class="p">,</span>
+        <span class="n">data_config</span><span class="o">=</span><span class="n">config</span><span class="o">.</span><span class="n">data</span><span class="p">,</span>
+        <span class="n">outputs_config</span><span class="o">=</span><span class="n">config</span><span class="o">.</span><span class="n">outputs</span><span class="p">,</span>
+        <span class="n">experiment_config</span><span class="o">=</span><span class="n">config</span><span class="o">.</span><span class="n">experiment</span><span class="p">,</span>
+        <span class="n">is_main</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="n">selected_device</span> <span class="o">=</span> <span class="n">device</span> <span class="ow">or</span> <span class="p">(</span><span class="s2">"cuda"</span> <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">is_available</span><span class="p">()</span> <span class="k">else</span> <span class="s2">"cpu"</span><span class="p">)</span>
+    <span class="n">payload</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">checkpoint_path</span><span class="p">,</span> <span class="n">map_location</span><span class="o">=</span><span class="s2">"cpu"</span><span class="p">,</span> <span class="n">weights_only</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">state_dict</span> <span class="o">=</span> <span class="n">_normalize_state_dict_keys</span><span class="p">(</span><span class="n">_extract_state_dict</span><span class="p">(</span><span class="n">payload</span><span class="p">))</span>
+    <span class="n">load_record</span> <span class="o">=</span> <span class="n">load_state_dict_with_record</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">state_dict</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="n">strict</span><span class="p">)</span>
+    <span class="n">model</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">selected_device</span><span class="p">)</span>
+    <span class="n">model</span><span class="o">.</span><span class="n">eval</span><span class="p">()</span>
+
+    <span class="n">seeds</span> <span class="o">=</span> <span class="n">resolve_experiment_seeds</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">experiment</span><span class="p">)</span>
+    <span class="n">manager</span> <span class="o">=</span> <span class="n">AnalysisManager</span><span class="p">(</span>
+        <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+        <span class="n">data</span><span class="o">=</span><span class="p">{</span><span class="s2">"train"</span><span class="p">:</span> <span class="n">train_ds</span><span class="p">,</span> <span class="s2">"valid"</span><span class="p">:</span> <span class="n">valid_ds</span><span class="p">,</span> <span class="s2">"test"</span><span class="p">:</span> <span class="n">test_ds</span><span class="p">},</span>
+        <span class="n">analysis_config</span><span class="o">=</span><span class="n">config</span><span class="o">.</span><span class="n">analysis</span><span class="p">,</span>
+        <span class="n">save_root</span><span class="o">=</span><span class="n">run_save_path</span><span class="p">,</span>
+        <span class="n">device</span><span class="o">=</span><span class="n">selected_device</span><span class="p">,</span>
+        <span class="n">evaluation_seed</span><span class="o">=</span><span class="n">seeds</span><span class="o">.</span><span class="n">evaluation_seed</span><span class="p">,</span>
+        <span class="n">probe_seed</span><span class="o">=</span><span class="n">seeds</span><span class="o">.</span><span class="n">probe_seed</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="c1"># With analysis.require_completion an incomplete pass raises here; its</span>
+    <span class="c1"># status is in analysis_status.json either way.</span>
+    <span class="n">analysis_status</span> <span class="o">=</span> <span class="n">manager</span><span class="o">.</span><span class="n">run_analysis</span><span class="p">(</span><span class="n">filename</span><span class="o">=</span><span class="n">filename</span><span class="p">,</span> <span class="n">training</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="n">provenance</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">"schema_version"</span><span class="p">:</span> <span class="n">SCHEMA_VERSION</span><span class="p">,</span>
+        <span class="s2">"training_performed"</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="s2">"config_path"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">config_path</span><span class="p">),</span>
+        <span class="s2">"config_sha256"</span><span class="p">:</span> <span class="n">_sha256_file</span><span class="p">(</span><span class="n">config_path</span><span class="p">),</span>
+        <span class="s2">"checkpoint_path"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">checkpoint_path</span><span class="p">),</span>
+        <span class="s2">"checkpoint_sha256"</span><span class="p">:</span> <span class="n">_sha256_file</span><span class="p">(</span><span class="n">checkpoint_path</span><span class="p">),</span>
+        <span class="s2">"analysis_config_path"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">analysis_config_path</span><span class="p">),</span>
+        <span class="s2">"analysis_config_sha256"</span><span class="p">:</span> <span class="n">_sha256_file</span><span class="p">(</span><span class="n">analysis_config_path</span><span class="p">),</span>
+        <span class="s2">"output_dir"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">output_dir</span><span class="p">),</span>
+        <span class="s2">"filename"</span><span class="p">:</span> <span class="n">filename</span><span class="p">,</span>
+        <span class="s2">"device"</span><span class="p">:</span> <span class="n">selected_device</span><span class="p">,</span>
+        <span class="s2">"strict_checkpoint_loading"</span><span class="p">:</span> <span class="nb">bool</span><span class="p">(</span><span class="n">strict</span><span class="p">),</span>
+        <span class="s2">"state_dict_key_count"</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">state_dict</span><span class="p">),</span>
+        <span class="o">**</span><span class="n">load_record</span><span class="p">,</span>
+        <span class="s2">"resolved_seeds"</span><span class="p">:</span> <span class="n">seeds</span><span class="o">.</span><span class="n">asdict</span><span class="p">(),</span>
+        <span class="s2">"dataset_sizes"</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">"train"</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">train_ds</span><span class="p">),</span>
+            <span class="s2">"valid"</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">valid_ds</span><span class="p">),</span>
+            <span class="s2">"test"</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">test_ds</span><span class="p">),</span>
+        <span class="p">},</span>
+        <span class="s2">"enabled_analyzers"</span><span class="p">:</span> <span class="n">_enabled_analyzer_names</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">analysis</span><span class="p">),</span>
+        <span class="c1"># Completion status of each requested analyzer (analysis_status.json).</span>
+        <span class="s2">"analysis_status"</span><span class="p">:</span> <span class="p">(</span>
+            <span class="nb">dict</span><span class="p">(</span><span class="n">analysis_status</span><span class="p">)</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">analysis_status</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">)</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="p">),</span>
+        <span class="s2">"code_identity"</span><span class="p">:</span> <span class="n">discover_source_identity</span><span class="p">(</span>
+            <span class="n">_repo_root</span><span class="p">(),</span> <span class="n">source_files</span><span class="o">=</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">),)</span>
+        <span class="p">),</span>
+    <span class="p">}</span>
+    <span class="n">save_dict</span><span class="p">(</span><span class="n">provenance</span><span class="p">,</span> <span class="n">run_save_path</span><span class="p">,</span> <span class="s2">"checkpoint_analysis_provenance.json"</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+        <span class="s2">"Checkpoint analysis complete: </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span>
+        <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">provenance</span><span class="p">,</span> <span class="n">sort_keys</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="n">run_dir</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">run_save_path</span><span class="p">)</span>
+    <span class="n">result_files</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span>
+        <span class="nb">str</span><span class="p">(</span><span class="n">path</span><span class="o">.</span><span class="n">relative_to</span><span class="p">(</span><span class="n">run_dir</span><span class="p">))</span> <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="n">run_dir</span><span class="o">.</span><span class="n">rglob</span><span class="p">(</span><span class="s2">"*"</span><span class="p">)</span> <span class="k">if</span> <span class="n">path</span><span class="o">.</span><span class="n">is_file</span><span class="p">()</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s2">"output_dir"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">run_dir</span><span class="p">),</span>
+        <span class="s2">"result_files"</span><span class="p">:</span> <span class="n">result_files</span><span class="p">,</span>
+        <span class="s2">"provenance"</span><span class="p">:</span> <span class="n">provenance</span><span class="p">,</span>
+    <span class="p">}</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_build_parser</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">:</span>
+    <span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="vm">__doc__</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"--config"</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">"Resolved training YAML"</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"--checkpoint"</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">"Frozen model checkpoint"</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s2">"--analysis-config"</span><span class="p">,</span>
+        <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">"Standalone YAML containing the analysis profile"</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s2">"--output-dir"</span><span class="p">,</span>
+        <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">"Directory the analyzers and the provenance record write into"</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s2">"--filename"</span><span class="p">,</span>
+        <span class="n">default</span><span class="o">=</span><span class="s2">"final"</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">"Result name of the analyzers' output files"</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"--device"</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">"For example cuda, cuda:0, cpu"</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s2">"--no-strict"</span><span class="p">,</span>
+        <span class="n">action</span><span class="o">=</span><span class="s2">"store_true"</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">"Allow missing or unexpected checkpoint keys and record them"</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">parser</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">(</span><span class="n">argv</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+    <span class="n">args</span> <span class="o">=</span> <span class="n">_build_parser</span><span class="p">()</span><span class="o">.</span><span class="n">parse_args</span><span class="p">(</span><span class="n">argv</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">run_checkpoint_analysis</span><span class="p">(</span>
+        <span class="n">config_path</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">config</span><span class="p">,</span>
+        <span class="n">checkpoint_path</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">checkpoint</span><span class="p">,</span>
+        <span class="n">analysis_config_path</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">analysis_config</span><span class="p">,</span>
+        <span class="n">output_dir</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">output_dir</span><span class="p">,</span>
+        <span class="n">filename</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">filename</span><span class="p">,</span>
+        <span class="n">device</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+        <span class="n">strict</span><span class="o">=</span><span class="ow">not</span> <span class="n">args</span><span class="o">.</span><span class="n">no_strict</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">cli_main</span><span class="p">(</span><span class="n">argv</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Console entry point: run :func:`main` and exit 0 on success."""</span>
+    <span class="n">setup_logging</span><span class="p">()</span>
+    <span class="n">main</span><span class="p">(</span><span class="n">argv</span><span class="p">)</span>
+    <span class="k">return</span> <span class="mi">0</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>  <span class="c1"># pragma: no cover</span>
+    <span class="k">raise</span> <span class="ne">SystemExit</span><span class="p">(</span><span class="n">cli_main</span><span class="p">())</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024-2026, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

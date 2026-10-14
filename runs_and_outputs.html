@@ -1,0 +1,491 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Runs and outputs &mdash; DendriNet v0.2.0</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=938c9ccc"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Parameter sweeps" href="sweeps.html" />
+    <link rel="prev" title="Analyzing saved checkpoints" href="checkpoint_analysis.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            DendriNet
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Example configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Building models</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="network_architectures.html">Model architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dendritic_neurons.html">Dendritic neurons</a></li>
+<li class="toctree-l1"><a class="reference internal" href="synapses.html">Synapses and connectivity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="population_networks.html">Population networks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="temporal_dynamics.html">Temporal dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="structured_ei_cores.html">Structured E/I cores</a></li>
+<li class="toctree-l1"><a class="reference internal" href="conductance_options.html">Conductance options</a></li>
+<li class="toctree-l1"><a class="reference internal" href="comparison_models.html">Baselines and comparison models</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Configuration</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="configuration_guide.html">Configuration guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config_reference.html">Annotated reference configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="training_strategies.html">Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="distributed_training.html">Distributed training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="performance_kernels.html">Sparse execution and performance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Data and analysis</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="datasets.html">Datasets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="analysis.html">Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="analyzers.html">Analyzer reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="checkpoint_analysis.html">Analyzing saved checkpoints</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Running experiments</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Runs and outputs</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#run-directory-layout">Run directory layout</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#run-directory-name">Run directory name</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#files-in-a-run-directory">Files in a run directory</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#checkpoints">Checkpoints</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#fsdp-runs">FSDP runs</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#logging">Logging</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#exit-status">Exit status</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#reproducibility">Reproducibility</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="sweeps.html">Parameter sweeps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="model_compression.html">Compact checkpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="project_provenance.html">Project provenance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="available_components.html">Component catalogue</a></li>
+<li class="toctree-l1"><a class="reference internal" href="options_reference.html">Options reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cli_reference.html">Command-line reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api_reference.html">Python API</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="extending.html">Extending DendriNet</a></li>
+<li class="toctree-l1"><a class="reference internal" href="engineering_architecture.html">Engineering architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">DendriNet</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Runs and outputs</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/runs_and_outputs.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="runs-and-outputs">
+<h1>Runs and outputs<a class="headerlink" href="#runs-and-outputs" title="Link to this heading"></a></h1>
+<p>Every <code class="docutils literal notranslate"><span class="pre">dendritic-train</span></code> run writes its configuration, its records and its
+results into one run directory. This page describes where that directory is,
+every file a run writes, how the commands log, how they report failure, and
+which records let you repeat a run. <a class="reference internal" href="quickstart.html"><span class="doc">Quickstart</span></a> shows a complete run;
+<a class="reference internal" href="cli_reference.html#cli-reference"><span class="std std-ref">Command-line reference</span></a> lists every command-line option.</p>
+<section id="run-directory-layout">
+<span id="run-outputs"></span><h2>Run directory layout<a class="headerlink" href="#run-directory-layout" title="Link to this heading"></a></h2>
+<section id="run-directory-name">
+<h3>Run directory name<a class="headerlink" href="#run-directory-name" title="Link to this heading"></a></h3>
+<p>A run writes into</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>&lt;outputs.results_dir&gt;/&lt;outputs.run_name&gt;_&lt;YYYYMMDD_HHMMSS&gt;/
+</pre></div>
+</div>
+<p>where the timestamp is the local time at which the run starts. The defaults
+are <code class="docutils literal notranslate"><span class="pre">outputs.results_dir:</span> <span class="pre">results</span></code> and <code class="docutils literal notranslate"><span class="pre">outputs.run_name:</span> <span class="pre">ei_sweep</span></code>, so a
+config without an <code class="docutils literal notranslate"><span class="pre">outputs</span></code> block writes to <code class="docutils literal notranslate"><span class="pre">results/ei_sweep_&lt;timestamp&gt;/</span></code>.
+Set both in every config:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">outputs</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">results_dir</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">outputs</span>
+<span class="w">  </span><span class="nt">run_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">population_network_feedforward</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">dendritic-train</span> <span class="pre">--output_dir</span> <span class="pre">&lt;dir&gt;</span></code> replaces <code class="docutils literal notranslate"><span class="pre">outputs.results_dir</span></code> and
+<code class="docutils literal notranslate"><span class="pre">--run_name</span> <span class="pre">&lt;name&gt;</span></code> replaces <code class="docutils literal notranslate"><span class="pre">outputs.run_name</span></code>. A relative
+<code class="docutils literal notranslate"><span class="pre">results_dir</span></code> is resolved against the current directory, and it is created
+when it does not exist.</p>
+<p>Two cases use <code class="docutils literal notranslate"><span class="pre">results_dir</span></code> itself as the run directory, without a
+timestamped subdirectory:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">outputs.exact_run_dir:</span> <span class="pre">true</span></code>. Tools that claim an output directory in
+advance set it: the configurations that <code class="docutils literal notranslate"><span class="pre">dendritic-sweep</span></code> generates write
+to <code class="docutils literal notranslate"><span class="pre">&lt;sweep</span> <span class="pre">directory&gt;/results/config_&lt;N&gt;</span></code> this way (see <a class="reference internal" href="sweeps.html"><span class="doc">Parameter sweeps</span></a>), and
+<code class="docutils literal notranslate"><span class="pre">dendritic-analyze-checkpoint</span></code> uses it for its <code class="docutils literal notranslate"><span class="pre">--output-dir</span></code>.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">results_dir</span></code> whose last component is <code class="docutils literal notranslate"><span class="pre">config_&lt;N&gt;</span></code>, as in
+configurations generated by earlier sweep versions.</p></li>
+</ul>
+<p>A run never shares a timestamped directory: when another run with the same
+<code class="docutils literal notranslate"><span class="pre">results_dir</span></code> and <code class="docutils literal notranslate"><span class="pre">run_name</span></code> started in the same second, the later run
+writes to <code class="docutils literal notranslate"><span class="pre">&lt;run_name&gt;_&lt;timestamp&gt;_1</span></code> (then <code class="docutils literal notranslate"><span class="pre">_2</span></code>, …).</p>
+<p>Under <code class="docutils literal notranslate"><span class="pre">torchrun</span></code>, rank 0 creates the run directory and writes the run’s
+files; the other ranks receive the directory’s path from rank 0.</p>
+</section>
+<section id="files-in-a-run-directory">
+<h3>Files in a run directory<a class="headerlink" href="#files-in-a-run-directory" title="Link to this heading"></a></h3>
+<p>This is the directory of a one-epoch CPU run of
+<code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_feedforward.yaml</span></code> (see
+<a class="reference internal" href="quickstart.html"><span class="doc">Quickstart</span></a>):</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>population_network_feedforward_&lt;YYYYMMDD_HHMMSS&gt;/
+|-- analysis_status.json
+|-- config.json
+|-- dendritic_modeling.log
+|-- final_model.pt
+|-- init_gate_stats.json
+|-- main_network/
+|   `-- standard_best_model.pt
+|-- model_resources.json
+|-- nparams
+|-- operator_card.json
+|-- performance/
+|   `-- final.json
+|-- post_calibration_gate_stats.json
+|-- reactivation_calibration.json
+|-- resolved_seeds.json
+|-- runtime_environment.json
+|-- train.log
+`-- training_summary.json
+</pre></div>
+</div>
+<p>The files, in the order a run writes them:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 30.0%" />
+<col style="width: 70.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>File</p></th>
+<th class="head"><p>Contents and when it is written</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">train.log</span></code>, <code class="docutils literal notranslate"><span class="pre">dendritic_modeling.log</span></code></p></td>
+<td><p>The run’s log files; see <a class="reference internal" href="#logging"><span class="std std-ref">Logging</span></a>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">resolved_seeds.json</span></code></p></td>
+<td><p>Every random seed the run uses (<code class="docutils literal notranslate"><span class="pre">seed</span></code>, <code class="docutils literal notranslate"><span class="pre">dataset_seed</span></code>,
+<code class="docutils literal notranslate"><span class="pre">split_seed</span></code>, <code class="docutils literal notranslate"><span class="pre">model_seed</span></code>, <code class="docutils literal notranslate"><span class="pre">topology_seed</span></code>, <code class="docutils literal notranslate"><span class="pre">loader_seed</span></code>,
+<code class="docutils literal notranslate"><span class="pre">evaluation_seed</span></code>, <code class="docutils literal notranslate"><span class="pre">probe_seed</span></code>), <code class="docutils literal notranslate"><span class="pre">strict_deterministic</span></code>, and the
+numerics settings applied to PyTorch (<code class="docutils literal notranslate"><span class="pre">numerics</span></code>: float32 matmul
+precision, TF32, cuDNN determinism and benchmarking, deterministic
+algorithms). See <a class="reference internal" href="configuration_guide.html#random-seeds"><span class="std std-ref">Random seeds and reproducibility flags</span></a>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">runtime_environment.json</span></code></p></td>
+<td><p>What ran: the imported package path, the checkout’s commit, branch and
+a digest of uncommitted source changes, the Python and PyTorch builds
+(CUDA, cuDNN, threads, default dtype), the versions of NumPy, SciPy,
+scikit-learn, pandas, Triton, torchvision and OmegaConf, the visible
+devices, the process group, the thread, CUDA and <code class="docutils literal notranslate"><span class="pre">DENDRITIC_*</span></code>
+environment variables, the platform and the host name.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">dataset_fingerprints.json</span></code></p></td>
+<td><p>Digests of the training, validation and test splits. Written only
+with <code class="docutils literal notranslate"><span class="pre">experiment.record_dataset_fingerprints:</span> <span class="pre">true</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">init_gate_stats.json</span></code></p></td>
+<td><p>Statistics of every reactivation gate’s parameters after the model is
+built, with warnings about suspicious values, and the initialization
+policy each dendritic layer applied to its gate (<code class="docutils literal notranslate"><span class="pre">init_policy</span></code>,
+counted under <code class="docutils literal notranslate"><span class="pre">init_policies</span></code>). Written by every run; for a model
+without gates it lists no modules.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">config.json</span></code></p></td>
+<td><p>The resolved configuration: every field of the typed schema with its
+default filled in, after the command-line overrides. It also records
+the seeds filled in for the analyzers, the gradient-clipping mode the
+strategy applies and the distributed mode the run trained with.
+<code class="docutils literal notranslate"><span class="pre">dendritic-train</span></code> and <code class="docutils literal notranslate"><span class="pre">dendritic-analyze-checkpoint</span></code> accept it in
+place of the original YAML file.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">reactivation_calibration.json</span></code>, <code class="docutils literal notranslate"><span class="pre">post_calibration_gate_stats.json</span></code></p></td>
+<td><p>The calibration of data-driven gates (a gate <code class="docutils literal notranslate"><span class="pre">init_policy</span></code> such as
+<code class="docutils literal notranslate"><span class="pre">occupancy_quantile</span></code>; see <a class="reference internal" href="dendritic_neurons.html#gate-initialization"><span class="std std-ref">Gate initialization and maintenance</span></a>) and the gate
+statistics after it. Written only when a gate uses a data-driven
+policy; a run that starts from <code class="docutils literal notranslate"><span class="pre">model.initial_checkpoint</span></code> skips the
+calibration.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">initial_checkpoint_provenance.json</span></code></p></td>
+<td><p>Written when the run starts from <code class="docutils literal notranslate"><span class="pre">model.initial_checkpoint</span></code>
+(<a class="reference internal" href="network_architectures.html#initial-checkpoint"><span class="std std-ref">Starting from saved weights</span></a>): the checkpoint’s path and SHA-256 and the
+keys that did not match the model.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">main_network/</span></code></p></td>
+<td><p>Checkpoints of the main training phase; see <a class="reference internal" href="#checkpoints">Checkpoints</a>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">nparams</span></code></p></td>
+<td><p>JSON (without a file extension) holding the total parameter count,
+<code class="docutils literal notranslate"><span class="pre">{&quot;nparams&quot;:</span> <span class="pre">&lt;count&gt;}</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">model_resources.json</span></code></p></td>
+<td><p>Parameter counts (total, trainable, core, synapse candidates, active
+synapses), per-synapse-module records, the persistent recurrent state
+per sample, the device and, on CUDA, the peak memory.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">operator_card.json</span></code></p></td>
+<td><p>The operator axes of the built core: weight domain and transform,
+integration rule, gate type and initialization policy, morphology
+(branch factors, leak conductance) and synapse mechanism, plus the
+result of the <code class="docutils literal notranslate"><span class="pre">biological_neuron</span></code> check (see
+<a class="reference internal" href="network_architectures.html#biological-constraints"><span class="std std-ref">Biological constraints</span></a>).</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">training_summary.json</span></code></p></td>
+<td><p>The best epoch and its validation loss, the training and validation
+loss of every epoch (the training loss also split into its base and
+regularization terms), the data-loader settings and the data-parallel
+sizes (world size, batch size per rank, global batch size, steps per
+epoch). Model states are left out.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">final_model.pt</span></code></p></td>
+<td><p>The state dictionary of the final model; see <a class="reference internal" href="#checkpoints">Checkpoints</a>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">analysis_status.json</span></code></p></td>
+<td><p>The completion status (<code class="docutils literal notranslate"><span class="pre">completed</span></code>, <code class="docutils literal notranslate"><span class="pre">skipped</span></code>, <code class="docutils literal notranslate"><span class="pre">failed</span></code> or
+<code class="docutils literal notranslate"><span class="pre">empty</span></code>) of every analyzer each analysis pass was asked to run;
+written by the passes that run at least one analyzer. See
+<a class="reference internal" href="analysis.html#analysis-status"><span class="std std-ref">Completion status</span></a>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">&lt;analyzer</span> <span class="pre">directory&gt;/</span></code></p></td>
+<td><p>One directory per enabled analyzer, for example <code class="docutils literal notranslate"><span class="pre">performance/</span></code> with
+<code class="docutils literal notranslate"><span class="pre">final.json</span></code> (accuracy, AUC and log-likelihood on each split) and,
+with <code class="docutils literal notranslate"><span class="pre">analysis.performance.training:</span> <span class="pre">true</span></code>, <code class="docutils literal notranslate"><span class="pre">epochs/epoch&lt;N&gt;.json</span></code>
+and evolution plots. See <a class="reference internal" href="analysis.html#analysis-outputs"><span class="std std-ref">Where results are written</span></a>.</p></td>
+</tr>
+</tbody>
+</table>
+<p><code class="docutils literal notranslate"><span class="pre">dendritic-train</span> <span class="pre">--validate-only</span></code> builds the datasets, the model, the
+calibrated gates, the analysis manager, the optimizer and the trainer, then
+stops. It writes the configuration and construction records above
+(<code class="docutils literal notranslate"><span class="pre">config.json</span></code>, the seed, environment and gate files, <code class="docutils literal notranslate"><span class="pre">nparams</span></code>,
+<code class="docutils literal notranslate"><span class="pre">model_resources.json</span></code>, <code class="docutils literal notranslate"><span class="pre">operator_card.json</span></code>, the logs and an empty
+<code class="docutils literal notranslate"><span class="pre">main_network/</span></code>) and no training results.</p>
+<p><code class="docutils literal notranslate"><span class="pre">training.main.strategy:</span> <span class="pre">presentation_stream</span></code> also writes one line of
+metrics per epoch to <code class="docutils literal notranslate"><span class="pre">main_network/metrics.jsonl</span></code> (the file name is
+<code class="docutils literal notranslate"><span class="pre">training.main.strategies.presentation_stream.metrics_file</span></code>).</p>
+</section>
+<section id="checkpoints">
+<span id="run-checkpoints"></span><h3>Checkpoints<a class="headerlink" href="#checkpoints" title="Link to this heading"></a></h3>
+<p>Checkpoint file names start with a prefix that names the training phase, for
+example <code class="docutils literal notranslate"><span class="pre">standard_</span></code> for <code class="docutils literal notranslate"><span class="pre">training.main.strategy:</span> <span class="pre">standard</span></code>.</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">main_network/&lt;prefix&gt;best_model.pt</span></code></dt><dd><p>The weights of the epoch with the lowest validation loss.
+<code class="docutils literal notranslate"><span class="pre">training.main.common.save_best_checkpoint</span></code> sets when it is written:
+<code class="docutils literal notranslate"><span class="pre">every_improvement</span></code> (default) after each epoch that improves the
+validation loss, <code class="docutils literal notranslate"><span class="pre">end</span></code> once after training, <code class="docutils literal notranslate"><span class="pre">never</span></code> not at all.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">main_network/&lt;prefix&gt;checkpoints/epoch_&lt;N&gt;.pt</span></code></dt><dd><p>Written only with <code class="docutils literal notranslate"><span class="pre">experiment.checkpointing.enabled:</span> <span class="pre">true</span></code>, every
+<code class="docutils literal notranslate"><span class="pre">experiment.checkpointing.save_every_n_epochs</span></code> epochs (default 10).
+<code class="docutils literal notranslate"><span class="pre">epoch_0.pt</span></code> holds the weights before the first epoch. These files hold
+model weights only, not the optimizer state.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">main_network/&lt;prefix&gt;loss_curves.png</span></code></dt><dd><p>The training and validation loss curves, written when
+<code class="docutils literal notranslate"><span class="pre">training.main.common.plot_losses</span></code> is true (default) and the run trains
+for more than one epoch.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">final_model.pt</span></code></dt><dd><p>The weights the model has when training ends. With
+<code class="docutils literal notranslate"><span class="pre">training.main.common.load_best_state_dict:</span> <span class="pre">true</span></code> (default), training
+restores the best-validation weights first. When the run wrote exactly one
+best checkpoint, <code class="docutils literal notranslate"><span class="pre">final_model.pt</span></code> is then a hard link to it, not a second
+copy.</p>
+</dd>
+</dl>
+<p>A run with <code class="docutils literal notranslate"><span class="pre">experiment.checkpointing.enabled:</span> <span class="pre">true</span></code> and
+<code class="docutils literal notranslate"><span class="pre">save_every_n_epochs:</span> <span class="pre">1</span></code> that trains for two epochs adds:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>main_network/
+|-- standard_best_model.pt
+|-- standard_checkpoints/
+|   |-- epoch_0.pt
+|   |-- epoch_1.pt
+|   `-- epoch_2.pt
+`-- standard_loss_curves.png
+</pre></div>
+</div>
+<p>All <code class="docutils literal notranslate"><span class="pre">.pt</span></code> files are PyTorch state dictionaries. Load one into a model built
+from the same configuration:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+
+<span class="n">state</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">"final_model.pt"</span><span class="p">,</span> <span class="n">map_location</span><span class="o">=</span><span class="s2">"cpu"</span><span class="p">,</span> <span class="n">weights_only</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">model</span><span class="o">.</span><span class="n">load_state_dict</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">dendritic-analyze-checkpoint</span></code> rebuilds the model and the dataset splits
+from <code class="docutils literal notranslate"><span class="pre">config.json</span></code> and analyzes a checkpoint without training; see
+<a class="reference internal" href="checkpoint_analysis.html#checkpoint-analysis"><span class="std std-ref">Analyzing saved checkpoints</span></a>. Resuming an interrupted run is described in
+<a class="reference internal" href="training_strategies.html#resuming-training"><span class="std std-ref">Resuming from an epoch boundary</span></a>.</p>
+</section>
+<section id="fsdp-runs">
+<h3>FSDP runs<a class="headerlink" href="#fsdp-runs" title="Link to this heading"></a></h3>
+<p>The FSDP entry point (<code class="docutils literal notranslate"><span class="pre">-m</span> <span class="pre">dendritic_modeling.scripts.training.train_experiments_fsdp</span></code>)
+writes the same configuration and environment records and <code class="docutils literal notranslate"><span class="pre">final_model.pt</span></code>,
+a plain state dictionary of the gathered model. Its trainer saves
+checkpoints, which also hold the optimizer state and the epoch, under
+<code class="docutils literal notranslate"><span class="pre">checkpoints/</span></code> in the run directory, and only with
+<code class="docutils literal notranslate"><span class="pre">experiment.checkpointing.enabled:</span> <span class="pre">true</span></code>:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">checkpoints/best_model.pt</span></code> after each improvement of the validation loss
+(with <code class="docutils literal notranslate"><span class="pre">training.main.common.early_stopping:</span> <span class="pre">true</span></code>);</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">checkpoints/checkpoint_epoch_&lt;E&gt;.pt</span></code> every <code class="docutils literal notranslate"><span class="pre">save_every_n_epochs</span></code>
+epochs, where <code class="docutils literal notranslate"><span class="pre">&lt;E&gt;</span></code> counts epochs from zero;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">checkpoints/final_checkpoint.pt</span></code> after the last epoch.</p></li>
+</ul>
+<p>See <a class="reference internal" href="distributed_training.html#distributed-training"><span class="std std-ref">Distributed training</span></a>.</p>
+</section>
+</section>
+<section id="logging">
+<span id="id1"></span><h2>Logging<a class="headerlink" href="#logging" title="Link to this heading"></a></h2>
+<p>Importing <code class="docutils literal notranslate"><span class="pre">dendritic_modeling</span></code> configures no logging: the package loggers
+carry only a <code class="docutils literal notranslate"><span class="pre">NullHandler</span></code> and write no files. Every installed command
+(<code class="docutils literal notranslate"><span class="pre">dendritic-train</span></code>, <code class="docutils literal notranslate"><span class="pre">dendritic-sweep</span></code>, <code class="docutils literal notranslate"><span class="pre">dendritic-analyze-checkpoint</span></code>,
+the <code class="docutils literal notranslate"><span class="pre">dendritic-collect-*</span></code> collectors and the others) calls
+<code class="docutils literal notranslate"><span class="pre">dendritic_modeling.utils.logging_config.setup_logging()</span></code>, which prints the
+package’s records to standard output, at INFO level or, with <code class="docutils literal notranslate"><span class="pre">debug=True</span></code>,
+DEBUG level. <code class="docutils literal notranslate"><span class="pre">setup_logging</span></code> also writes the records to
+<code class="docutils literal notranslate"><span class="pre">dendritic_modeling.log</span></code> when it is given a <code class="docutils literal notranslate"><span class="pre">log_dir</span></code> or when the
+<code class="docutils literal notranslate"><span class="pre">DENDRITIC_LOG_DIR</span></code> environment variable is set; a relative path resolves
+against the current directory.</p>
+<p>When a program runs as a script, with <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span></code> or under <code class="docutils literal notranslate"><span class="pre">torchrun</span></code>,
+its own module logs as <code class="docutils literal notranslate"><span class="pre">__main__</span></code>, outside the package’s logger tree.
+<code class="docutils literal notranslate"><span class="pre">setup_logging</span></code> attaches the same handlers to that logger, so the program’s
+records reach the console and the log file as well.</p>
+<p>Analyzers log under <code class="docutils literal notranslate"><span class="pre">dendritic_modeling.analysis.&lt;name&gt;</span></code>, where <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;</span></code>
+is the analyzer’s class name or the custom name it passes to
+<code class="docutils literal notranslate"><span class="pre">AbstractAnalyzer</span></code> (a name already inside <code class="docutils literal notranslate"><span class="pre">dendritic_modeling</span></code> is kept),
+so analyzers defined outside the package, in plugins for example, also write
+to the console and to <code class="docutils literal notranslate"><span class="pre">dendritic_modeling.log</span></code>.</p>
+<p>A training run writes two log files into its run directory:</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">dendritic_modeling.log</span></code></dt><dd><p>The complete log of the run: the package’s and the program’s records at
+DEBUG level and above.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">train.log</span></code></dt><dd><p>The run-setup records (run directory, data root, dataset sizes, model
+class).</p>
+</dd>
+</dl>
+<p>A later run in the same process closes the earlier run’s log files. A program
+that calls the library from Python configures logging the same way, by
+calling <code class="docutils literal notranslate"><span class="pre">setup_logging()</span></code> or with the standard <code class="docutils literal notranslate"><span class="pre">logging</span></code> module.</p>
+</section>
+<section id="exit-status">
+<h2>Exit status<a class="headerlink" href="#exit-status" title="Link to this heading"></a></h2>
+<p>Every installed command exits with status 0 when it succeeds. An error raises
+a Python exception, which prints a traceback and exits with status 1; invalid
+command-line arguments exit with status 2. <code class="docutils literal notranslate"><span class="pre">dendritic-analyze</span></code> prints its
+error instead of a traceback (add <code class="docutils literal notranslate"><span class="pre">--verbose</span></code> for the traceback) and also
+exits with status 1. The Python <code class="docutils literal notranslate"><span class="pre">main</span></code> functions of the analysis commands
+return their results to a caller.</p>
+<p>A run that fails can leave a partial run directory: the records written
+before the failure (configuration, seeds, environment, logs) stay, and the
+log files contain the error. Requests that the configuration alone rules out
+fail before the run directory is created: options the loader rejects, and
+autoencoder encoders without pretraining or a trained checkpoint
+(<a class="reference internal" href="available_components.html#encoder-pretraining"><span class="std std-ref">Pretraining autoencoder encoders</span></a>).</p>
+</section>
+<section id="reproducibility">
+<span id="run-reproducibility"></span><h2>Reproducibility<a class="headerlink" href="#reproducibility" title="Link to this heading"></a></h2>
+<p>Each run directory records what is needed to repeat the run:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">config.json</span></code>: the complete resolved configuration;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">resolved_seeds.json</span></code>: every random stream and the numerics settings;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">runtime_environment.json</span></code>: the library commit and the versions of the
+numerical dependencies;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">dataset_fingerprints.json</span></code> (optional): digests of the dataset splits.</p></li>
+</ul>
+<p>To repeat a run, check out the recorded commit, install the same dependency
+versions (<code class="docutils literal notranslate"><span class="pre">setup/freeze_constraints.py</span></code> writes a constraints file for an
+environment; see <a class="reference internal" href="installation.html"><span class="doc">Installation</span></a>), and train <code class="docutils literal notranslate"><span class="pre">config.json</span></code> on the same
+kind of device. Agreement to the last bit also needs the same device, batch
+size and determinism settings. <a class="reference internal" href="configuration_guide.html#random-seeds"><span class="std std-ref">Random seeds and reproducibility flags</span></a> describes the seed
+streams, <code class="docutils literal notranslate"><span class="pre">experiment.strict_deterministic</span></code> and the numerics flags.
+<a class="reference internal" href="project_provenance.html"><span class="doc">Project provenance</span></a> describes how a project pins its own code to an
+exact library commit, runs it from that commit and records what ran.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="checkpoint_analysis.html" class="btn btn-neutral float-left" title="Analyzing saved checkpoints" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="sweeps.html" class="btn btn-neutral float-right" title="Parameter sweeps" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024-2026, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

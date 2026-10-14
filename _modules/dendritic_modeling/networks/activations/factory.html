@@ -1,0 +1,528 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>dendritic_modeling.networks.activations.factory &mdash; DendriNet v0.2.0</title>
+      <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../../_static/documentation_options.js?v=938c9ccc"></script>
+      <script src="../../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../../index.html" class="icon icon-home">
+            DendriNet
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../examples.html">Example configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Building models</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../network_architectures.html">Model architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../dendritic_neurons.html">Dendritic neurons</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../synapses.html">Synapses and connectivity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../population_networks.html">Population networks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../temporal_dynamics.html">Temporal dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../structured_ei_cores.html">Structured E/I cores</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../conductance_options.html">Conductance options</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../comparison_models.html">Baselines and comparison models</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Configuration</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../configuration_guide.html">Configuration guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../config_reference.html">Annotated reference configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../training_strategies.html">Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../distributed_training.html">Distributed training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../performance_kernels.html">Sparse execution and performance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Data and analysis</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../datasets.html">Datasets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../analysis.html">Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../analyzers.html">Analyzer reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../checkpoint_analysis.html">Analyzing saved checkpoints</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Running experiments</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../runs_and_outputs.html">Runs and outputs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../sweeps.html">Parameter sweeps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../model_compression.html">Compact checkpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../project_provenance.html">Project provenance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../available_components.html">Component catalogue</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../options_reference.html">Options reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../cli_reference.html">Command-line reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../api_reference.html">Python API</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../extending.html">Extending DendriNet</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../engineering_architecture.html">Engineering architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../contributing.html">Contributing</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">DendriNet</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">dendritic_modeling.networks.activations.factory</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for dendritic_modeling.networks.activations.factory</h1><div class="highlight"><pre>
+<span></span><span class="sd">"""</span>
+<span class="sd">Activation Factory.</span>
+
+<span class="sd">This module provides a factory for building different activation/reactivation modules.</span>
+<span class="sd">"""</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">inspect</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Mapping</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch.nn</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">nn</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.activations.endpoint_tanh</span><span class="w"> </span><span class="kn">import</span> <span class="n">EndpointNormalizedTanh</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.activations.parametric</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">ParametricLinearSigmoid</span><span class="p">,</span>
+    <span class="n">ParametricLinearTanh</span><span class="p">,</span>
+    <span class="n">ParametricLinearTanhTransition</span><span class="p">,</span>
+    <span class="n">ParametricReLU</span><span class="p">,</span>
+    <span class="n">ParametricTanh</span><span class="p">,</span>
+    <span class="n">ParametricTanhOnlyM</span><span class="p">,</span>
+    <span class="n">ResidualSiLU</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.plugins</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_plugins</span>
+
+<span class="n">ActivationBuilder</span> <span class="o">=</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_require_output_dim</span><span class="p">(</span><span class="n">output_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="n">activation_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">output_dim</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">activation_name</span><span class="si">}</span><span class="s2"> requires output_dim."</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">output_dim</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_normalize_activation_type</span><span class="p">(</span><span class="n">act_type</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">act_type</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">"Activation type must be a string, got None. "</span>
+            <span class="s2">"Use 'none' for an identity/no-op activation."</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">act_type</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_resolve_activation_builder</span><span class="p">(</span><span class="n">act_type</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ActivationBuilder</span><span class="p">:</span>
+    <span class="n">normalized_type</span> <span class="o">=</span> <span class="n">_normalize_activation_type</span><span class="p">(</span><span class="n">act_type</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">get_activation_builder</span><span class="p">(</span><span class="n">normalized_type</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_identity_builder</span><span class="p">(</span><span class="o">**</span><span class="n">_</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">nn</span><span class="o">.</span><span class="n">Identity</span><span class="p">()</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_relu_builder</span><span class="p">(</span><span class="o">**</span><span class="n">_</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">()</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_sigmoid_builder</span><span class="p">(</span><span class="o">**</span><span class="n">_</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sigmoid</span><span class="p">()</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_tanh_builder</span><span class="p">(</span><span class="o">**</span><span class="n">_</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">nn</span><span class="o">.</span><span class="n">Tanh</span><span class="p">()</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_gelu_builder</span><span class="p">(</span><span class="o">**</span><span class="n">_</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">nn</span><span class="o">.</span><span class="n">GELU</span><span class="p">()</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_silu_builder</span><span class="p">(</span><span class="o">**</span><span class="n">_</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">nn</span><span class="o">.</span><span class="n">SiLU</span><span class="p">()</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_softplus_builder</span><span class="p">(</span><span class="o">**</span><span class="n">_</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">nn</span><span class="o">.</span><span class="n">Softplus</span><span class="p">()</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_param_tanh_builder</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">output_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">init_m</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">init_b</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">memory_efficient</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="o">**</span><span class="n">_</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">ParametricTanh</span><span class="p">(</span>
+        <span class="n">_require_output_dim</span><span class="p">(</span><span class="n">output_dim</span><span class="p">,</span> <span class="s2">"ParametricTanh"</span><span class="p">),</span>
+        <span class="n">init_m</span><span class="p">,</span>
+        <span class="n">init_b</span><span class="p">,</span>
+        <span class="n">memory_efficient</span><span class="o">=</span><span class="n">memory_efficient</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_param_relu_builder</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">output_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">init_m</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">init_b</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">memory_efficient</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="o">**</span><span class="n">_</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">ParametricReLU</span><span class="p">(</span>
+        <span class="n">_require_output_dim</span><span class="p">(</span><span class="n">output_dim</span><span class="p">,</span> <span class="s2">"ParametricReLU"</span><span class="p">),</span>
+        <span class="n">init_m</span><span class="p">,</span>
+        <span class="n">init_b</span><span class="p">,</span>
+        <span class="n">memory_efficient</span><span class="o">=</span><span class="n">memory_efficient</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_param_tanh_only_m_builder</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">output_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">init_m</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">fixed_b</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">memory_efficient</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="o">**</span><span class="n">_</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">ParametricTanhOnlyM</span><span class="p">(</span>
+        <span class="n">_require_output_dim</span><span class="p">(</span><span class="n">output_dim</span><span class="p">,</span> <span class="s2">"ParametricTanhOnlyM"</span><span class="p">),</span>
+        <span class="n">init_m</span><span class="p">,</span>
+        <span class="n">fixed_b</span><span class="p">,</span>
+        <span class="n">memory_efficient</span><span class="o">=</span><span class="n">memory_efficient</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_param_linear_sigmoid_builder</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">output_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">init_m</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">init_b</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">fixed_b</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">memory_efficient</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="o">**</span><span class="n">_</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">ParametricLinearSigmoid</span><span class="p">(</span>
+        <span class="n">_require_output_dim</span><span class="p">(</span><span class="n">output_dim</span><span class="p">,</span> <span class="s2">"ParametricLinearSigmoid"</span><span class="p">),</span>
+        <span class="n">init_m</span><span class="o">=</span><span class="n">init_m</span><span class="p">,</span>
+        <span class="n">init_b</span><span class="o">=</span><span class="n">init_b</span><span class="p">,</span>
+        <span class="n">trainable</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_linear_sigmoid_builder</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">output_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">init_m</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">init_b</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">fixed_b</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">memory_efficient</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="o">**</span><span class="n">_</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">ParametricLinearSigmoid</span><span class="p">(</span>
+        <span class="n">_require_output_dim</span><span class="p">(</span><span class="n">output_dim</span><span class="p">,</span> <span class="s2">"ParametricLinearSigmoid"</span><span class="p">),</span>
+        <span class="n">init_m</span><span class="o">=</span><span class="n">init_m</span><span class="p">,</span>
+        <span class="n">init_b</span><span class="o">=</span><span class="n">init_b</span><span class="p">,</span>
+        <span class="n">trainable</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_param_linear_tanh_builder</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">output_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">init_m</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">init_b</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">fixed_b</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">memory_efficient</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="o">**</span><span class="n">_</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">ParametricLinearTanh</span><span class="p">(</span>
+        <span class="n">_require_output_dim</span><span class="p">(</span><span class="n">output_dim</span><span class="p">,</span> <span class="s2">"ParametricLinearTanh"</span><span class="p">),</span>
+        <span class="n">init_m</span><span class="o">=</span><span class="n">init_m</span><span class="p">,</span>
+        <span class="n">init_b</span><span class="o">=</span><span class="n">init_b</span><span class="p">,</span>
+        <span class="n">trainable</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_linear_tanh_builder</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">output_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">init_m</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">init_b</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">fixed_b</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">memory_efficient</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="o">**</span><span class="n">_</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">ParametricLinearTanh</span><span class="p">(</span>
+        <span class="n">_require_output_dim</span><span class="p">(</span><span class="n">output_dim</span><span class="p">,</span> <span class="s2">"ParametricLinearTanh"</span><span class="p">),</span>
+        <span class="n">init_m</span><span class="o">=</span><span class="n">init_m</span><span class="p">,</span>
+        <span class="n">init_b</span><span class="o">=</span><span class="n">init_b</span><span class="p">,</span>
+        <span class="n">trainable</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_param_linear_tanh_transition_builder</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span> <span class="n">output_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="n">init_m</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">init_b</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="o">**</span><span class="n">_</span><span class="p">:</span> <span class="n">Any</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">:</span>
+    <span class="c1"># Map factory parameters to ParametricLinearTanhTransition parameters:</span>
+    <span class="c1"># - init_b maps to init_threshold (the point where transition happens)</span>
+    <span class="c1"># - init_m maps to init_transition_slope (controls transition curve steepness)</span>
+    <span class="k">return</span> <span class="n">ParametricLinearTanhTransition</span><span class="p">(</span>
+        <span class="n">output_dim</span><span class="p">,</span>
+        <span class="n">init_threshold</span><span class="o">=</span><span class="n">init_b</span><span class="p">,</span>
+        <span class="n">linear_slope</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
+        <span class="n">init_transition_slope</span><span class="o">=</span><span class="n">init_m</span><span class="p">,</span>
+        <span class="n">trainable_threshold</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">trainable_transition_slope</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_linear_tanh_transition_builder</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span> <span class="n">output_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="n">init_m</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">init_b</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="o">**</span><span class="n">_</span><span class="p">:</span> <span class="n">Any</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">:</span>
+    <span class="c1"># Map factory parameters to ParametricLinearTanhTransition parameters:</span>
+    <span class="c1"># - init_b maps to init_threshold (the point where transition happens)</span>
+    <span class="c1"># - init_m maps to init_transition_slope (controls transition curve steepness)</span>
+    <span class="k">return</span> <span class="n">ParametricLinearTanhTransition</span><span class="p">(</span>
+        <span class="n">output_dim</span><span class="p">,</span>
+        <span class="n">init_threshold</span><span class="o">=</span><span class="n">init_b</span><span class="p">,</span>
+        <span class="n">linear_slope</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
+        <span class="n">init_transition_slope</span><span class="o">=</span><span class="n">init_m</span><span class="p">,</span>
+        <span class="n">trainable_threshold</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">trainable_transition_slope</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_residual_silu_builder</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">output_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">init_mix</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
+    <span class="o">**</span><span class="n">_</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Opt-in: identity at construction, SiLU at mix 1 (see ResidualSiLU)."""</span>
+
+    <span class="k">return</span> <span class="n">ResidualSiLU</span><span class="p">(</span><span class="n">_require_output_dim</span><span class="p">(</span><span class="n">output_dim</span><span class="p">,</span> <span class="s2">"ResidualSiLU"</span><span class="p">),</span> <span class="n">init_mix</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_endpoint_tanh_builder</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">output_dim</span><span class="p">,</span> <span class="n">init_m</span><span class="o">=</span><span class="mf">3.0</span><span class="p">,</span> <span class="n">init_b</span><span class="o">=</span><span class="mf">1.5</span><span class="p">,</span> <span class="o">**</span><span class="n">_</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">EndpointNormalizedTanh</span><span class="p">(</span>
+        <span class="n">_require_output_dim</span><span class="p">(</span><span class="n">output_dim</span><span class="p">,</span> <span class="s2">"EndpointNormalizedTanh"</span><span class="p">),</span> <span class="n">init_m</span><span class="p">,</span> <span class="n">init_b</span>
+    <span class="p">)</span>
+
+
+<span class="n">_ACTIVATION_REGISTRY</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ActivationBuilder</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">"endpoint_tanh"</span><span class="p">:</span> <span class="n">_endpoint_tanh_builder</span><span class="p">,</span>
+    <span class="s2">"gelu"</span><span class="p">:</span> <span class="n">_gelu_builder</span><span class="p">,</span>
+    <span class="s2">"linear_sigmoid"</span><span class="p">:</span> <span class="n">_linear_sigmoid_builder</span><span class="p">,</span>
+    <span class="s2">"linear_tanh"</span><span class="p">:</span> <span class="n">_linear_tanh_builder</span><span class="p">,</span>
+    <span class="s2">"linear_tanh_transition"</span><span class="p">:</span> <span class="n">_linear_tanh_transition_builder</span><span class="p">,</span>
+    <span class="s2">"none"</span><span class="p">:</span> <span class="n">_identity_builder</span><span class="p">,</span>
+    <span class="s2">"param_linear_sigmoid"</span><span class="p">:</span> <span class="n">_param_linear_sigmoid_builder</span><span class="p">,</span>
+    <span class="s2">"param_linear_tanh"</span><span class="p">:</span> <span class="n">_param_linear_tanh_builder</span><span class="p">,</span>
+    <span class="s2">"param_linear_tanh_transition"</span><span class="p">:</span> <span class="n">_param_linear_tanh_transition_builder</span><span class="p">,</span>
+    <span class="s2">"param_relu"</span><span class="p">:</span> <span class="n">_param_relu_builder</span><span class="p">,</span>
+    <span class="s2">"param_tanh"</span><span class="p">:</span> <span class="n">_param_tanh_builder</span><span class="p">,</span>
+    <span class="s2">"param_tanh_only_m"</span><span class="p">:</span> <span class="n">_param_tanh_only_m_builder</span><span class="p">,</span>
+    <span class="s2">"relu"</span><span class="p">:</span> <span class="n">_relu_builder</span><span class="p">,</span>
+    <span class="s2">"residual_silu"</span><span class="p">:</span> <span class="n">_residual_silu_builder</span><span class="p">,</span>
+    <span class="s2">"sigmoid"</span><span class="p">:</span> <span class="n">_sigmoid_builder</span><span class="p">,</span>
+    <span class="s2">"silu"</span><span class="p">:</span> <span class="n">_silu_builder</span><span class="p">,</span>
+    <span class="s2">"softplus"</span><span class="p">:</span> <span class="n">_softplus_builder</span><span class="p">,</span>
+    <span class="s2">"swish"</span><span class="p">:</span> <span class="n">_silu_builder</span><span class="p">,</span>
+    <span class="s2">"tanh"</span><span class="p">:</span> <span class="n">_tanh_builder</span><span class="p">,</span>
+<span class="p">}</span>
+
+
+<div class="viewcode-block" id="register_activation_builder">
+<a class="viewcode-back" href="../../../../api_reference.html#dendritic_modeling.networks.activations.factory.register_activation_builder">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">register_activation_builder</span><span class="p">(</span>
+    <span class="n">act_type</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">builder</span><span class="p">:</span> <span class="n">ActivationBuilder</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">allow_override</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Register an activation builder by normalized activation type."""</span>
+    <span class="n">normalized_type</span> <span class="o">=</span> <span class="n">_normalize_activation_type</span><span class="p">(</span><span class="n">act_type</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">callable</span><span class="p">(</span><span class="n">builder</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Activation builder for </span><span class="si">{</span><span class="n">normalized_type</span><span class="si">!r}</span><span class="s2"> must be callable"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">normalized_type</span> <span class="ow">in</span> <span class="n">_ACTIVATION_REGISTRY</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">allow_override</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"Activation builder '</span><span class="si">{</span><span class="n">normalized_type</span><span class="si">}</span><span class="s2">' is already registered"</span>
+        <span class="p">)</span>
+    <span class="n">_ACTIVATION_REGISTRY</span><span class="p">[</span><span class="n">normalized_type</span><span class="p">]</span> <span class="o">=</span> <span class="n">builder</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">unregister_activation_builder</span><span class="p">(</span><span class="n">act_type</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Remove an activation builder if present."""</span>
+    <span class="n">_ACTIVATION_REGISTRY</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">_normalize_activation_type</span><span class="p">(</span><span class="n">act_type</span><span class="p">),</span> <span class="kc">None</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">get_activation_builder</span><span class="p">(</span><span class="n">act_type</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ActivationBuilder</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return a registered activation builder."""</span>
+    <span class="n">normalized_type</span> <span class="o">=</span> <span class="n">_normalize_activation_type</span><span class="p">(</span><span class="n">act_type</span><span class="p">)</span>
+    <span class="n">builder</span> <span class="o">=</span> <span class="n">_ACTIVATION_REGISTRY</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">normalized_type</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">builder</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">load_plugins</span><span class="p">()</span>
+        <span class="n">builder</span> <span class="o">=</span> <span class="n">_ACTIVATION_REGISTRY</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">normalized_type</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">builder</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Unknown activation type: </span><span class="si">{</span><span class="n">normalized_type</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">builder</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">get_registered_activation_types</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Return registered activation type names, including those of plugins."""</span>
+    <span class="n">load_plugins</span><span class="p">()</span>
+    <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">_ACTIVATION_REGISTRY</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">unused_activation_options</span><span class="p">(</span><span class="n">act_type</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">options</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Return option names that ``ActivationFactory.create`` would discard.</span>
+
+<span class="sd">    Builders name the options they use; a catch-all ``**_`` parameter discards</span>
+<span class="sd">    the rest. Builders that forward ``**kwargs`` to a module constructor keep</span>
+<span class="sd">    every option, and that constructor validates them.</span>
+<span class="sd">    """</span>
+    <span class="n">builder</span> <span class="o">=</span> <span class="n">_resolve_activation_builder</span><span class="p">(</span><span class="n">act_type</span><span class="p">)</span>
+    <span class="n">named</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"fixed_b"</span><span class="p">}</span>
+    <span class="n">forwards_extra</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">parameter</span> <span class="ow">in</span> <span class="n">inspect</span><span class="o">.</span><span class="n">signature</span><span class="p">(</span><span class="n">builder</span><span class="p">)</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">parameter</span><span class="o">.</span><span class="n">kind</span> <span class="ow">is</span> <span class="n">inspect</span><span class="o">.</span><span class="n">Parameter</span><span class="o">.</span><span class="n">VAR_KEYWORD</span><span class="p">:</span>
+            <span class="n">forwards_extra</span> <span class="o">=</span> <span class="n">name</span> <span class="o">!=</span> <span class="s2">"_"</span>
+        <span class="k">elif</span> <span class="n">parameter</span><span class="o">.</span><span class="n">kind</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">inspect</span><span class="o">.</span><span class="n">Parameter</span><span class="o">.</span><span class="n">VAR_POSITIONAL</span><span class="p">:</span>
+            <span class="n">named</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">forwards_extra</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">[]</span>
+    <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">options</span><span class="p">)</span> <span class="o">-</span> <span class="n">named</span><span class="p">)</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">ActivationFactory</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    A factory for building different activation/ reactivation modules.</span>
+<span class="sd">    """</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">create</span><span class="p">(</span>
+        <span class="n">act_type</span><span class="p">,</span> <span class="n">output_dim</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">init_m</span><span class="o">=</span><span class="mf">1.5</span><span class="p">,</span> <span class="n">init_b</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">fixed_b</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">"""</span>
+<span class="sd">        Create an activation module of the desired type.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        act_type : str</span>
+<span class="sd">            One of ["none", "param_tanh", "param_tanh_only_m", "relu", "sigmoid", "tanh"].</span>
+<span class="sd">        output_dim : int or None</span>
+<span class="sd">            Used by param_tanh and param_tanh_only_m (must be set if act_type is "param_tanh" or "param_tanh_only_m").</span>
+<span class="sd">        init_m : float</span>
+<span class="sd">            Initial value for m.</span>
+<span class="sd">        init_b : float</span>
+<span class="sd">            Initial value for b (used only for param_tanh).</span>
+<span class="sd">        fixed_b : float</span>
+<span class="sd">            The fixed value of b when using param_tanh_only_m.</span>
+<span class="sd">        **kwargs : dict</span>
+<span class="sd">            Additional keyword arguments are accepted but ignored (for backwards compatibility).</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        nn.Module</span>
+<span class="sd">            The activation module.</span>
+<span class="sd">        """</span>
+        <span class="n">builder</span> <span class="o">=</span> <span class="n">_resolve_activation_builder</span><span class="p">(</span><span class="n">act_type</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">builder</span><span class="p">(</span>
+            <span class="n">output_dim</span><span class="o">=</span><span class="n">output_dim</span><span class="p">,</span>
+            <span class="n">init_m</span><span class="o">=</span><span class="n">init_m</span><span class="p">,</span>
+            <span class="n">init_b</span><span class="o">=</span><span class="n">init_b</span><span class="p">,</span>
+            <span class="n">fixed_b</span><span class="o">=</span><span class="n">fixed_b</span><span class="p">,</span>
+            <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
+        <span class="p">)</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s2">"ActivationFactory"</span><span class="p">,</span>
+    <span class="s2">"get_activation_builder"</span><span class="p">,</span>
+    <span class="s2">"get_registered_activation_types"</span><span class="p">,</span>
+    <span class="s2">"register_activation_builder"</span><span class="p">,</span>
+    <span class="s2">"unregister_activation_builder"</span><span class="p">,</span>
+    <span class="s2">"unused_activation_options"</span><span class="p">,</span>
+<span class="p">]</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024-2026, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

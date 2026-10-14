@@ -1,0 +1,882 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Analyzing saved checkpoints &mdash; DendriNet v0.2.0</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=938c9ccc"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Runs and outputs" href="runs_and_outputs.html" />
+    <link rel="prev" title="Analyzer reference" href="analyzers.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            DendriNet
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Example configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Building models</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="network_architectures.html">Model architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dendritic_neurons.html">Dendritic neurons</a></li>
+<li class="toctree-l1"><a class="reference internal" href="synapses.html">Synapses and connectivity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="population_networks.html">Population networks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="temporal_dynamics.html">Temporal dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="structured_ei_cores.html">Structured E/I cores</a></li>
+<li class="toctree-l1"><a class="reference internal" href="conductance_options.html">Conductance options</a></li>
+<li class="toctree-l1"><a class="reference internal" href="comparison_models.html">Baselines and comparison models</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Configuration</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="configuration_guide.html">Configuration guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config_reference.html">Annotated reference configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="training_strategies.html">Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="distributed_training.html">Distributed training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="performance_kernels.html">Sparse execution and performance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Data and analysis</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="datasets.html">Datasets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="analysis.html">Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="analyzers.html">Analyzer reference</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Analyzing saved checkpoints</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#running-analyzers-on-one-checkpoint">Running analyzers on one checkpoint</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#job-files">Job files</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#running-many-checkpoints-as-a-job-array">Running many checkpoints as a job array</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#collecting-results">Collecting results</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#summaries-across-checkpoints">Summaries across checkpoints</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#paired-comparisons">Paired comparisons</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#selecting-epochs-on-validation-metrics">Selecting epochs on validation metrics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#poisson-exposure-transfer">Poisson exposure transfer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#recurrent-models-by-task-condition">Recurrent models by task condition</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Running experiments</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="runs_and_outputs.html">Runs and outputs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sweeps.html">Parameter sweeps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="model_compression.html">Compact checkpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="project_provenance.html">Project provenance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="available_components.html">Component catalogue</a></li>
+<li class="toctree-l1"><a class="reference internal" href="options_reference.html">Options reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cli_reference.html">Command-line reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api_reference.html">Python API</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="extending.html">Extending DendriNet</a></li>
+<li class="toctree-l1"><a class="reference internal" href="engineering_architecture.html">Engineering architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">DendriNet</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Analyzing saved checkpoints</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/checkpoint_analysis.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="analyzing-saved-checkpoints">
+<span id="checkpoint-analysis"></span><h1>Analyzing saved checkpoints<a class="headerlink" href="#analyzing-saved-checkpoints" title="Link to this heading"></a></h1>
+<p>Analyzers can run on saved checkpoints without training again. The workflow
+has four steps, each with its own command:</p>
+<ol class="arabic simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">dendritic-analyze-checkpoint</span></code> runs an analysis profile on one
+checkpoint;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">dendritic-submit-checkpoint-analysis</span></code> runs it on many checkpoints as one
+Slurm job array, from a manifest;</p></li>
+<li><p>a collector checks every finished job and gathers its results into
+checkpoint-level tables;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">dendritic-summarize-checkpoint-metrics</span></code> summarizes those tables across
+independently trained checkpoints, with bootstrap intervals and paired
+comparisons.</p></li>
+</ol>
+<p>The collectors keep technical repeats (support draws, noise draws,
+permutations) within each checkpoint and never pool trained checkpoints;
+inference across checkpoints happens only in the summary step.
+<a class="reference internal" href="cli_reference.html#cli-reference"><span class="std std-ref">Command-line reference</span></a> lists every flag of these commands. This page also covers
+<code class="docutils literal notranslate"><span class="pre">dendritic-select-validation-epochs</span></code>, the Poisson exposure-transfer
+commands and the analyses of recurrent models by task condition
+(<a class="reference internal" href="#recurrent-condition-analyses"><span class="std std-ref">Recurrent models by task condition</span></a>).</p>
+<nav class="contents local" id="on-this-page">
+<p class="topic-title">On this page</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#running-analyzers-on-one-checkpoint" id="id2">Running analyzers on one checkpoint</a></p>
+<ul>
+<li><p><a class="reference internal" href="#job-files" id="id3">Job files</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#running-many-checkpoints-as-a-job-array" id="id4">Running many checkpoints as a job array</a></p></li>
+<li><p><a class="reference internal" href="#collecting-results" id="id5">Collecting results</a></p></li>
+<li><p><a class="reference internal" href="#summaries-across-checkpoints" id="id6">Summaries across checkpoints</a></p>
+<ul>
+<li><p><a class="reference internal" href="#paired-comparisons" id="id7">Paired comparisons</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#selecting-epochs-on-validation-metrics" id="id8">Selecting epochs on validation metrics</a></p></li>
+<li><p><a class="reference internal" href="#poisson-exposure-transfer" id="id9">Poisson exposure transfer</a></p></li>
+<li><p><a class="reference internal" href="#recurrent-models-by-task-condition" id="id10">Recurrent models by task condition</a></p></li>
+</ul>
+</nav>
+<section id="running-analyzers-on-one-checkpoint">
+<h2><a class="toc-backref" href="#id2" role="doc-backlink">Running analyzers on one checkpoint</a><a class="headerlink" href="#running-analyzers-on-one-checkpoint" title="Link to this heading"></a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>dendritic-analyze-checkpoint<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--config<span class="w"> </span>run_dir/config.json<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--checkpoint<span class="w"> </span>run_dir/final_model.pt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--analysis-config<span class="w"> </span>analysis_profile.yaml<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--output-dir<span class="w"> </span>posthoc/run_0
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">--config</span></code> is the resolved training configuration of the run (the
+<code class="docutils literal notranslate"><span class="pre">config.json</span></code> of its run directory, or an equivalent YAML file).
+<code class="docutils literal notranslate"><span class="pre">--analysis-config</span></code> is the analysis profile: a file with an <code class="docutils literal notranslate"><span class="pre">analysis:</span></code>
+root, or the analysis mapping itself, in the format of
+<a class="reference internal" href="analysis.html"><span class="doc">Analysis</span></a>. It replaces the training configuration’s <code class="docutils literal notranslate"><span class="pre">analysis</span></code> section;
+the two are not merged. An unset <code class="docutils literal notranslate"><span class="pre">analysis.runtime</span></code> mode follows the training
+configuration’s <code class="docutils literal notranslate"><span class="pre">distributed.mode</span></code> (see <a class="reference internal" href="analysis.html#analysis-runtime-profiles"><span class="std std-ref">Data iteration: analysis.runtime</span></a>).</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">analysis</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">runtime</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">final</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">stream</span>
+<span class="w">      </span><span class="nt">batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">512</span>
+<span class="w">  </span><span class="nt">performance</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">final_splits</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">"validation"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"test"</span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="nt">noise_perturbation</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">n_samples</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<span class="w">      </span><span class="nt">mse</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">      </span><span class="nt">cosine_similarity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">  </span><span class="nt">multiplicative_gain</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">gain_max</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4.0</span>
+<span class="w">      </span><span class="nt">n_steps</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<span class="w">      </span><span class="nt">accuracy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+<p>The command rebuilds the datasets and the model from the training
+configuration with its recorded seeds, loads the checkpoint, and runs the
+profile’s analyzers once with the result name <code class="docutils literal notranslate"><span class="pre">--filename</span></code> (default
+<code class="docutils literal notranslate"><span class="pre">final</span></code>) on <code class="docutils literal notranslate"><span class="pre">--device</span></code> (default: the GPU when one is visible). It never
+trains or changes the checkpoint. The checkpoint may be a state dictionary or
+a mapping that holds one under <code class="docutils literal notranslate"><span class="pre">model_state_dict</span></code>, <code class="docutils literal notranslate"><span class="pre">state_dict</span></code> or
+<code class="docutils literal notranslate"><span class="pre">model</span></code>; a <code class="docutils literal notranslate"><span class="pre">module.</span></code> prefix on every key is removed. Loading is strict:
+missing or unexpected keys raise unless <code class="docutils literal notranslate"><span class="pre">--no-strict</span></code> is given, which records
+them instead (the collectors reject such runs).</p>
+<p><code class="docutils literal notranslate"><span class="pre">--output-dir</span></code> becomes the run directory: the analyzer directories of
+<a class="reference internal" href="analysis.html#analysis-outputs"><span class="std std-ref">Where results are written</span></a> are written there, together with</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">checkpoint_analysis_provenance.json</span></code>: the paths and SHA-256 hashes of the
+configuration, checkpoint and analysis profile, the resolved seeds, the
+dataset sizes, the checkpoint-loading record (strict loading, missing and
+unexpected keys), the enabled analyzers, <code class="docutils literal notranslate"><span class="pre">analysis_status</span></code> (the record of
+the pass, with the status of every analyzer; see <a class="reference internal" href="analysis.html#analysis-status"><span class="std std-ref">Completion status</span></a>)
+and the code identity;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">analysis_status.json</span></code>, the same status record;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">resolved_seeds.json</span></code>, <code class="docutils literal notranslate"><span class="pre">runtime_environment.json</span></code>, <code class="docutils literal notranslate"><span class="pre">train.log</span></code> and
+<code class="docutils literal notranslate"><span class="pre">dendritic_modeling.log</span></code>, as in a training run (see <a class="reference internal" href="runs_and_outputs.html#run-outputs"><span class="std std-ref">Run directory layout</span></a>).</p></li>
+</ul>
+<p>Dataset fingerprints are not written. The training-time rule that a sealed
+test split rejects every analyzer is not applied here; the size bound
+<code class="docutils literal notranslate"><span class="pre">experiment.max_test_samples</span></code> still is (see <a class="reference internal" href="datasets.html#dataset-splits"><span class="std std-ref">Training, validation and test splits</span></a>).</p>
+<section id="job-files">
+<h3><a class="toc-backref" href="#id3" role="doc-backlink">Job files</a><a class="headerlink" href="#job-files" title="Link to this heading"></a></h3>
+<p>Arrays of checkpoint analyses, and every collector, use a job file in JSON
+Lines format: one JSON object per line, one line per checkpoint, with the
+four arguments of <code class="docutils literal notranslate"><span class="pre">dendritic-analyze-checkpoint</span></code>:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span><span class="nt">"config"</span><span class="p">:</span><span class="w"> </span><span class="s2">"runs/seed_0/config.json"</span><span class="p">,</span><span class="w"> </span><span class="nt">"checkpoint"</span><span class="p">:</span><span class="w"> </span><span class="s2">"runs/seed_0/final_model.pt"</span><span class="p">,</span><span class="w"> </span><span class="nt">"analysis_config"</span><span class="p">:</span><span class="w"> </span><span class="s2">"profiles/noise.yaml"</span><span class="p">,</span><span class="w"> </span><span class="nt">"output_dir"</span><span class="p">:</span><span class="w"> </span><span class="s2">"posthoc/seed_0"</span><span class="p">}</span>
+<span class="p">{</span><span class="nt">"config"</span><span class="p">:</span><span class="w"> </span><span class="s2">"runs/seed_1/config.json"</span><span class="p">,</span><span class="w"> </span><span class="nt">"checkpoint"</span><span class="p">:</span><span class="w"> </span><span class="s2">"runs/seed_1/final_model.pt"</span><span class="p">,</span><span class="w"> </span><span class="nt">"analysis_config"</span><span class="p">:</span><span class="w"> </span><span class="s2">"profiles/noise.yaml"</span><span class="p">,</span><span class="w"> </span><span class="nt">"output_dir"</span><span class="p">:</span><span class="w"> </span><span class="s2">"posthoc/seed_1"</span><span class="p">}</span>
+</pre></div>
+</div>
+<p>Optional keys are <code class="docutils literal notranslate"><span class="pre">filename</span></code> and <code class="docutils literal notranslate"><span class="pre">device</span></code>, and <code class="docutils literal notranslate"><span class="pre">config_sha256</span></code>,
+<code class="docutils literal notranslate"><span class="pre">checkpoint_sha256</span></code> and <code class="docutils literal notranslate"><span class="pre">analysis_config_sha256</span></code>, which some collectors
+use (see <a class="reference internal" href="#checkpoint-collectors"><span class="std std-ref">Collecting results</span></a>). Collectors copy every key into their
+tables as a <code class="docutils literal notranslate"><span class="pre">job_&lt;key&gt;</span></code> column, so further keys (for example <code class="docutils literal notranslate"><span class="pre">seed</span></code> or an
+arm label) become the design columns of the summary step. Relative paths
+resolve against the working directory of the command that reads the file, and
+every path must match the one recorded in the job’s provenance.</p>
+</section>
+</section>
+<section id="running-many-checkpoints-as-a-job-array">
+<h2><a class="toc-backref" href="#id4" role="doc-backlink">Running many checkpoints as a job array</a><a class="headerlink" href="#running-many-checkpoints-as-a-job-array" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">dendritic-submit-checkpoint-analysis</span> <span class="pre">--manifest</span> <span class="pre">manifest.yaml</span></code> prepares the
+job files of a set of checkpoints and submits them as one Slurm array, one
+task per checkpoint. Each task runs
+<code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">dendritic_modeling.scripts.analysis.run_checkpoint_analysis_job</span></code>,
+which checks the source checkout and then runs <code class="docutils literal notranslate"><span class="pre">dendritic-analyze-checkpoint</span></code>
+with strict loading.</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">"schema_version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"checkpoint_analysis_manifest_v1"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"noise-robustness"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"output_root"</span><span class="p">:</span><span class="w"> </span><span class="s2">"posthoc"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"analysis_config"</span><span class="p">:</span><span class="w"> </span><span class="s2">"profiles/noise.yaml"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"completion_artifacts"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"noise_perturbation_analysis/final"</span><span class="p">],</span>
+<span class="w">  </span><span class="nt">"jobs"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"seed_0"</span><span class="p">,</span><span class="w"> </span><span class="nt">"config"</span><span class="p">:</span><span class="w"> </span><span class="s2">"runs/seed_0/config.json"</span><span class="p">,</span><span class="w"> </span><span class="nt">"checkpoint"</span><span class="p">:</span><span class="w"> </span><span class="s2">"runs/seed_0/final_model.pt"</span><span class="p">,</span><span class="w"> </span><span class="nt">"seed"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">},</span>
+<span class="w">    </span><span class="p">{</span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"seed_1"</span><span class="p">,</span><span class="w"> </span><span class="nt">"config"</span><span class="p">:</span><span class="w"> </span><span class="s2">"runs/seed_1/config.json"</span><span class="p">,</span><span class="w"> </span><span class="nt">"checkpoint"</span><span class="p">:</span><span class="w"> </span><span class="s2">"runs/seed_1/final_model.pt"</span><span class="p">,</span><span class="w"> </span><span class="nt">"seed"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">}</span>
+<span class="w">  </span><span class="p">],</span>
+<span class="w">  </span><span class="nt">"pilot_job_ids"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"seed_0"</span><span class="p">],</span>
+<span class="w">  </span><span class="nt">"scheduler"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"time"</span><span class="p">:</span><span class="w"> </span><span class="s2">"02:00:00"</span><span class="p">,</span><span class="w"> </span><span class="nt">"cpus_per_task"</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span><span class="w"> </span><span class="nt">"memory"</span><span class="p">:</span><span class="w"> </span><span class="s2">"16G"</span><span class="p">,</span><span class="w"> </span><span class="nt">"gpus"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>Manifest keys (paths are relative to the manifest file, including the paths
+inside a <code class="docutils literal notranslate"><span class="pre">jobs_file</span></code>):</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">schema_version</span></code></dt><dd><p><code class="docutils literal notranslate"><span class="pre">checkpoint_analysis_manifest_v1</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">output_root</span></code> (required)</dt><dd><p>Directory of the job outputs and of the <code class="docutils literal notranslate"><span class="pre">jobs/</span></code> ledger.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">analysis_config</span></code> (required), <code class="docutils literal notranslate"><span class="pre">analysis_config_sha256</span></code></dt><dd><p>The analysis profile of every job, and an optional hash it must match.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">completion_artifacts</span></code> (required)</dt><dd><p>Relative paths, inside a job’s output directory, that mark the job as
+complete together with <code class="docutils literal notranslate"><span class="pre">checkpoint_analysis_provenance.json</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">jobs</span></code> or <code class="docutils literal notranslate"><span class="pre">jobs_file</span></code> (exactly one)</dt><dd><p>The jobs, or a YAML file with <code class="docutils literal notranslate"><span class="pre">schema_version:</span> <span class="pre">checkpoint_analysis_jobs_v1</span></code>
+and a <code class="docutils literal notranslate"><span class="pre">jobs</span></code> list. Every job needs a unique <code class="docutils literal notranslate"><span class="pre">id</span></code>, <code class="docutils literal notranslate"><span class="pre">config</span></code> and
+<code class="docutils literal notranslate"><span class="pre">checkpoint</span></code>; <code class="docutils literal notranslate"><span class="pre">output_dir</span></code> defaults to <code class="docutils literal notranslate"><span class="pre">&lt;output_root&gt;/&lt;id&gt;</span></code>;
+<code class="docutils literal notranslate"><span class="pre">config_sha256</span></code> and <code class="docutils literal notranslate"><span class="pre">checkpoint_sha256</span></code> must match when given. Other
+keys (for example <code class="docutils literal notranslate"><span class="pre">seed</span></code>, <code class="docutils literal notranslate"><span class="pre">filename</span></code> or <code class="docutils literal notranslate"><span class="pre">device</span></code>) are copied into the
+job file.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">repository</span></code>, <code class="docutils literal notranslate"><span class="pre">required_commit</span></code>, <code class="docutils literal notranslate"><span class="pre">require_clean_worktree</span></code></dt><dd><p>Jobs run from a Git checkout of the library: <code class="docutils literal notranslate"><span class="pre">repository</span></code> (default: the
+checkout that contains the imported package) must hold the imported package
+under <code class="docutils literal notranslate"><span class="pre">src/</span></code>. Its HEAD is recorded, must start with <code class="docutils literal notranslate"><span class="pre">required_commit</span></code>
+when that is given, and must match when each task starts; with
+<code class="docutils literal notranslate"><span class="pre">require_clean_worktree</span></code> (default <code class="docutils literal notranslate"><span class="pre">true</span></code>) tracked files must be
+unmodified.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">pilot_job_ids</span></code></dt><dd><p>The jobs that <code class="docutils literal notranslate"><span class="pre">--pilot</span></code> runs.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">name</span></code> (default <code class="docutils literal notranslate"><span class="pre">checkpoint-analysis</span></code>), <code class="docutils literal notranslate"><span class="pre">scheduler</span></code></dt><dd><p>The Slurm job name, and <code class="docutils literal notranslate"><span class="pre">account</span></code>, <code class="docutils literal notranslate"><span class="pre">partition</span></code>, <code class="docutils literal notranslate"><span class="pre">time</span></code>
+(<code class="docutils literal notranslate"><span class="pre">06:00:00</span></code>), <code class="docutils literal notranslate"><span class="pre">cpus_per_task</span></code> (8), <code class="docutils literal notranslate"><span class="pre">memory</span></code> (<code class="docutils literal notranslate"><span class="pre">32G</span></code>), <code class="docutils literal notranslate"><span class="pre">gpus</span></code> (0)
+and <code class="docutils literal notranslate"><span class="pre">max_concurrent_jobs</span></code> (a positive integer; default: all pending
+jobs).</p>
+</dd>
+</dl>
+<p>The command writes into <code class="docutils literal notranslate"><span class="pre">&lt;output_root&gt;/jobs/</span></code>: <code class="docutils literal notranslate"><span class="pre">jobs_all.jsonl</span></code> with every
+declared job (a later preparation with different content raises),
+<code class="docutils literal notranslate"><span class="pre">jobs_&lt;label&gt;.jsonl</span></code> with the pending jobs and <code class="docutils literal notranslate"><span class="pre">submission_&lt;label&gt;.json</span></code>
+with the hashes of the manifest, job files and source checkout. The label is
+<code class="docutils literal notranslate"><span class="pre">full</span></code> or <code class="docutils literal notranslate"><span class="pre">pilot</span></code>, with <code class="docutils literal notranslate"><span class="pre">_retry_001</span></code>, <code class="docutils literal notranslate"><span class="pre">_retry_002</span></code>, … for later
+submissions. Jobs whose provenance file and completion artifacts exist are
+skipped unless <code class="docutils literal notranslate"><span class="pre">--rerun</span></code> is given. <code class="docutils literal notranslate"><span class="pre">--generate-only</span></code> writes the files and
+stops before submitting. <code class="docutils literal notranslate"><span class="pre">--account</span></code>, <code class="docutils literal notranslate"><span class="pre">--partition</span></code> and
+<code class="docutils literal notranslate"><span class="pre">--max-concurrent</span></code> override the manifest. Submission needs an account and a
+partition; if a scheduler policy file lists approved pairs
+(<code class="docutils literal notranslate"><span class="pre">$DENDRITIC_SCHEDULER_PROFILES</span></code>, or
+<code class="docutils literal notranslate"><span class="pre">$XDG_CONFIG_HOME/dendritic_modeling/scheduler_profiles.yaml</span></code>; <code class="docutils literal notranslate"><span class="pre">none</span></code>
+disables it), the pair must be one of them. <code class="docutils literal notranslate"><span class="pre">--max-concurrent</span></code> must be a
+positive integer. These settings are checked before the command writes any
+file, so a submission that fails them leaves no ledger behind.</p>
+</section>
+<section id="collecting-results">
+<span id="checkpoint-collectors"></span><h2><a class="toc-backref" href="#id5" role="doc-backlink">Collecting results</a><a class="headerlink" href="#collecting-results" title="Link to this heading"></a></h2>
+<p>A collector reads the job file of an array, checks every job and writes
+tables with one row per checkpoint (and per record within it). For every job
+it checks the provenance written by <code class="docutils literal notranslate"><span class="pre">dendritic-analyze-checkpoint</span></code>: its
+<code class="docutils literal notranslate"><span class="pre">schema_version</span></code> (<code class="docutils literal notranslate"><span class="pre">checkpoint_analysis_run_v1</span></code>), strict checkpoint loading
+without missing or unexpected keys, the recorded paths, the input hashes, and
+that the analyzers it reads were enabled.
+Every collector except <code class="docutils literal notranslate"><span class="pre">dendritic-collect-poisson-transfer</span></code> (whose runs
+record no analysis status) also rejects a run whose status record shows that
+an analyzer it collects did not complete: the pass of the run’s
+<code class="docutils literal notranslate"><span class="pre">analysis_status.json</span></code> named by the provenance <code class="docutils literal notranslate"><span class="pre">filename</span></code> (<code class="docutils literal notranslate"><span class="pre">final</span></code> by
+default), or else the <code class="docutils literal notranslate"><span class="pre">analysis_status</span></code> copy in the provenance (see
+<a class="reference internal" href="analysis.html#analysis-status"><span class="std std-ref">Completion status</span></a>). Runs written before status records existed have
+neither and are collected as before. With <code class="docutils literal notranslate"><span class="pre">allow_incomplete</span></code> such a run is
+listed with the skipped jobs instead. A collector writes
+<code class="docutils literal notranslate"><span class="pre">collection_provenance.json</span></code> with the hashes of its inputs and outputs, and
+performs no aggregation across checkpoints.</p>
+<p>Most collectors take either <code class="docutils literal notranslate"><span class="pre">--config</span> <span class="pre">collection.yaml</span></code> or the explicit
+options (<code class="docutils literal notranslate"><span class="pre">--jobs</span></code>, which may be repeated, <code class="docutils literal notranslate"><span class="pre">--output-dir</span></code>,
+<code class="docutils literal notranslate"><span class="pre">--expected-count</span></code>, …), not both. A collection configuration names its
+schema and holds the same settings; relative paths in it resolve against the
+configuration file:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">"schema_version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"path_matched_intervention_collection_config_v1"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"jobs"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"jobs/jobs_all.jsonl"</span><span class="p">],</span>
+<span class="w">  </span><span class="nt">"output_dir"</span><span class="p">:</span><span class="w"> </span><span class="s2">"collected/interventions"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"expected_count"</span><span class="p">:</span><span class="w"> </span><span class="mi">30</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"expected_support_hash"</span><span class="p">:</span><span class="w"> </span><span class="s2">"&lt;selected_index_supports_sha256 of the analysis&gt;"</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>Common settings:</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">expected_count</span></code></dt><dd><p>The number of declared jobs the collection must contain.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">allow_incomplete</span></code></dt><dd><p>(<code class="docutils literal notranslate"><span class="pre">dendritic-collect-representations</span></code>, <code class="docutils literal notranslate"><span class="pre">-path-interventions</span></code>,
+<code class="docutils literal notranslate"><span class="pre">-path-information</span></code>, <code class="docutils literal notranslate"><span class="pre">-branch-sensitivities</span></code>) Collect the finished jobs
+and list the missing or incompletely recorded ones instead of failing.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">input_hash_validation</span></code></dt><dd><p>(<code class="docutils literal notranslate"><span class="pre">dendritic-collect-checkpoint-analysis</span></code>, <code class="docutils literal notranslate"><span class="pre">-perturbation-response</span></code>,
+<code class="docutils literal notranslate"><span class="pre">-gain-load-response</span></code>, <code class="docutils literal notranslate"><span class="pre">-source-tuning</span></code>,
+<code class="docutils literal notranslate"><span class="pre">-input-region-interventions</span></code>) <code class="docutils literal notranslate"><span class="pre">rehash</span></code> (default) hashes the input
+files again and compares them with the provenance;
+<code class="docutils literal notranslate"><span class="pre">recorded_hash_chain</span></code> compares the <code class="docutils literal notranslate"><span class="pre">*_sha256</span></code> values of the job file
+(as written by <code class="docutils literal notranslate"><span class="pre">dendritic-submit-checkpoint-analysis</span></code>) with the
+provenance without reading the files again. The other collectors always
+rehash.</p>
+</dd>
+</dl>
+<p>The collectors:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 30.0%" />
+<col style="width: 22.0%" />
+<col style="width: 48.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Command and configuration schema</p></th>
+<th class="head"><p>Reads</p></th>
+<th class="head"><p>Main outputs</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dendritic-collect-checkpoint-analysis</span></code>
+(<code class="docutils literal notranslate"><span class="pre">checkpoint_analysis_collection_config_v1</span></code>)</p></td>
+<td><p>any analyzer</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">checkpoint_scalar_metrics.csv</span></code> (one row per numeric value),
+<code class="docutils literal notranslate"><span class="pre">checkpoint_analysis_files.csv</span></code>, <code class="docutils literal notranslate"><span class="pre">checkpoint_analysis_records.jsonl</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">dendritic-collect-representations</span></code>
+(<code class="docutils literal notranslate"><span class="pre">representation_accessibility_collection_config_v1</span></code>)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">representation_accessibility</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">checkpoint_summary.csv</span></code>, probe, information, subset-decoding and
+geometry records with within-checkpoint technical summaries</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dendritic-collect-path-interventions</span></code>
+(<code class="docutils literal notranslate"><span class="pre">path_matched_intervention_collection_config_v1</span></code>)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">path_matched_intervention</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">support_draw_records.csv</span></code> (one row per support draw),
+<code class="docutils literal notranslate"><span class="pre">checkpoint_records.csv</span></code> (draws averaged within each checkpoint),
+<code class="docutils literal notranslate"><span class="pre">checkpoint_summary.csv</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">dendritic-collect-path-information</span></code>
+(<code class="docutils literal notranslate"><span class="pre">path_matched_information_collection_config_v1</span></code>)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">path_matched_information</span></code></p></td>
+<td><p>the same three tables</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dendritic-collect-branch-sensitivities</span></code>
+(<code class="docutils literal notranslate"><span class="pre">branch_local_sensitivity_collection_config_v1</span></code>; <code class="docutils literal notranslate"><span class="pre">--config</span></code>
+only)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">branch_local_sensitivity</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">checkpoint_records.csv</span></code> with integration mode, component and depth
+columns, <code class="docutils literal notranslate"><span class="pre">checkpoint_summary.csv</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">dendritic-collect-local-i-interventions</span></code> (<code class="docutils literal notranslate"><span class="pre">--jobs</span></code>,
+<code class="docutils literal notranslate"><span class="pre">--output-dir</span></code> and <code class="docutils literal notranslate"><span class="pre">--expected-count</span></code>, all required)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">local_inhibitory_population_intervention</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">intervention_records.csv</span></code>, <code class="docutils literal notranslate"><span class="pre">paired_donor_contrasts.csv</span></code>, their
+technical summaries, <code class="docutils literal notranslate"><span class="pre">checkpoint_summary.csv</span></code>; provenance in
+<code class="docutils literal notranslate"><span class="pre">manifest.json</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dendritic-collect-perturbation-response</span></code>
+(<code class="docutils literal notranslate"><span class="pre">perturbation_response_collection_config_v1</span></code>; <code class="docutils literal notranslate"><span class="pre">--config</span></code> only)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">performance</span></code>, <code class="docutils literal notranslate"><span class="pre">noise_perturbation</span></code> and <code class="docutils literal notranslate"><span class="pre">multiplicative_gain</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">checkpoint_perturbation_response.csv</span></code>: one row per checkpoint and
+perturbation level, with clean and perturbed accuracy and
+chance-corrected retention</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">dendritic-collect-gain-load-response</span></code>
+(<code class="docutils literal notranslate"><span class="pre">gain_load_response_collection_config_v1</span></code>; <code class="docutils literal notranslate"><span class="pre">--config</span></code> only)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">gain_load_perturbation</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">gain_load_draws.csv</span></code>, <code class="docutils literal notranslate"><span class="pre">gain_load_checkpoint_response.csv</span></code> (draws
+averaged within each checkpoint), input-statistics and
+branch-sensitivity tables</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dendritic-collect-reactivation</span></code>
+(<code class="docutils literal notranslate"><span class="pre">reactivation_dynamics_collection_config_v1</span></code>)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">reactivation_dynamics</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">checkpoint_modules.csv</span></code> (one row per gate module, with network
+layer, population and soma-relative depth),
+<code class="docutils literal notranslate"><span class="pre">checkpoint_metric_records.csv</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">dendritic-collect-synaptic-support</span></code>
+(<code class="docutils literal notranslate"><span class="pre">synaptic_source_support_collection_config_v1</span></code>)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">weight</span></code> with <code class="docutils literal notranslate"><span class="pre">compute_source_support</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">checkpoint_support_records.csv</span></code>, <code class="docutils literal notranslate"><span class="pre">checkpoint_support_summary.csv</span></code>
+(equal-soma means), alignment records and summaries</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dendritic-collect-source-tuning</span></code>
+(<code class="docutils literal notranslate"><span class="pre">source_tuning_support_collection_config_v1</span></code>)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">source_tuning_support</span></code></p></td>
+<td><p>preference and alignment records, and an equal-soma checkpoint summary
+per source block</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">dendritic-collect-input-region-interventions</span></code>
+(<code class="docutils literal notranslate"><span class="pre">input_region_intervention_collection_config_v1</span></code>)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">input_region_intervention</span></code></p></td>
+<td><p>classification, aggregate-response, per-class and assigned-soma
+response tables</p></td>
+</tr>
+</tbody>
+</table>
+<p>Notes on individual collectors:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">dendritic-collect-checkpoint-analysis</span></code> reads <code class="docutils literal notranslate"><span class="pre">&lt;directory&gt;/final.json</span></code>,
+<code class="docutils literal notranslate"><span class="pre">&lt;directory&gt;/final</span></code> or <code class="docutils literal notranslate"><span class="pre">&lt;directory&gt;/epochs/final.json</span></code> of every
+analyzer named with <code class="docutils literal notranslate"><span class="pre">--require-analyzer</span></code> (<code class="docutils literal notranslate"><span class="pre">required_analyzers</span></code>), or of
+every enabled analyzer when none is named. <code class="docutils literal notranslate"><span class="pre">--metric-pattern</span></code>
+(<code class="docutils literal notranslate"><span class="pre">metric_patterns</span></code>) keeps only the numeric values whose dotted path (for
+example <code class="docutils literal notranslate"><span class="pre">accuracy.test</span></code> or <code class="docutils literal notranslate"><span class="pre">gaussian.0.1.accuracy</span></code>) matches a
+shell-style pattern such as <code class="docutils literal notranslate"><span class="pre">*accuracy*</span></code>; a pattern list that selects
+nothing from one of the analyzers raises. <code class="docutils literal notranslate"><span class="pre">[</span></code> is a pattern character:
+write <code class="docutils literal notranslate"><span class="pre">records[[]0]</span></code> to match <code class="docutils literal notranslate"><span class="pre">records[0]</span></code>. <code class="docutils literal notranslate"><span class="pre">--omit-full-results</span></code>
+(<code class="docutils literal notranslate"><span class="pre">include_full_results:</span> <span class="pre">false</span></code>) leaves the complete result dictionaries
+out of the JSON Lines file, and <code class="docutils literal notranslate"><span class="pre">--derive-information-null-excess</span></code> adds
+the observed-minus-null value of every information term with a <code class="docutils literal notranslate"><span class="pre">*_null</span></code>
+counterpart.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">dendritic-collect-path-interventions</span></code> and
+<code class="docutils literal notranslate"><span class="pre">dendritic-collect-path-information</span></code> require identical support plans
+across checkpoints, and <code class="docutils literal notranslate"><span class="pre">expected_support_hash</span></code> pins the selected
+supports.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">dendritic-collect-perturbation-response</span></code> and
+<code class="docutils literal notranslate"><span class="pre">dendritic-collect-gain-load-response</span></code> require <code class="docutils literal notranslate"><span class="pre">chance_accuracy</span></code> and a
+clean test accuracy above it, and report the chance-corrected retention
+<span class="math notranslate nohighlight">\(R = (A_{\mathrm{perturbed}} - A_{\mathrm{chance}}) /
+(A_{\mathrm{clean}} - A_{\mathrm{chance}})\)</span>. The perturbation collector also reads
+<code class="docutils literal notranslate"><span class="pre">analysis.noise_perturbation.params.n_samples</span></code> from the analysis profile,
+so that profile must have an <code class="docutils literal notranslate"><span class="pre">analysis:</span></code> root and set <code class="docutils literal notranslate"><span class="pre">n_samples</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">dendritic-collect-reactivation</span></code> with <code class="docutils literal notranslate"><span class="pre">--require-structured-coordinates</span></code>
+requires the module names of <code class="docutils literal notranslate"><span class="pre">population_network</span></code> layers.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">dendritic-collect-source-tuning</span></code> reads
+<code class="docutils literal notranslate"><span class="pre">source_tuning_support_analysis/final.json</span></code> unless
+<code class="docutils literal notranslate"><span class="pre">--result-subdirectory</span></code> or <code class="docutils literal notranslate"><span class="pre">--result-filename</span></code> say otherwise.</p></li>
+<li><p>The generic, perturbation, gain-load, reactivation, synaptic-support and
+input-region collectors read the results named <code class="docutils literal notranslate"><span class="pre">final</span></code>; the other
+collectors read the job’s <code class="docutils literal notranslate"><span class="pre">filename</span></code>.</p></li>
+</ul>
+</section>
+<section id="summaries-across-checkpoints">
+<h2><a class="toc-backref" href="#id6" role="doc-backlink">Summaries across checkpoints</a><a class="headerlink" href="#summaries-across-checkpoints" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">dendritic-summarize-checkpoint-metrics</span> <span class="pre">--config</span> <span class="pre">summary.yaml</span></code> reads one
+collected table and reports, for each group of rows, the mean over independent
+experimental units (normally trained checkpoints) with a percentile-bootstrap
+interval, and optional paired contrasts between arms. <code class="docutils literal notranslate"><span class="pre">--output-dir</span></code>
+overrides the configuration’s <code class="docutils literal notranslate"><span class="pre">output_dir</span></code>.</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 28.0%" />
+<col style="width: 72.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Key</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">schema_version</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">checkpoint_metric_summary_v1</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">input</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">path</span></code> of the CSV table (relative to the configuration file) and an
+optional <code class="docutils literal notranslate"><span class="pre">sha256</span></code> it must match.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">unit_columns</span></code> (required)</p></td>
+<td><p>Columns that identify one experimental unit; a unit may appear only
+once per group.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">group_by</span></code></p></td>
+<td><p>Columns that define the summary groups (default: one group).</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">value_column</span></code></p></td>
+<td><p>The value to summarize (default <code class="docutils literal notranslate"><span class="pre">value</span></code>).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">derived_columns</span></code></p></td>
+<td><p>Added columns, computed in order before filtering:
+<code class="docutils literal notranslate"><span class="pre">{name:</span> <span class="pre">{operation,</span> <span class="pre">columns}}</span></code> with <code class="docutils literal notranslate"><span class="pre">sum</span></code> (any number of columns),
+<code class="docutils literal notranslate"><span class="pre">difference</span></code>, <code class="docutils literal notranslate"><span class="pre">ratio</span></code> (zero denominators raise) or <code class="docutils literal notranslate"><span class="pre">equal</span></code> (two
+columns each).</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">filters</span></code>, <code class="docutils literal notranslate"><span class="pre">regex_filters</span></code>, <code class="docutils literal notranslate"><span class="pre">any_of_filters</span></code></p></td>
+<td><p>Row selection: column values (a value or a list), full-match regular
+expressions, and a list of alternative <code class="docutils literal notranslate"><span class="pre">filters</span></code> mappings. An empty
+selection raises.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">expected_units_per_group</span></code></p></td>
+<td><p>The number of units every group must have.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">bootstrap</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">draws</span></code> (10000), <code class="docutils literal notranslate"><span class="pre">seed</span></code> (0) and <code class="docutils literal notranslate"><span class="pre">confidence</span></code> (0.95) of the group
+intervals.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">paired_comparisons</span></code></p></td>
+<td><p>A list of paired contrasts (below).</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">output_dir</span></code></p></td>
+<td><p>Output directory (relative to the configuration file).</p></td>
+</tr>
+</tbody>
+</table>
+<p>Example (unknown keys are ignored):</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">"schema_version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"checkpoint_metric_summary_v1"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"input"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"path"</span><span class="p">:</span><span class="w"> </span><span class="s2">"collected/perturbation/checkpoint_perturbation_response.csv"</span><span class="p">},</span>
+<span class="w">  </span><span class="nt">"unit_columns"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"job_seed"</span><span class="p">],</span>
+<span class="w">  </span><span class="nt">"group_by"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"job_arm"</span><span class="p">,</span><span class="w"> </span><span class="s2">"perturbation"</span><span class="p">,</span><span class="w"> </span><span class="s2">"perturbation_level"</span><span class="p">],</span>
+<span class="w">  </span><span class="nt">"value_column"</span><span class="p">:</span><span class="w"> </span><span class="s2">"retention_above_chance"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"filters"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"perturbation"</span><span class="p">:</span><span class="w"> </span><span class="s2">"gaussian"</span><span class="p">},</span>
+<span class="w">  </span><span class="nt">"expected_units_per_group"</span><span class="p">:</span><span class="w"> </span><span class="mi">5</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"bootstrap"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"draws"</span><span class="p">:</span><span class="w"> </span><span class="mi">10000</span><span class="p">,</span><span class="w"> </span><span class="nt">"seed"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nt">"confidence"</span><span class="p">:</span><span class="w"> </span><span class="mf">0.95</span><span class="p">},</span>
+<span class="w">  </span><span class="nt">"paired_comparisons"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"shunting_minus_additive"</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"arm_column"</span><span class="p">:</span><span class="w"> </span><span class="s2">"job_arm"</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"reference"</span><span class="p">:</span><span class="w"> </span><span class="s2">"additive"</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"comparison"</span><span class="p">:</span><span class="w"> </span><span class="s2">"shunting"</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"pair_columns"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"job_seed"</span><span class="p">],</span>
+<span class="w">      </span><span class="nt">"stratum_columns"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"perturbation_level"</span><span class="p">],</span>
+<span class="w">      </span><span class="nt">"contrast_operation"</span><span class="p">:</span><span class="w"> </span><span class="s2">"difference"</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">],</span>
+<span class="w">  </span><span class="nt">"output_dir"</span><span class="p">:</span><span class="w"> </span><span class="s2">"summary/perturbation"</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>Outputs: <code class="docutils literal notranslate"><span class="pre">checkpoint_units.csv</span></code> (the selected rows, derived columns
+included), <code class="docutils literal notranslate"><span class="pre">group_summary.csv</span></code> (per group: mean, interval, standard
+deviation and unit count), <code class="docutils literal notranslate"><span class="pre">paired_units.csv</span></code>, <code class="docutils literal notranslate"><span class="pre">paired_summary.csv</span></code> and
+<code class="docutils literal notranslate"><span class="pre">summary_provenance.json</span></code> (configuration, input and output hashes, and the
+source identity).</p>
+<section id="paired-comparisons">
+<span id="id1"></span><h3><a class="toc-backref" href="#id7" role="doc-backlink">Paired comparisons</a><a class="headerlink" href="#paired-comparisons" title="Link to this heading"></a></h3>
+<p>An entry of <code class="docutils literal notranslate"><span class="pre">paired_comparisons</span></code> compares two values of <code class="docutils literal notranslate"><span class="pre">arm_column</span></code>
+(<code class="docutils literal notranslate"><span class="pre">reference</span></code> and <code class="docutils literal notranslate"><span class="pre">comparison</span></code>) within each experimental unit defined by
+<code class="docutils literal notranslate"><span class="pre">pair_columns</span></code>, and reports a bootstrap interval of the mean within-unit
+contrast, separately for each combination of <code class="docutils literal notranslate"><span class="pre">stratum_columns</span></code>. Units
+missing one arm, and duplicate rows, raise. Further keys: <code class="docutils literal notranslate"><span class="pre">name</span></code> (default
+<code class="docutils literal notranslate"><span class="pre">contrast_&lt;index&gt;</span></code>), <code class="docutils literal notranslate"><span class="pre">value_column</span></code> (default: the top-level one),
+<code class="docutils literal notranslate"><span class="pre">filters</span></code>, <code class="docutils literal notranslate"><span class="pre">regex_filters</span></code> and <code class="docutils literal notranslate"><span class="pre">any_of_filters</span></code> (applied to the selected
+rows), <code class="docutils literal notranslate"><span class="pre">expected_pairs_per_stratum</span></code>, <code class="docutils literal notranslate"><span class="pre">draws</span></code> and <code class="docutils literal notranslate"><span class="pre">bootstrap_seed</span></code>
+(default: the <code class="docutils literal notranslate"><span class="pre">bootstrap</span></code> values), and <code class="docutils literal notranslate"><span class="pre">arm_sets</span></code> with
+<code class="docutils literal notranslate"><span class="pre">arm_set_reduction:</span> <span class="pre">mean</span></code>, which averages several arms within each unit
+before pairing (<code class="docutils literal notranslate"><span class="pre">reference</span></code> and <code class="docutils literal notranslate"><span class="pre">comparison</span></code> then name sets). The paired
+intervals use a confidence of 0.95 whatever <code class="docutils literal notranslate"><span class="pre">bootstrap.confidence</span></code> says.</p>
+<p><code class="docutils literal notranslate"><span class="pre">contrast_operation</span></code> is <code class="docutils literal notranslate"><span class="pre">difference</span></code> (default), <code class="docutils literal notranslate"><span class="pre">comparison</span> <span class="pre">-</span>
+<span class="pre">reference</span></code>, or <code class="docutils literal notranslate"><span class="pre">symmetric_difference</span></code>,
+<code class="docutils literal notranslate"><span class="pre">(comparison</span> <span class="pre">-</span> <span class="pre">reference)</span> <span class="pre">/</span> <span class="pre">(comparison</span> <span class="pre">+</span> <span class="pre">reference)</span></code>, which raises when a
+denominator is zero.</p>
+<p><code class="docutils literal notranslate"><span class="pre">protocol_version</span></code> selects how the bootstrap seed identity and the output
+columns are formed; it never changes the contrast or the observations.
+<code class="docutils literal notranslate"><span class="pre">legacy_difference</span></code> and <code class="docutils literal notranslate"><span class="pre">legacy_grouped</span></code> reproduce summaries made with
+the older seed identities:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 20.0%" />
+<col style="width: 30.0%" />
+<col style="width: 22.0%" />
+<col style="width: 28.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><code class="docutils literal notranslate"><span class="pre">protocol_version</span></code></p></th>
+<th class="head"><p>Bootstrap seed identity</p></th>
+<th class="head"><p><code class="docutils literal notranslate"><span class="pre">symmetric_difference</span></code></p></th>
+<th class="head"><p>Output columns</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">current</span></code> (default)</p></td>
+<td><p>includes the operation</p></td>
+<td><p>accepted</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">delta__&lt;comparison&gt;_minus_&lt;reference&gt;</span></code>; the summary records
+<code class="docutils literal notranslate"><span class="pre">contrast_operation</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">legacy_difference</span></code></p></td>
+<td><p>omits the operation</p></td>
+<td><p>rejected</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">delta__...</span></code>; no <code class="docutils literal notranslate"><span class="pre">contrast_operation</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">legacy_grouped</span></code></p></td>
+<td><p>omits the operation for <code class="docutils literal notranslate"><span class="pre">difference</span></code>, includes it for
+<code class="docutils literal notranslate"><span class="pre">symmetric_difference</span></code></p></td>
+<td><p>accepted</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">symmetric_delta__...</span></code> for <code class="docutils literal notranslate"><span class="pre">symmetric_difference</span></code>, <code class="docutils literal notranslate"><span class="pre">delta__...</span></code>
+otherwise; records <code class="docutils literal notranslate"><span class="pre">contrast_operation</span></code></p></td>
+</tr>
+</tbody>
+</table>
+<p>Choose a non-default protocol only to reproduce an existing summary, and only
+from an identified source record with unchanged inputs, never to obtain a
+different interval. The bootstrap seed of each group is derived from the
+<code class="docutils literal notranslate"><span class="pre">repr</span></code> of its key values, which differs between NumPy 1.x and 2.x (for
+example <code class="docutils literal notranslate"><span class="pre">1</span></code> and <code class="docutils literal notranslate"><span class="pre">np.int64(1)</span></code>); to reproduce a summary exactly, use the
+NumPy and pandas versions it was made with, together with the library
+version. The configuration’s path and hash are recorded in
+<code class="docutils literal notranslate"><span class="pre">summary_provenance.json</span></code>; keep the configuration file with the results.</p>
+<p>The same contrasts are available from Python as
+<code class="docutils literal notranslate"><span class="pre">dendritic_modeling.scripts.sweeps.paired_comparison.paired_arm_comparison</span></code>
+(with the keywords <code class="docutils literal notranslate"><span class="pre">contrast_operation</span></code> and <code class="docutils literal notranslate"><span class="pre">protocol_version</span></code>) and, for
+the <code class="docutils literal notranslate"><span class="pre">performance</span></code> results of a sweep, from the command line:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>dendritic_modeling.scripts.sweeps.paired_comparison<span class="w"> </span>sweep_root<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--output<span class="w"> </span>paired_results<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--arm-column<span class="w"> </span>use_shunting<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--reference<span class="w"> </span>False<span class="w"> </span>--comparison<span class="w"> </span>True<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--metric<span class="w"> </span>test_accuracy<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--pair-column<span class="w"> </span>seed<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--contrast-operation<span class="w"> </span>difference<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--protocol-version<span class="w"> </span>current
+</pre></div>
+</div>
+<p>It collects every configuration of the sweep, one row per configuration, with
+the parameters the sweep collector extracts (for example <code class="docutils literal notranslate"><span class="pre">use_shunting</span></code> and
+<code class="docutils literal notranslate"><span class="pre">seed</span></code>, from <code class="docutils literal notranslate"><span class="pre">experiment.seed</span></code>) and the <code class="docutils literal notranslate"><span class="pre">performance</span></code> results as
+<code class="docutils literal notranslate"><span class="pre">&lt;split&gt;_&lt;metric&gt;</span></code> columns (for example <code class="docutils literal notranslate"><span class="pre">test_accuracy</span></code>); arm values are
+compared as text. It writes <code class="docutils literal notranslate"><span class="pre">paired_units.csv</span></code> and <code class="docutils literal notranslate"><span class="pre">paired_summary.json</span></code>.</p>
+</section>
+</section>
+<section id="selecting-epochs-on-validation-metrics">
+<h2><a class="toc-backref" href="#id8" role="doc-backlink">Selecting epochs on validation metrics</a><a class="headerlink" href="#selecting-epochs-on-validation-metrics" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">dendritic-select-validation-epochs</span> <span class="pre">--config</span> <span class="pre">selection.yaml</span></code> compares
+checkpoint-selection rules without selecting on held-out data. It reads the
+long <code class="docutils literal notranslate"><span class="pre">training_history.csv</span></code> and <code class="docutils literal notranslate"><span class="pre">checkpoint_units.csv</span></code> tables written by
+<code class="docutils literal notranslate"><span class="pre">dendritic-collect-sweep-metrics</span></code> (see <a class="reference internal" href="sweeps.html"><span class="doc">Parameter sweeps</span></a>). For every trained
+checkpoint, each selector picks one epoch by a validation metric
+(<code class="docutils literal notranslate"><span class="pre">metric</span></code> must start with <code class="docutils literal notranslate"><span class="pre">valid_</span></code>; <code class="docutils literal notranslate"><span class="pre">objective</span></code> <code class="docutils literal notranslate"><span class="pre">min</span></code> or <code class="docutils literal notranslate"><span class="pre">max</span></code>;
+<code class="docutils literal notranslate"><span class="pre">tie_break</span></code> <code class="docutils literal notranslate"><span class="pre">earliest</span></code> or <code class="docutils literal notranslate"><span class="pre">latest</span></code>), and the declared
+<code class="docutils literal notranslate"><span class="pre">report_metrics</span></code>, test metrics included, are reported at that epoch.</p>
+<p>The configuration (<code class="docutils literal notranslate"><span class="pre">schema_version:</span> <span class="pre">validation_epoch_selection_v1</span></code>) declares
+the two input tables (<code class="docutils literal notranslate"><span class="pre">history</span></code> and <code class="docutils literal notranslate"><span class="pre">units</span></code>, each with <code class="docutils literal notranslate"><span class="pre">path</span></code> and an
+optional <code class="docutils literal notranslate"><span class="pre">sha256</span></code>), <code class="docutils literal notranslate"><span class="pre">join_columns</span></code>, <code class="docutils literal notranslate"><span class="pre">metadata_columns</span></code> to carry forward,
+<code class="docutils literal notranslate"><span class="pre">expected_unit_count</span></code>, <code class="docutils literal notranslate"><span class="pre">expected_epochs_per_unit</span></code> (every unit needs
+epochs 1 to N), the column names (<code class="docutils literal notranslate"><span class="pre">epoch_column</span></code>, <code class="docutils literal notranslate"><span class="pre">metric_column</span></code>,
+<code class="docutils literal notranslate"><span class="pre">value_column</span></code>), <code class="docutils literal notranslate"><span class="pre">selectors</span></code>, <code class="docutils literal notranslate"><span class="pre">report_metrics</span></code> and <code class="docutils literal notranslate"><span class="pre">output_dir</span></code>.
+Unknown keys raise. <code class="docutils literal notranslate"><span class="pre">configs/examples/validation_epoch_selection.yaml</span></code> is a
+complete example.</p>
+<p>Outputs: <code class="docutils literal notranslate"><span class="pre">selected_epochs.csv</span></code> (one row per checkpoint and selector),
+<code class="docutils literal notranslate"><span class="pre">selected_epoch_metrics.csv</span></code> (long form, which
+<code class="docutils literal notranslate"><span class="pre">dendritic-summarize-checkpoint-metrics</span></code> reads for paired comparisons
+between selection rules) and <code class="docutils literal notranslate"><span class="pre">selection_provenance.json</span></code> (input and output
+hashes).</p>
+</section>
+<section id="poisson-exposure-transfer">
+<h2><a class="toc-backref" href="#id9" role="doc-backlink">Poisson exposure transfer</a><a class="headerlink" href="#poisson-exposure-transfer" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">dendritic-poisson-exposure-transfer</span></code> evaluates one checkpoint trained on
+<code class="docutils literal notranslate"><span class="pre">poisson_generator</span></code> data (see <a class="reference internal" href="datasets.html#dataset-poisson"><span class="std std-ref">Poisson generator</span></a>) at several stimulus
+durations. The <code class="docutils literal notranslate"><span class="pre">data.dataset_params.poisson_generator</span></code> block of its training
+configuration is read as the loader read it, with the loader defaults for the
+keys it leaves out. The training data must have had Poisson sampling
+(<code class="docutils literal notranslate"><span class="pre">poisson_sampling</span></code>, default <code class="docutils literal notranslate"><span class="pre">true</span></code>), a finite positive
+<code class="docutils literal notranslate"><span class="pre">stimulus_duration</span></code> (default <code class="docutils literal notranslate"><span class="pre">1.0</span></code>) and a multiplicative gain of exactly
+1: <code class="docutils literal notranslate"><span class="pre">multiplicative_gain:</span> <span class="pre">false</span></code>, <code class="docutils literal notranslate"><span class="pre">fixed_gain_factor:</span> <span class="pre">1</span></code>, or no
+<code class="docutils literal notranslate"><span class="pre">max_gain_factor</span></code> and <code class="docutils literal notranslate"><span class="pre">max_gain_tau_ratio</span></code> (or values that give an upper
+bound of 1). Any other gain raises. For each
+duration the command rebuilds the test split (flattened as in training),
+draws <code class="docutils literal notranslate"><span class="pre">draws_per_duration</span></code> Poisson samples with seeds shared by all
+checkpoints, and records the accuracy of each draw.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>dendritic-poisson-exposure-transfer<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--config<span class="w"> </span>run_dir/config.json<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--checkpoint<span class="w"> </span>run_dir/final_model.pt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--transfer-config<span class="w"> </span>transfer.yaml<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--output-dir<span class="w"> </span>transfer/run_0
+</pre></div>
+</div>
+<p>The transfer configuration has no <code class="docutils literal notranslate"><span class="pre">schema_version</span></code> and accepts only these
+keys (defaults): <code class="docutils literal notranslate"><span class="pre">test_durations</span></code> (<code class="docutils literal notranslate"><span class="pre">[0.05,</span> <span class="pre">0.1,</span> <span class="pre">0.3162,</span> <span class="pre">1.0,</span> <span class="pre">3.1623]</span></code>),
+<code class="docutils literal notranslate"><span class="pre">draws_per_duration</span></code> (5), <code class="docutils literal notranslate"><span class="pre">base_draw_seed</span></code> (73000), <code class="docutils literal notranslate"><span class="pre">batch_size</span></code> (256),
+<code class="docutils literal notranslate"><span class="pre">max_samples</span></code> (<code class="docutils literal notranslate"><span class="pre">null</span></code>) and <code class="docutils literal notranslate"><span class="pre">fingerprint_realized_datasets</span></code>
+(<code class="docutils literal notranslate"><span class="pre">false</span></code>). The command writes <code class="docutils literal notranslate"><span class="pre">poisson_exposure_transfer.json</span></code> and
+<code class="docutils literal notranslate"><span class="pre">poisson_exposure_transfer_provenance.json</span></code> besides the run files of
+<code class="docutils literal notranslate"><span class="pre">dendritic-analyze-checkpoint</span></code>.</p>
+<p><code class="docutils literal notranslate"><span class="pre">dendritic-collect-poisson-transfer</span> <span class="pre">--jobs</span> <span class="pre">jobs.jsonl</span> <span class="pre">--output-dir</span> <span class="pre">collected</span>
+<span class="pre">--expected-count</span> <span class="pre">N</span></code> collects such runs. Its job lines hold <code class="docutils literal notranslate"><span class="pre">config</span></code>,
+<code class="docutils literal notranslate"><span class="pre">checkpoint</span></code>, <code class="docutils literal notranslate"><span class="pre">transfer_config</span></code> and <code class="docutils literal notranslate"><span class="pre">output_dir</span></code>; it writes
+<code class="docutils literal notranslate"><span class="pre">draw_records.csv</span></code>, <code class="docutils literal notranslate"><span class="pre">checkpoint_records.csv</span></code> (mean accuracy per duration
+and checkpoint), <code class="docutils literal notranslate"><span class="pre">checkpoint_inventory.csv</span></code> and
+<code class="docutils literal notranslate"><span class="pre">collection_provenance.json</span></code>.</p>
+</section>
+<section id="recurrent-models-by-task-condition">
+<span id="recurrent-condition-analyses"></span><h2><a class="toc-backref" href="#id10" role="doc-backlink">Recurrent models by task condition</a><a class="headerlink" href="#recurrent-models-by-task-condition" title="Link to this heading"></a></h2>
+<p>Four programs analyze a saved recurrent E/I model by task condition, for
+example by the delay of <code class="docutils literal notranslate"><span class="pre">variable_delay_dms</span></code> trials. They are not installed
+as commands; run them as modules with the library importable:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>dendritic_modeling.scripts.analysis.analyze_routing_by_condition<span class="w">      </span>--model_path<span class="w"> </span>run_dir/final_model.pt<span class="w"> </span>--config_path<span class="w"> </span>run_dir/config.json<span class="w">      </span>--output_dir<span class="w"> </span>posthoc/routing<span class="w"> </span>--n_samples<span class="w"> </span><span class="m">2000</span><span class="w"> </span>--n_bins<span class="w"> </span><span class="m">10</span>
+python<span class="w"> </span>-m<span class="w"> </span>dendritic_modeling.scripts.analysis.lesion_analysis<span class="w">      </span>--model_path<span class="w"> </span>run_dir/final_model.pt<span class="w"> </span>--config_path<span class="w"> </span>run_dir/config.json<span class="w">      </span>--output_dir<span class="w"> </span>posthoc/lesion
+python<span class="w"> </span>-m<span class="w"> </span>dendritic_modeling.scripts.analysis.evaluate_ood_delay<span class="w">      </span>--model_path<span class="w"> </span>run_dir/final_model.pt<span class="w"> </span>--config_path<span class="w"> </span>run_dir/config.json<span class="w">      </span>--output_dir<span class="w"> </span>posthoc/ood<span class="w"> </span>--min_delay<span class="w"> </span><span class="m">100</span><span class="w"> </span>--max_delay<span class="w"> </span><span class="m">500</span><span class="w"> </span>--n_samples<span class="w"> </span><span class="m">2000</span>
+python<span class="w"> </span>-m<span class="w"> </span>dendritic_modeling.scripts.analysis.recurrent_inhibitory_structure<span class="w">      </span>--config_path<span class="w"> </span>run_dir/config.json<span class="w"> </span>--checkpoint_path<span class="w"> </span>run_dir/final_model.pt<span class="w">      </span>--output_json<span class="w"> </span>posthoc/inhibition.json<span class="w"> </span>--plot_path<span class="w"> </span>posthoc/inhibition.png
+</pre></div>
+</div>
+<p>The checkpoint is the state dictionary of the whole model, such as the run’s
+<code class="docutils literal notranslate"><span class="pre">final_model.pt</span></code>; the configuration is the run’s <code class="docutils literal notranslate"><span class="pre">config.json</span></code> or its
+training YAML file. The routing and lesion analyses need a core built as a
+recurrent <code class="docutils literal notranslate"><span class="pre">EINetwork</span></code> (<code class="docutils literal notranslate"><span class="pre">unified_ei</span></code> and its aliases, or a structured E/I
+core with recurrent connectivity); the out-of-distribution evaluation takes
+any classifier trained on <code class="docutils literal notranslate"><span class="pre">variable_delay_dms</span></code>. Like
+<code class="docutils literal notranslate"><span class="pre">dendritic-analyze-checkpoint</span></code>, these three rebuild the model and the
+datasets from the configuration with the run’s recorded seeds, load the
+checkpoint strictly, evaluate on <code class="docutils literal notranslate"><span class="pre">--device</span></code> (default <code class="docutils literal notranslate"><span class="pre">cpu</span></code>), and write the
+rebuilt run’s <code class="docutils literal notranslate"><span class="pre">resolved_seeds.json</span></code>, <code class="docutils literal notranslate"><span class="pre">runtime_environment.json</span></code>,
+<code class="docutils literal notranslate"><span class="pre">train.log</span></code> and <code class="docutils literal notranslate"><span class="pre">dendritic_modeling.log</span></code> into <code class="docutils literal notranslate"><span class="pre">--output_dir</span></code> besides
+their results. The <code class="docutils literal notranslate"><span class="pre">--dataset</span></code> option of the routing and lesion analyses is
+not read; the dataset is the one of the configuration.</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 24.0%" />
+<col style="width: 76.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Module</p></th>
+<th class="head"><p>What it computes and writes</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">analyze_routing_by_condition</span></code></p></td>
+<td><p>Runs the first <code class="docutils literal notranslate"><span class="pre">--n_samples</span></code> trials of the test split with routing
+recording on and takes, at every time step, each excitatory level’s
+share of the summed voltage norms of the levels of <code class="docutils literal notranslate"><span class="pre">--layer_key</span></code>
+(default <code class="docutils literal notranslate"><span class="pre">layer_0</span></code>) and the feedforward fraction of each level’s
+synaptic drive. Trials are binned into <code class="docutils literal notranslate"><span class="pre">--n_bins</span></code> equal-width bins of
+their delay (<code class="docutils literal notranslate"><span class="pre">--condition_key</span> <span class="pre">delay</span></code>, read from the test set’s
+<code class="docutils literal notranslate"><span class="pre">delays</span></code>) or, with another condition key or a dataset without
+delays, of their class label. Writes <code class="docutils literal notranslate"><span class="pre">routing_by_condition.json</span></code>
+(per bin the mean and time-resolved level shares and feedforward
+fractions and the trial count; the Spearman correlation between the most
+distal level’s share and the bin centre, with at least three bins),
+<code class="docutils literal notranslate"><span class="pre">routing_heatmap.png</span></code> (level shares over time and condition) and
+<code class="docutils literal notranslate"><span class="pre">beta_vs_condition.png</span></code> (mean share of each level, labelled with its
+soma-relative depth and time constant). The shares measure activity, not
+causal routing; the lesion analysis tests causal use.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">lesion_analysis</span></code></p></td>
+<td><p>Evaluates the test split intact and with each excitatory dendritic level
+of the first layer silenced in turn, through the population’s level
+mask (the model is restored after each). Writes <code class="docutils literal notranslate"><span class="pre">lesion_results.json</span></code>
+(overall accuracy, and accuracy and trial count per delay bin when the
+test set records delays, for <code class="docutils literal notranslate"><span class="pre">intact</span></code> and every
+<code class="docutils literal notranslate"><span class="pre">Lesion</span> <span class="pre">depth</span> <span class="pre">&lt;d&gt;</span> <span class="pre">(tau=&lt;t&gt;)</span></code>), <code class="docutils literal notranslate"><span class="pre">lesion_accuracy_vs_delay.png</span></code> and,
+with at least four delay bins, <code class="docutils literal notranslate"><span class="pre">lesion_bar_chart.png</span></code> (accuracy drop
+on the shorter and the longer half of the delays).</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">evaluate_ood_delay</span></code></p></td>
+<td><p>Needs a run trained on <code class="docutils literal notranslate"><span class="pre">variable_delay_dms</span></code>. Draws <code class="docutils literal notranslate"><span class="pre">--n_samples</span></code>
+new trials with delays in [<code class="docutils literal notranslate"><span class="pre">--min_delay</span></code>, <code class="docutils literal notranslate"><span class="pre">--max_delay</span></code>] and the
+training trial shape (<code class="docutils literal notranslate"><span class="pre">stimulus_dim</span></code>, <code class="docutils literal notranslate"><span class="pre">stimulus_duration</span></code>,
+<code class="docutils literal notranslate"><span class="pre">probe_duration</span></code>), with a seed derived from the run’s evaluation
+seed unless <code class="docutils literal notranslate"><span class="pre">--seed</span></code> is given, and measures accuracy overall and in
+<code class="docutils literal notranslate"><span class="pre">--n_bins</span></code>
+delay bins. Writes <code class="docutils literal notranslate"><span class="pre">ood_delay_metrics.json</span></code> (delay range, trial
+count, seed, trial shape, overall accuracy and accuracy per bin) and
+<code class="docutils literal notranslate"><span class="pre">ood_delay_accuracy.png</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">recurrent_inhibitory_structure</span></code></p></td>
+<td><p>Reads the configuration and the checkpoint without building the model.
+For layer <code class="docutils literal notranslate"><span class="pre">--layer_idx</span></code> of a unified E/I core whose configuration
+lists <code class="docutils literal notranslate"><span class="pre">model.core.unified_ei.layers</span></code>, it rebuilds the active
+recurrent inhibitory synapses onto each excitatory level from the
+stored <code class="docutils literal notranslate"><span class="pre">branch_rec_inhibition.pre_w</span></code> weights, keeping the
+<code class="docutils literal notranslate"><span class="pre">rec_inhibitory_synapses</span></code> largest weights of every compartment (by
+magnitude with <code class="docutils literal notranslate"><span class="pre">weight_transform:</span> <span class="pre">identity</span></code>) as a standard TopK
+synapse does; a level without these weights in the checkpoint, for
+example with indexed synapses, is reported as absent with no synapses.
+It classifies each inhibitory neuron as <code class="docutils literal notranslate"><span class="pre">soma_only</span></code>,
+<code class="docutils literal notranslate"><span class="pre">dendrite_only</span></code>, <code class="docutils literal notranslate"><span class="pre">mixed</span></code> or <code class="docutils literal notranslate"><span class="pre">none</span></code> by the compartments it
+reaches, counts inhibitory-to-excitatory pairs by relation
+(<code class="docutils literal notranslate"><span class="pre">soma_only</span></code>, <code class="docutils literal notranslate"><span class="pre">dendrite_only</span></code>, <code class="docutils literal notranslate"><span class="pre">both</span></code>, <code class="docutils literal notranslate"><span class="pre">none</span></code>) and marks
+neurons that reach some excitatory neurons only at the soma and others
+only on dendrites as compartment selective. It prints a summary;
+<code class="docutils literal notranslate"><span class="pre">--output_json</span></code> writes the full result with per-level and
+per-neuron records, and <code class="docutils literal notranslate"><span class="pre">--plot_path</span></code> a bar and pie chart of the
+pair relations.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="analyzers.html" class="btn btn-neutral float-left" title="Analyzer reference" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="runs_and_outputs.html" class="btn btn-neutral float-right" title="Runs and outputs" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024-2026, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

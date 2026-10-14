@@ -25,7 +25,7 @@
   <text x="85" y="107" text-anchor="middle" class="small">sensory streams</text>
 
   <rect x="205" y="24" width="250" height="168" class="box soft"/>
-  <text x="330" y="52" text-anchor="middle" class="title">Population Graph</text>
+  <text x="330" y="52" text-anchor="middle" class="title">Population network</text>
   <rect x="230" y="74" width="60" height="38" class="box"/>
   <text x="260" y="98" text-anchor="middle" class="small">Pyr</text>
   <rect x="315" y="74" width="60" height="38" class="box"/>
@@ -50,7 +50,7 @@
 
   <rect x="515" y="210" width="178" height="118" class="box"/>
   <text x="604" y="238" text-anchor="middle" class="title">Dendrites</text>
-  <text x="604" y="264" text-anchor="middle" class="small">TopK branches</text>
+  <text x="604" y="264" text-anchor="middle" class="small">Top-K branches</text>
   <text x="604" y="282" text-anchor="middle" class="small">typed traces</text>
   <text x="604" y="306" text-anchor="middle" class="small">shunting or additive</text>
 

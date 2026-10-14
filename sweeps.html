@@ -6,21 +6,21 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Parameter Sweeps &mdash; Dendritic Modeling Framework v0.1.0</title>
+  <title>Parameter sweeps &mdash; DendriNet v0.2.0</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
 
   
       <script src="_static/jquery.js?v=5d32c60e"></script>
       <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="_static/documentation_options.js?v=01f34227"></script>
+      <script src="_static/documentation_options.js?v=938c9ccc"></script>
       <script src="_static/doctools.js?v=fd6eb6e6"></script>
       <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Distributed Training Guide" href="fsdp_troubleshooting.html" />
-    <link rel="prev" title="Initialization Comparison Policy" href="initialization_comparison_policy.html" /> 
+    <link rel="next" title="Compact checkpoints" href="model_compression.html" />
+    <link rel="prev" title="Runs and outputs" href="runs_and_outputs.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -32,7 +32,7 @@
           
           
           <a href="index.html" class="icon icon-home">
-            Dendritic Modeling Framework
+            DendriNet
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
@@ -42,36 +42,83 @@
   </form>
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
-              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+              <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quick Start</a></li>
-<li class="toctree-l1"><a class="reference internal" href="examples.html">Runnable Config Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Example configurations</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
-<ul class="current">
-<li class="toctree-l1"><a class="reference internal" href="network_architectures.html">Network Architectures</a></li>
-<li class="toctree-l1"><a class="reference internal" href="training_strategies.html">Training Strategies</a></li>
+<p class="caption" role="heading"><span class="caption-text">Building models</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="network_architectures.html">Model architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dendritic_neurons.html">Dendritic neurons</a></li>
+<li class="toctree-l1"><a class="reference internal" href="synapses.html">Synapses and connectivity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="population_networks.html">Population networks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="temporal_dynamics.html">Temporal dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="structured_ei_cores.html">Structured E/I cores</a></li>
+<li class="toctree-l1"><a class="reference internal" href="conductance_options.html">Conductance options</a></li>
+<li class="toctree-l1"><a class="reference internal" href="comparison_models.html">Baselines and comparison models</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Configuration</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="configuration_guide.html">Configuration guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config_reference.html">Annotated reference configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="training_strategies.html">Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="distributed_training.html">Distributed training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="performance_kernels.html">Sparse execution and performance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Data and analysis</span></p>
+<ul>
 <li class="toctree-l1"><a class="reference internal" href="datasets.html">Datasets</a></li>
 <li class="toctree-l1"><a class="reference internal" href="analysis.html">Analysis</a></li>
-<li class="toctree-l1"><a class="reference internal" href="engineering_architecture.html">Engineering Architecture</a></li>
-<li class="toctree-l1"><a class="reference internal" href="configuration_guide.html">Configuration Guide</a></li>
-<li class="toctree-l1"><a class="reference internal" href="transformer_llm_scaling.html">Dendritic LLM Scaling Workflow</a></li>
-<li class="toctree-l1"><a class="reference internal" href="initialization_comparison_policy.html">Initialization Comparison Policy</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Parameter Sweeps</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#quick-start">Quick Start</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#configuration">Configuration</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#sweep-types">Sweep Types</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#analysis-output">Analysis Output</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#examples">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="analyzers.html">Analyzer reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="checkpoint_analysis.html">Analyzing saved checkpoints</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Running experiments</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="runs_and_outputs.html">Runs and outputs</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Parameter sweeps</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#quick-start">Quick start</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sweep-files">Sweep files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#axes">Axes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#learning-rate-axes">Learning-rate axes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#named-variants">Named variants</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#filtering-e-i-pairs">Filtering E/I pairs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#branch-sweeps">Branch sweeps</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#replicate-seeds">Replicate seeds</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#config-count">Config count</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#composing-sweep-files">Composing sweep files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sweep-directories">Sweep directories</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#slurm-settings">Slurm settings</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#multi-gpu-runs">Multi-GPU runs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#generating-and-submitting">Generating and submitting</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#running-without-slurm">Running without Slurm</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="fsdp_troubleshooting.html">Distributed Training Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#source-guard-and-reruns">Source guard and reruns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#analyzing-results">Analyzing results</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#seed-level-comparisons">Seed-level comparisons</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="model_compression.html">Compact checkpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="project_provenance.html">Project provenance</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Reference</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="config_reference.html">Population-Network Reference Config</a></li>
-<li class="toctree-l1"><a class="reference internal" href="available_components.html">Available Components</a></li>
+<li class="toctree-l1"><a class="reference internal" href="available_components.html">Component catalogue</a></li>
+<li class="toctree-l1"><a class="reference internal" href="options_reference.html">Options reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cli_reference.html">Command-line reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api_reference.html">Python API</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="extending.html">Extending DendriNet</a></li>
+<li class="toctree-l1"><a class="reference internal" href="engineering_architecture.html">Engineering architecture</a></li>
 <li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
 </ul>
 
@@ -81,7 +128,7 @@
 
     <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-          <a href="index.html">Dendritic Modeling Framework</a>
+          <a href="index.html">DendriNet</a>
       </nav>
 
       <div class="wy-nav-content">
@@ -89,7 +136,7 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
-      <li class="breadcrumb-item active">Parameter Sweeps</li>
+      <li class="breadcrumb-item active">Parameter sweeps</li>
       <li class="wy-breadcrumbs-aside">
             <a href="_sources/sweeps.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -100,120 +147,946 @@
            <div itemprop="articleBody">
              
   <section id="parameter-sweeps">
-<h1>Parameter Sweeps<a class="headerlink" href="#parameter-sweeps" title="Link to this heading"></a></h1>
-<p>Generate sweep configs, submit jobs, and analyze finished sweep results.</p>
+<span id="sweeps"></span><h1>Parameter sweeps<a class="headerlink" href="#parameter-sweeps" title="Link to this heading"></a></h1>
+<p>A sweep trains one model for each combination of configuration values. A
+<em>sweep file</em> holds a complete training configuration (<code class="docutils literal notranslate"><span class="pre">base_config</span></code>) and the
+configuration paths to vary. <code class="docutils literal notranslate"><span class="pre">dendritic-sweep</span></code> expands the file into one
+training config per condition and replicate seed, loads every generated config
+through the strict config loader, and writes Slurm job scripts.
+<code class="docutils literal notranslate"><span class="pre">dendritic-analyze</span></code> collects the finished runs into tables and plots.</p>
 <section id="quick-start">
-<h2>Quick Start<a class="headerlink" href="#quick-start" title="Link to this heading"></a></h2>
-<p>Run a parameter sweep:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Generate and run a sweep</span>
-python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/sweep_manager.py<span class="w"> </span>--config<span class="w"> </span>configs/sweep_config.yaml
+<h2>Quick start<a class="headerlink" href="#quick-start" title="Link to this heading"></a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Generate the configs and job scripts; nothing is submitted</span>
+dendritic-sweep<span class="w"> </span>--config<span class="w"> </span>configs/sweep_config.yaml<span class="w"> </span>--generate-only
 
-<span class="c1"># Generate configs only (no job submission)</span>
-python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/sweep_manager.py<span class="w"> </span>--config<span class="w"> </span>configs/sweep_config.yaml<span class="w"> </span>--generate-only
+<span class="c1"># Generate and submit (a Slurm account and partition are required)</span>
+dendritic-sweep<span class="w"> </span>--config<span class="w"> </span>configs/sweep_config.yaml<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--slurm-account<span class="w"> </span>ACCOUNT<span class="w"> </span>--slurm-partition<span class="w"> </span>PARTITION
 
-<span class="c1"># Analyze an existing sweep directory</span>
-python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/result_analyzer.py<span class="w"> </span>/path/to/sweep/results
+<span class="c1"># Tabulate and plot the finished runs of one sweep directory</span>
+dendritic-analyze<span class="w"> </span>&lt;sweep_dir&gt;
 </pre></div>
 </div>
+<p><code class="docutils literal notranslate"><span class="pre">configs/sweep_config.yaml</span></code> is the annotated template: a population-network
+MNIST model with axes on the E/I synapse counts and the branching of the
+excitatory population, five replicate seeds each. Keep project-specific sweep
+files in the project’s own repository. The full option lists of the commands
+are in <a class="reference internal" href="cli_reference.html"><span class="doc">Command-line reference</span></a>.</p>
 </section>
-<section id="configuration">
-<h2>Configuration<a class="headerlink" href="#configuration" title="Link to this heading"></a></h2>
-<p>Basic sweep configuration:</p>
-<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">sweep_config</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">model.core.population_network.layers.0.population_defaults.ff_excitatory_synapses</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">20</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">30</span><span class="p p-Indicator">]</span>
-<span class="w">  </span><span class="nt">model.core.population_network.layers.0.population_defaults.ff_inhibitory_synapses</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">10</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">15</span><span class="p p-Indicator">]</span>
-<span class="w">  </span><span class="nt">model.core.population_network.layers.0.populations.1.branch_factors</span><span class="p">:</span>
-<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">3</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">3</span><span class="p p-Indicator">]</span>
-<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">4</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">4</span><span class="p p-Indicator">]</span>
-<span class="w">  </span><span class="nt">training.main.common.param_groups.lr</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0.001</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.01</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.1</span><span class="p p-Indicator">]</span>
-
-<span class="nt">filter_config</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">mode</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;ei-sum&quot;</span>
-<span class="w">  </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">40</span>
-
-<span class="nt">experiment_settings</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">seeds_per_condition</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
-<span class="w">  </span><span class="nt">base_seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">42</span>
-
-<span class="nt">slurm_config</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">account</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&quot;</span>
-<span class="w">  </span><span class="nt">partition</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&quot;</span>
-<span class="w">  </span><span class="nt">time</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;02:00:00&quot;</span>
-<span class="w">  </span><span class="nt">gpus_per_node</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
-</pre></div>
-</div>
-</section>
-<section id="sweep-types">
-<h2>Sweep Types<a class="headerlink" href="#sweep-types" title="Link to this heading"></a></h2>
-<p>Current analyzers cover:</p>
-<ul class="simple">
-<li><p>EI balance studies (excitatory/inhibitory ratios)</p></li>
-<li><p>Population-network branch and morphology sweeps</p></li>
-<li><p>Local-learning sweeps</p></li>
-<li><p>Stochastic-dataset sweeps</p></li>
-<li><p>General parameter sweeps</p></li>
-</ul>
-</section>
-<section id="analysis-output">
-<h2>Analysis Output<a class="headerlink" href="#analysis-output" title="Link to this heading"></a></h2>
-<p>The analyzer writes processed CSVs and plot directories under the sweep output
-tree. For general sweeps it records swept parameters from <code class="docutils literal notranslate"><span class="pre">_sweep_metadata</span></code>
-and creates parameter-effect plots, heatmaps for pairs of swept parameters, and
-correlation plots when performance columns such as <code class="docutils literal notranslate"><span class="pre">valid_acc</span></code> or <code class="docutils literal notranslate"><span class="pre">test_acc</span></code>
-are present. Model-level analyses requested in <code class="docutils literal notranslate"><span class="pre">base_config.analysis</span></code> still
-run inside each training job, so population-network sweeps can also collect
-routing, spike-train, synaptic-activation, and other configured analysis
-artifacts per condition.</p>
-<p>The shared <code class="docutils literal notranslate"><span class="pre">DataCollector</span></code> also exports compact convergence fields from
-<code class="docutils literal notranslate"><span class="pre">training_summary.json</span></code>: best validation epoch/loss, epochs completed, and
-the final train/validation losses. Full epoch histories are deliberately not
-copied into tabular sweep outputs. Compare <code class="docutils literal notranslate"><span class="pre">training_best_epoch</span></code> with the
-declared <code class="docutils literal notranslate"><span class="pre">epochs</span></code> horizon when auditing undertraining; do not select a
-mechanism or condition from test accuracy.</p>
-<p>Typical layout:</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>&lt;sweep_dir&gt;/
-|-- configs/
-|-- results/
-|-- plots/
-`-- jobs/
-</pre></div>
-</div>
-</section>
-<section id="examples">
-<h2>Examples<a class="headerlink" href="#examples" title="Link to this heading"></a></h2>
-<p>Use <code class="docutils literal notranslate"><span class="pre">configs/sweep_config.yaml</span></code> as the maintained generic sweep template.
-Project-specific sweep packs should live outside the main config tree
-(for example under <code class="docutils literal notranslate"><span class="pre">drafts/*/configs/sweeps/</span></code> or local ignored folders).</p>
-<p>Population-network sweep paths use normal dot notation plus numeric list
-indices. For example:</p>
-<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">sweep_config</span><span class="p">:</span>
-<span class="w">  </span><span class="c1"># First layer population defaults</span>
-<span class="w">  </span><span class="nt">model.core.population_network.layers.0.population_defaults.tau_base</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">20.0</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">50.0</span><span class="p p-Indicator">]</span>
-
-<span class="w">  </span><span class="c1"># Excitatory/readout population in the first layer</span>
-<span class="w">  </span><span class="nt">model.core.population_network.layers.0.populations.1.n_neurons</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">64</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">128</span><span class="p p-Indicator">]</span>
-
-<span class="w">  </span><span class="c1"># Fourth connection in the first layer</span>
-<span class="w">  </span><span class="nt">model.core.population_network.layers.0.connections.3.probability</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0.3</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.6</span><span class="p p-Indicator">]</span>
-</pre></div>
-</div>
-<p>Use <code class="docutils literal notranslate"><span class="pre">filter_config.mode:</span> <span class="pre">&quot;ei-sum&quot;</span></code> / <code class="docutils literal notranslate"><span class="pre">&quot;ei-ratio&quot;</span></code> / <code class="docutils literal notranslate"><span class="pre">&quot;e-const&quot;</span></code> /
-<code class="docutils literal notranslate"><span class="pre">&quot;i-const&quot;</span></code> with the population-network E/I synapse paths:</p>
+<section id="sweep-files">
+<h2>Sweep files<a class="headerlink" href="#sweep-files" title="Link to this heading"></a></h2>
+<p>The following sweep file is complete. It trains the three E/I synapse pairs
+with E + I = 50 at two sparse-synapse learning rates, with three replicate
+seeds each: 18 runs:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">sweep_config</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">model.core.population_network.layers.0.population_defaults.ff_excitatory_synapses</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">20</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">30</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">40</span><span class="p p-Indicator">]</span>
 <span class="w">  </span><span class="nt">model.core.population_network.layers.0.population_defaults.ff_inhibitory_synapses</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">10</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">20</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">30</span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="nt">training.main.common.param_groups.topk_lr</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0.001</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.01</span><span class="p p-Indicator">]</span>
+
 <span class="nt">filter_config</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">mode</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;ei-sum&quot;</span>
+<span class="w">  </span><span class="nt">mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ei-sum</span><span class="w">            </span><span class="c1"># keep the E/I pairs with E + I = 50</span>
 <span class="w">  </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span>
+<span class="w">  </span><span class="nt">tolerance</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
+
+<span class="nt">experiment_settings</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">seeds_per_condition</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span><span class="w">  </span><span class="c1"># replicate seeds 0, 1 and 2 for every condition</span>
+<span class="w">  </span><span class="nt">base_seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
+
+<span class="nt">slurm_config</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">time</span><span class="p">:</span><span class="w"> </span><span class="s">"04:00:00"</span>
+<span class="w">  </span><span class="nt">gpus_per_node</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="w">  </span><span class="nt">cpus_per_task</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8</span>
+<span class="w">  </span><span class="nt">mem</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">32G</span>
+
+<span class="nt">base_config</span><span class="p">:</span><span class="w">              </span><span class="c1"># the complete training config that the axes modify</span>
+<span class="w">  </span><span class="nt">data</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">dataset_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mnist</span>
+<span class="w">    </span><span class="nt">processing</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">flatten</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">normalize</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">  </span><span class="nt">model</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">encoder</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">identity</span>
+<span class="w">    </span><span class="nt">core</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">population_network</span>
+<span class="w">      </span><span class="nt">population_network</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">layers</span><span class="p">:</span>
+<span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">layer0</span>
+<span class="w">            </span><span class="nt">readout_population</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">e</span>
+<span class="w">            </span><span class="nt">population_defaults</span><span class="p">:</span>
+<span class="w">              </span><span class="nt">ff_excitatory_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30</span>
+<span class="w">              </span><span class="nt">ff_inhibitory_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">15</span>
+<span class="w">            </span><span class="nt">populations</span><span class="p">:</span>
+<span class="w">              </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">i</span><span class="p p-Indicator">,</span><span class="nt"> polarity</span><span class="p">:</span><span class="w"> </span><span class="nv">inhibitory</span><span class="p p-Indicator">,</span><span class="nt"> n_neurons</span><span class="p">:</span><span class="w"> </span><span class="nv">32</span><span class="p p-Indicator">,</span><span class="nt"> branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">1</span><span class="p p-Indicator">]}</span>
+<span class="w">              </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">e</span><span class="p p-Indicator">,</span><span class="nt"> polarity</span><span class="p">:</span><span class="w"> </span><span class="nv">excitatory</span><span class="p p-Indicator">,</span><span class="nt"> n_neurons</span><span class="p">:</span><span class="w"> </span><span class="nv">128</span><span class="p p-Indicator">,</span><span class="nt"> branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">4</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">4</span><span class="p p-Indicator">]}</span>
+<span class="w">            </span><span class="nt">connections</span><span class="p">:</span>
+<span class="w">              </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">input</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">i</span><span class="p p-Indicator">}</span>
+<span class="w">              </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">input</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">e</span><span class="p p-Indicator">}</span>
+<span class="w">              </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">i</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">e</span><span class="p p-Indicator">}</span>
+<span class="w">    </span><span class="nt">decoder</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MLP</span>
+<span class="w">      </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">hidden_dims</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[]</span>
+<span class="w">        </span><span class="nt">output_dim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<span class="w">  </span><span class="nt">training</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">main</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">common</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
+<span class="w">  </span><span class="nt">analysis</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">performance</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">outputs</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">run_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ei_sum_topk_lr</span>
+<span class="w">    </span><span class="nt">results_dir</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">outputs/sweeps</span>
 </pre></div>
 </div>
-<p>Branch sweeps update excitatory <code class="docutils literal notranslate"><span class="pre">branch_factors</span></code> in population-network
-layers. For heterogeneous layers, use explicit dot-path sweeps when you want to
-change only one named population.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/sweep_manager.py<span class="w"> </span>--help
-python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/result_analyzer.py<span class="w"> </span>--help
+<p><code class="docutils literal notranslate"><span class="pre">analysis.performance.enabled:</span> <span class="pre">true</span></code> makes every run write
+<code class="docutils literal notranslate"><span class="pre">performance/final.json</span></code>, which the analysis and the rerun tool read; the
+performance analyzer is off by default. The top-level sections are:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 30.0%" />
+<col style="width: 70.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Section</p></th>
+<th class="head"><p>Content</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">base_config</span></code></p></td>
+<td><p>Required. The complete training config every run starts from, in the
+schema <code class="docutils literal notranslate"><span class="pre">dendritic-train</span></code> reads.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">sweep_config</span></code></p></td>
+<td><p>Axes: dot paths into <code class="docutils literal notranslate"><span class="pre">base_config</span></code> and their values
+(<a class="reference internal" href="#sweeps-axes"><span class="std std-ref">Axes</span></a>).</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">sweep_variants</span></code></p></td>
+<td><p>Named conditions that change several paths together
+(<a class="reference internal" href="#sweeps-variants"><span class="std std-ref">Named variants</span></a>).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">filter_config</span></code></p></td>
+<td><p>E/I pair filter and branch sweeps (<a class="reference internal" href="#sweeps-ei-filter"><span class="std std-ref">Filtering E/I pairs</span></a>,
+<a class="reference internal" href="#sweeps-branch"><span class="std std-ref">Branch sweeps</span></a>).</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">experiment_settings</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">seeds_per_condition</span></code>, <code class="docutils literal notranslate"><span class="pre">base_seed</span></code> and <code class="docutils literal notranslate"><span class="pre">seed_paths</span></code>
+(<a class="reference internal" href="#sweeps-seeds"><span class="std std-ref">Replicate seeds</span></a>).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">slurm_config</span></code></p></td>
+<td><p>Resources and environment of the jobs (<a class="reference internal" href="#sweeps-slurm"><span class="std std-ref">Slurm settings</span></a>).</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">execution_results_dir</span></code></p></td>
+<td><p>Separate root for the run outputs (<a class="reference internal" href="#sweeps-layout"><span class="std std-ref">Sweep directories</span></a>).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">sweep_contract</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">expected_config_count</span></code>: the number of configs generation must
+produce (<a class="reference internal" href="#sweeps-count"><span class="std std-ref">Config count</span></a>). A top-level <code class="docutils literal notranslate"><span class="pre">expected_config_count</span></code> is
+read when <code class="docutils literal notranslate"><span class="pre">sweep_contract</span></code> does not set one.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">output_dir</span></code>, <code class="docutils literal notranslate"><span class="pre">outputs</span></code></p></td>
+<td><p>Base directory (<code class="docutils literal notranslate"><span class="pre">output_dir</span></code> or <code class="docutils literal notranslate"><span class="pre">outputs.dir</span></code>) and name prefix
+(<code class="docutils literal notranslate"><span class="pre">outputs.run_name</span></code>) of the sweep directory (<a class="reference internal" href="#sweeps-layout"><span class="std std-ref">Sweep directories</span></a>).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">extends</span></code></p></td>
+<td><p>Parent sweep file (<a class="reference internal" href="#sweeps-extends"><span class="std std-ref">Composing sweep files</span></a>).</p></td>
+</tr>
+</tbody>
+</table>
+<p>The sweep must define at least one condition through <code class="docutils literal notranslate"><span class="pre">sweep_config</span></code>,
+<code class="docutils literal notranslate"><span class="pre">sweep_variants</span></code> or a branch sweep. Before any job script is written, every
+generated config is loaded with the strict config loader, so a misspelled axis
+path, or a path into a section that the base core type does not read, fails at
+generation. The loader does not catch an option that the selected component
+ignores (for example an <code class="docutils literal notranslate"><span class="pre">indexed_*</span></code> option under <code class="docutils literal notranslate"><span class="pre">topk_type:</span> <span class="pre">standard</span></code>),
+and generation does not build the models. To check that a generated config
+builds, run it once with <code class="docutils literal notranslate"><span class="pre">--validate-only</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>dendritic-train<span class="w"> </span>&lt;sweep_dir&gt;/configs/unified_config_0.yaml<span class="w"> </span>--validate-only<span class="w"> </span>--output_dir<span class="w"> </span>&lt;scratch_dir&gt;
 </pre></div>
 </div>
+<p>Without <code class="docutils literal notranslate"><span class="pre">--output_dir</span></code> the check writes its files into the sweep’s
+<code class="docutils literal notranslate"><span class="pre">results/config_0/</span></code>.</p>
+<p>The sweep file’s own sections are checked when it loads. An unknown key in
+<code class="docutils literal notranslate"><span class="pre">slurm_config</span></code>, <code class="docutils literal notranslate"><span class="pre">experiment_settings</span></code>, <code class="docutils literal notranslate"><span class="pre">filter_config</span></code> or <code class="docutils literal notranslate"><span class="pre">outputs</span></code>
+raises with the closest valid key, and so does a top-level key that is a
+near-miss of a section name (<code class="docutils literal notranslate"><span class="pre">sweep_confg</span></code>). Other top-level keys are
+reported in a warning and ignored; put study annotations under <code class="docutils literal notranslate"><span class="pre">metadata:</span></code>
+(keys starting with <code class="docutils literal notranslate"><span class="pre">x-</span></code> hold YAML anchors and pass silently). The
+generated training configs are checked by the strict config loader. Check the
+generated config count after editing a sweep file.</p>
+</section>
+<section id="axes">
+<span id="sweeps-axes"></span><h2>Axes<a class="headerlink" href="#axes" title="Link to this heading"></a></h2>
+<p>Each key of <code class="docutils literal notranslate"><span class="pre">sweep_config</span></code> is a dot path into <code class="docutils literal notranslate"><span class="pre">base_config</span></code>. Numeric path
+components index lists: <code class="docutils literal notranslate"><span class="pre">layers.0</span></code> is the first layer of
+<code class="docutils literal notranslate"><span class="pre">model.core.population_network.layers</span></code> and <code class="docutils literal notranslate"><span class="pre">populations.1</span></code> the second
+population of that layer. A path past the end of a list fails at generation;
+missing mapping keys along a path are created, and the strict loader then
+rejects any key the schema does not have. The sweep is the Cartesian product of
+all axes. An axis value is one of:</p>
+<ul class="simple">
+<li><p>a list: the literal values, for example <code class="docutils literal notranslate"><span class="pre">[0.001,</span> <span class="pre">0.01]</span></code>; a list of lists
+sweeps a list-valued option, for example <code class="docutils literal notranslate"><span class="pre">[[3,</span> <span class="pre">3],</span> <span class="pre">[4,</span> <span class="pre">4]]</span></code>;</p></li>
+<li><p>a scalar: one value, written into every generated config;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">{range:</span> <span class="pre">{start,</span> <span class="pre">stop,</span> <span class="pre">step}}</span></code>: start, start + step, … up to and
+including stop;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">{linspace:</span> <span class="pre">{start,</span> <span class="pre">stop,</span> <span class="pre">num}}</span></code> or <code class="docutils literal notranslate"><span class="pre">{geomspace:</span> <span class="pre">{start,</span> <span class="pre">stop,</span> <span class="pre">num}}</span></code>:
+<code class="docutils literal notranslate"><span class="pre">num</span></code> evenly or geometrically spaced values, both ends included;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">{values:</span> <span class="pre">[...]}</span></code>: the literal values.</p></li>
+</ul>
+<p>A plain list of three numbers that reads as <code class="docutils literal notranslate"><span class="pre">[start,</span> <span class="pre">stop,</span> <span class="pre">step]</span></code>, such as
+<code class="docutils literal notranslate"><span class="pre">[1,</span> <span class="pre">10,</span> <span class="pre">2]</span></code>, is rejected as ambiguous. Write
+<code class="docutils literal notranslate"><span class="pre">{range:</span> <span class="pre">{start:</span> <span class="pre">1,</span> <span class="pre">stop:</span> <span class="pre">10,</span> <span class="pre">step:</span> <span class="pre">2}}</span></code> for the range or
+<code class="docutils literal notranslate"><span class="pre">{values:</span> <span class="pre">[1,</span> <span class="pre">10,</span> <span class="pre">2]}</span></code> for the three values.</p>
+<p>The following excerpt of a sweep file whose <code class="docutils literal notranslate"><span class="pre">base_config</span></code> is the one of
+<code class="docutils literal notranslate"><span class="pre">configs/sweep_config.yaml</span></code> defines 4 × 3 × 3 × 3 = 108 conditions:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">sweep_config</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># 64, 128, 192, 256</span>
+<span class="w">  </span><span class="nt">model.core.population_network.layers.0.populations.1.n_neurons</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">range</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">start</span><span class="p">:</span><span class="w"> </span><span class="nv">64</span><span class="p p-Indicator">,</span><span class="nt"> stop</span><span class="p">:</span><span class="w"> </span><span class="nv">256</span><span class="p p-Indicator">,</span><span class="nt"> step</span><span class="p">:</span><span class="w"> </span><span class="nv">64</span><span class="p p-Indicator">}}</span>
+<span class="w">  </span><span class="c1"># 0.0001, 0.001, 0.01</span>
+<span class="w">  </span><span class="nt">training.main.common.param_groups.topk_lr</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">geomspace</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">start</span><span class="p">:</span><span class="w"> </span><span class="nv">1.0e-4</span><span class="p p-Indicator">,</span><span class="nt"> stop</span><span class="p">:</span><span class="w"> </span><span class="nv">1.0e-2</span><span class="p p-Indicator">,</span><span class="nt"> num</span><span class="p">:</span><span class="w"> </span><span class="nv">3</span><span class="p p-Indicator">}}</span>
+<span class="w">  </span><span class="c1"># 1.0, 3.0, 5.0</span>
+<span class="w">  </span><span class="nt">training.main.common.grad_clip_value</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">linspace</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">start</span><span class="p">:</span><span class="w"> </span><span class="nv">1.0</span><span class="p p-Indicator">,</span><span class="nt"> stop</span><span class="p">:</span><span class="w"> </span><span class="nv">5.0</span><span class="p p-Indicator">,</span><span class="nt"> num</span><span class="p">:</span><span class="w"> </span><span class="nv">3</span><span class="p p-Indicator">}}</span>
+<span class="w">  </span><span class="c1"># the plain list [5, 15, 10] would be rejected as ambiguous</span>
+<span class="w">  </span><span class="nt">model.core.population_network.layers.0.population_defaults.ff_inhibitory_synapses</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">values</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">5</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">15</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">10</span><span class="p p-Indicator">]}</span>
+<span class="w">  </span><span class="c1"># one value for every condition</span>
+<span class="w">  </span><span class="nt">training.main.common.epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span>
+</pre></div>
+</div>
+<p>In a population network, options shared by the populations of a layer sit in
+<code class="docutils literal notranslate"><span class="pre">model.core.population_network.layers[].population_defaults</span></code>, and a
+population or connection is addressed by its position in the layer’s
+<code class="docutils literal notranslate"><span class="pre">populations</span></code> or <code class="docutils literal notranslate"><span class="pre">connections</span></code> list (see <a class="reference internal" href="population_networks.html#population-connections"><span class="std std-ref">Connections</span></a>).
+With the template’s base config, this excerpt sweeps the E synapse count, the
+size of the excitatory population <code class="docutils literal notranslate"><span class="pre">e</span></code> and the probability of the third
+connection (<code class="docutils literal notranslate"><span class="pre">i</span></code> to <code class="docutils literal notranslate"><span class="pre">e</span></code>):</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">sweep_config</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">model.core.population_network.layers.0.population_defaults.ff_excitatory_synapses</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">20</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">30</span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="nt">model.core.population_network.layers.0.populations.1.n_neurons</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">64</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">128</span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="nt">model.core.population_network.layers.0.connections.2.probability</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0.9</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">1.0</span><span class="p p-Indicator">]</span>
+</pre></div>
+</div>
+<p>A connection probability below 1 leaves each target fewer candidate sources. A
+target with fewer candidates than its synapse count can make the model fail
+to build, in the job rather than at generation, so check such an axis with
+<code class="docutils literal notranslate"><span class="pre">--validate-only</span></code>.</p>
+</section>
+<section id="learning-rate-axes">
+<span id="sweeps-learning-rates"></span><h2>Learning-rate axes<a class="headerlink" href="#learning-rate-axes" title="Link to this heading"></a></h2>
+<p>With the default <code class="docutils literal notranslate"><span class="pre">training.main.common.param_groups.split_params:</span> <span class="pre">true</span></code>, the
+optimizer trains the core’s sparse synapses at <code class="docutils literal notranslate"><span class="pre">topk_lr</span></code>, its BlockLinear
+branch couplings at <code class="docutils literal notranslate"><span class="pre">blocklinear_lr</span></code>, its reactivation gates at
+<code class="docutils literal notranslate"><span class="pre">reactivation_lr</span></code> and the decoder at <code class="docutils literal notranslate"><span class="pre">decoder_lr</span></code>. <code class="docutils literal notranslate"><span class="pre">lr</span></code> applies only to
+the remaining parameters: the encoder (unless <code class="docutils literal notranslate"><span class="pre">encoder_lr</span></code> is set), MLP
+inhibitory cells and any parameter outside these groups. The population
+network of <code class="docutils literal notranslate"><span class="pre">configs/sweep_config.yaml</span></code> has no such parameter, so the
+conditions of a <code class="docutils literal notranslate"><span class="pre">param_groups.lr</span></code> axis train identical models. Sweep the
+group rates instead (an excerpt; <code class="docutils literal notranslate"><span class="pre">base_config</span></code> as in the template):</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">sweep_config</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">training.main.common.param_groups.topk_lr</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0.0003</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.001</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.003</span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="nt">training.main.common.param_groups.decoder_lr</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0.0003</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.001</span><span class="p p-Indicator">]</span>
+</pre></div>
+</div>
+<p>or set <code class="docutils literal notranslate"><span class="pre">base_config.training.main.common.param_groups.split_params:</span> <span class="pre">false</span></code>,
+which trains every parameter at <code class="docutils literal notranslate"><span class="pre">lr</span></code>. The generator warns about a
+<code class="docutils literal notranslate"><span class="pre">param_groups.lr</span></code> axis without group-rate axes only when <code class="docutils literal notranslate"><span class="pre">base_config</span></code>
+writes <code class="docutils literal notranslate"><span class="pre">split_params:</span> <span class="pre">true</span></code> and at least one group rate. Every parameter
+group carries its own rate, so an axis on <code class="docutils literal notranslate"><span class="pre">training.main.optimizer.lr</span></code> has
+no effect either. The groups are described in <a class="reference internal" href="training_strategies.html#parameter-groups"><span class="std std-ref">Parameter groups and learning rates</span></a>.</p>
+</section>
+<section id="named-variants">
+<span id="sweeps-variants"></span><h2>Named variants<a class="headerlink" href="#named-variants" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">sweep_variants</span></code> defines conditions that change several paths together. Each
+variant is one condition: its <code class="docutils literal notranslate"><span class="pre">overrides</span></code> (dot paths, as in <code class="docutils literal notranslate"><span class="pre">sweep_config</span></code>)
+are applied together, before the <code class="docutils literal notranslate"><span class="pre">sweep_config</span></code> axes, and every variant is
+crossed with every axis. Variant names must be unique. With the template’s
+<code class="docutils literal notranslate"><span class="pre">base_config</span></code>, these sections compare shunting with normalized additive
+inhibition at two learning rates, four conditions:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">sweep_variants</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">shunting</span>
+<span class="w">    </span><span class="nt">overrides</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">model.core.population_network.layers.0.population_defaults.use_shunting</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">model.core.population_network.layers.0.population_defaults.use_additive_normalization</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">normalized_additive</span>
+<span class="w">    </span><span class="nt">overrides</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">model.core.population_network.layers.0.population_defaults.use_shunting</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">      </span><span class="nt">model.core.population_network.layers.0.population_defaults.use_additive_normalization</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="nt">sweep_config</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">training.main.common.param_groups.topk_lr</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0.001</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.01</span><span class="p p-Indicator">]</span>
+</pre></div>
+</div>
+<p>Each generated config stores its variant name in the top-level
+<code class="docutils literal notranslate"><span class="pre">_sweep_variant</span></code> key, which the config loader keeps as metadata, and the
+analysis tables have it in the <code class="docutils literal notranslate"><span class="pre">sweep_variant</span></code> column. A variant may change
+only paths that the base core type reads: an override of
+<code class="docutils literal notranslate"><span class="pre">model.core.sparsity.type</span></code> on a <code class="docutils literal notranslate"><span class="pre">population_network</span></code> base fails at
+generation, because population networks read only
+<code class="docutils literal notranslate"><span class="pre">model.core.population_network</span></code>.</p>
+</section>
+<section id="filtering-e-i-pairs">
+<span id="sweeps-ei-filter"></span><h2>Filtering E/I pairs<a class="headerlink" href="#filtering-e-i-pairs" title="Link to this heading"></a></h2>
+<p>When <code class="docutils literal notranslate"><span class="pre">sweep_config</span></code> has an excitatory and an inhibitory synapse-count axis,
+<code class="docutils literal notranslate"><span class="pre">filter_config.mode</span></code> can keep only the pairs that satisfy a constraint. The
+axes are a pair of keys ending in <code class="docutils literal notranslate"><span class="pre">.population_defaults.ff_excitatory_synapses</span></code>
+and <code class="docutils literal notranslate"><span class="pre">.population_defaults.ff_inhibitory_synapses</span></code> (population networks), or
+<code class="docutils literal notranslate"><span class="pre">model.core.connectivity.ee_synapses_per_branch_per_layer</span></code> and
+<code class="docutils literal notranslate"><span class="pre">model.core.connectivity.ie_synapses_per_branch_per_layer</span></code> (structured E/I
+cores). On a structured core the selected pair is written as one-element lists,
+which the core repeats for every layer.</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 20.0%" />
+<col style="width: 80.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><code class="docutils literal notranslate"><span class="pre">mode</span></code></p></th>
+<th class="head"><p>Pairs kept</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">all</span></code></p></td>
+<td><p>Every pair (the default; <code class="docutils literal notranslate"><span class="pre">default</span></code> is the same).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ei-sum</span></code></p></td>
+<td><p>Pairs with |E + I − <code class="docutils literal notranslate"><span class="pre">value</span></code>| ≤ <code class="docutils literal notranslate"><span class="pre">tolerance</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ei-ratio</span></code></p></td>
+<td><p>Pairs with I &gt; 0 and |E / I − <code class="docutils literal notranslate"><span class="pre">value</span></code>| ≤ <code class="docutils literal notranslate"><span class="pre">tolerance</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">e-const</span></code></p></td>
+<td><p>E = <code class="docutils literal notranslate"><span class="pre">value</span></code> with every I; <code class="docutils literal notranslate"><span class="pre">value</span></code> must be on the E axis.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">i-const</span></code></p></td>
+<td><p>I = <code class="docutils literal notranslate"><span class="pre">value</span></code> with every E; <code class="docutils literal notranslate"><span class="pre">value</span></code> must be on the I axis.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">branch_sweep</span></code></p></td>
+<td><p>Every pair. Required for a branch sweep when the sweep has no other
+axis or variant (<a class="reference internal" href="#sweeps-branch"><span class="std std-ref">Branch sweeps</span></a>).</p></td>
+</tr>
+</tbody>
+</table>
+<p>The four E/I modes need both axes and <code class="docutils literal notranslate"><span class="pre">value</span></code>; <code class="docutils literal notranslate"><span class="pre">ei-sum</span></code> and <code class="docutils literal notranslate"><span class="pre">ei-ratio</span></code>
+also need <code class="docutils literal notranslate"><span class="pre">tolerance</span></code> (<code class="docutils literal notranslate"><span class="pre">0</span></code> for an exact match). A filter that keeps no
+pair raises. The other axes are crossed with the pairs that remain. With the
+template’s <code class="docutils literal notranslate"><span class="pre">base_config</span></code>, this excerpt keeps (20, 10), (30, 20) and (40, 20):</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">sweep_config</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">model.core.population_network.layers.0.population_defaults.ff_excitatory_synapses</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">10</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">20</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">30</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">40</span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="nt">model.core.population_network.layers.0.population_defaults.ff_inhibitory_synapses</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">10</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">20</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">30</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">40</span><span class="p p-Indicator">]</span>
+<span class="nt">filter_config</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ei-ratio</span>
+<span class="w">  </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2.0</span>
+<span class="w">  </span><span class="nt">tolerance</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.5</span>
+</pre></div>
+</div>
+</section>
+<section id="branch-sweeps">
+<span id="sweeps-branch"></span><h2>Branch sweeps<a class="headerlink" href="#branch-sweeps" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">filter_config.branch_sweep_mode</span></code> adds one dimension of dendritic trees to
+the grid. Each tree replaces <code class="docutils literal notranslate"><span class="pre">branch_factors</span></code> of every population whose
+<code class="docutils literal notranslate"><span class="pre">polarity</span></code> is <code class="docutils literal notranslate"><span class="pre">excitatory</span></code> (or that has no <code class="docutils literal notranslate"><span class="pre">polarity</span></code> key) in every layer
+of a population network, or <code class="docutils literal notranslate"><span class="pre">model.core.architecture.excitatory_branch_factors</span></code>
+of other cores. Do not also sweep those <code class="docutils literal notranslate"><span class="pre">branch_factors</span></code> in
+<code class="docutils literal notranslate"><span class="pre">sweep_config</span></code>: the tree overwrites the axis, and conditions that differ only
+in that axis become identical runs. A factor <code class="docutils literal notranslate"><span class="pre">b</span></code> at depth <code class="docutils literal notranslate"><span class="pre">d</span></code> gives <code class="docutils literal notranslate"><span class="pre">d</span></code>
+levels of <code class="docutils literal notranslate"><span class="pre">b</span></code> branches. Depths and factors are axis values, so the range
+forms of <a class="reference internal" href="#sweeps-axes"><span class="std std-ref">Axes</span></a> apply.</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 18.0%" />
+<col style="width: 36.0%" />
+<col style="width: 46.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><code class="docutils literal notranslate"><span class="pre">branch_sweep_mode</span></code></p></th>
+<th class="head"><p>Keys</p></th>
+<th class="head"><p>Trees</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">uniform_sweep</span></code> (default)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">dendrite_tree_depth</span></code>, <code class="docutils literal notranslate"><span class="pre">dendrite_branches_per_layer</span></code></p></td>
+<td><p>Every depth with every factor.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">depth_sweep</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">dendrite_tree_depth</span></code>, <code class="docutils literal notranslate"><span class="pre">uniform_branches_per_layer</span></code> (one factor)</p></td>
+<td><p>One tree per depth.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">width_sweep</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">fixed_dendrite_tree_depth</span></code> (one depth), <code class="docutils literal notranslate"><span class="pre">dendrite_branches_per_layer</span></code></p></td>
+<td><p>One tree per factor.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">pattern_sweep</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">dendrite_tree_depth</span></code>, <code class="docutils literal notranslate"><span class="pre">base_branches</span></code>, <code class="docutils literal notranslate"><span class="pre">branch_patterns</span></code></p></td>
+<td><p>One tree per depth and pattern (below).</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">custom_configs</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">custom_branch_configs</span></code>: a list of <code class="docutils literal notranslate"><span class="pre">{depth,</span> <span class="pre">branches}</span></code> mappings</p></td>
+<td><p>The listed trees; a list in <code class="docutils literal notranslate"><span class="pre">branches</span></code> is used as written, a number
+is repeated <code class="docutils literal notranslate"><span class="pre">depth</span></code> times.</p></td>
+</tr>
+</tbody>
+</table>
+<p>The patterns of <code class="docutils literal notranslate"><span class="pre">pattern_sweep</span></code> give, for <code class="docutils literal notranslate"><span class="pre">base_branches:</span> <span class="pre">3</span></code>:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 18.0%" />
+<col style="width: 42.0%" />
+<col style="width: 20.0%" />
+<col style="width: 20.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Pattern</p></th>
+<th class="head"><p>Branch factors</p></th>
+<th class="head"><p>Depth 3</p></th>
+<th class="head"><p>Depth 4</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">uniform</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">base_branches</span></code> at every level</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[3,</span> <span class="pre">3,</span> <span class="pre">3]</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[3,</span> <span class="pre">3,</span> <span class="pre">3,</span> <span class="pre">3]</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">decreasing</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">base_branches</span></code>, <code class="docutils literal notranslate"><span class="pre">base_branches</span></code> − 1, …, at least 1</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[3,</span> <span class="pre">2,</span> <span class="pre">1]</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[3,</span> <span class="pre">2,</span> <span class="pre">1,</span> <span class="pre">1]</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">increasing</span></code></p></td>
+<td><p>1, 2, …, depth (ignores <code class="docutils literal notranslate"><span class="pre">base_branches</span></code>)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[1,</span> <span class="pre">2,</span> <span class="pre">3]</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[1,</span> <span class="pre">2,</span> <span class="pre">3,</span> <span class="pre">4]</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">pyramid</span></code></p></td>
+<td><p>Level <code class="docutils literal notranslate"><span class="pre">i</span></code> (from 0) gets <code class="docutils literal notranslate"><span class="pre">i</span> <span class="pre">+</span> <span class="pre">1</span></code> up to <code class="docutils literal notranslate"><span class="pre">i</span> <span class="pre">=</span> <span class="pre">depth</span> <span class="pre">//</span> <span class="pre">2</span></code>, then
+<code class="docutils literal notranslate"><span class="pre">depth</span> <span class="pre">-</span> <span class="pre">i</span></code> (ignores <code class="docutils literal notranslate"><span class="pre">base_branches</span></code>)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[1,</span> <span class="pre">2,</span> <span class="pre">1]</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[1,</span> <span class="pre">2,</span> <span class="pre">3,</span> <span class="pre">1]</span></code></p></td>
+</tr>
+</tbody>
+</table>
+<p>A branch sweep combines with the other axes and with an E/I filter (set the E/I
+<code class="docutils literal notranslate"><span class="pre">mode</span></code> and <code class="docutils literal notranslate"><span class="pre">branch_sweep_mode</span></code> together). With the template’s
+<code class="docutils literal notranslate"><span class="pre">base_config</span></code>, this excerpt trains trees <code class="docutils literal notranslate"><span class="pre">[4]</span></code>, <code class="docutils literal notranslate"><span class="pre">[4,</span> <span class="pre">4]</span></code> and
+<code class="docutils literal notranslate"><span class="pre">[4,</span> <span class="pre">4,</span> <span class="pre">4]</span></code> at two learning rates, six conditions:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">sweep_config</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">training.main.common.param_groups.topk_lr</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0.001</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.01</span><span class="p p-Indicator">]</span>
+<span class="nt">filter_config</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">branch_sweep_mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">depth_sweep</span>
+<span class="w">  </span><span class="nt">dendrite_tree_depth</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">range</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">start</span><span class="p">:</span><span class="w"> </span><span class="nv">1</span><span class="p p-Indicator">,</span><span class="nt"> stop</span><span class="p">:</span><span class="w"> </span><span class="nv">3</span><span class="p p-Indicator">,</span><span class="nt"> step</span><span class="p">:</span><span class="w"> </span><span class="nv">1</span><span class="p p-Indicator">}}</span>
+<span class="w">  </span><span class="nt">uniform_branches_per_layer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
+</pre></div>
+</div>
+<p>Without other axes or variants, set <code class="docutils literal notranslate"><span class="pre">mode:</span> <span class="pre">branch_sweep</span></code> as well; with an
+empty <code class="docutils literal notranslate"><span class="pre">sweep_config</span></code> and <code class="docutils literal notranslate"><span class="pre">mode:</span> <span class="pre">all</span></code>, generation fails.</p>
+</section>
+<section id="replicate-seeds">
+<span id="sweeps-seeds"></span><h2>Replicate seeds<a class="headerlink" href="#replicate-seeds" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">experiment_settings</span></code> sets the replicates of every condition:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">seeds_per_condition</span></code> (default 1) and <code class="docutils literal notranslate"><span class="pre">base_seed</span></code> (default 42): replicate
+<code class="docutils literal notranslate"><span class="pre">r</span></code> of every condition gets <code class="docutils literal notranslate"><span class="pre">experiment.seed</span> <span class="pre">=</span> <span class="pre">base_seed</span> <span class="pre">+</span> <span class="pre">r</span></code>, so all
+conditions use the same seeds. The <code class="docutils literal notranslate"><span class="pre">experiment.seed</span></code> of <code class="docutils literal notranslate"><span class="pre">base_config</span></code> is
+replaced.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">seed_paths</span></code>: further dot paths that receive the replicate seed.</p></li>
+</ul>
+<p>Every random stream that <code class="docutils literal notranslate"><span class="pre">base_config</span></code> leaves unset follows
+<code class="docutils literal notranslate"><span class="pre">experiment.seed</span></code> (see <a class="reference internal" href="configuration_guide.html#random-seeds"><span class="std std-ref">Random seeds and reproducibility flags</span></a>), so replicates differ in data
+split, initialization, connectivity and data order. To hold one stream fixed
+across replicates, set it in <code class="docutils literal notranslate"><span class="pre">base_config.experiment</span></code>: for example, a fixed
+<code class="docutils literal notranslate"><span class="pre">topology_seed</span></code> gives every replicate the same connection masks and
+indexed-synapse indices. <code class="docutils literal notranslate"><span class="pre">seed_paths</span></code> does the opposite for a component seed
+that <code class="docutils literal notranslate"><span class="pre">base_config</span></code> pins, which would otherwise stay constant across
+replicates (an excerpt; <code class="docutils literal notranslate"><span class="pre">base_config</span></code> as in the template):</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">experiment_settings</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">seeds_per_condition</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<span class="w">  </span><span class="nt">base_seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
+<span class="w">  </span><span class="nt">seed_paths</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">model.core.population_network.layers.0.population_defaults.indexed_seed</span>
+</pre></div>
+</div>
+</section>
+<section id="config-count">
+<span id="sweeps-count"></span><h2>Config count<a class="headerlink" href="#config-count" title="Link to this heading"></a></h2>
+<p>The number of generated configs is the product of the axis lengths (after the
+E/I filter), the number of trees and the number of variants, times
+<code class="docutils literal notranslate"><span class="pre">seeds_per_condition</span></code>. Conditions are ordered with the variants outermost,
+then the <code class="docutils literal notranslate"><span class="pre">sweep_config</span></code> axes in file order, then the trees, then the filtered
+E/I pairs; the last varies fastest. Replicates are innermost:
+<code class="docutils literal notranslate"><span class="pre">unified_config_&lt;i&gt;.yaml</span></code> is replicate <code class="docutils literal notranslate"><span class="pre">i</span> <span class="pre">%</span> <span class="pre">seeds_per_condition</span></code> of
+condition <code class="docutils literal notranslate"><span class="pre">i</span> <span class="pre">//</span> <span class="pre">seeds_per_condition</span></code>.</p>
+<p>To make generation fail when the grid has another size, declare the expected
+count:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">sweep_contract</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">expected_config_count</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">18</span>
+</pre></div>
+</div>
+</section>
+<section id="composing-sweep-files">
+<span id="sweeps-extends"></span><h2>Composing sweep files<a class="headerlink" href="#composing-sweep-files" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">extends</span></code> names a parent sweep file, relative to the file that names it. The
+child’s mappings are merged into the parent’s key by key, and a child list
+replaces the parent’s list. A child therefore keeps every <code class="docutils literal notranslate"><span class="pre">sweep_config</span></code>
+axis of its parent; it can change their values or add axes. With the complete
+example above stored as <code class="docutils literal notranslate"><span class="pre">base_sweep.yaml</span></code>, this file in the same directory
+sweeps three sparse-synapse learning rates over the parent’s three E/I pairs
+with five seeds: 45 runs:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">extends</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">base_sweep.yaml</span>
+<span class="nt">sweep_config</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">training.main.common.param_groups.topk_lr</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0.0003</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.001</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.003</span><span class="p p-Indicator">]</span>
+<span class="nt">experiment_settings</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">seeds_per_condition</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<span class="nt">slurm_config</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">account</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my_account</span>
+<span class="w">  </span><span class="nt">partition</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my_partition</span>
+<span class="nt">base_config</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">outputs</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">run_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">topk_lr</span>
+<span class="nt">execution_results_dir</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/scratch/my_project/topk_lr</span>
+</pre></div>
+</div>
+<p>Cyclic or empty <code class="docutils literal notranslate"><span class="pre">extends</span></code> declarations fail before any file is written. The
+frozen manifest hashes every file of the chain and the merged
+<code class="docutils literal notranslate"><span class="pre">original_config.yaml</span></code>.</p>
+</section>
+<section id="sweep-directories">
+<span id="sweeps-layout"></span><h2>Sweep directories<a class="headerlink" href="#sweep-directories" title="Link to this heading"></a></h2>
+<p>Each generation creates a new directory <code class="docutils literal notranslate"><span class="pre">&lt;prefix&gt;_&lt;YYYYmmddHHMMSS&gt;</span></code> (a second
+sweep in the same second gets a numeric suffix). The base directory is
+<code class="docutils literal notranslate"><span class="pre">--output-dir</span></code>, else the sweep file’s <code class="docutils literal notranslate"><span class="pre">output_dir</span></code>, else <code class="docutils literal notranslate"><span class="pre">outputs.dir</span></code>,
+else <code class="docutils literal notranslate"><span class="pre">base_config.outputs.results_dir</span></code>, else <code class="docutils literal notranslate"><span class="pre">output</span></code>; a relative path
+resolves against the current directory. The prefix is the sweep file’s
+<code class="docutils literal notranslate"><span class="pre">outputs.run_name</span></code>, else <code class="docutils literal notranslate"><span class="pre">base_config.outputs.run_name</span></code>, else
+<code class="docutils literal notranslate"><span class="pre">unified_sweep</span></code>.</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>&lt;prefix&gt;_&lt;timestamp&gt;/
+|-- original_config.yaml         composed sweep file (after extends and command-line values)
+|-- frozen_sweep_manifest.json   hashes and source identity of the generation
+|-- submit_all_jobs.sh           submits the job scripts and records their IDs
+|-- configs/
+|   |-- unified_config_&lt;i&gt;.yaml  one training config per condition and replicate
+|   `-- sweep_metadata.yaml      config count and file names
+|-- jobs/
+|   |-- run_array_sweep.sh       one array job (run_sweep.sh or run_sweep_&lt;i&gt;.sh for sequential jobs)
+|   |-- submitted_jobs.tsv       job ID, script and UTC time of each submission
+|   `-- output_&lt;job&gt;_&lt;task&gt;.out, error_&lt;job&gt;_&lt;task&gt;.err
+|-- results/
+|   `-- config_&lt;i&gt;/              run directory of unified_config_&lt;i&gt;.yaml
+`-- plots/                       tables and plots of dendritic-analyze
+</pre></div>
+</div>
+<p>Each generated config sets <code class="docutils literal notranslate"><span class="pre">outputs.results_dir</span></code> to its
+<code class="docutils literal notranslate"><span class="pre">results/config_&lt;i&gt;</span></code> directory. A results directory whose path contains
+<code class="docutils literal notranslate"><span class="pre">/config_</span></code> is used as the run directory itself, without a timestamped
+subdirectory, so every run’s files (see <a class="reference internal" href="runs_and_outputs.html#run-outputs"><span class="std std-ref">Run directory layout</span></a>) land directly in
+<code class="docutils literal notranslate"><span class="pre">results/config_&lt;i&gt;/</span></code>.</p>
+<p>The top-level <code class="docutils literal notranslate"><span class="pre">execution_results_dir</span></code> keeps the light sweep files (configs,
+scripts, logs) in one place and the run outputs under a separate root, for
+example on a large-data filesystem. Each generated config then writes to
+<code class="docutils literal notranslate"><span class="pre">&lt;execution_results_dir&gt;/config_&lt;i&gt;</span></code>, and <code class="docutils literal notranslate"><span class="pre">results</span></code> is a symbolic link to
+that root. Generation does not create the root, so it may exist only on the
+compute nodes.</p>
+</section>
+<section id="slurm-settings">
+<span id="sweeps-slurm"></span><h2>Slurm settings<a class="headerlink" href="#slurm-settings" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">slurm_config</span></code> sets the <code class="docutils literal notranslate"><span class="pre">#SBATCH</span></code> lines, the environment and the launch
+command that every job script of the sweep (array, sequential and rerun jobs)
+shares:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 22.0%" />
+<col style="width: 18.0%" />
+<col style="width: 60.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Key</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">account</span></code>, <code class="docutils literal notranslate"><span class="pre">partition</span></code></p></td>
+<td><p>none</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">--account</span></code> and <code class="docutils literal notranslate"><span class="pre">--partition</span></code>; required to submit
+(<a class="reference internal" href="#sweeps-commands"><span class="std std-ref">Generating and submitting</span></a>).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">qos</span></code>, <code class="docutils literal notranslate"><span class="pre">constraint</span></code></p></td>
+<td><p>unset</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">--qos</span></code> and <code class="docutils literal notranslate"><span class="pre">--constraint</span></code>, written only when set.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">time</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&quot;02:00:00&quot;</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">--time</span></code> of each job or array task (format below).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">nodes</span></code>, <code class="docutils literal notranslate"><span class="pre">ntasks_per_node</span></code></p></td>
+<td><p>1, 1</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">--nodes</span></code> and <code class="docutils literal notranslate"><span class="pre">--ntasks-per-node</span></code>. Keep <code class="docutils literal notranslate"><span class="pre">nodes:</span> <span class="pre">1</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">gpus_per_node</span></code></p></td>
+<td><p>1</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">--gres=gpu:&lt;n&gt;</span></code>; also the number of processes of <code class="docutils literal notranslate"><span class="pre">launcher:</span>
+<span class="pre">torchrun</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">cpus_per_task</span></code></p></td>
+<td><p>4</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">--cpus-per-task</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">mem</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&quot;32G&quot;</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">--mem</span></code>, passed to Slurm as written.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">exclude_nodes</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[]</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">--exclude</span></code>. <code class="docutils literal notranslate"><span class="pre">--exclude-nodes</span></code> on the command line replaces it.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">max_concurrent_jobs</span></code></p></td>
+<td><p>10</p></td>
+<td><p>Maximum number of array tasks running at once (the <code class="docutils literal notranslate"><span class="pre">%</span></code> limit of
+<code class="docutils literal notranslate"><span class="pre">--array</span></code>).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">modules_to_load</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[]</span></code></p></td>
+<td><p>Environment modules loaded after <code class="docutils literal notranslate"><span class="pre">module</span> <span class="pre">purge</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">conda_env_path</span></code></p></td>
+<td><p>unset</p></td>
+<td><p>Environment whose <code class="docutils literal notranslate"><span class="pre">bin/python</span></code> runs the training (its <code class="docutils literal notranslate"><span class="pre">lib</span></code> is
+added to <code class="docutils literal notranslate"><span class="pre">LD_LIBRARY_PATH</span></code>). Unset: the <code class="docutils literal notranslate"><span class="pre">python</span></code> first on <code class="docutils literal notranslate"><span class="pre">PATH</span></code>
+after <code class="docutils literal notranslate"><span class="pre">module</span> <span class="pre">purge</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">launcher</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">python</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">python</span></code> or <code class="docutils literal notranslate"><span class="pre">torchrun</span></code> (<a class="reference internal" href="#sweeps-distributed"><span class="std std-ref">Multi-GPU runs</span></a>).</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">training_script</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/scripts/training/train_experiments.py</span></code></p></td>
+<td><p>Training entry point, relative to the library checkout or absolute.</p></td>
+</tr>
+</tbody>
+</table>
+<p>The job name is the sweep’s prefix (a <code class="docutils literal notranslate"><span class="pre">job_name</span></code> key is not used). Every
+job runs in the library checkout that generated the sweep
+(<code class="docutils literal notranslate"><span class="pre">#SBATCH</span> <span class="pre">--chdir</span></code>), puts that checkout’s <code class="docutils literal notranslate"><span class="pre">src/</span></code> first on <code class="docutils literal notranslate"><span class="pre">PYTHONPATH</span></code>
+and runs <code class="docutils literal notranslate"><span class="pre">module</span> <span class="pre">purge</span></code>, so the cluster must provide environment modules.
+Each array task trains one config.</p>
+<p><code class="docutils literal notranslate"><span class="pre">time</span></code> takes a quoted Slurm duration with a colon or a day prefix
+(<code class="docutils literal notranslate"><span class="pre">&quot;HH:MM:SS&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;MM:SS&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;D-HH&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;D-HH:MM:SS&quot;</span></code>), or an integer
+number of seconds. YAML reads an unquoted <code class="docutils literal notranslate"><span class="pre">12:00:00</span></code> as the integer 43200,
+which becomes <code class="docutils literal notranslate"><span class="pre">12:00:00</span></code>. A string of digits alone, such as <code class="docutils literal notranslate"><span class="pre">&quot;120&quot;</span></code>, is
+rejected as ambiguous (Slurm reads it as minutes).</p>
+<p>A site may restrict submissions to approved account/partition pairs with a
+scheduler policy file:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">profiles</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="nv">lab_gpu</span><span class="p p-Indicator">,</span><span class="nt"> account</span><span class="p">:</span><span class="w"> </span><span class="nv">my_lab</span><span class="p p-Indicator">,</span><span class="nt"> partition</span><span class="p">:</span><span class="w"> </span><span class="nv">gpu</span><span class="p p-Indicator">}</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="nv">lab_gpu_priority</span><span class="p p-Indicator">,</span><span class="nt"> account</span><span class="p">:</span><span class="w"> </span><span class="nv">my_lab</span><span class="p p-Indicator">,</span><span class="nt"> partition</span><span class="p">:</span><span class="w"> </span><span class="nv">gpu_priority</span><span class="p p-Indicator">}</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">DENDRITIC_SCHEDULER_PROFILES</span></code> names the file (<code class="docutils literal notranslate"><span class="pre">none</span></code> disables it);
+otherwise <code class="docutils literal notranslate"><span class="pre">$XDG_CONFIG_HOME/dendritic_modeling/scheduler_profiles.yaml</span></code>
+(<code class="docutils literal notranslate"><span class="pre">XDG_CONFIG_HOME</span></code> defaults to <code class="docutils literal notranslate"><span class="pre">~/.config</span></code>) is used when it exists. Each
+profile needs exactly <code class="docutils literal notranslate"><span class="pre">id</span></code>, <code class="docutils literal notranslate"><span class="pre">account</span></code> and <code class="docutils literal notranslate"><span class="pre">partition</span></code>. With a policy,
+sweep generation (also with <code class="docutils literal notranslate"><span class="pre">--generate-only</span></code> and <code class="docutils literal notranslate"><span class="pre">--dry-run</span></code>), reruns and
+checkpoint-analysis submission reject any other explicit pair. Without one,
+any pair is accepted and recorded in the frozen manifest as unvalidated; the
+manifest records the policy file that approved a pair.</p>
+</section>
+<section id="multi-gpu-runs">
+<span id="sweeps-distributed"></span><h2>Multi-GPU runs<a class="headerlink" href="#multi-gpu-runs" title="Link to this heading"></a></h2>
+<p>With <code class="docutils literal notranslate"><span class="pre">launcher:</span> <span class="pre">torchrun</span></code>, each array task runs
+<code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">torch.distributed.run</span> <span class="pre">--standalone</span> <span class="pre">--nproc_per_node=&lt;gpus_per_node&gt;</span></code>:
+one process group per config, on one node, one process per GPU. The ranks of a
+run are not sweep replicates. For DDP keep the default <code class="docutils literal notranslate"><span class="pre">training_script</span></code> and
+set <code class="docutils literal notranslate"><span class="pre">base_config.distributed.mode:</span> <span class="pre">ddp</span></code>. For FSDP use the FSDP entry point
+and <code class="docutils literal notranslate"><span class="pre">mode:</span> <span class="pre">fsdp</span></code>, as in this excerpt of a sweep file:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">slurm_config</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">gpus_per_node</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
+<span class="w">  </span><span class="nt">launcher</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">torchrun</span>
+<span class="w">  </span><span class="nt">training_script</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">src/dendritic_modeling/scripts/training/train_experiments_fsdp.py</span>
+<span class="nt">base_config</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">distributed</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">fsdp</span>
+</pre></div>
+</div>
+<p>The launcher always passes <code class="docutils literal notranslate"><span class="pre">--standalone</span></code>, so one config cannot span several
+nodes. The model and training options each mode supports are described in
+<a class="reference internal" href="distributed_training.html#distributed-training"><span class="std std-ref">Distributed training</span></a>.</p>
+</section>
+<section id="generating-and-submitting">
+<span id="sweeps-commands"></span><h2>Generating and submitting<a class="headerlink" href="#generating-and-submitting" title="Link to this heading"></a></h2>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 34.0%" />
+<col style="width: 66.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><code class="docutils literal notranslate"><span class="pre">dendritic-sweep</span></code> option</p></th>
+<th class="head"><p>Effect</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--config</span> <span class="pre">FILE</span></code></p></td>
+<td><p>Generate from a sweep file; without a mode option, also submit.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--run</span></code></p></td>
+<td><p>Generate and submit (the default).</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--generate-only</span></code></p></td>
+<td><p>Generate the configs and job scripts; submit nothing.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--dry-run</span></code></p></td>
+<td><p>Generate, then print the <code class="docutils literal notranslate"><span class="pre">sbatch</span></code> commands without running them.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--split-jobs</span> <span class="pre">N</span></code></p></td>
+<td><p>Write at most <code class="docutils literal notranslate"><span class="pre">N</span></code> sequential jobs (<code class="docutils literal notranslate"><span class="pre">jobs/run_sweep_&lt;i&gt;.sh</span></code>, nearly
+equal consecutive groups of configs) instead of one array job.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--output-dir</span> <span class="pre">DIR</span></code></p></td>
+<td><p>Base directory of the sweep directory (with <code class="docutils literal notranslate"><span class="pre">--analyze</span></code>: output
+directory of the analysis).</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--exclude-nodes</span> <span class="pre">NODE</span> <span class="pre">...</span></code></p></td>
+<td><p>Replace <code class="docutils literal notranslate"><span class="pre">slurm_config.exclude_nodes</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--slurm-account</span></code>, <code class="docutils literal notranslate"><span class="pre">--slurm-partition</span></code></p></td>
+<td><p>Replace <code class="docutils literal notranslate"><span class="pre">slurm_config.account</span></code> and <code class="docutils literal notranslate"><span class="pre">slurm_config.partition</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--analyze</span> <span class="pre">--results-dir</span> <span class="pre">SWEEP_DIR</span></code></p></td>
+<td><p>Analyze a finished sweep, with the analyzer type detected
+(<a class="reference internal" href="#sweeps-analysis"><span class="std std-ref">Analyzing results</span></a>).</p></td>
+</tr>
+</tbody>
+</table>
+<p>Submitting needs an account and a partition, from <code class="docutils literal notranslate"><span class="pre">slurm_config</span></code> or the
+command line. With <code class="docutils literal notranslate"><span class="pre">--generate-only</span></code> or <code class="docutils literal notranslate"><span class="pre">--dry-run</span></code>, missing values are
+written as <code class="docutils literal notranslate"><span class="pre">PLACEHOLDER</span></code>; such a sweep cannot be submitted or rerun, so
+regenerate it with real values. Explicit values are checked against the site
+policy in every mode. Submission runs <code class="docutils literal notranslate"><span class="pre">submit_all_jobs.sh</span></code>, which submits
+each job script with <code class="docutils literal notranslate"><span class="pre">sbatch</span></code>, stops at the first failure and appends job
+ID, script and UTC time to <code class="docutils literal notranslate"><span class="pre">jobs/submitted_jobs.tsv</span></code>. A sweep generated with
+<code class="docutils literal notranslate"><span class="pre">--generate-only</span></code> and real values can be submitted later with
+<code class="docutils literal notranslate"><span class="pre">bash</span> <span class="pre">&lt;sweep_dir&gt;/submit_all_jobs.sh</span></code>. Generation loads every generated
+config and checks the declared config count and <code class="docutils literal notranslate"><span class="pre">execution_results_dir</span></code>
+before it creates the sweep directory, so a sweep that fails these checks (for
+example on an invalid axis) writes nothing. When writing the configs, job
+scripts or manifest fails, the generation removes the sweep directory it
+created, and any base directory it created that is still empty.</p>
+<section id="running-without-slurm">
+<h3>Running without Slurm<a class="headerlink" href="#running-without-slurm" title="Link to this heading"></a></h3>
+<p>The generated configs are ordinary training configs. Generate them, then train
+each one:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>dendritic-sweep<span class="w"> </span>--config<span class="w"> </span>my_sweep.yaml<span class="w"> </span>--generate-only
+<span class="k">for</span><span class="w"> </span>config<span class="w"> </span><span class="k">in</span><span class="w"> </span>&lt;sweep_dir&gt;/configs/unified_config_*.yaml<span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<span class="w">    </span>dendritic-train<span class="w"> </span><span class="s2">"</span><span class="nv">$config</span><span class="s2">"</span>
+<span class="k">done</span>
+dendritic-analyze<span class="w"> </span>&lt;sweep_dir&gt;
+</pre></div>
+</div>
+<p>Each run writes into <code class="docutils literal notranslate"><span class="pre">&lt;sweep_dir&gt;/results/config_&lt;i&gt;/</span></code> (or under
+<code class="docutils literal notranslate"><span class="pre">execution_results_dir</span></code>), as a sweep job would.</p>
+</section>
+</section>
+<section id="source-guard-and-reruns">
+<h2>Source guard and reruns<a class="headerlink" href="#source-guard-and-reruns" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">frozen_sweep_manifest.json</span></code> records the generation: the mode
+(<code class="docutils literal notranslate"><span class="pre">generate_only</span></code>, <code class="docutils literal notranslate"><span class="pre">dry_run</span></code> or <code class="docutils literal notranslate"><span class="pre">submission</span></code>), the expected config count,
+SHA-256 hashes of the sweep file, of <code class="docutils literal notranslate"><span class="pre">original_config.yaml</span></code>, of every file of
+the <code class="docutils literal notranslate"><span class="pre">extends</span></code> chain and of every generated config, the scheduler profile, and
+the source identity of the library checkout (commit, digests of its tracked
+changes and of its untracked files under <code class="docutils literal notranslate"><span class="pre">src/</span></code>, and a digest of the
+imported package).</p>
+<p>Every job script starts with checks that exit before training:</p>
+<ul class="simple">
+<li><p>exit code 66: the checkout’s commit differs from the one recorded at
+generation;</p></li>
+<li><p>exit code 67: its tracked changes differ;</p></li>
+<li><p>exit code 68: its untracked files under <code class="docutils literal notranslate"><span class="pre">src/</span></code> differ;</p></li>
+<li><p>exit code 75: a mount point holding an absolute path named in the configs
+does not answer within 60 seconds.</p></li>
+</ul>
+<p>A checkout that is not a git repository gets no source guard; generation logs a
+warning.</p>
+<p><code class="docutils literal notranslate"><span class="pre">rerun_missing_configs</span></code> lists the configs of a sweep whose result directory
+lacks <code class="docutils literal notranslate"><span class="pre">performance/final.json</span></code> or <code class="docutils literal notranslate"><span class="pre">training_summary.json</span></code> (under
+<code class="docutils literal notranslate"><span class="pre">execution_results_dir</span></code> when the sweep sets it). With <code class="docutils literal notranslate"><span class="pre">--write-script</span></code> it
+writes <code class="docutils literal notranslate"><span class="pre">jobs/rerun_&lt;time&gt;.sh</span></code>: the sweep’s array script restricted to those
+configs and bound to the source identity of the manifest. It refuses to write
+the script from another source state or for a sweep generated with
+placeholders; it does not submit it.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>dendritic_modeling.scripts.sweeps.rerun_missing_configs<span class="w"> </span>&lt;sweep_dir&gt;
+python<span class="w"> </span>-m<span class="w"> </span>dendritic_modeling.scripts.sweeps.rerun_missing_configs<span class="w"> </span>&lt;sweep_dir&gt;<span class="w"> </span>--write-script
+sbatch<span class="w"> </span>&lt;sweep_dir&gt;/jobs/rerun_&lt;time&gt;.sh
+</pre></div>
+</div>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 34.0%" />
+<col style="width: 66.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Option</p></th>
+<th class="head"><p>Effect</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--timestamp</span> <span class="pre">T</span></code> and <code class="docutils literal notranslate"><span class="pre">--base-dir</span> <span class="pre">DIR</span></code></p></td>
+<td><p>Find the sweep directory <code class="docutils literal notranslate"><span class="pre">&lt;DIR&gt;/*_&lt;T&gt;</span></code> instead of naming it
+(<code class="docutils literal notranslate"><span class="pre">--base-dir</span></code> defaults to the current directory).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--config-ids</span> <span class="pre">3,7</span></code></p></td>
+<td><p>Rerun these configs instead of every unfinished one.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--force</span></code></p></td>
+<td><p>Allow <code class="docutils literal notranslate"><span class="pre">--config-ids</span></code> to name finished configs; their results are
+rewritten.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--write-script</span></code></p></td>
+<td><p>Write the rerun script; without it, only list the configs.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--max-concurrent</span> <span class="pre">N</span></code></p></td>
+<td><p>Array concurrency of the rerun job.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="analyzing-results">
+<span id="sweeps-analysis"></span><h2>Analyzing results<a class="headerlink" href="#analyzing-results" title="Link to this heading"></a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>dendritic-analyze<span class="w"> </span>&lt;sweep_dir&gt;
+dendritic-analyze<span class="w"> </span>&lt;sweep_dir&gt;<span class="w"> </span>--type<span class="w"> </span>ei<span class="w"> </span>--output<span class="w"> </span>&lt;analysis_dir&gt;
+dendritic-sweep<span class="w"> </span>--analyze<span class="w"> </span>--results-dir<span class="w"> </span>&lt;sweep_dir&gt;
+</pre></div>
+</div>
+<p>Pass the sweep directory, not its <code class="docutils literal notranslate"><span class="pre">results/</span></code>: the analyzer reads the
+generated configs from <code class="docutils literal notranslate"><span class="pre">configs/</span></code> and the runs from <code class="docutils literal notranslate"><span class="pre">results/config_&lt;i&gt;/</span></code>.
+For each run it collects configuration columns from the generated config and
+these results:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">performance/final.json</span></code> as <code class="docutils literal notranslate"><span class="pre">&lt;split&gt;_&lt;metric&gt;</span></code> columns, for example
+<code class="docutils literal notranslate"><span class="pre">test_accuracy</span></code> and <code class="docutils literal notranslate"><span class="pre">valid_accuracy</span></code>;</p></li>
+<li><p>summaries of the information, weight, ablation, compartment SNR,
+multiplicative-gain and noise-perturbation analyses the runs wrote (see
+<a class="reference internal" href="analysis.html#analysis-outputs"><span class="std std-ref">Where results are written</span></a>);</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">nparams</span></code>;</p></li>
+<li><p>from <code class="docutils literal notranslate"><span class="pre">model_resources.json</span></code>: <code class="docutils literal notranslate"><span class="pre">resource_&lt;field&gt;</span></code> for
+<code class="docutils literal notranslate"><span class="pre">total_parameters</span></code>, <code class="docutils literal notranslate"><span class="pre">trainable_parameters</span></code>, <code class="docutils literal notranslate"><span class="pre">core_total_parameters</span></code>,
+<code class="docutils literal notranslate"><span class="pre">core_trainable_parameters</span></code>, <code class="docutils literal notranslate"><span class="pre">synapse_candidate_parameters</span></code>,
+<code class="docutils literal notranslate"><span class="pre">non_synaptic_parameters</span></code>, <code class="docutils literal notranslate"><span class="pre">candidate_synapse_slots</span></code>,
+<code class="docutils literal notranslate"><span class="pre">active_synapses</span></code> and <code class="docutils literal notranslate"><span class="pre">persistent_state_scalars_per_sample</span></code>, and per
+synaptic pathway <code class="docutils literal notranslate"><span class="pre">resource_&lt;pathway&gt;_active_synapses</span></code>,
+<code class="docutils literal notranslate"><span class="pre">_candidate_slots</span></code> and <code class="docutils literal notranslate"><span class="pre">_candidate_parameters</span></code>. The core fields count
+the core network alone; the synaptic fields count sparse connectivity;</p></li>
+<li><p>from <code class="docutils literal notranslate"><span class="pre">training_summary.json</span></code>: <code class="docutils literal notranslate"><span class="pre">training_best_epoch</span></code>,
+<code class="docutils literal notranslate"><span class="pre">training_best_valid_loss</span></code>, <code class="docutils literal notranslate"><span class="pre">training_final_train_loss</span></code>,
+<code class="docutils literal notranslate"><span class="pre">training_final_valid_loss</span></code> and <code class="docutils literal notranslate"><span class="pre">training_epochs_completed</span></code>. Epoch
+histories are not copied; compare <code class="docutils literal notranslate"><span class="pre">training_best_epoch</span></code> with <code class="docutils literal notranslate"><span class="pre">epochs</span></code> to
+find runs that were still improving.</p></li>
+</ul>
+<p><code class="docutils literal notranslate"><span class="pre">--type</span></code> selects the analyzer:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 18.0%" />
+<col style="width: 82.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><code class="docutils literal notranslate"><span class="pre">--type</span></code></p></th>
+<th class="head"><p>Sweep</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ei</span></code></p></td>
+<td><p>E or I synapse counts vary; results by E/I ratio.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">stoch</span></code></p></td>
+<td><p>The stimulus duration or gain factor of a stochastic dataset varies.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">local_learning</span></code></p></td>
+<td><p>A local-learning rule setting varies.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">branch</span></code></p></td>
+<td><p>Layer sizes or branch factors vary.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">general</span></code></p></td>
+<td><p>Any other sweep.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">noise</span></code></p></td>
+<td><p>Runs with noise-perturbation results.</p></td>
+</tr>
+</tbody>
+</table>
+<p>Without <code class="docutils literal notranslate"><span class="pre">--type</span></code> (and always with <code class="docutils literal notranslate"><span class="pre">dendritic-sweep</span> <span class="pre">--analyze</span></code>), the type is
+detected from the first five files of <code class="docutils literal notranslate"><span class="pre">configs/</span></code> in name order: <code class="docutils literal notranslate"><span class="pre">ei</span></code>,
+<code class="docutils literal notranslate"><span class="pre">stoch</span></code>, <code class="docutils literal notranslate"><span class="pre">local_learning</span></code> and <code class="docutils literal notranslate"><span class="pre">branch</span></code> are tried in turn, and <code class="docutils literal notranslate"><span class="pre">general</span></code>
+handles any sweep directory. <code class="docutils literal notranslate"><span class="pre">noise</span></code> is used only when requested.</p>
+<p>The analyzer writes <code class="docutils literal notranslate"><span class="pre">&lt;type&gt;_processed_data.csv</span></code> (one row per run) and
+<code class="docutils literal notranslate"><span class="pre">&lt;type&gt;_aggregated_data.csv</span></code> to <code class="docutils literal notranslate"><span class="pre">&lt;sweep_dir&gt;/plots/</span></code> (or <code class="docutils literal notranslate"><span class="pre">--output</span></code>).
+The aggregated table has one row per condition, with <code class="docutils literal notranslate"><span class="pre">&lt;metric&gt;_mean</span></code>,
+<code class="docutils literal notranslate"><span class="pre">&lt;metric&gt;_std</span></code> (sample standard deviation, empty for a single replicate) and
+<code class="docutils literal notranslate"><span class="pre">n_replicates</span></code>. Plots go to the <code class="docutils literal notranslate"><span class="pre">performance</span></code>, <code class="docutils literal notranslate"><span class="pre">information</span></code>,
+<code class="docutils literal notranslate"><span class="pre">weights</span></code>, <code class="docutils literal notranslate"><span class="pre">ablation</span></code> and <code class="docutils literal notranslate"><span class="pre">noise</span></code> subdirectories: performance,
+information and weight plots against the sweep variables the analyzer
+recognizes (the E/I ratio, the stimulus duration and gain factors of the
+stochastic datasets, and the parameter count across dendritic network
+categories), and ablation and noise plots when the runs wrote those analyses.
+When no plot applies, the <code class="docutils literal notranslate"><span class="pre">general</span></code> analyzer draws bar charts of the mean
+metrics in <code class="docutils literal notranslate"><span class="pre">summary/</span></code>; analyze other sweep variables from the CSV files.
+Every plotted series has a marker and a line style of its own besides its
+colour from the Okabe-Ito palette (<code class="docutils literal notranslate"><span class="pre">dendritic_modeling.plotting.styles</span></code>),
+so the plots read without colour: network categories, dendritic depths, data
+splits, the metrics of a group, noise types, ablation types, local-rule
+variants and the layer-by-category series of the weight plots.</p>
+<p>Conditions are told apart only by the configuration columns the collector
+extracts. These include the network type; for a population network, the first
+layer’s readout population (E and I synapse counts, branch factors, size) and
+the synapse, gate and routing options; the training strategy, batch size,
+epochs, <code class="docutils literal notranslate"><span class="pre">param_groups.lr</span></code> (as <code class="docutils literal notranslate"><span class="pre">learning_rate</span></code>) and optimizer; local-rule
+settings; the dataset and its parameters; and <code class="docutils literal notranslate"><span class="pre">sweep_variant</span></code>. Runs that
+differ only in another swept path, for example <code class="docutils literal notranslate"><span class="pre">topk_lr</span></code>, are averaged as
+replicates of one condition. Express such comparisons as <code class="docutils literal notranslate"><span class="pre">sweep_variants</span></code>,
+whose names separate conditions, or compare seed-level results with the tools
+below.</p>
+<section id="seed-level-comparisons">
+<h3>Seed-level comparisons<a class="headerlink" href="#seed-level-comparisons" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">paired_comparison</span></code> pairs two arms of one sweep seed by seed and writes
+<code class="docutils literal notranslate"><span class="pre">paired_units.csv</span></code> and <code class="docutils literal notranslate"><span class="pre">paired_summary.json</span></code>, with a bootstrap interval of
+the mean difference. It fails when a seed lacks one of the arms.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>dendritic_modeling.scripts.sweeps.paired_comparison<span class="w"> </span>&lt;sweep_dir&gt;<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--output<span class="w"> </span>&lt;comparison_dir&gt;<span class="w"> </span>--arm-column<span class="w"> </span>sweep_variant<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--reference<span class="w"> </span>shunting<span class="w"> </span>--comparison<span class="w"> </span>normalized_additive<span class="w"> </span>--metric<span class="w"> </span>test_accuracy
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">dendritic-collect-sweep-metrics</span></code> collects declared, complete sweeps into
+one table with one row per trained run; it does not average over seeds. Its
+manifest (relative paths resolve against the manifest’s directory):</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">schema_version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">sweep_metric_collection_v1</span>
+<span class="nt">output_dir</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">collected/topk_lr</span><span class="w">          </span><span class="c1"># or --output-dir on the command line</span>
+<span class="nt">required_columns</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">test_accuracy</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">valid_accuracy</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">seed</span><span class="p p-Indicator">]</span>
+<span class="nt">sweeps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">topk_lr</span><span class="w">                      </span><span class="c1"># unique; becomes the sweep_name column</span>
+<span class="w">    </span><span class="nt">root</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">../sweeps/topk_lr_&lt;timestamp&gt;</span><span class="w">  </span><span class="c1"># a sweep directory</span>
+<span class="w">    </span><span class="nt">expected_config_count</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">45</span><span class="w">          </span><span class="c1"># collection fails on another count</span>
+<span class="w">    </span><span class="nt">labels</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">protocol</span><span class="p">:</span><span class="w"> </span><span class="nv">baseline</span><span class="p p-Indicator">}</span><span class="w">       </span><span class="c1"># optional scalar columns</span>
+<span class="w">    </span><span class="c1"># artifact_set_sha256: ...         # optional; must match when given</span>
+<span class="nt">training_history</span><span class="p">:</span><span class="w">                      </span><span class="c1"># optional</span>
+<span class="w">  </span><span class="nt">fields</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">train_losses</span><span class="p">:</span><span class="w"> </span><span class="nv">train_loss</span><span class="p p-Indicator">,</span><span class="nt"> valid_losses</span><span class="p">:</span><span class="w"> </span><span class="nv">valid_loss</span><span class="p p-Indicator">}</span>
+<span class="w">  </span><span class="nt">performance_epoch_fields</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">accuracy.valid</span><span class="p">:</span><span class="w"> </span><span class="nv">valid_accuracy</span><span class="p p-Indicator">}</span>
+</pre></div>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>dendritic-collect-sweep-metrics<span class="w"> </span>--manifest<span class="w"> </span>collection.yaml
+</pre></div>
+</div>
+<p>It writes <code class="docutils literal notranslate"><span class="pre">checkpoint_units.csv</span></code> (the collected columns plus the labels,
+<code class="docutils literal notranslate"><span class="pre">sweep_name</span></code>, <code class="docutils literal notranslate"><span class="pre">sweep_root</span></code> and <code class="docutils literal notranslate"><span class="pre">sweep_artifact_set_sha256</span></code>) and
+<code class="docutils literal notranslate"><span class="pre">collection_provenance.json</span></code>: the collection records hashes of every
+generated config and <code class="docutils literal notranslate"><span class="pre">performance/final.json</span></code> it read. With
+<code class="docutils literal notranslate"><span class="pre">training_history.fields</span></code>, it also writes <code class="docutils literal notranslate"><span class="pre">training_history.csv</span></code>, one row
+per run, metric and epoch, from the lists in <code class="docutils literal notranslate"><span class="pre">training_summary.json</span></code>. Rows of
+<code class="docutils literal notranslate"><span class="pre">performance_epoch_fields</span></code>, read from <code class="docutils literal notranslate"><span class="pre">performance/epochs/epoch&lt;N&gt;.json</span></code>
+(written when <code class="docutils literal notranslate"><span class="pre">analysis.performance.training</span></code> is true), are written to that
+file only when <code class="docutils literal notranslate"><span class="pre">fields</span></code> is declared too. A run whose <code class="docutils literal notranslate"><span class="pre">analysis_status.json</span></code>
+records that <code class="docutils literal notranslate"><span class="pre">performance</span></code> did not complete, in its final pass or in a
+per-epoch pass that ran it (see <a class="reference internal" href="analysis.html#analysis-status"><span class="std std-ref">Completion status</span></a>), fails the
+collection; runs written before status records existed are collected as
+before.</p>
+</section>
 </section>
 </section>
 
@@ -221,14 +1094,14 @@ python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/result_analy
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="initialization_comparison_policy.html" class="btn btn-neutral float-left" title="Initialization Comparison Policy" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="fsdp_troubleshooting.html" class="btn btn-neutral float-right" title="Distributed Training Guide" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="runs_and_outputs.html" class="btn btn-neutral float-left" title="Runs and outputs" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="model_compression.html" class="btn btn-neutral float-right" title="Compact checkpoints" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>
 
   <div role="contentinfo">
-    <p>&#169; Copyright 2025, Kempner Institute.</p>
+    <p>&#169; Copyright 2024-2026, Kempner Institute.</p>
   </div>
 
   Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a

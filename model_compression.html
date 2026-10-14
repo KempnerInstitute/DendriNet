@@ -1,0 +1,672 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Compact checkpoints &mdash; DendriNet v0.2.0</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=938c9ccc"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Project provenance" href="project_provenance.html" />
+    <link rel="prev" title="Parameter sweeps" href="sweeps.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            DendriNet
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Example configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Building models</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="network_architectures.html">Model architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dendritic_neurons.html">Dendritic neurons</a></li>
+<li class="toctree-l1"><a class="reference internal" href="synapses.html">Synapses and connectivity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="population_networks.html">Population networks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="temporal_dynamics.html">Temporal dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="structured_ei_cores.html">Structured E/I cores</a></li>
+<li class="toctree-l1"><a class="reference internal" href="conductance_options.html">Conductance options</a></li>
+<li class="toctree-l1"><a class="reference internal" href="comparison_models.html">Baselines and comparison models</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Configuration</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="configuration_guide.html">Configuration guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config_reference.html">Annotated reference configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="training_strategies.html">Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="distributed_training.html">Distributed training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="performance_kernels.html">Sparse execution and performance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Data and analysis</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="datasets.html">Datasets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="analysis.html">Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="analyzers.html">Analyzer reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="checkpoint_analysis.html">Analyzing saved checkpoints</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Running experiments</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="runs_and_outputs.html">Runs and outputs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sweeps.html">Parameter sweeps</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Compact checkpoints</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#exporting-a-checkpoint">Exporting a checkpoint</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#which-layers-are-converted">Which layers are converted</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#numerical-checks">Numerical checks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#topology-encodings">Topology encodings</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#compression-policy">Compression policy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#loading-a-compact-checkpoint">Loading a compact checkpoint</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#dense-runtime-transforms-with-torchao">Dense runtime transforms with TorchAO</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#what-to-record">What to record</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="project_provenance.html">Project provenance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="available_components.html">Component catalogue</a></li>
+<li class="toctree-l1"><a class="reference internal" href="options_reference.html">Options reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cli_reference.html">Command-line reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api_reference.html">Python API</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="extending.html">Extending DendriNet</a></li>
+<li class="toctree-l1"><a class="reference internal" href="engineering_architecture.html">Engineering architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">DendriNet</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Compact checkpoints</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/model_compression.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="compact-checkpoints">
+<span id="id1"></span><h1>Compact checkpoints<a class="headerlink" href="#compact-checkpoints" title="Link to this heading"></a></h1>
+<p>Top-K synapse layers train with a bank of candidate weights: a dense
+<code class="docutils literal notranslate"><span class="pre">[out_features,</span> <span class="pre">in_features]</span></code> matrix (<code class="docutils literal notranslate"><span class="pre">standard</span></code>, <code class="docutils literal notranslate"><span class="pre">dense_to_sparse</span></code>) or
+a candidate pool larger than <code class="docutils literal notranslate"><span class="pre">K</span></code> (<code class="docutils literal notranslate"><span class="pre">indexed_dynamic</span></code>). After training, each
+output uses only its <code class="docutils literal notranslate"><span class="pre">K</span></code> active contacts. <code class="docutils literal notranslate"><span class="pre">dendritic-compact-checkpoint</span></code>
+replaces such layers with fixed indexed layers (<code class="docutils literal notranslate"><span class="pre">IndexedSparseLinear</span></code>) that
+store only those contacts, <code class="docutils literal notranslate"><span class="pre">K</span></code> input indices and <code class="docutils literal notranslate"><span class="pre">K</span></code> weights per output,
+and writes them to a self-describing compact checkpoint. The topology and the
+stored weights do not change; outputs agree up to floating-point rounding,
+because an indexed layer sums its contacts in a different order. The
+conversion needs no optional dependency.</p>
+<p>The compact checkpoint can also record a TorchAO weight-only quantization or
+block-sparse transform for conventional dense <code class="docutils literal notranslate"><span class="pre">nn.Linear</span></code> layers, applied
+when the checkpoint is loaded (<a class="reference internal" href="#compact-dense-runtime"><span class="std std-ref">Dense runtime transforms with TorchAO</span></a>). Unlike topology
+freezing, quantization changes the model’s outputs.</p>
+<section id="exporting-a-checkpoint">
+<h2>Exporting a checkpoint<a class="headerlink" href="#exporting-a-checkpoint" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">dendritic-compact-checkpoint</span></code> takes the configuration that built the
+model, a checkpoint holding its weights, and the path of the file to write:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>dendritic-compact-checkpoint<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>outputs/my_run_&lt;timestamp&gt;/config.json<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>outputs/my_run_&lt;timestamp&gt;/final_model.pt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>outputs/my_run_&lt;timestamp&gt;/final_model.compact.pt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--compression-config<span class="w"> </span>configs/examples/deployment/compact_inference.yaml<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--verify-full-model<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--report<span class="w"> </span>outputs/my_run_&lt;timestamp&gt;/final_model.compact.json
+</pre></div>
+</div>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 30.0%" />
+<col style="width: 70.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Argument</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">experiment_config</span></code></p></td>
+<td><p>The training YAML, or the run’s <code class="docutils literal notranslate"><span class="pre">config.json</span></code>. The run’s
+<code class="docutils literal notranslate"><span class="pre">config.json</span></code> also records the seeds and input shape that training
+resolved, so prefer it.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">source_checkpoint</span></code></p></td>
+<td><p>A file holding the model state dictionary, such as <code class="docutils literal notranslate"><span class="pre">final_model.pt</span></code>
+or <code class="docutils literal notranslate"><span class="pre">main_network/&lt;prefix&gt;best_model.pt</span></code> of a run
+(<a class="reference internal" href="runs_and_outputs.html#run-checkpoints"><span class="std std-ref">Checkpoints</span></a>).</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">output_checkpoint</span></code></p></td>
+<td><p>The compact checkpoint to write. It must not exist and must differ
+from the source.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--compression-config</span></code></p></td>
+<td><p>A compression policy YAML (<a class="reference internal" href="#compact-policy"><span class="std std-ref">Compression policy</span></a>). Without it the
+defaults apply.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--verify-full-model</span></code></p></td>
+<td><p>Also compare the outputs of the whole model before export and after
+loading the written checkpoint (<a class="reference internal" href="#compact-verification"><span class="std std-ref">Numerical checks</span></a>).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--device</span></code></p></td>
+<td><p>Device for the conversion and the checks; default <code class="docutils literal notranslate"><span class="pre">cpu</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--report</span></code></p></td>
+<td><p>Also write the JSON report to this file. The file must not exist.</p></td>
+</tr>
+</tbody>
+</table>
+<p>The command:</p>
+<ol class="arabic simple">
+<li><p>loads the configuration with the strict loader, builds the model with the
+same factory as training and loads the state dictionary strictly; with
+<code class="docutils literal notranslate"><span class="pre">--verify-full-model</span></code> it records the model’s output for the check input
+and builds a fresh copy for the conversion;</p></li>
+<li><p>converts the layers listed in <a class="reference internal" href="#compact-conversion"><span class="std std-ref">Which layers are converted</span></a> and checks each
+converted layer against the original;</p></li>
+<li><p>encodes the topology (<a class="reference internal" href="#compact-encodings"><span class="std std-ref">Topology encodings</span></a>) and writes the checkpoint
+to a temporary file that is then renamed, so an interrupted export never
+leaves a partial file;</p></li>
+<li><p>with <code class="docutils literal notranslate"><span class="pre">--verify-full-model</span></code>, rebuilds the model, loads the written
+checkpoint strictly and compares the outputs of the whole model;</p></li>
+<li><p>prints its log records and then the JSON report to standard output, and
+with <code class="docutils literal notranslate"><span class="pre">--report</span></code> writes the report alone to the given file, in the same
+atomic way.</p></li>
+</ol>
+<p><code class="docutils literal notranslate"><span class="pre">--report</span></code> refuses an existing file, or the path of the source or output
+checkpoint, before anything is written.</p>
+<p>The report lists:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">output</span></code>, <code class="docutils literal notranslate"><span class="pre">output_sha256</span></code>, <code class="docutils literal notranslate"><span class="pre">output_bytes</span></code> and <code class="docutils literal notranslate"><span class="pre">source</span></code>,
+<code class="docutils literal notranslate"><span class="pre">source_bytes</span></code>, <code class="docutils literal notranslate"><span class="pre">size_reduction_factor</span></code>: the two files and the ratio of
+their sizes;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">converted_modules</span></code> and <code class="docutils literal notranslate"><span class="pre">topology_encoding</span></code>;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">training_resources</span></code> and <code class="docutils literal notranslate"><span class="pre">deployment_resources</span></code>: parameter and synapse
+counts of the model before and after conversion, with candidate and active
+contacts per synapse layer, and <code class="docutils literal notranslate"><span class="pre">core_parameter_reduction_factor</span></code>;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">training_runtime_storage</span></code>, <code class="docutils literal notranslate"><span class="pre">deployment_runtime_storage</span></code> and
+<code class="docutils literal notranslate"><span class="pre">deployment_serialized_storage</span></code>: tensor bytes in memory before and after
+conversion and in the written file (parameters, buffers and topology
+separately). These are different quantities; do not add them up as one
+parameter count;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">full_model_verification</span></code>, <code class="docutils literal notranslate"><span class="pre">experiment_config</span></code>, <code class="docutils literal notranslate"><span class="pre">compression_config</span></code>,
+<code class="docutils literal notranslate"><span class="pre">dense_runtime_backend</span></code> and <code class="docutils literal notranslate"><span class="pre">schema_version</span></code>.</p></li>
+</ul>
+<p>The compact checkpoint holds the encoded state dictionary, one manifest
+record per converted layer (path, source and target class, shape, <code class="docutils literal notranslate"><span class="pre">K</span></code>,
+weight transform, execution options and index dtype), the topology
+encodings, the compression policy, and the path, SHA-256 hash and size of the
+source checkpoint, with the paths and hashes of the experiment configuration
+and policy files.</p>
+</section>
+<section id="which-layers-are-converted">
+<span id="compact-conversion"></span><h2>Which layers are converted<a class="headerlink" href="#which-layers-are-converted" title="Link to this heading"></a></h2>
+<p>Conversion matches the exact layer class. The synapse type is
+<code class="docutils literal notranslate"><span class="pre">model.core.sparsity.type</span></code> in structured E/I cores and <code class="docutils literal notranslate"><span class="pre">topk_type</span></code> in
+population settings (<a class="reference internal" href="synapses.html#synapse-variants"><span class="std std-ref">Sparse synapse types</span></a>).</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 26.0%" />
+<col style="width: 26.0%" />
+<col style="width: 48.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Synapse type</p></th>
+<th class="head"><p>Layer class</p></th>
+<th class="head"><p>Export</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">standard</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">TopKLinear</span></code></p></td>
+<td><p>Converted to its active contacts. Raises when <code class="docutils literal notranslate"><span class="pre">noise_level</span></code> is not
+zero.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">dense_to_sparse</span></code> (<code class="docutils literal notranslate"><span class="pre">annealed_topk</span></code>)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">DenseToSparseLinear</span></code></p></td>
+<td><p>Converted once its schedule has reached the target <code class="docutils literal notranslate"><span class="pre">K</span></code>. Raises
+before that, unless <code class="docutils literal notranslate"><span class="pre">require_final_dense_to_sparse_step:</span> <span class="pre">false</span></code>, and
+when <code class="docutils literal notranslate"><span class="pre">noise_level</span></code> is not zero.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">indexed_dynamic</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">IndexedDynamicTopKLinear</span></code></p></td>
+<td><p>Converted to the <code class="docutils literal notranslate"><span class="pre">K</span></code> selected candidates when <code class="docutils literal notranslate"><span class="pre">selection</span></code> is
+<code class="docutils literal notranslate"><span class="pre">standard</span></code> and <code class="docutils literal notranslate"><span class="pre">noise_level</span></code> is zero; raises otherwise. Left
+unchanged with <code class="docutils literal notranslate"><span class="pre">allow_indexed_dynamic:</span> <span class="pre">false</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">indexed_rewire</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">IndexedRewireLinear</span></code></p></td>
+<td><p>Converted to its current contacts; the rewiring state is dropped.
+Left unchanged with <code class="docutils literal notranslate"><span class="pre">allow_indexed_rewire:</span> <span class="pre">false</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">indexed</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">IndexedSparseLinear</span></code></p></td>
+<td><p>Already compact; left unchanged.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">stochastic</span></code>, <code class="docutils literal notranslate"><span class="pre">variance</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">StochasticTopKLinear</span></code>, <code class="docutils literal notranslate"><span class="pre">VarianceTopKLinear</span></code></p></td>
+<td><p>Not convertible losslessly: export raises (see below).</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">deepst</span></code>, <code class="docutils literal notranslate"><span class="pre">credit_deepst</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">DeepstLinear</span></code>, <code class="docutils literal notranslate"><span class="pre">CreditGatedDeepstLinear</span></code></p></td>
+<td><p>Not convertible losslessly: export raises.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">indexed_release</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">IndexedReleaseLinear</span></code></p></td>
+<td><p>Already indexed; not converted and no error. Its contact statistics
+are kept with their contacts (<a class="reference internal" href="#compact-encodings"><span class="std std-ref">Topology encodings</span></a>).</p></td>
+</tr>
+</tbody>
+</table>
+<p>Export fails closed: a sparse layer that topology freezing cannot convert
+without changing the model raises, naming each such layer, because the
+“compact” checkpoint would otherwise keep its dense candidate bank.
+<code class="docutils literal notranslate"><span class="pre">sparse_topology.allow_unconverted:</span> <span class="pre">true</span></code> exports such layers in their
+training form instead, and <code class="docutils literal notranslate"><span class="pre">converted_modules</span></code> counts only the converted
+ones. The affine MLP control converts in <code class="docutils literal notranslate"><span class="pre">topk</span></code>
+mode (<code class="docutils literal notranslate"><span class="pre">TopKLinear</span></code>) and stays unchanged in <code class="docutils literal notranslate"><span class="pre">fixed</span></code> mode. A layer object
+that appears at two module paths raises.</p>
+<p>A converted layer keeps the weight transform of the original layer, and its
+indices take the policy’s <code class="docutils literal notranslate"><span class="pre">index_dtype</span></code>. Its execution options
+(<code class="docutils literal notranslate"><span class="pre">projection_backend</span></code>, <code class="docutils literal notranslate"><span class="pre">workspace_mb</span></code>, <code class="docutils literal notranslate"><span class="pre">output_chunk_size</span></code>,
+<code class="docutils literal notranslate"><span class="pre">cache_transformed_weights</span></code>) come from the original layer when that layer
+has them (<code class="docutils literal notranslate"><span class="pre">indexed_dynamic</span></code>, <code class="docutils literal notranslate"><span class="pre">indexed_rewire</span></code>); converted Top-K and
+dense-to-sparse layers get the <code class="docutils literal notranslate"><span class="pre">IndexedSparseLinear</span></code> defaults, which
+include <code class="docutils literal notranslate"><span class="pre">projection_backend:</span> <span class="pre">eager</span></code>. The policy’s
+<code class="docutils literal notranslate"><span class="pre">sparse_topology.projection_backend</span></code> and <code class="docutils literal notranslate"><span class="pre">workspace_mb</span></code> override both.</p>
+</section>
+<section id="numerical-checks">
+<span id="compact-verification"></span><h2>Numerical checks<a class="headerlink" href="#numerical-checks" title="Link to this heading"></a></h2>
+<p>Each converted layer is checked while it is replaced: the original and the
+indexed layer receive the same fixed two-row standard-normal input, and their
+outputs must agree within <code class="docutils literal notranslate"><span class="pre">verification.atol</span></code> and <code class="docutils literal notranslate"><span class="pre">verification.rtol</span></code>
+(both <code class="docutils literal notranslate"><span class="pre">1e-5</span></code>) for float32 layers, or within a fixed <code class="docutils literal notranslate"><span class="pre">5e-3</span></code> for float16 and
+bfloat16 layers. <code class="docutils literal notranslate"><span class="pre">verification.enabled:</span> <span class="pre">false</span></code> skips the check.</p>
+<p><code class="docutils literal notranslate"><span class="pre">--verify-full-model</span></code> feeds one standard-normal sample, drawn with a fixed
+seed, through the model before conversion and through a model rebuilt from
+the written checkpoint, and compares the outputs with <code class="docutils literal notranslate"><span class="pre">verification.atol</span></code>
+and <code class="docutils literal notranslate"><span class="pre">verification.rtol</span></code>. The report’s <code class="docutils literal notranslate"><span class="pre">full_model_verification</span></code> gives the
+input shape, the largest and mean absolute differences and whether the
+predicted classes agree. Two requirements follow from the input it uses:</p>
+<ul>
+<li><p>Its shape comes from the configuration: a run’s recorded <code class="docutils literal notranslate"><span class="pre">config.json</span></code>
+holds the <code class="docutils literal notranslate"><span class="pre">model.encoder.params.input_shape</span></code> and <code class="docutils literal notranslate"><span class="pre">input_dim</span></code> training
+saw. A written <code class="docutils literal notranslate"><span class="pre">input_shape</span></code> other than its <code class="docutils literal notranslate"><span class="pre">[3,</span> <span class="pre">32,</span> <span class="pre">32]</span></code> default is
+used as is; otherwise the sample is flat with <code class="docutils literal notranslate"><span class="pre">input_dim</span></code> features (the
+image shape is kept only when it matches <code class="docutils literal notranslate"><span class="pre">input_dim</span></code> and
+<code class="docutils literal notranslate"><span class="pre">data.processing.flatten</span></code> is false). A hand-written configuration without
+either can state the shape, for example for flattened MNIST:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">encoder</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">identity</span>
+<span class="w">    </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">input_shape</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">784</span><span class="p p-Indicator">]</span>
+</pre></div>
+</div>
+<p>Otherwise the check fails with a shape error such as <code class="docutils literal notranslate"><span class="pre">PopulationNetwork</span>
+<span class="pre">expected</span> <span class="pre">last</span> <span class="pre">input</span> <span class="pre">dimension</span> <span class="pre">784,</span> <span class="pre">got</span> <span class="pre">32</span></code>.</p>
+</li>
+<li><p>The sample has negative values. Structured shunting E/I cores reject signed
+input unless their transfer layer clamps it
+(<code class="docutils literal notranslate"><span class="pre">model.core.transfer.output_activation:</span> <span class="pre">relu</span></code>), so for them the check
+raises <code class="docutils literal notranslate"><span class="pre">ValueError</span></code>; population networks log a warning and continue.
+Without the full-model check, the per-layer checks still run; evaluate the
+loaded compact model on held-out data instead.</p></li>
+</ul>
+</section>
+<section id="topology-encodings">
+<span id="compact-encodings"></span><h2>Topology encodings<a class="headerlink" href="#topology-encodings" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">sparse_topology.topology_encoding</span></code> selects how the checkpoint stores every
+<code class="docutils literal notranslate"><span class="pre">connection_indices</span></code> tensor of the model, converted or not:</p>
+<dl>
+<dt><code class="docutils literal notranslate"><span class="pre">uint</span></code> (default)</dt><dd><p>Each index as <code class="docutils literal notranslate"><span class="pre">uint16</span></code> when the largest index is at most 65,535,
+otherwise as <code class="docutils literal notranslate"><span class="pre">uint32</span></code>. Loading converts the indices back to the layer’s
+index dtype. The order of the contacts is preserved.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">bitmask</span></code></dt><dd><p>One bit per possible input in each row. Smaller than <code class="docutils literal notranslate"><span class="pre">uint</span></code> when <code class="docutils literal notranslate"><span class="pre">K</span></code> is
+a large fraction of the input width; <code class="docutils literal notranslate"><span class="pre">uint</span></code> is smaller for very sparse
+rows. A bitmask records which inputs a row contacts but not the slot each
+contact is stored in, so the layers are stored in one of two layouts:</p>
+<ul class="simple">
+<li><p>Fixed indexed layers (<code class="docutils literal notranslate"><span class="pre">IndexedSparseLinear</span></code>: the converted layers,
+<code class="docutils literal notranslate"><span class="pre">indexed</span></code> and degree-grouped layers) are stored with their contacts and
+weights in ascending input order. The weights are their only per-contact
+state and no update depends on the slot order. A layer whose contacts
+were not ascending sums them in another order after loading, so its
+outputs can differ in the last bits.</p></li>
+<li><p>Every other indexed layer keeps its slot order exactly:
+<code class="docutils literal notranslate"><span class="pre">indexed_release</span></code> (its weights, <code class="docutils literal notranslate"><span class="pre">impact</span></code> and <code class="docutils literal notranslate"><span class="pre">contact_age</span></code> hold one
+entry per contact, and the release draws of training forwards and the
+cellwise impact rewiring follow the slots), <code class="docutils literal notranslate"><span class="pre">indexed_rewire</span></code> and
+<code class="docutils literal notranslate"><span class="pre">indexed_dynamic</span></code> layers left unconverted (<code class="docutils literal notranslate"><span class="pre">allow_indexed_rewire:</span>
+<span class="pre">false</span></code>, <code class="docutils literal notranslate"><span class="pre">allow_indexed_dynamic:</span> <span class="pre">false</span></code>; ties of the pruning and the
+Top-K selection, the pairing of new inputs with pruned slots and the
+selection noise follow the slots), and layer types defined outside the
+library. For each row whose contacts are not ascending the file also
+stores the slot of every contact, one byte per contact up to 256
+contacts per row and two bytes up to 65,536, so <code class="docutils literal notranslate"><span class="pre">bitmask</span></code> saves less
+for these layers. Loading restores every tensor of these layers, and
+their next training update matches the source model’s.</p></li>
+</ul>
+<p>The checkpoint’s <code class="docutils literal notranslate"><span class="pre">sparse_index_encoding</span></code> names the layout of each layer:
+<code class="docutils literal notranslate"><span class="pre">bitmask</span></code> (ascending) or <code class="docutils literal notranslate"><span class="pre">bitmask_slot_order</span></code>. Library versions before
+2026-10-13 cannot read a file with stored slot orders and raise <code class="docutils literal notranslate"><span class="pre">Invalid</span>
+<span class="pre">bitmask</span> <span class="pre">metadata</span></code>.</p>
+</dd>
+</dl>
+<p>Bitmask checkpoints written before 2026-10-13 stored every layer in the
+ascending layout and reordered only the weights with the contacts. In such a
+file, an <code class="docutils literal notranslate"><span class="pre">indexed_release</span></code> layer whose contacts were not ascending has its
+<code class="docutils literal notranslate"><span class="pre">impact</span></code> and <code class="docutils literal notranslate"><span class="pre">contact_age</span></code> attached to other contacts (its weights and
+outputs are correct), and the next training update of an unconverted
+<code class="docutils literal notranslate"><span class="pre">indexed_release</span></code>, <code class="docutils literal notranslate"><span class="pre">indexed_rewire</span></code> or <code class="docutils literal notranslate"><span class="pre">indexed_dynamic</span></code> layer can
+differ from the source model’s. The original order was not stored, so these
+files cannot be repaired. <code class="docutils literal notranslate"><span class="pre">load_compact_model_checkpoint</span></code> reports each layer
+of such a file whose contact order matters under <code class="docutils literal notranslate"><span class="pre">contact_order_warnings</span></code>
+and logs a warning; export the model again from its source checkpoint.</p>
+<p>The export keeps the slot order of every layer that
+<code class="docutils literal notranslate"><span class="pre">dendritic_modeling.deployment.bitmask_slot_order_keys(model)</span></code> lists. A
+layer may be reordered only when its class itself (not just a parent class)
+sets <code class="docutils literal notranslate"><span class="pre">SLOT_ORDER_MATTERS</span> <span class="pre">=</span> <span class="pre">False</span></code> and names <code class="docutils literal notranslate"><span class="pre">pre_w</span></code> as its only
+per-contact tensor in <code class="docutils literal notranslate"><span class="pre">CONTACT_SLOT_STATE</span></code>, and its state holds no other
+tensor with one entry per contact; a new indexed layer type keeps its slot
+order until it declares otherwise. Code that encodes a state dictionary
+directly with <code class="docutils literal notranslate"><span class="pre">networks.checkpoints.compact_sparse_bitmask_state_dict</span></code> gets
+the ascending layout unless <code class="docutils literal notranslate"><span class="pre">keep_slot_order</span></code> names the
+<code class="docutils literal notranslate"><span class="pre">connection_indices</span></code> keys to keep (<code class="docutils literal notranslate"><span class="pre">True</span></code> keeps all). The ascending layout
+raises <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> for a row it would reorder when the layer holds another
+tensor with one entry per contact.</p>
+</section>
+<section id="compression-policy">
+<span id="compact-policy"></span><h2>Compression policy<a class="headerlink" href="#compression-policy" title="Link to this heading"></a></h2>
+<p>The policy is a separate YAML file with three sections; it does not change
+training. <code class="docutils literal notranslate"><span class="pre">configs/examples/deployment/compact_inference.yaml</span></code> is an
+example:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># Post-training deployment policy. This file does not alter training.</span>
+<span class="nt">sparse_topology</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">topology_encoding</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bitmask</span><span class="w">  </span><span class="c1"># uint is faster to decode; bitmask is often smaller</span>
+<span class="w">  </span><span class="nt">require_final_dense_to_sparse_step</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">allow_indexed_dynamic</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">allow_indexed_rewire</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+
+<span class="c1"># Applied only when load_compact_model_checkpoint(..., apply_dense_runtime=True).</span>
+<span class="c1"># "none" leaves the loaded model unchanged; the TorchAO backends transform</span>
+<span class="c1"># large nn.Linear layers and can change the outputs.</span>
+<span class="nt">dense_runtime</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">backend</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">none</span>
+<span class="w">  </span><span class="nt">include_patterns</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[]</span>
+<span class="w">  </span><span class="nt">exclude_patterns</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[]</span>
+<span class="w">  </span><span class="nt">min_in_features</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">256</span>
+<span class="w">  </span><span class="nt">min_out_features</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">256</span>
+<span class="w">  </span><span class="nt">int4_group_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">128</span>
+<span class="w">  </span><span class="nt">block_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64</span>
+<span class="w">  </span><span class="nt">minimum_block_sparsity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.80</span>
+
+<span class="nt">verification</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">atol</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0e-5</span>
+<span class="w">  </span><span class="nt">rtol</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0e-5</span>
+</pre></div>
+</div>
+<p>Unknown sections raise <code class="docutils literal notranslate"><span class="pre">ValueError</span></code>, and unknown keys inside a section
+raise <code class="docutils literal notranslate"><span class="pre">TypeError</span></code>. All keys and their defaults:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 40.0%" />
+<col style="width: 15.0%" />
+<col style="width: 45.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Key</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">sparse_topology.enabled</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
+<td><p>Convert layers. <code class="docutils literal notranslate"><span class="pre">false</span></code> converts no layer; the file still encodes
+the indices of indexed layers.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">sparse_topology.topology_encoding</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">uint</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">uint</span></code> or <code class="docutils literal notranslate"><span class="pre">bitmask</span></code> (<a class="reference internal" href="#compact-encodings"><span class="std std-ref">Topology encodings</span></a>).</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">sparse_topology.require_final_dense_to_sparse_step</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
+<td><p>Reject <code class="docutils literal notranslate"><span class="pre">dense_to_sparse</span></code> layers that have not reached their target
+<code class="docutils literal notranslate"><span class="pre">K</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">sparse_topology.allow_indexed_dynamic</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
+<td><p>Convert <code class="docutils literal notranslate"><span class="pre">indexed_dynamic</span></code> layers.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">sparse_topology.allow_indexed_rewire</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
+<td><p>Convert <code class="docutils literal notranslate"><span class="pre">indexed_rewire</span></code> layers.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">sparse_topology.index_dtype</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">int64</span></code></p></td>
+<td><p>In-memory index dtype of converted layers: <code class="docutils literal notranslate"><span class="pre">int32</span></code> or <code class="docutils literal notranslate"><span class="pre">int64</span></code>.
+There is no setting that keeps each layer’s own dtype; set <code class="docutils literal notranslate"><span class="pre">int32</span></code>
+for layers trained with <code class="docutils literal notranslate"><span class="pre">index_dtype:</span> <span class="pre">auto</span></code> or <code class="docutils literal notranslate"><span class="pre">int32</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">sparse_topology.projection_backend</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">null</span></code></p></td>
+<td><p>Backend of converted layers (<a class="reference internal" href="performance_kernels.html#indexed-backends"><span class="std std-ref">Projection backends</span></a>). <code class="docutils literal notranslate"><span class="pre">null</span></code> keeps
+the original layer’s backend, or <code class="docutils literal notranslate"><span class="pre">eager</span></code> for layers without one. The
+per-layer check runs it on <code class="docutils literal notranslate"><span class="pre">--device</span></code>, so a Triton backend needs a
+CUDA device.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">sparse_topology.workspace_mb</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">null</span></code></p></td>
+<td><p>Gather workspace of converted layers. <code class="docutils literal notranslate"><span class="pre">null</span></code> keeps the original
+layer’s value, or no budget for layers without one.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dense_runtime.backend</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">none</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">none</span></code>, <code class="docutils literal notranslate"><span class="pre">torchao_int8_weight_only</span></code>, <code class="docutils literal notranslate"><span class="pre">torchao_int4_weight_only</span></code>
+or <code class="docutils literal notranslate"><span class="pre">torchao_block_sparse</span></code> (<a class="reference internal" href="#compact-dense-runtime"><span class="std std-ref">Dense runtime transforms with TorchAO</span></a>).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">dense_runtime.include_patterns</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[]</span></code></p></td>
+<td><p>Regular expressions; when given, a layer’s module path must match one.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dense_runtime.exclude_patterns</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[]</span></code></p></td>
+<td><p>Regular expressions; a matching module path is skipped.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">dense_runtime.min_in_features</span></code>, <code class="docutils literal notranslate"><span class="pre">min_out_features</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">256</span></code></p></td>
+<td><p>Smallest input and output width of a transformed layer.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dense_runtime.int4_group_size</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">128</span></code></p></td>
+<td><p>Group size of int4 quantization: 32, 64, 128 or 256.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">dense_runtime.block_size</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">64</span></code></p></td>
+<td><p>Square block size of <code class="docutils literal notranslate"><span class="pre">torchao_block_sparse</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dense_runtime.minimum_block_sparsity</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">0.8</span></code></p></td>
+<td><p>Fraction of all-zero blocks that each block-sparse layer must already
+have.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">verification.enabled</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
+<td><p>Run the per-layer check.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">verification.atol</span></code>, <code class="docutils literal notranslate"><span class="pre">verification.rtol</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">1e-5</span></code></p></td>
+<td><p>Tolerances of the float32 per-layer check and of the full-model check.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="loading-a-compact-checkpoint">
+<h2>Loading a compact checkpoint<a class="headerlink" href="#loading-a-compact-checkpoint" title="Link to this heading"></a></h2>
+<p>Build the model from the same configuration and load the compact checkpoint
+into it. The loader rebuilds every converted layer as <code class="docutils literal notranslate"><span class="pre">IndexedSparseLinear</span></code>
+from the manifest, then loads the state dictionary strictly:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_config</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.deployment</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_compact_model_checkpoint</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.scripts.script_utils.setup_utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">initialize_model</span>
+
+<span class="n">config</span> <span class="o">=</span> <span class="n">load_config</span><span class="p">(</span><span class="s2">"outputs/my_run_&lt;timestamp&gt;/config.json"</span><span class="p">)</span>
+<span class="n">model</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">initialize_model</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">model</span><span class="p">)</span>
+<span class="n">report</span> <span class="o">=</span> <span class="n">load_compact_model_checkpoint</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">,</span> <span class="s2">"outputs/my_run_&lt;timestamp&gt;/final_model.compact.pt"</span>
+<span class="p">)</span>
+<span class="n">model</span><span class="o">.</span><span class="n">eval</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>The returned report gives the checkpoint path and SHA-256 hash, the missing
+and unexpected keys (empty with the default <code class="docutils literal notranslate"><span class="pre">strict=True</span></code>), the number of
+converted layers, the <code class="docutils literal notranslate"><span class="pre">contact_order_warnings</span></code> of older bitmask files
+(<a class="reference internal" href="#compact-encodings"><span class="std std-ref">Topology encodings</span></a>) and the dense-runtime result. A compact checkpoint
+is not a plain state dictionary: load it with
+<code class="docutils literal notranslate"><span class="pre">load_compact_model_checkpoint</span></code>, not with <code class="docutils literal notranslate"><span class="pre">model.load_state_dict</span></code>.</p>
+<p>A compact checkpoint does not keep the module versions of the state
+dictionary (its <code class="docutils literal notranslate"><span class="pre">_metadata</span></code>, <a class="reference internal" href="training_strategies.html#checkpoint-versions"><span class="std std-ref">Checkpoint versions</span></a>), so loading treats
+every module as written before its versioned entries existed. Every stored
+value is loaded as stored. The visible effect is a <code class="docutils literal notranslate"><span class="pre">UserWarning</span></code> for each
+<code class="docutils literal notranslate"><span class="pre">indexed_release</span></code> layer, “contact ages in files written before 2026-10-04
+count training forwards, not optimizer steps”: the ages of a compact
+checkpoint exported from a current model count optimizer steps, so the
+warning can be ignored there. A versioned entry missing from the file would
+likewise keep the module’s constructed value instead of failing strict
+loading; current exports write every entry.</p>
+<p>Resume training from the original checkpoint, not the compact one: freezing
+removes the inactive candidates and the rewiring state that training uses.</p>
+</section>
+<section id="dense-runtime-transforms-with-torchao">
+<span id="compact-dense-runtime"></span><h2>Dense runtime transforms with TorchAO<a class="headerlink" href="#dense-runtime-transforms-with-torchao" title="Link to this heading"></a></h2>
+<p>The TorchAO backends need the optional dependency (<code class="docutils literal notranslate"><span class="pre">torchao&gt;=0.18,&lt;0.19</span></code>):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span><span class="s1">'.[compression]'</span>
+</pre></div>
+</div>
+<p>Select the backend in the <code class="docutils literal notranslate"><span class="pre">dense_runtime</span></code> section of the policy given to
+<code class="docutils literal notranslate"><span class="pre">dendritic-compact-checkpoint</span></code>; the policy is stored in the compact
+checkpoint, so editing the YAML file afterwards has no effect. Loading applies
+it on request:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">report</span> <span class="o">=</span> <span class="n">load_compact_model_checkpoint</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">,</span> <span class="s2">"outputs/my_run_&lt;timestamp&gt;/final_model.compact.pt"</span><span class="p">,</span>
+    <span class="n">apply_dense_runtime</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>With <code class="docutils literal notranslate"><span class="pre">apply_dense_runtime=True</span></code> the loader puts the model in evaluation
+mode and transforms every module whose class is exactly <code class="docutils literal notranslate"><span class="pre">nn.Linear</span></code>, whose
+widths reach <code class="docutils literal notranslate"><span class="pre">min_in_features</span></code> and <code class="docutils literal notranslate"><span class="pre">min_out_features</span></code>, and whose path
+passes the include and exclude patterns. Indexed dendritic layers are never
+transformed. The call raises when no layer qualifies, and raises
+<code class="docutils literal notranslate"><span class="pre">ImportError</span></code> when TorchAO is not installed; with <code class="docutils literal notranslate"><span class="pre">backend:</span> <span class="pre">none</span></code> it
+changes nothing. <code class="docutils literal notranslate"><span class="pre">report[&quot;dense_runtime&quot;]</span></code> lists the transformed modules.</p>
+<p><code class="docutils literal notranslate"><span class="pre">torchao_int8_weight_only</span></code> and <code class="docutils literal notranslate"><span class="pre">torchao_int4_weight_only</span></code> quantize the
+weights, which changes predictions; measure the held-out metrics before and
+after. <code class="docutils literal notranslate"><span class="pre">torchao_block_sparse</span></code> never zeroes weights: each selected layer must
+have both weight dimensions divisible by <code class="docutils literal notranslate"><span class="pre">block_size</span></code>, and a fraction of
+all-zero blocks of at least <code class="docutils literal notranslate"><span class="pre">minimum_block_sparsity</span></code> already, as after
+training with an explicit block mask; otherwise the call raises. A smaller
+checkpoint does not by itself mean faster inference: measure latency on the
+target device, batch size and input shape.</p>
+</section>
+<section id="what-to-record">
+<h2>What to record<a class="headerlink" href="#what-to-record" title="Link to this heading"></a></h2>
+<p>For each exported model, keep:</p>
+<ul class="simple">
+<li><p>the source and compact checkpoint SHA-256 hashes (in the report);</p></li>
+<li><p>the training configuration and the compression policy (their paths and
+hashes are stored in the compact checkpoint);</p></li>
+<li><p>held-out metrics before and after any transform that changes outputs;</p></li>
+<li><p>file size, peak device memory, latency and throughput, with the device,
+dtype, batch size and input shape used;</p></li>
+<li><p>the PyTorch, TorchAO and CUDA versions and the GPU model.</p></li>
+</ul>
+<p>These separate storage savings from measured speed.</p>
+<p>References:
+<a class="reference external" href="https://docs.pytorch.org/ao/stable/contributing/sparsity.html">TorchAO sparsity documentation</a>,
+<a class="reference external" href="https://docs.pytorch.org/docs/stable/generated/torch.Tensor.to_sparse_bsr.html">PyTorch BSR tensor reference</a>.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="sweeps.html" class="btn btn-neutral float-left" title="Parameter sweeps" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="project_provenance.html" class="btn btn-neutral float-right" title="Project provenance" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024-2026, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

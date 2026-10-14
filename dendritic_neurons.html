@@ -1,0 +1,1091 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dendritic neurons &mdash; DendriNet v0.2.0</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=938c9ccc"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Synapses and connectivity" href="synapses.html" />
+    <link rel="prev" title="Model architecture" href="network_architectures.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            DendriNet
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Example configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Building models</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="network_architectures.html">Model architecture</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Dendritic neurons</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#configuration-keys">Configuration keys</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#the-dendritic-tree">The dendritic tree</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#branch-layers">Branch layers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#integration-modes">Integration modes</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#selecting-the-rule">Selecting the rule</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#tangent-anchors">Tangent anchors</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#branch-diagnostics">Branch diagnostics</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#analysis-only-rule-overrides">Analysis-only rule overrides</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#training-support">Training support</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#activation-functions">Activation functions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#gate-initialization-and-maintenance">Gate initialization and maintenance</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#default-policy">Default policy</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#occupancy-fit">Occupancy fit</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#calibration-at-the-start-of-training">Calibration at the start of training</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#gate-updates-during-training">Gate updates during training</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#starting-points">Starting points</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#comparing-integration-rules">Comparing integration rules</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="synapses.html">Synapses and connectivity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="population_networks.html">Population networks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="temporal_dynamics.html">Temporal dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="structured_ei_cores.html">Structured E/I cores</a></li>
+<li class="toctree-l1"><a class="reference internal" href="conductance_options.html">Conductance options</a></li>
+<li class="toctree-l1"><a class="reference internal" href="comparison_models.html">Baselines and comparison models</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Configuration</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="configuration_guide.html">Configuration guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config_reference.html">Annotated reference configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="training_strategies.html">Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="distributed_training.html">Distributed training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="performance_kernels.html">Sparse execution and performance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Data and analysis</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="datasets.html">Datasets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="analysis.html">Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="analyzers.html">Analyzer reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="checkpoint_analysis.html">Analyzing saved checkpoints</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Running experiments</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="runs_and_outputs.html">Runs and outputs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sweeps.html">Parameter sweeps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="model_compression.html">Compact checkpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="project_provenance.html">Project provenance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="available_components.html">Component catalogue</a></li>
+<li class="toctree-l1"><a class="reference internal" href="options_reference.html">Options reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cli_reference.html">Command-line reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api_reference.html">Python API</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="extending.html">Extending DendriNet</a></li>
+<li class="toctree-l1"><a class="reference internal" href="engineering_architecture.html">Engineering architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">DendriNet</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Dendritic neurons</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/dendritic_neurons.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="dendritic-neurons">
+<h1>Dendritic neurons<a class="headerlink" href="#dendritic-neurons" title="Link to this heading"></a></h1>
+<p>A dendritic neuron in DendriNet is a tree of compartments: a soma and one or
+more levels of dendritic branches. Every compartment integrates sparse
+excitatory and inhibitory synaptic input and the current of its child
+branches into a voltage, by shunting (divisive) or additive integration, and
+passes the voltage through a gate. This page describes the tree, the branch
+layer that computes one level, the integration rules, the gate types and how
+the gates are initialized and maintained during training. The synapses
+themselves are described in <a class="reference internal" href="synapses.html"><span class="doc">Synapses and connectivity</span></a>.</p>
+<nav class="contents local" id="on-this-page">
+<p class="topic-title">On this page</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#configuration-keys" id="id5">Configuration keys</a></p></li>
+<li><p><a class="reference internal" href="#the-dendritic-tree" id="id6">The dendritic tree</a></p></li>
+<li><p><a class="reference internal" href="#branch-layers" id="id7">Branch layers</a></p></li>
+<li><p><a class="reference internal" href="#integration-modes" id="id8">Integration modes</a></p></li>
+<li><p><a class="reference internal" href="#activation-functions" id="id9">Activation functions</a></p></li>
+<li><p><a class="reference internal" href="#gate-initialization-and-maintenance" id="id10">Gate initialization and maintenance</a></p></li>
+<li><p><a class="reference internal" href="#comparing-integration-rules" id="id11">Comparing integration rules</a></p></li>
+</ul>
+</nav>
+<section id="configuration-keys">
+<span id="dendritic-neuron-options"></span><h2><a class="toc-backref" href="#id5" role="doc-backlink">Configuration keys</a><a class="headerlink" href="#configuration-keys" title="Link to this heading"></a></h2>
+<p>Structured E/I cores read the neuron options from <code class="docutils literal notranslate"><span class="pre">model.core.morphology</span></code>
+and <code class="docutils literal notranslate"><span class="pre">model.core.reactivation</span></code>. Population networks read the same options as
+population fields, in <code class="docutils literal notranslate"><span class="pre">model.core.population_network.layers[].population_defaults</span></code>
+or in a population’s <code class="docutils literal notranslate"><span class="pre">population</span></code> block; unified E/I cores use the same
+population fields in <code class="docutils literal notranslate"><span class="pre">model.core.unified_ei.layers[].excitatory</span></code> and
+<code class="docutils literal notranslate"><span class="pre">.inhibitory</span></code>. The table lists both spellings with their defaults:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 38.0%" />
+<col style="width: 34.0%" />
+<col style="width: 28.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Structured E/I core (<code class="docutils literal notranslate"><span class="pre">model.core.</span></code>)</p></th>
+<th class="head"><p>Population field</p></th>
+<th class="head"><p>Default</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">morphology.use_shunting</span></code> (set by most core types)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">use_shunting</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">morphology.use_additive_normalization</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">use_additive_normalization</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">morphology.additive_mode</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">additive_mode</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">raw</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">morphology.leak_conductance</span></code>, <code class="docutils literal notranslate"><span class="pre">learnable_leak</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">leak_conductance</span></code>, <code class="docutils literal notranslate"><span class="pre">learnable_leak</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">1.0</span></code>, <code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">morphology.additive_tangent_n0</span></code>, <code class="docutils literal notranslate"><span class="pre">additive_tangent_t0</span></code>,
+<code class="docutils literal notranslate"><span class="pre">additive_tangent_n0_by_depth</span></code>, <code class="docutils literal notranslate"><span class="pre">additive_tangent_t0_by_depth</span></code></p></td>
+<td><p>same names</p></td>
+<td><p>unset</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">morphology.somatic_synapses</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">somatic_synapses</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code> (structured), <code class="docutils literal notranslate"><span class="pre">true</span></code> (population)</p></td>
+</tr>
+<tr class="row-even"><td><p>(fixed at <code class="docutils literal notranslate"><span class="pre">1e-8</span></code>)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">epsilon</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">1e-8</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">reactivation.enabled</span></code>, <code class="docutils literal notranslate"><span class="pre">reactivation.type</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">reactivate</span></code>, <code class="docutils literal notranslate"><span class="pre">reactivation_type</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">true</span></code>, <code class="docutils literal notranslate"><span class="pre">param_tanh</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">reactivation.init_policy</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">reactivation_init_policy</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">analytical</span></code> (see <a class="reference internal" href="#gate-initialization"><span class="std std-ref">Gate initialization and maintenance</span></a>)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">reactivation.init_m</span></code>, <code class="docutils literal notranslate"><span class="pre">init_b</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">reactivation_init_m</span></code>, <code class="docutils literal notranslate"><span class="pre">reactivation_init_b</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">1.5</span></code>, <code class="docutils literal notranslate"><span class="pre">0.5</span></code> (structured); <code class="docutils literal notranslate"><span class="pre">1.0</span></code>, <code class="docutils literal notranslate"><span class="pre">0.5</span></code> (population)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">reactivation.occupancy_quantile_low</span></code>, <code class="docutils literal notranslate"><span class="pre">_high</span></code>,
+<code class="docutils literal notranslate"><span class="pre">occupancy_target_low</span></code>, <code class="docutils literal notranslate"><span class="pre">_high</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">reactivation_occupancy_quantile_low</span></code>, … (same suffixes)</p></td>
+<td><p>unset (<code class="docutils literal notranslate"><span class="pre">0.1</span></code>, <code class="docutils literal notranslate"><span class="pre">0.9</span></code>, <code class="docutils literal notranslate"><span class="pre">0.1</span></code>, <code class="docutils literal notranslate"><span class="pre">0.9</span></code>)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">reactivation.calibration_min_quantile_width</span></code>, <code class="docutils literal notranslate"><span class="pre">calibration_max_m</span></code>,
+<code class="docutils literal notranslate"><span class="pre">calibration_revert_on_invalid</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">reactivation_calibration_min_quantile_width</span></code>, … (same suffixes)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">0.001</span></code>, <code class="docutils literal notranslate"><span class="pre">50.0</span></code>, <code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">reactivation.sigma_aware_k</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">reactivation_sigma_aware_k</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">0.25</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">reactivation.memory_efficient</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">reactivation_memory_efficient</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">reactivation.gradient_scaling</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">reactivation_gradient_scaling</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">none</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">reactivation.soma_type</span></code>, <code class="docutils literal notranslate"><span class="pre">soma_init_m</span></code>, <code class="docutils literal notranslate"><span class="pre">soma_init_b</span></code></p></td>
+<td><p>(not available)</p></td>
+<td><p>unset, <code class="docutils literal notranslate"><span class="pre">1.0</span></code>, <code class="docutils literal notranslate"><span class="pre">0.0</span></code></p></td>
+</tr>
+</tbody>
+</table>
+<p>The synapse options (sparse synapse type, weight transform, initializers and
+connectivity masks) have the same two spellings; see <a class="reference internal" href="synapses.html"><span class="doc">Synapses and connectivity</span></a>.</p>
+</section>
+<section id="the-dendritic-tree">
+<span id="dendritic-tree"></span><h2><a class="toc-backref" href="#id6" role="doc-backlink">The dendritic tree</a><a class="headerlink" href="#the-dendritic-tree" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">branch_factors</span></code> defines the tree of each neuron, listed from the soma
+outwards: <code class="docutils literal notranslate"><span class="pre">[3,</span> <span class="pre">2]</span></code> gives the soma three proximal branches and each proximal
+branch two distal branches, six distal branches in all. <code class="docutils literal notranslate"><span class="pre">branch_factors:</span> <span class="pre">[]</span></code>
+gives a point neuron that has only a soma. The class <code class="docutils literal notranslate"><span class="pre">DendriNet</span></code> builds a
+population of <code class="docutils literal notranslate"><span class="pre">n_soma</span></code> such trees.</p>
+<figure class="align-default" id="id3">
+<a class="reference internal image-reference" href="_images/dendritic-single-neuron.svg"><img alt="One dendritic neuron with branch factors 3 and 2: six distal branches, three proximal branches and the soma, with their synapse banks and child aggregation." src="_images/dendritic-single-neuron.svg" style="width: 100%;" />
+</a>
+<figcaption>
+<p><span class="caption-text">One neuron with <code class="docutils literal notranslate"><span class="pre">branch_factors:</span> <span class="pre">[3,</span> <span class="pre">2]</span></code>, its levels labelled by depth
+from the soma. Every dendritic level has its own excitatory and inhibitory
+synapse banks, which read the same inputs; the soma has them only with
+<code class="docutils literal notranslate"><span class="pre">somatic_synapses</span></code>. Each parent level also receives the output of its
+children through <code class="docutils literal notranslate"><span class="pre">BlockLinear</span></code>. In code, all compartments of one depth
+share one feature axis of a <code class="docutils literal notranslate"><span class="pre">DendriticBranchLayer</span></code>.</span><a class="headerlink" href="#id3" title="Link to this image"></a></p>
+</figcaption>
+</figure>
+<p>The tree is computed level by level, from the distal branches to the soma:</p>
+<ul class="simple">
+<li><p>every level is a <code class="docutils literal notranslate"><span class="pre">DendriticBranchLayer</span></code> (<a class="reference internal" href="#dendritic-branch-layer"><span class="std std-ref">Branch layers</span></a>);</p></li>
+<li><p>the most distal level receives only synaptic input;</p></li>
+<li><p>every other level receives its synaptic input and the outputs of its child
+branches, aggregated by <code class="docutils literal notranslate"><span class="pre">BlockLinear</span></code> (<a class="reference internal" href="synapses.html#blocklinear"><span class="std std-ref">BlockLinear</span></a>);</p></li>
+<li><p>the soma level produces the neuron output. It receives direct synapses only
+when <code class="docutils literal notranslate"><span class="pre">somatic_synapses</span></code> is true; a point neuron (<code class="docutils literal notranslate"><span class="pre">branch_factors:</span> <span class="pre">[]</span></code>)
+requires it.</p></li>
+</ul>
+<p>Each level reads the same excitatory input <code class="docutils literal notranslate"><span class="pre">x_E</span></code> and inhibitory input
+<code class="docutils literal notranslate"><span class="pre">x_I</span></code>, so direct synapses are not restricted to the most distal level. The
+number of synapses per compartment is the same at every level of a structured
+E/I core (<code class="docutils literal notranslate"><span class="pre">connectivity.*_synapses_per_branch_per_layer</span></code>, one value per
+network layer); population networks can set one count per level
+(<code class="docutils literal notranslate"><span class="pre">ff_excitatory_synapses_by_level</span></code> and the other <code class="docutils literal notranslate"><span class="pre">*_by_level</span></code> fields).</p>
+<p>The tree is vectorized across neurons: all compartments of one depth form one
+feature axis, so the output size of a level is <code class="docutils literal notranslate"><span class="pre">n_soma</span></code> times the number of
+branches at that depth, and the children of one parent are consecutive
+features. Lists that refer to levels use two conventions:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">DendriNet.branch_layers</span></code> and <code class="docutils literal notranslate"><span class="pre">DendriNet.layer_sizes</span></code> run from the most
+distal level to the soma, and so do the <code class="docutils literal notranslate"><span class="pre">*_by_level</span></code> population fields and
+the <code class="docutils literal notranslate"><span class="pre">ranges_by_level</span></code> of a structured connectivity rule;</p></li>
+<li><p>a layer’s <code class="docutils literal notranslate"><span class="pre">layer_idx</span></code>, the <code class="docutils literal notranslate"><span class="pre">*_by_depth</span></code> fields and a connection’s
+<code class="docutils literal notranslate"><span class="pre">target_levels</span></code> count depth from the soma (<code class="docutils literal notranslate"><span class="pre">0</span></code> is the soma).</p></li>
+</ul>
+<p><code class="docutils literal notranslate"><span class="pre">flat_shunting</span></code>, <code class="docutils literal notranslate"><span class="pre">flat_additive</span></code> and the other <code class="docutils literal notranslate"><span class="pre">flat_*</span></code> structured core
+types flatten the excitatory tree into one dendritic level holding all of its
+branches: <code class="docutils literal notranslate"><span class="pre">excitatory_branch_factors:</span> <span class="pre">[3,</span> <span class="pre">3]</span></code> becomes one level of
+<code class="docutils literal notranslate"><span class="pre">3</span> <span class="pre">+</span> <span class="pre">9</span> <span class="pre">=</span> <span class="pre">12</span></code> compartments.</p>
+<p>How the tree options are written:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 26.0%" />
+<col style="width: 37.0%" />
+<col style="width: 37.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Option</p></th>
+<th class="head"><p>Structured E/I core (<code class="docutils literal notranslate"><span class="pre">model.core.</span></code>)</p></th>
+<th class="head"><p>Population network</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Neurons per population</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">architecture.excitatory_layer_sizes</span></code>,
+<code class="docutils literal notranslate"><span class="pre">inhibitory_layer_sizes</span></code> (one entry per layer)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">populations[].n_neurons</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Tree</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">architecture.excitatory_branch_factors</span></code> (default
+<code class="docutils literal notranslate"><span class="pre">[3,</span> <span class="pre">3,</span> <span class="pre">3,</span> <span class="pre">3]</span></code>), <code class="docutils literal notranslate"><span class="pre">inhibitory_branch_factors</span></code> (default <code class="docutils literal notranslate"><span class="pre">[1]</span></code>)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">populations[].branch_factors</span></code> (default <code class="docutils literal notranslate"><span class="pre">[1]</span></code>); only on the
+population definition</p></td>
+</tr>
+<tr class="row-even"><td><p>Synapses per compartment</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">connectivity.ee_synapses_per_branch_per_layer</span></code> and the other
+counts (<a class="reference internal" href="synapses.html#synapse-options"><span class="std std-ref">Configuration keys</span></a>)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">ff_excitatory_synapses</span></code>, <code class="docutils literal notranslate"><span class="pre">ff_inhibitory_synapses</span></code> or their
+<code class="docutils literal notranslate"><span class="pre">*_by_level</span></code> lists</p></td>
+</tr>
+<tr class="row-odd"><td><p>Direct somatic synapses</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">morphology.somatic_synapses</span></code> (default <code class="docutils literal notranslate"><span class="pre">false</span></code>)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">somatic_synapses</span></code> (default <code class="docutils literal notranslate"><span class="pre">true</span></code>)</p></td>
+</tr>
+</tbody>
+</table>
+<p>In Python, <code class="docutils literal notranslate"><span class="pre">DendriNet</span></code> takes the same geometry as keyword arguments or as a
+<code class="docutils literal notranslate"><span class="pre">DendriNetConfig</span></code>. The constructor builds the gates only with
+<code class="docutils literal notranslate"><span class="pre">reactivate=True</span></code> and uses <code class="docutils literal notranslate"><span class="pre">somatic_synapses=True</span></code> and
+<code class="docutils literal notranslate"><span class="pre">weight_transform=&quot;exp&quot;</span></code> by default:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks</span><span class="w"> </span><span class="kn">import</span> <span class="n">DendriNet</span>
+
+<span class="n">neurons</span> <span class="o">=</span> <span class="n">DendriNet</span><span class="p">(</span>
+    <span class="n">n_soma</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>
+    <span class="n">branch_factors</span><span class="o">=</span><span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span>
+    <span class="n">excitatory_input_dim</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>
+    <span class="n">excitatory_synapses_per_branch</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
+    <span class="n">inhibitory_input_dim</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span>
+    <span class="n">inhibitory_synapses_per_branch</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+    <span class="n">reactivate</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">soma_output</span> <span class="o">=</span> <span class="n">neurons</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">20</span><span class="p">),</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">8</span><span class="p">))</span>  <span class="c1"># shape [2, 4]</span>
+<span class="n">neurons</span><span class="o">.</span><span class="n">layer_sizes</span>  <span class="c1"># [24, 12, 4]: distal branches, proximal branches, soma</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">DendriNet(config=DendriNetConfig.from_kwargs(...))</span></code> groups the geometry,
+optional structured connectivity and the shared synapse settings
+(<code class="docutils literal notranslate"><span class="pre">DendriticSynapseConfig</span></code>). Keyword arguments passed together with a typed
+config must agree with it; a contradicting value raises, and an argument passed
+with its default value counts as omitted.</p>
+</section>
+<section id="branch-layers">
+<span id="dendritic-branch-layer"></span><h2><a class="toc-backref" href="#id7" role="doc-backlink">Branch layers</a><a class="headerlink" href="#branch-layers" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">DendriticBranchLayer</span></code> computes one level of the trees. Its forward pass,
+<code class="docutils literal notranslate"><span class="pre">layer(x,</span> <span class="pre">inhibitory_input,</span> <span class="pre">branch_input,</span> <span class="pre">recurrent_input,</span>
+<span class="pre">rec_inhibitory_input)</span></code>, returns the gated output of every compartment of the
+level. It contains:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 28.0%" />
+<col style="width: 72.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Submodule</p></th>
+<th class="head"><p>Role</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">branch_excitation</span></code></p></td>
+<td><p>Excitatory synapses on the input <code class="docutils literal notranslate"><span class="pre">x</span></code> (a sparse synapse layer, by
+default <code class="docutils literal notranslate"><span class="pre">TopKLinear</span></code>; see <a class="reference internal" href="synapses.html"><span class="doc">Synapses and connectivity</span></a>).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">branch_inhibition</span></code></p></td>
+<td><p>Inhibitory synapses on <code class="docutils literal notranslate"><span class="pre">inhibitory_input</span></code> (only when the layer has
+inhibitory synapses).</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">branch_recurrent</span></code>, <code class="docutils literal notranslate"><span class="pre">branch_rec_inhibition</span></code></p></td>
+<td><p>Recurrent excitatory and inhibitory synapses (recurrent networks only).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">branches_to_output</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">BlockLinear</span></code> or <code class="docutils literal notranslate"><span class="pre">EfficientBlockLinear</span></code> aggregation of the child
+branches (every level except the most distal).</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">reactivation</span></code></p></td>
+<td><p>The gate applied to the voltage (<code class="docutils literal notranslate"><span class="pre">nn.Identity</span></code> without a gate).</p></td>
+</tr>
+</tbody>
+</table>
+<figure class="align-default" id="id4">
+<a class="reference internal image-reference" href="_images/dendritic-operator-details.svg"><img alt="Detail view of the TopKLinear and BlockLinear operators." src="_images/dendritic-operator-details.svg" style="width: 100%;" />
+</a>
+<figcaption>
+<p><span class="caption-text"><code class="docutils literal notranslate"><span class="pre">TopKLinear</span></code> keeps <code class="docutils literal notranslate"><span class="pre">K</span></code> external synapses per branch, selected from the
+raw parameters. <code class="docutils literal notranslate"><span class="pre">BlockLinear</span></code> adds the outputs of sibling branches to
+their parent with one coupling conductance per child.</span><a class="headerlink" href="#id4" title="Link to this image"></a></p>
+</figcaption>
+</figure>
+<p>The two operators are independent controls: <code class="docutils literal notranslate"><span class="pre">K</span></code> sets how many external
+inputs each compartment uses, and the branch factor sets how many child
+branches each parent aggregates.</p>
+</section>
+<section id="integration-modes">
+<span id="id1"></span><h2><a class="toc-backref" href="#id8" role="doc-backlink">Integration modes</a><a class="headerlink" href="#integration-modes" title="Link to this heading"></a></h2>
+<p>A compartment combines four quantities: the excitatory synaptic current
+<span class="math notranslate nohighlight">\(E\)</span> (feedforward plus recurrent), the inhibitory current <span class="math notranslate nohighlight">\(I\)</span>
+(feedforward plus recurrent), the current from its child branches
+<span class="math notranslate nohighlight">\(C = \sum_k g_k u_k\)</span> (child outputs <span class="math notranslate nohighlight">\(u_k\)</span> weighted by the
+<code class="docutils literal notranslate"><span class="pre">BlockLinear</span></code> couplings <span class="math notranslate nohighlight">\(g_k\)</span>) and the total child coupling
+<span class="math notranslate nohighlight">\(G = \sum_k g_k\)</span>. Two derived quantities are the numerator
+<span class="math notranslate nohighlight">\(N = E + C\)</span> and the conductance without the leak, <span class="math notranslate nohighlight">\(T = E + I + G\)</span>. The
+compartment output is <span class="math notranslate nohighlight">\(f(V)\)</span>, where <span class="math notranslate nohighlight">\(f\)</span> is the gate and <span class="math notranslate nohighlight">\(V\)</span>
+the voltage given by the integration rule.</p>
+<p><strong>Shunting</strong> (<code class="docutils literal notranslate"><span class="pre">use_shunting:</span> <span class="pre">true</span></code>) divides by the total conductance:</p>
+<div class="math notranslate nohighlight">
+\[V = \frac{E + C}{L + E + I + G + \epsilon} = \frac{N}{L + T + \epsilon}\]</div>
+<p>where <span class="math notranslate nohighlight">\(L\)</span> is the leak conductance (<code class="docutils literal notranslate"><span class="pre">leak_conductance</span></code>, <code class="docutils literal notranslate"><span class="pre">1.0</span></code> by
+default; <code class="docutils literal notranslate"><span class="pre">learnable_leak:</span> <span class="pre">true</span></code> learns one leak per compartment) and
+<span class="math notranslate nohighlight">\(\epsilon = 10^{-8}\)</span>. With nonnegative weights and inputs and child
+outputs in <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">1]</span></code> the voltage stays in <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">1)</span></code>: inhibition and the leak
+scale the voltage down instead of subtracting from it.</p>
+<p><strong>Additive</strong> integration (<code class="docutils literal notranslate"><span class="pre">use_shunting:</span> <span class="pre">false</span></code>) has three rules, selected
+by <code class="docutils literal notranslate"><span class="pre">additive_mode</span></code>:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 30.0%" />
+<col style="width: 70.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><code class="docutils literal notranslate"><span class="pre">additive_mode</span></code></p></th>
+<th class="head"><p>Voltage</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">raw</span></code> (default)</p></td>
+<td><p><span class="math notranslate nohighlight">\(V = E - I + C\)</span>. With <code class="docutils literal notranslate"><span class="pre">use_additive_normalization:</span> <span class="pre">true</span></code> the
+voltage is then standardized across the compartments of the level, for
+every sample: <span class="math notranslate nohighlight">\(V \leftarrow (V - \bar V) / \max(s_V, \epsilon)\)</span>,
+where <span class="math notranslate nohighlight">\(\bar V\)</span> and <span class="math notranslate nohighlight">\(s_V\)</span> are the mean and the population
+standard deviation over the level’s outputs. This is a z-score, not a
+conductance normalization.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">conductance_normalized</span></code></p></td>
+<td><p><span class="math notranslate nohighlight">\(V = (E - I + C) / (1 + T + \epsilon)\)</span>: the additive numerator
+with the shunting denominator at unit leak.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">tangent_matched</span></code></p></td>
+<td><p>The first-order expansion of the unit-leak shunting rule around a
+fixed operating point <span class="math notranslate nohighlight">\((N_0, T_0)\)</span>:
+<span class="math notranslate nohighlight">\(V = V_0 + \big((N - N_0) - V_0\,(T - T_0)\big) / D_0\)</span>, with
+<span class="math notranslate nohighlight">\(D_0 = 1 + T_0 + \epsilon\)</span> and <span class="math notranslate nohighlight">\(V_0 = N_0 / D_0\)</span>. It has
+the value and the derivatives of the shunting voltage at that point.</p></td>
+</tr>
+</tbody>
+</table>
+<p>Plugins can register further additive rules; <code class="docutils literal notranslate"><span class="pre">additive_mode</span></code> names one and
+<code class="docutils literal notranslate"><span class="pre">additive_options</span></code> sets its options (<a class="reference internal" href="extending.html#plugin-additive-rules"><span class="std std-ref">Additive integration rules</span></a>). The
+built-in rules take no <code class="docutils literal notranslate"><span class="pre">additive_options</span></code>.</p>
+<section id="selecting-the-rule">
+<h3>Selecting the rule<a class="headerlink" href="#selecting-the-rule" title="Link to this heading"></a></h3>
+<p>A structured E/I core type fixes the rule: <code class="docutils literal notranslate"><span class="pre">dendritic_shunting</span></code> and
+<code class="docutils literal notranslate"><span class="pre">flat_shunting</span></code> integrate by shunting, <code class="docutils literal notranslate"><span class="pre">dendritic_additive</span></code> and
+<code class="docutils literal notranslate"><span class="pre">flat_additive</span></code> by the raw additive rule, and
+<code class="docutils literal notranslate"><span class="pre">dendritic_normalized_additive</span></code> and <code class="docutils literal notranslate"><span class="pre">flat_normalized_additive</span></code> by the raw
+additive rule with the z-score. <code class="docutils literal notranslate"><span class="pre">einet</span></code> reads <code class="docutils literal notranslate"><span class="pre">morphology.use_shunting</span></code>
+and <code class="docutils literal notranslate"><span class="pre">morphology.use_additive_normalization</span></code>. A written value that
+contradicts the type raises when the configuration loads; <a class="reference internal" href="available_components.html#core-types"><span class="std std-ref">Core types</span></a>
+lists every type. <code class="docutils literal notranslate"><span class="pre">model.core.morphology.additive_mode</span></code> then selects the
+additive rule. Note that <code class="docutils literal notranslate"><span class="pre">dendritic_normalized_additive</span></code> selects the z-score,
+not <code class="docutils literal notranslate"><span class="pre">conductance_normalized</span></code>, and the two cannot be combined.</p>
+<p>In a population network (and a unified E/I core) every population chooses its
+own rule with <code class="docutils literal notranslate"><span class="pre">use_shunting</span></code>, <code class="docutils literal notranslate"><span class="pre">use_additive_normalization</span></code> and
+<code class="docutils literal notranslate"><span class="pre">additive_mode</span></code>. For example, these population defaults select the
+conductance-normalized additive rule:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">population_defaults</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">use_shunting</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">  </span><span class="nt">additive_mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">conductance_normalized</span>
+</pre></div>
+</div>
+<p>The layer raises when it is built for a combination it would not apply:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">additive_mode</span></code> other than <code class="docutils literal notranslate"><span class="pre">raw</span></code>, or <code class="docutils literal notranslate"><span class="pre">use_additive_normalization:</span>
+<span class="pre">true</span></code>, on a shunting layer;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">use_additive_normalization:</span> <span class="pre">true</span></code> with <code class="docutils literal notranslate"><span class="pre">conductance_normalized</span></code> or
+<code class="docutils literal notranslate"><span class="pre">tangent_matched</span></code>;</p></li>
+<li><p>tangent anchors with any rule other than <code class="docutils literal notranslate"><span class="pre">tangent_matched</span></code>;</p></li>
+<li><p>a leak other than <code class="docutils literal notranslate"><span class="pre">1</span></code> or a learnable leak with additive integration;</p></li>
+<li><p>conductance-scaled gradient options on an additive layer
+(<code class="docutils literal notranslate"><span class="pre">gradient_scaling:</span> <span class="pre">conductance_dynamic</span></code> for the synapses,
+<code class="docutils literal notranslate"><span class="pre">straight_through</span></code> for the gate), and <code class="docutils literal notranslate"><span class="pre">conductance_dynamic</span></code> for
+<code class="docutils literal notranslate"><span class="pre">BlockLinear</span></code> with <code class="docutils literal notranslate"><span class="pre">relu</span></code> weights. On an additive layer
+<code class="docutils literal notranslate"><span class="pre">BlockLinear</span></code>’s <code class="docutils literal notranslate"><span class="pre">conductance_dynamic</span></code> divides each child’s gradient by
+its coupling weight (<a class="reference internal" href="structured_ei_cores.html#blocklinear-gradient-scaling"><span class="std std-ref">BlockLinear gradient scaling</span></a>).</p></li>
+</ul>
+<p>A configurable leak (like <code class="docutils literal notranslate"><span class="pre">endpoint_tanh</span></code> gates, <code class="docutils literal notranslate"><span class="pre">indexed_release</span></code>
+synapses and signal rounding; see <a class="reference internal" href="conductance_options.html#conductance-options"><span class="std std-ref">Conductance options</span></a>) is available only
+in feedforward rate populations: receptor synapse types, spiking somas,
+dendritic spikes, soma feedback, recurrent inputs and a <code class="docutils literal notranslate"><span class="pre">cross_level_mode</span></code>
+other than <code class="docutils literal notranslate"><span class="pre">hierarchical</span></code> reject it. With receptor synapse types
+(<a class="reference internal" href="temporal_dynamics.html#synapse-types"><span class="std std-ref">Receptor synapse types</span></a>) an additive population accepts only
+<code class="docutils literal notranslate"><span class="pre">additive_mode:</span> <span class="pre">raw</span></code>.</p>
+</section>
+<section id="tangent-anchors">
+<h3>Tangent anchors<a class="headerlink" href="#tangent-anchors" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">tangent_matched</span></code> needs its operating point <span class="math notranslate nohighlight">\((N_0, T_0)\)</span> before the
+first forward pass; a layer without one raises when it runs. The anchor is
+never estimated or updated during the forward pass, and it is saved in the
+state dict. Set it in one of two ways:</p>
+<ul class="simple">
+<li><p>one pair for every compartment: <code class="docutils literal notranslate"><span class="pre">additive_tangent_n0</span></code> and
+<code class="docutils literal notranslate"><span class="pre">additive_tangent_t0</span></code> (both or neither);</p></li>
+<li><p>one pair per level: <code class="docutils literal notranslate"><span class="pre">additive_tangent_n0_by_depth</span></code> and
+<code class="docutils literal notranslate"><span class="pre">additive_tangent_t0_by_depth</span></code>, each with one value per level, soma first.
+These exclude the scalar fields. Each list must have as many entries as the
+population has levels; in a population network set them in each
+population’s <code class="docutils literal notranslate"><span class="pre">population</span></code> block when the populations differ in depth. The
+inhibitory cells of a structured E/I core read the same lists, so their tree
+must have the same number of levels (or the core has no inhibitory cells).</p></li>
+</ul>
+<p>A structured E/I core without inhibitory cells, with one anchor per level:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">core</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">einet</span>
+<span class="w">    </span><span class="nt">architecture</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">excitatory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">32</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">inhibitory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[]</span>
+<span class="w">      </span><span class="nt">excitatory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">2</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">2</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">connectivity</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">ee_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">16</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">ie_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">4</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">morphology</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">use_shunting</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">      </span><span class="nt">additive_mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tangent_matched</span>
+<span class="w">      </span><span class="nt">additive_tangent_n0_by_depth</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0.5</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.4</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.3</span><span class="p p-Indicator">]</span><span class="w">   </span><span class="c1"># soma, proximal, distal</span>
+<span class="w">      </span><span class="nt">additive_tangent_t0_by_depth</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">2.0</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">1.5</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">1.0</span><span class="p p-Indicator">]</span>
+</pre></div>
+</div>
+<p>The anchor can also be measured on a shunting reference layer with unit leak
+and frozen in Python:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">reference_layer</span><span class="o">.</span><span class="n">set_branch_diagnostics</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">reference_layer</span><span class="p">(</span><span class="n">calibration_input</span><span class="p">,</span> <span class="n">inhibitory_input</span><span class="p">)</span>
+<span class="n">diagnostics</span> <span class="o">=</span> <span class="n">reference_layer</span><span class="o">.</span><span class="n">get_branch_diagnostics</span><span class="p">()</span>
+
+<span class="n">n0</span><span class="p">,</span> <span class="n">t0</span> <span class="o">=</span> <span class="n">tangent_layer</span><span class="o">.</span><span class="n">calibrate_additive_operating_point</span><span class="p">(</span><span class="n">diagnostics</span><span class="p">)</span>
+<span class="c1"># The means of N and T become the frozen operating point of tangent_layer.</span>
+</pre></div>
+</div>
+<p>Calibration rejects diagnostics from a reference whose leak is not <code class="docutils literal notranslate"><span class="pre">1</span></code>,
+because the tangent expands the unit-leak rule.
+<code class="docutils literal notranslate"><span class="pre">set_additive_operating_point(n0,</span> <span class="pre">t0)</span></code> sets a known anchor, and
+<code class="docutils literal notranslate"><span class="pre">clear_additive_operating_point()</span></code> removes it.
+For a trained shunting network with unit leak, the
+<code class="docutils literal notranslate"><span class="pre">branch_local_sensitivity</span></code> analyzer reports the means of <span class="math notranslate nohighlight">\(E\)</span>,
+<span class="math notranslate nohighlight">\(I\)</span>, <span class="math notranslate nohighlight">\(C\)</span> and <span class="math notranslate nohighlight">\(G\)</span> at every depth (<code class="docutils literal notranslate"><span class="pre">include_soma:</span> <span class="pre">true</span></code> adds
+the soma), from which per-depth anchors follow as
+<span class="math notranslate nohighlight">\(N_0 = \bar E + \bar C\)</span> and <span class="math notranslate nohighlight">\(T_0 = \bar E + \bar I + \bar G\)</span>; see
+<a class="reference internal" href="analysis.html#analyzer-catalogue"><span class="std std-ref">Analyzer catalogue</span></a>. Measure anchors on data that is not used for the
+final evaluation.</p>
+</section>
+<section id="branch-diagnostics">
+<h3>Branch diagnostics<a class="headerlink" href="#branch-diagnostics" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">layer.set_branch_diagnostics(True)</span></code> makes a branch layer keep detached
+copies of its decomposition on every forward pass. <code class="docutils literal notranslate"><span class="pre">get_branch_diagnostics()</span></code>
+returns them as a dictionary with <code class="docutils literal notranslate"><span class="pre">E</span></code>, <code class="docutils literal notranslate"><span class="pre">I</span></code>, <code class="docutils literal notranslate"><span class="pre">C</span></code>, <code class="docutils literal notranslate"><span class="pre">G</span></code>, <code class="docutils literal notranslate"><span class="pre">N</span></code>, <code class="docutils literal notranslate"><span class="pre">T</span></code> and
+the voltage <code class="docutils literal notranslate"><span class="pre">V</span></code> (all broadcast to the shape of <code class="docutils literal notranslate"><span class="pre">V</span></code>), the <code class="docutils literal notranslate"><span class="pre">leak</span></code>, the rule
+(<code class="docutils literal notranslate"><span class="pre">mode</span></code>: <code class="docutils literal notranslate"><span class="pre">shunting</span></code> or the additive mode) and <code class="docutils literal notranslate"><span class="pre">realized_K</span></code>: the number
+of active synapses per compartment of each pathway (<code class="docutils literal notranslate"><span class="pre">E</span></code>, <code class="docutils literal notranslate"><span class="pre">I</span></code>, <code class="docutils literal notranslate"><span class="pre">E_rec</span></code>,
+<code class="docutils literal notranslate"><span class="pre">I_rec</span></code>) on that forward pass. <code class="docutils literal notranslate"><span class="pre">realized_K</span></code> can be smaller than the
+configured count when a connectivity mask or a dynamic synapse type leaves
+fewer active contacts.</p>
+</section>
+<section id="analysis-only-rule-overrides">
+<h3>Analysis-only rule overrides<a class="headerlink" href="#analysis-only-rule-overrides" title="Link to this heading"></a></h3>
+<p>Rule overrides replace the voltage algebra of trained shunting layers while
+keeping every synapse, coupling and gate, to test which part of the rule a
+trained network relies on. They hold no parameters, leave the state dict
+unchanged and apply only inside the <code class="docutils literal notranslate"><span class="pre">with</span></code> block:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks</span><span class="w"> </span><span class="kn">import</span> <span class="n">DendriticBranchLayer</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.excitation_inhibition.dendritic</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">BranchRuleOverride</span><span class="p">,</span>
+    <span class="n">override_branch_rules</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">layers</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="n">name</span><span class="p">:</span> <span class="n">module</span>
+    <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">module</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">named_modules</span><span class="p">()</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">DendriticBranchLayer</span><span class="p">)</span>
+<span class="p">}</span>
+<span class="c1"># t0[name]: a floating-point tensor with the anchor conductance of that layer</span>
+<span class="n">overrides</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="n">layer</span><span class="p">:</span> <span class="n">BranchRuleOverride</span><span class="p">(</span><span class="s2">"frozen_denominator"</span><span class="p">,</span> <span class="n">anchor_conductance</span><span class="o">=</span><span class="n">t0</span><span class="p">[</span><span class="n">name</span><span class="p">])</span>
+    <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">layer</span> <span class="ow">in</span> <span class="n">layers</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+<span class="p">}</span>
+<span class="k">with</span> <span class="n">override_branch_rules</span><span class="p">(</span><span class="n">overrides</span><span class="p">):</span>
+    <span class="n">logits</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="n">test_inputs</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>With <span class="math notranslate nohighlight">\(N\)</span> and <span class="math notranslate nohighlight">\(T\)</span> as above, anchors <span class="math notranslate nohighlight">\((n_0, t_0)\)</span>,
+<span class="math notranslate nohighlight">\(d_0 = 1 + t_0\)</span> and <span class="math notranslate nohighlight">\(v_0 = n_0 / d_0\)</span>, the rules are:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 32.0%" />
+<col style="width: 68.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Rule</p></th>
+<th class="head"><p>Voltage</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">anchor_tangent</span></code></p></td>
+<td><p><span class="math notranslate nohighlight">\(v_0 + ((N - n_0) - v_0 (T - t_0)) / d_0\)</span></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">sample_rolled_tangent</span></code></p></td>
+<td><p>the same, with <span class="math notranslate nohighlight">\(T\)</span> of the previous sample in the batch</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">frozen_denominator</span></code></p></td>
+<td><p><span class="math notranslate nohighlight">\(N / d_0\)</span></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">sample_rolled_denominator</span></code></p></td>
+<td><p><span class="math notranslate nohighlight">\(N / (1 + T)\)</span> with <span class="math notranslate nohighlight">\(T\)</span> of the previous sample</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">external_denominator</span></code></p></td>
+<td><p><span class="math notranslate nohighlight">\(N / (1 + T_{ext})\)</span> for a given conductance <span class="math notranslate nohighlight">\(T_{ext}\)</span></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">permuted_current_denominator</span></code></p></td>
+<td><p><span class="math notranslate nohighlight">\(N / (1 + T[p])\)</span> for a batch permutation <span class="math notranslate nohighlight">\(p\)</span> (enter one
+block per batch)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">raw_additive</span></code></p></td>
+<td><p><span class="math notranslate nohighlight">\(E - I + C\)</span> (with the layer’s z-score, if it has one)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">raw_additive_moment_matched</span></code></p></td>
+<td><p><span class="math notranslate nohighlight">\(E - I + C\)</span>, standardized with given raw moments and rescaled to
+given voltage moments</p></td>
+</tr>
+</tbody>
+</table>
+<p>Each rule takes exactly the tensors it reads (<code class="docutils literal notranslate"><span class="pre">anchor_numerator</span></code>,
+<code class="docutils literal notranslate"><span class="pre">anchor_conductance</span></code>, <code class="docutils literal notranslate"><span class="pre">external_conductance</span></code>, <code class="docutils literal notranslate"><span class="pre">denominator_permutation</span></code>,
+<code class="docutils literal notranslate"><span class="pre">raw_mean</span></code>, <code class="docutils literal notranslate"><span class="pre">raw_std</span></code>, <code class="docutils literal notranslate"><span class="pre">voltage_mean</span></code>, <code class="docutils literal notranslate"><span class="pre">voltage_std</span></code>) and raises for
+the others. Overrides need shunting layers with a fixed unit leak and apply to
+the feedforward pass; computing voltages from currents (recurrent and stateful
+layers) raises while an override is active.</p>
+</section>
+<section id="training-support">
+<h3>Training support<a class="headerlink" href="#training-support" title="Link to this heading"></a></h3>
+<p>Every rule supports backpropagation. The local learning rules of
+<code class="docutils literal notranslate"><span class="pre">local_ca</span></code> (<a class="reference internal" href="training_strategies.html#local-credit-assignment"><span class="std std-ref">Local credit assignment</span></a>) support shunting, raw additive
+and raw additive integration with the z-score; for the z-score the local
+update omits the derivative of the normalization, so it is not the exact
+gradient. <code class="docutils literal notranslate"><span class="pre">local_ca</span></code> rejects <code class="docutils literal notranslate"><span class="pre">conductance_normalized</span></code> and
+<code class="docutils literal notranslate"><span class="pre">tangent_matched</span></code> layers, a leak other than <code class="docutils literal notranslate"><span class="pre">1</span></code>, <code class="docutils literal notranslate"><span class="pre">endpoint_tanh</span></code> gates
+and <code class="docutils literal notranslate"><span class="pre">indexed_release</span></code> synapses.</p>
+</section>
+</section>
+<section id="activation-functions">
+<span id="activation-types"></span><h2><a class="toc-backref" href="#id9" role="doc-backlink">Activation functions</a><a class="headerlink" href="#activation-functions" title="Link to this heading"></a></h2>
+<p>The gate <span class="math notranslate nohighlight">\(f\)</span> turns the voltage of every compartment into its output.
+Structured E/I cores set it with <code class="docutils literal notranslate"><span class="pre">model.core.reactivation.type</span></code>
+(<code class="docutils literal notranslate"><span class="pre">enabled:</span> <span class="pre">false</span></code> removes every gate). Population networks and unified E/I
+cores use the population fields <code class="docutils literal notranslate"><span class="pre">reactivation_type</span></code> and <code class="docutils literal notranslate"><span class="pre">reactivate</span></code>.
+<code class="docutils literal notranslate"><span class="pre">reactivation.dendritic_activation</span></code> is an alias of <code class="docutils literal notranslate"><span class="pre">type</span></code> (<code class="docutils literal notranslate"><span class="pre">none</span></code> or
+<code class="docutils literal notranslate"><span class="pre">identity</span></code> removes the gates); writing both with different values raises.
+The registered types are:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 45.0%" />
+<col style="width: 30.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Type</p></th>
+<th class="head"><p>Output <span class="math notranslate nohighlight">\(f(V)\)</span></p></th>
+<th class="head"><p>Learned parameters</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">param_tanh</span></code> (default)</p></td>
+<td><p><span class="math notranslate nohighlight">\(\tfrac12\,(\tanh(m\,(V - b)) + 1)\)</span>, in <code class="docutils literal notranslate"><span class="pre">(0,</span> <span class="pre">1)</span></code></p></td>
+<td><p>slope <span class="math notranslate nohighlight">\(m &gt; 0\)</span> and midpoint <span class="math notranslate nohighlight">\(b\)</span> per compartment</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">param_tanh_only_m</span></code></p></td>
+<td><p>as <code class="docutils literal notranslate"><span class="pre">param_tanh</span></code></p></td>
+<td><p><span class="math notranslate nohighlight">\(m\)</span>; <span class="math notranslate nohighlight">\(b\)</span> is one value per layer, set by the initialization
+policy and not trained</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">param_relu</span></code></p></td>
+<td><p><span class="math notranslate nohighlight">\(m \max(V - b, 0)\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(m &gt; 0\)</span> and <span class="math notranslate nohighlight">\(b\)</span></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">param_linear_sigmoid</span></code></p></td>
+<td><p><span class="math notranslate nohighlight">\(g V + (1 - g)\,\sigma(m V + b)\)</span> with <span class="math notranslate nohighlight">\(g = e^{-3V}\)</span>
+(exponent capped at 20)</p></td>
+<td><p><span class="math notranslate nohighlight">\(m\)</span>; the offset <span class="math notranslate nohighlight">\(b\)</span> is not trained</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">param_linear_tanh</span></code></p></td>
+<td><p><span class="math notranslate nohighlight">\(g V + (1 - g)\,\tfrac12(\tanh(m V + b) + 1)\)</span>, same <span class="math notranslate nohighlight">\(g\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(m\)</span>; <span class="math notranslate nohighlight">\(b\)</span> is not trained</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">param_linear_tanh_transition</span></code></p></td>
+<td><p><span class="math notranslate nohighlight">\(V\)</span> below the threshold <span class="math notranslate nohighlight">\(\theta\)</span>, then
+<span class="math notranslate nohighlight">\((1 - \theta)\tanh\!\big(s\,(V - \theta)/(1 - \theta)\big) + \theta\)</span>,
+which saturates at 1</p></td>
+<td><p>threshold <span class="math notranslate nohighlight">\(\theta &lt; 1\)</span> (started from <span class="math notranslate nohighlight">\(b\)</span>) and slope
+<span class="math notranslate nohighlight">\(s &gt; 0\)</span> (started from <span class="math notranslate nohighlight">\(m\)</span>)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">linear_sigmoid</span></code>, <code class="docutils literal notranslate"><span class="pre">linear_tanh</span></code>, <code class="docutils literal notranslate"><span class="pre">linear_tanh_transition</span></code></p></td>
+<td><p>as their <code class="docutils literal notranslate"><span class="pre">param_</span></code> forms</p></td>
+<td><p>none: <span class="math notranslate nohighlight">\(m\)</span> and <span class="math notranslate nohighlight">\(b\)</span> keep their initial values</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">endpoint_tanh</span></code></p></td>
+<td><p><span class="math notranslate nohighlight">\(\dfrac{\tanh(m V - b) - \tanh(-b)}{\tanh(m - b) - \tanh(-b)}\)</span>,
+with <span class="math notranslate nohighlight">\(f(0) = 0\)</span> and <span class="math notranslate nohighlight">\(f(1) = 1\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(m &gt; 0\)</span> and the offset <span class="math notranslate nohighlight">\(b\)</span> (the midpoint is <span class="math notranslate nohighlight">\(b/m\)</span>)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">residual_silu</span></code></p></td>
+<td><p><span class="math notranslate nohighlight">\(V + a\,(\mathrm{silu}(V) - V)\)</span></p></td>
+<td><p>mixing weight <span class="math notranslate nohighlight">\(a\)</span> per compartment, starting at 0 (identity)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">relu</span></code>, <code class="docutils literal notranslate"><span class="pre">sigmoid</span></code>, <code class="docutils literal notranslate"><span class="pre">tanh</span></code>, <code class="docutils literal notranslate"><span class="pre">softplus</span></code>, <code class="docutils literal notranslate"><span class="pre">gelu</span></code>, <code class="docutils literal notranslate"><span class="pre">silu</span></code>
+(alias <code class="docutils literal notranslate"><span class="pre">swish</span></code>)</p></td>
+<td><p>the PyTorch function</p></td>
+<td><p>none</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">none</span></code></p></td>
+<td><p><span class="math notranslate nohighlight">\(V\)</span> (no gate; the same as <code class="docutils literal notranslate"><span class="pre">reactivate:</span> <span class="pre">false</span></code>)</p></td>
+<td><p>none</p></td>
+</tr>
+</tbody>
+</table>
+<p>Notes on the types:</p>
+<ul class="simple">
+<li><p>The initialization policy sets <span class="math notranslate nohighlight">\(m\)</span> and <span class="math notranslate nohighlight">\(b\)</span> of every type that
+has them (<a class="reference internal" href="#gate-initialization"><span class="std std-ref">Gate initialization and maintenance</span></a>). The data-driven policies fit
+<span class="math notranslate nohighlight">\((m, b)\)</span> for the <code class="docutils literal notranslate"><span class="pre">param_tanh</span></code> shape and write the result into any
+gate. For the other shapes the values mean something else (for the
+<code class="docutils literal notranslate"><span class="pre">*linear_sigmoid</span></code> and <code class="docutils literal notranslate"><span class="pre">*linear_tanh</span></code> types <span class="math notranslate nohighlight">\(b\)</span> is an offset, for
+the transition types a threshold); structured E/I cores log a warning when
+<code class="docutils literal notranslate"><span class="pre">occupancy_quantile</span></code> is used with such a gate.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">endpoint_tanh</span></code> requires shunting integration and
+<code class="docutils literal notranslate"><span class="pre">init_policy:</span> <span class="pre">fixed</span></code> (it starts from <code class="docutils literal notranslate"><span class="pre">init_m</span></code> and <code class="docutils literal notranslate"><span class="pre">init_b</span></code>); other
+combinations raise. It supports backpropagation only.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">residual_silu</span></code> has no slope or midpoint: the initialization policies
+leave it at the identity, and the data-driven policies raise.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">reactivation.memory_efficient:</span> <span class="pre">true</span></code> (population
+<code class="docutils literal notranslate"><span class="pre">reactivation_memory_efficient</span></code>) selects a lower-memory implementation of
+<code class="docutils literal notranslate"><span class="pre">param_tanh</span></code> and <code class="docutils literal notranslate"><span class="pre">param_tanh_only_m</span></code> (<a class="reference internal" href="performance_kernels.html"><span class="doc">Sparse execution and performance</span></a>); the
+other types ignore it.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">reactivation.soma_type</span></code> gives the soma level of each excitatory neuron of
+a feedforward structured E/I core a different gate type, while the branches
+and the inhibitory cells keep <code class="docutils literal notranslate"><span class="pre">type</span></code>; with <code class="docutils literal notranslate"><span class="pre">init_policy:</span> <span class="pre">fixed</span></code> it starts
+from <code class="docutils literal notranslate"><span class="pre">soma_init_m</span></code> and <code class="docutils literal notranslate"><span class="pre">soma_init_b</span></code>. Recurrent cores and population
+networks do not have this option.</p></li>
+<li><p>The same registry provides the <code class="docutils literal notranslate"><span class="pre">activation</span></code> of <code class="docutils literal notranslate"><span class="pre">MLP</span></code> decoders and the
+<code class="docutils literal notranslate"><span class="pre">router_activation</span></code> of the pathway router.
+<code class="docutils literal notranslate"><span class="pre">dendritic_modeling.networks.activations.register_activation_builder</span></code>
+adds a type (<a class="reference internal" href="available_components.html#extension-registries"><span class="std std-ref">Extension registries</span></a>).</p></li>
+</ul>
+</section>
+<section id="gate-initialization-and-maintenance">
+<span id="gate-initialization"></span><h2><a class="toc-backref" href="#id10" role="doc-backlink">Gate initialization and maintenance</a><a class="headerlink" href="#gate-initialization-and-maintenance" title="Link to this heading"></a></h2>
+<p>The slope <span class="math notranslate nohighlight">\(m\)</span> and midpoint <span class="math notranslate nohighlight">\(b\)</span> of the gates decide where the gate
+is sensitive at the start of training. <code class="docutils literal notranslate"><span class="pre">reactivation.init_policy</span></code>
+(population field <code class="docutils literal notranslate"><span class="pre">reactivation_init_policy</span></code>) selects how they are set:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 34.0%" />
+<col style="width: 66.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><code class="docutils literal notranslate"><span class="pre">init_policy</span></code></p></th>
+<th class="head"><p>Initial <span class="math notranslate nohighlight">\((m, b)\)</span></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">analytical</span></code> (alias <code class="docutils literal notranslate"><span class="pre">auto</span></code>)</p></td>
+<td><p>The slope and midpoint that the branch-layer initializer
+(<code class="docutils literal notranslate"><span class="pre">dbl_init_method</span></code>, <a class="reference internal" href="synapses.html#synapse-initialization"><span class="std std-ref">Synapse initialization</span></a>) derives from the
+expected synaptic and child conductances; the default initializer uses
+<span class="math notranslate nohighlight">\(m = 1.5\)</span> with <span class="math notranslate nohighlight">\(b\)</span> at the expected voltage for shunting
+layers and <span class="math notranslate nohighlight">\(m = 0.1\)</span> for additive layers. Uses no data.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">fixed</span></code> (alias <code class="docutils literal notranslate"><span class="pre">manual</span></code>)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">init_m</span></code> and <code class="docutils literal notranslate"><span class="pre">init_b</span></code> (population <code class="docutils literal notranslate"><span class="pre">reactivation_init_m</span></code> and
+<code class="docutils literal notranslate"><span class="pre">reactivation_init_b</span></code>). Only this policy reads them; written values
+under another policy produce a warning. A saved <code class="docutils literal notranslate"><span class="pre">config.json</span></code>, which
+lists every field, warns only for values other than the defaults.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">occupancy_quantile</span></code> (deprecated alias <code class="docutils literal notranslate"><span class="pre">quantile</span></code>)</p></td>
+<td><p>Fitted to the measured voltages so that two voltage quantiles land on
+two target gate outputs (below).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">empirical</span></code></p></td>
+<td><p><span class="math notranslate nohighlight">\(b = \operatorname{median}(V)\)</span> and
+<span class="math notranslate nohighlight">\(m = k / (1.4826\,\operatorname{MAD}(V))\)</span>, with
+<span class="math notranslate nohighlight">\(k\)</span> = <code class="docutils literal notranslate"><span class="pre">sigma_aware_k</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">analytical_slope_occupancy_center</span></code></p></td>
+<td><p>The analytical <span class="math notranslate nohighlight">\(m\)</span> with the occupancy <span class="math notranslate nohighlight">\(b\)</span>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">occupancy_slope_analytical_center</span></code></p></td>
+<td><p>The occupancy <span class="math notranslate nohighlight">\(m\)</span> with the analytical <span class="math notranslate nohighlight">\(b\)</span>.</p></td>
+</tr>
+</tbody>
+</table>
+<p>The last four policies are data-driven: they measure the voltages of the
+built model on training inputs (<a class="reference internal" href="#gate-calibration"><span class="std std-ref">Calibration at the start of training</span></a>).</p>
+<section id="default-policy">
+<h3>Default policy<a class="headerlink" href="#default-policy" title="Link to this heading"></a></h3>
+<p>The default is <code class="docutils literal notranslate"><span class="pre">analytical</span></code>. When <code class="docutils literal notranslate"><span class="pre">init_policy</span></code> is not written, additive
+cores use <code class="docutils literal notranslate"><span class="pre">occupancy_quantile</span></code> instead:</p>
+<ul class="simple">
+<li><p>the structured E/I types <code class="docutils literal notranslate"><span class="pre">dendritic_additive</span></code>, <code class="docutils literal notranslate"><span class="pre">flat_additive</span></code>,
+<code class="docutils literal notranslate"><span class="pre">dendritic_normalized_additive</span></code> and <code class="docutils literal notranslate"><span class="pre">flat_normalized_additive</span></code>, and
+<code class="docutils literal notranslate"><span class="pre">einet</span></code> with <code class="docutils literal notranslate"><span class="pre">morphology.use_shunting:</span> <span class="pre">false</span></code>;</p></li>
+<li><p>population-network populations with <code class="docutils literal notranslate"><span class="pre">use_shunting:</span> <span class="pre">false</span></code> (after
+<code class="docutils literal notranslate"><span class="pre">population_defaults</span></code> and the population’s <code class="docutils literal notranslate"><span class="pre">population</span></code> block are
+merged).</p></li>
+</ul>
+<p>Unified E/I populations (also under the additive <code class="docutils literal notranslate"><span class="pre">rnn_*</span></code> aliases), the
+<code class="docutils literal notranslate"><span class="pre">*_signed</span></code> and <code class="docutils literal notranslate"><span class="pre">*_mlp</span></code> structured types and all shunting cores keep
+<code class="docutils literal notranslate"><span class="pre">analytical</span></code>. A written policy is always kept. The policy each gate was
+given is recorded per layer in the run’s <code class="docutils literal notranslate"><span class="pre">init_gate_stats.json</span></code> (below).
+Additive layers with positive weights under a policy that does not calibrate
+both <span class="math notranslate nohighlight">\(m\)</span> and <span class="math notranslate nohighlight">\(b\)</span> on measured voltages (<code class="docutils literal notranslate"><span class="pre">analytical</span></code>, <code class="docutils literal notranslate"><span class="pre">fixed</span></code> or
+a component policy, with <code class="docutils literal notranslate"><span class="pre">additive_mode</span></code> <code class="docutils literal notranslate"><span class="pre">raw</span></code> without the z-score or
+<code class="docutils literal notranslate"><span class="pre">conductance_normalized</span></code>) log a warning, because the summed drive has a
+nonzero mean and a scale set by fan-in and depth, so the gate can start
+saturated or flat.</p>
+</section>
+<section id="occupancy-fit">
+<h3>Occupancy fit<a class="headerlink" href="#occupancy-fit" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">occupancy_quantile</span></code> measures the quantiles <span class="math notranslate nohighlight">\(q_{lo}\)</span> and
+<span class="math notranslate nohighlight">\(q_{hi}\)</span> of a layer’s voltages at the probabilities
+<code class="docutils literal notranslate"><span class="pre">occupancy_quantile_low</span></code> and <code class="docutils literal notranslate"><span class="pre">occupancy_quantile_high</span></code> (default <code class="docutils literal notranslate"><span class="pre">0.1</span></code>
+and <code class="docutils literal notranslate"><span class="pre">0.9</span></code>) and places them at the gate outputs <code class="docutils literal notranslate"><span class="pre">occupancy_target_low</span></code> and
+<code class="docutils literal notranslate"><span class="pre">occupancy_target_high</span></code> (default <code class="docutils literal notranslate"><span class="pre">0.1</span></code> and <code class="docutils literal notranslate"><span class="pre">0.9</span></code>). With
+<span class="math notranslate nohighlight">\(z = \operatorname{artanh}(2r - 1)\)</span> for each target output <span class="math notranslate nohighlight">\(r\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[m = \frac{z_{hi} - z_{lo}}{q_{hi} - q_{lo}}, \qquad
+b = q_{lo} - \frac{z_{lo}}{m}\]</div>
+<p>With the default targets this is <span class="math notranslate nohighlight">\(b = (q_{10} + q_{90}) / 2\)</span> and
+<span class="math notranslate nohighlight">\(m = \operatorname{artanh}(0.8) / ((q_{90} - q_{10}) / 2)\)</span>. The bulk of the
+voltage distribution falls in the sensitive range of the gate, and the tails
+saturate. The fit works for shunting and additive layers alike because it
+uses the measured voltages, whose scales differ between the two rules.</p>
+<p>When the quantile span is below <code class="docutils literal notranslate"><span class="pre">calibration_min_quantile_width</span></code> (default
+<code class="docutils literal notranslate"><span class="pre">0.001</span></code>), when the slope would exceed <code class="docutils literal notranslate"><span class="pre">calibration_max_m</span></code> (default
+<code class="docutils literal notranslate"><span class="pre">50</span></code>) or when the quantiles are not finite, the layer keeps its previous gate
+(<code class="docutils literal notranslate"><span class="pre">calibration_revert_on_invalid:</span> <span class="pre">true</span></code>, the default); with <code class="docutils literal notranslate"><span class="pre">false</span></code> the
+span is floored and the slope clamped instead. The two component policies use
+the same fit and keep one of its two values; <code class="docutils literal notranslate"><span class="pre">analytical_slope_occupancy_center</span></code>
+keeps a finite occupancy midpoint even when the occupancy slope is rejected.</p>
+</section>
+<section id="calibration-at-the-start-of-training">
+<span id="gate-calibration"></span><h3>Calibration at the start of training<a class="headerlink" href="#calibration-at-the-start-of-training" title="Link to this heading"></a></h3>
+<p>When a data-driven policy is selected, the training command calibrates the
+gates after building the model and before the first epoch:</p>
+<ul class="simple">
+<li><p>it draws <code class="docutils literal notranslate"><span class="pre">training.main.common.reactivation_initialization_num_batches</span></code>
+(default <code class="docutils literal notranslate"><span class="pre">3</span></code>) shuffled training batches of
+<code class="docutils literal notranslate"><span class="pre">reactivation_initialization_batch_size</span></code> (default <code class="docutils literal notranslate"><span class="pre">256</span></code>) samples and runs
+the model on them without gradients. Only complete batches are used, so a
+training split smaller than one batch raises with an error that names the
+split size and the batch size; lower the batch size for small datasets;</p></li>
+<li><p>every layer with a data-driven policy gets one <span class="math notranslate nohighlight">\((m, b)\)</span> shared by its
+compartments;</p></li>
+<li><p>because a new gate in one layer changes the voltages of the layers after
+it, the fit is repeated until no layer’s <span class="math notranslate nohighlight">\(m\)</span> or <span class="math notranslate nohighlight">\(b\)</span> changes by
+more than <code class="docutils literal notranslate"><span class="pre">1e-3</span></code>, at most 50 times
+(<code class="docutils literal notranslate"><span class="pre">reactivation_initialization_max_iterations</span></code> sets another limit).</p></li>
+</ul>
+<p>Calibration is skipped when <code class="docutils literal notranslate"><span class="pre">model.initial_checkpoint</span></code> provides the gates,
+and the <code class="docutils literal notranslate"><span class="pre">presentation_stream</span></code> strategy rejects data-driven policies. In
+multi-process runs the gates calibrated on rank 0 are given to every rank.</p>
+<p>Every run writes <code class="docutils literal notranslate"><span class="pre">init_gate_stats.json</span></code> with the gate parameters after the
+model is built. Runs with a data-driven policy also write
+<code class="docutils literal notranslate"><span class="pre">reactivation_calibration.json</span></code> (the policies, the number of passes, whether
+they converged and the fit of every layer) and
+<code class="docutils literal notranslate"><span class="pre">post_calibration_gate_stats.json</span></code> (the gates after calibration). Each
+gate-statistics file records, for the gate of every dendritic layer, the
+<code class="docutils literal notranslate"><span class="pre">init_policy</span></code> the layer applied and whether it is <code class="docutils literal notranslate"><span class="pre">data_driven</span></code>, counts
+the gates per policy under <code class="docutils literal notranslate"><span class="pre">init_policies</span></code>, summarizes <span class="math notranslate nohighlight">\(m\)</span> and
+<span class="math notranslate nohighlight">\(b\)</span> per layer and lists
+warnings for slopes of 40 or more and for midpoints near the ends of the
+shunting voltage range (a mean <span class="math notranslate nohighlight">\(b\)</span> of at least 0.95, or at most 0.05
+with a slope of 5 or more); the run log repeats them. Additive layers, whose
+voltages are not limited to <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">1]</span></code>, can receive these warnings for healthy
+midpoints. Check these files before relying on a run.</p>
+</section>
+<section id="gate-updates-during-training">
+<h3>Gate updates during training<a class="headerlink" href="#gate-updates-during-training" title="Link to this heading"></a></h3>
+<p>Initialization and training-time gate updates are separate controls. These
+options of <code class="docutils literal notranslate"><span class="pre">training.main.common</span></code> select how <span class="math notranslate nohighlight">\((m, b)\)</span> change during
+training:</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">reactivation_update_mode</span></code> (default <code class="docutils literal notranslate"><span class="pre">backprop</span></code>)</dt><dd><p><code class="docutils literal notranslate"><span class="pre">backprop</span></code> lets the optimizer or the local learning rule update
+<span class="math notranslate nohighlight">\((m, b)\)</span>. <code class="docutils literal notranslate"><span class="pre">quantile</span></code> freezes those updates and changes the gates
+only by periodic recalibration, so it requires
+<code class="docutils literal notranslate"><span class="pre">recalibrate_reactivation_every</span> <span class="pre">&gt;</span> <span class="pre">0</span></code>. <code class="docutils literal notranslate"><span class="pre">frozen</span></code> keeps the initial
+values. The spellings <code class="docutils literal notranslate"><span class="pre">bp</span></code>, <code class="docutils literal notranslate"><span class="pre">backpropagation</span></code>, <code class="docutils literal notranslate"><span class="pre">quantile_only</span></code>,
+<code class="docutils literal notranslate"><span class="pre">quantile_rule</span></code> and <code class="docutils literal notranslate"><span class="pre">freeze</span></code> load with a deprecation warning.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">recalibrate_reactivation_every</span></code> (default <code class="docutils literal notranslate"><span class="pre">0</span></code>, off)</dt><dd><p>Recalibration period in epochs.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">reactivation_recalibration_start_epoch</span></code> (default <code class="docutils literal notranslate"><span class="pre">1</span></code>)</dt><dd><p>First epoch, counted from 1, at whose start a recalibration runs; with
+start epoch <code class="docutils literal notranslate"><span class="pre">s</span></code> and period <code class="docutils literal notranslate"><span class="pre">n</span></code>, recalibration runs at the start of
+epochs <code class="docutils literal notranslate"><span class="pre">s</span></code>, <code class="docutils literal notranslate"><span class="pre">s</span> <span class="pre">+</span> <span class="pre">n</span></code>, <code class="docutils literal notranslate"><span class="pre">s</span> <span class="pre">+</span> <span class="pre">2n</span></code> and so on. <code class="docutils literal notranslate"><span class="pre">1</span></code> recalibrates before
+any training.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">reactivation_recalibration_num_batches</span></code> (default <code class="docutils literal notranslate"><span class="pre">3</span></code>)</dt><dd><p>Training batches used for each recalibration.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">reactivation_recalibration_ema_alpha</span></code> (default <code class="docutils literal notranslate"><span class="pre">1.0</span></code>)</dt><dd><p>Step towards the newly fitted values, in <code class="docutils literal notranslate"><span class="pre">(0,</span> <span class="pre">1]</span></code>: <code class="docutils literal notranslate"><span class="pre">1.0</span></code> overwrites
+<span class="math notranslate nohighlight">\((m, b)\)</span>, smaller values move them part of the way.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">reactivation_recalibration_mode</span></code> (default <code class="docutils literal notranslate"><span class="pre">from_init_policy</span></code>)</dt><dd><p>The fit used by recalibration. <code class="docutils literal notranslate"><span class="pre">from_init_policy</span></code> refits each layer that
+has a data-driven initialization policy with that policy and leaves layers
+with <code class="docutils literal notranslate"><span class="pre">analytical</span></code> or <code class="docutils literal notranslate"><span class="pre">fixed</span></code> gates unchanged; under
+<code class="docutils literal notranslate"><span class="pre">reactivation_update_mode:</span> <span class="pre">quantile</span></code> it refits every gated layer with
+<code class="docutils literal notranslate"><span class="pre">occupancy_quantile</span></code>. <code class="docutils literal notranslate"><span class="pre">occupancy_quantile</span></code>, <code class="docutils literal notranslate"><span class="pre">median_mad</span></code> (the
+<code class="docutils literal notranslate"><span class="pre">empirical</span></code> fit) and <code class="docutils literal notranslate"><span class="pre">mean_std</span></code> (<span class="math notranslate nohighlight">\(b\)</span> the mean and
+<span class="math notranslate nohighlight">\(m = k / \mathrm{std}(V)\)</span>) refit every gated layer. The spellings
+<code class="docutils literal notranslate"><span class="pre">auto</span></code>, <code class="docutils literal notranslate"><span class="pre">init_policy</span></code>, <code class="docutils literal notranslate"><span class="pre">quantile</span></code> and <code class="docutils literal notranslate"><span class="pre">empirical</span></code> load with a
+deprecation warning.</p>
+</dd>
+</dl>
+<p>When periodic recalibration would refit no gate, because
+<code class="docutils literal notranslate"><span class="pre">from_init_policy</span></code> finds only <code class="docutils literal notranslate"><span class="pre">analytical</span></code> or <code class="docutils literal notranslate"><span class="pre">fixed</span></code> gates or the
+model has no parametric gate, the trainer logs one warning when training
+starts and the run proceeds unchanged. Each scheduled recalibration still
+draws training batches, which advances the training data loader’s random
+stream, so setting <code class="docutils literal notranslate"><span class="pre">recalibrate_reactivation_every</span></code> to <code class="docutils literal notranslate"><span class="pre">0</span></code> can change
+the data order of later epochs; keep the setting to reproduce an earlier run.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">presentation_stream</span></code> strategy does not support periodic recalibration,
+and the FSDP entry point (<a class="reference internal" href="distributed_training.html#distributed-training"><span class="std std-ref">Distributed training</span></a>) accepts only
+<code class="docutils literal notranslate"><span class="pre">reactivation_update_mode:</span> <span class="pre">backprop</span></code> without recalibration. A pretraining
+phase that centres the gates on their voltages before the main training is
+available as the <code class="docutils literal notranslate"><span class="pre">voltage_stabilization</span></code> strategy with
+<code class="docutils literal notranslate"><span class="pre">stabilize_mode:</span> <span class="pre">gate_occupancy</span></code> (<a class="reference internal" href="training_strategies.html#training-strategies"><span class="std std-ref">Training strategies</span></a>).</p>
+</section>
+<section id="starting-points">
+<h3>Starting points<a class="headerlink" href="#starting-points" title="Link to this heading"></a></h3>
+<p>Without a validation search over gate settings, these settings place the gates
+at the measured voltages:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 20.0%" />
+<col style="width: 80.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Training</p></th>
+<th class="head"><p>Settings</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Backpropagation</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">init_policy:</span> <span class="pre">occupancy_quantile</span></code> with the default quantiles,
+<code class="docutils literal notranslate"><span class="pre">reactivation_update_mode:</span> <span class="pre">backprop</span></code>, no periodic recalibration and a
+small <code class="docutils literal notranslate"><span class="pre">reactivation_lr</span></code> (the default <code class="docutils literal notranslate"><span class="pre">1e-4</span></code>, or <code class="docutils literal notranslate"><span class="pre">1e-5</span></code>).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">local_ca</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">init_policy:</span> <span class="pre">occupancy_quantile</span></code> with the wider mapping
+<code class="docutils literal notranslate"><span class="pre">occupancy_quantile_low:</span> <span class="pre">0.05</span></code>, <code class="docutils literal notranslate"><span class="pre">occupancy_quantile_high:</span> <span class="pre">0.95</span></code>,
+<code class="docutils literal notranslate"><span class="pre">occupancy_target_low:</span> <span class="pre">0.2</span></code> and <code class="docutils literal notranslate"><span class="pre">occupancy_target_high:</span> <span class="pre">0.8</span></code>, local
+updates of <span class="math notranslate nohighlight">\((m, b)\)</span> and <code class="docutils literal notranslate"><span class="pre">reactivation_lr:</span> <span class="pre">1e-3</span></code>.</p></td>
+</tr>
+</tbody>
+</table>
+<p>A structured core with the <code class="docutils literal notranslate"><span class="pre">local_ca</span></code> gate settings:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">core</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_shunting</span>
+<span class="w">    </span><span class="nt">architecture</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">excitatory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">32</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">excitatory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">2</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">2</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">reactivation</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">param_tanh</span>
+<span class="w">      </span><span class="nt">init_policy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">occupancy_quantile</span>
+<span class="w">      </span><span class="nt">occupancy_quantile_low</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.05</span>
+<span class="w">      </span><span class="nt">occupancy_quantile_high</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.95</span>
+<span class="w">      </span><span class="nt">occupancy_target_low</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.2</span>
+<span class="w">      </span><span class="nt">occupancy_target_high</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.8</span>
+<span class="nt">training</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">main</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">common</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">param_groups</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">reactivation_lr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.001</span>
+</pre></div>
+</div>
+<p>The same gate settings as population fields:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">population_defaults</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">reactivation_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">param_tanh</span>
+<span class="w">  </span><span class="nt">reactivation_init_policy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">occupancy_quantile</span>
+<span class="w">  </span><span class="nt">reactivation_occupancy_quantile_low</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.05</span>
+<span class="w">  </span><span class="nt">reactivation_occupancy_quantile_high</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.95</span>
+<span class="w">  </span><span class="nt">reactivation_occupancy_target_low</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.2</span>
+<span class="w">  </span><span class="nt">reactivation_occupancy_target_high</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.8</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="comparing-integration-rules">
+<span id="id2"></span><h2><a class="toc-backref" href="#id11" role="doc-backlink">Comparing integration rules</a><a class="headerlink" href="#comparing-integration-rules" title="Link to this heading"></a></h2>
+<p>Shunting and additive layers produce voltages on different scales, so an
+initializer of the same name does not place their gates at the same operating
+point. A comparison between rules therefore has to state which question it
+answers:</p>
+<ul class="simple">
+<li><p><strong>Best attainable system.</strong> Select the initialization policy, learning rates
+and other settings separately for each rule, with the same validation data,
+search space, budget and seeds for every rule. The result compares trained
+systems under that budget, not the integration rules alone.</p></li>
+<li><p><strong>Same settings.</strong> Give both rules the same named initializer and optimizer
+settings. This measures how sensitive the comparison is to these settings.</p></li>
+<li><p><strong>Rule only.</strong> Keep the initial state, connectivity, data order and
+optimizer fixed and change only the voltage equation.
+<code class="docutils literal notranslate"><span class="pre">dbl_init_method:</span> <span class="pre">mechanism_neutral</span></code> initializes shunting and additive
+models identically for the same seed (<a class="reference internal" href="synapses.html#synapse-initialization"><span class="std std-ref">Synapse initialization</span></a>);
+<code class="docutils literal notranslate"><span class="pre">conductance_normalized</span></code> and <code class="docutils literal notranslate"><span class="pre">tangent_matched</span></code> and the analysis-only rule
+overrides isolate parts of the shunting rule.</p></li>
+</ul>
+<p>The gate policies give a 2-by-2 design over the gate slope and midpoint:
+<code class="docutils literal notranslate"><span class="pre">analytical</span></code> <span class="math notranslate nohighlight">\((m_a, b_a)\)</span>, <code class="docutils literal notranslate"><span class="pre">analytical_slope_occupancy_center</span></code>
+<span class="math notranslate nohighlight">\((m_a, b_o)\)</span>, <code class="docutils literal notranslate"><span class="pre">occupancy_slope_analytical_center</span></code> <span class="math notranslate nohighlight">\((m_o, b_a)\)</span>
+and <code class="docutils literal notranslate"><span class="pre">occupancy_quantile</span></code> <span class="math notranslate nohighlight">\((m_o, b_o)\)</span>. Comparing the four separates a
+mismatch of the gate centre from a mismatch of its scale.</p>
+<p>In every case, select settings on validation data only, evaluate the test split
+once for the selected settings, pair seeds across the rules so that differences
+can be computed per seed, and keep the gate records
+(<code class="docutils literal notranslate"><span class="pre">init_gate_stats.json</span></code>, <code class="docutils literal notranslate"><span class="pre">reactivation_calibration.json</span></code> and
+<code class="docutils literal notranslate"><span class="pre">post_calibration_gate_stats.json</span></code>) with the results.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="network_architectures.html" class="btn btn-neutral float-left" title="Model architecture" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="synapses.html" class="btn btn-neutral float-right" title="Synapses and connectivity" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024-2026, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -1,0 +1,800 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>dendritic_modeling.deployment.compression &mdash; DendriNet v0.2.0</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=938c9ccc"></script>
+      <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            DendriNet
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../examples.html">Example configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Building models</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../network_architectures.html">Model architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../dendritic_neurons.html">Dendritic neurons</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../synapses.html">Synapses and connectivity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../population_networks.html">Population networks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../temporal_dynamics.html">Temporal dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../structured_ei_cores.html">Structured E/I cores</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../conductance_options.html">Conductance options</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../comparison_models.html">Baselines and comparison models</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Configuration</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../configuration_guide.html">Configuration guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../config_reference.html">Annotated reference configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../training_strategies.html">Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../distributed_training.html">Distributed training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../performance_kernels.html">Sparse execution and performance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Data and analysis</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../datasets.html">Datasets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../analysis.html">Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../analyzers.html">Analyzer reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../checkpoint_analysis.html">Analyzing saved checkpoints</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Running experiments</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../runs_and_outputs.html">Runs and outputs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../sweeps.html">Parameter sweeps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../model_compression.html">Compact checkpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../project_provenance.html">Project provenance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../available_components.html">Component catalogue</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../options_reference.html">Options reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../cli_reference.html">Command-line reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api_reference.html">Python API</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../extending.html">Extending DendriNet</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../engineering_architecture.html">Engineering architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../contributing.html">Contributing</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">DendriNet</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">dendritic_modeling.deployment.compression</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for dendritic_modeling.deployment.compression</h1><div class="highlight"><pre>
+<span></span><span class="sd">"""Lossless compaction of trained dendritic sparse topology."""</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Mapping</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">asdict</span><span class="p">,</span> <span class="n">dataclass</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch.nn</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">nn</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config.compression</span><span class="w"> </span><span class="kn">import</span> <span class="n">ModelCompressionConfig</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.excitation_inhibition.synapse</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">DeepstLinear</span><span class="p">,</span>
+    <span class="n">DenseToSparseLinear</span><span class="p">,</span>
+    <span class="n">IndexedDynamicTopKLinear</span><span class="p">,</span>
+    <span class="n">IndexedRewireLinear</span><span class="p">,</span>
+    <span class="n">IndexedSparseLinear</span><span class="p">,</span>
+    <span class="n">TopKLinear</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.checkpoints</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">BITMASK_ASCENDING_ENCODING</span><span class="p">,</span>
+    <span class="n">atomic_torch_save</span><span class="p">,</span>
+    <span class="n">compact_model_state_dict</span><span class="p">,</span>
+    <span class="n">decode_sparse_bitmask_state_dict</span><span class="p">,</span>
+    <span class="n">extract_model_state_dict</span><span class="p">,</span>
+    <span class="n">per_contact_tensors</span><span class="p">,</span>
+    <span class="n">sha256_file</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+<span class="n">COMPACT_CHECKPOINT_FORMAT</span> <span class="o">=</span> <span class="s2">"dendritic_modeling.compact_checkpoint"</span>
+<span class="n">COMPACT_CHECKPOINT_VERSION</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="n">_INDICES</span> <span class="o">=</span> <span class="s2">"connection_indices"</span>
+
+
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">FrozenSparseModuleRecord</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Reconstruction record for one fixed indexed sparse module."""</span>
+
+    <span class="n">path</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">source_type</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">target_type</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">in_features</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">out_features</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">synapses_per_output</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">param_space</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">init_method</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">init_gain</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="n">weight_transform</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">weight_norm_order</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="n">gamma</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="n">output_chunk_size</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">workspace_mb</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="n">cache_transformed_weights</span><span class="p">:</span> <span class="nb">bool</span>
+    <span class="n">projection_backend</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">index_dtype</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"int64"</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_module_device_and_dtype</span><span class="p">(</span><span class="n">module</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">dtype</span><span class="p">]:</span>
+    <span class="n">parameter</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="n">module</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">parameter</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">device</span><span class="p">(</span><span class="s2">"cpu"</span><span class="p">),</span> <span class="n">torch</span><span class="o">.</span><span class="n">get_default_dtype</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">parameter</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">parameter</span><span class="o">.</span><span class="n">dtype</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_sorted_selected_topology</span><span class="p">(</span>
+    <span class="n">indices</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">raw_weights</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
+    <span class="n">sorted_indices</span><span class="p">,</span> <span class="n">order</span> <span class="o">=</span> <span class="n">indices</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">)</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">sorted_weights</span> <span class="o">=</span> <span class="n">raw_weights</span><span class="o">.</span><span class="n">gather</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">order</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">raw_weights</span><span class="o">.</span><span class="n">device</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">sorted_indices</span><span class="p">,</span> <span class="n">sorted_weights</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_dense_topk_support</span><span class="p">(</span><span class="n">module</span><span class="p">:</span> <span class="n">TopKLinear</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
+    <span class="n">mask</span> <span class="o">=</span> <span class="n">module</span><span class="o">.</span><span class="n">weight_mask</span><span class="p">()</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">bool</span><span class="p">)</span>
+    <span class="n">counts</span> <span class="o">=</span> <span class="n">mask</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">counts</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">or</span> <span class="nb">bool</span><span class="p">((</span><span class="n">counts</span> <span class="o">!=</span> <span class="n">counts</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="o">.</span><span class="n">any</span><span class="p">()):</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">"TopK support must have a constant row-wise synapse count"</span><span class="p">)</span>
+    <span class="n">k</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">counts</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
+    <span class="n">coordinates</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nonzero</span><span class="p">(</span><span class="n">mask</span><span class="p">,</span> <span class="n">as_tuple</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">indices</span> <span class="o">=</span> <span class="n">coordinates</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">module</span><span class="o">.</span><span class="n">out_features</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span>
+    <span class="n">raw_weights</span> <span class="o">=</span> <span class="n">module</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">gather</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">indices</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">module</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">device</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">_sorted_selected_topology</span><span class="p">(</span><span class="n">indices</span><span class="p">,</span> <span class="n">raw_weights</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_dynamic_indexed_support</span><span class="p">(</span>
+    <span class="n">module</span><span class="p">:</span> <span class="n">IndexedDynamicTopKLinear</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
+    <span class="n">active</span> <span class="o">=</span> <span class="n">module</span><span class="o">.</span><span class="n">active_sparse_mask</span><span class="p">()</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">bool</span><span class="p">)</span>
+    <span class="n">counts</span> <span class="o">=</span> <span class="n">active</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">bool</span><span class="p">((</span><span class="n">counts</span> <span class="o">!=</span> <span class="n">module</span><span class="o">.</span><span class="n">K</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">()):</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+            <span class="s2">"Indexed dynamic support must select exactly K candidates per row"</span>
+        <span class="p">)</span>
+    <span class="n">slots</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nonzero</span><span class="p">(</span><span class="n">active</span><span class="p">,</span> <span class="n">as_tuple</span><span class="o">=</span><span class="kc">False</span><span class="p">)[:,</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span>
+        <span class="n">module</span><span class="o">.</span><span class="n">out_features</span><span class="p">,</span> <span class="n">module</span><span class="o">.</span><span class="n">K</span>
+    <span class="p">)</span>
+    <span class="n">indices</span> <span class="o">=</span> <span class="n">module</span><span class="o">.</span><span class="n">connection_indices</span><span class="o">.</span><span class="n">gather</span><span class="p">(</span>
+        <span class="mi">1</span><span class="p">,</span> <span class="n">slots</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">module</span><span class="o">.</span><span class="n">connection_indices</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="n">raw_weights</span> <span class="o">=</span> <span class="n">module</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">gather</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">slots</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">module</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">device</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">_sorted_selected_topology</span><span class="p">(</span><span class="n">indices</span><span class="p">,</span> <span class="n">raw_weights</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_fixed_indexed_support</span><span class="p">(</span>
+    <span class="n">module</span><span class="p">:</span> <span class="n">IndexedSparseLinear</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
+    <span class="k">return</span> <span class="n">_sorted_selected_topology</span><span class="p">(</span><span class="n">module</span><span class="o">.</span><span class="n">connection_indices</span><span class="p">,</span> <span class="n">module</span><span class="o">.</span><span class="n">pre_w</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_replacement_options</span><span class="p">(</span><span class="n">module</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s2">"param_space"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="s2">"param_space"</span><span class="p">,</span> <span class="s2">"log"</span><span class="p">)),</span>
+        <span class="s2">"init_method"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="s2">"init_method"</span><span class="p">,</span> <span class="s2">"xavier_normal"</span><span class="p">)),</span>
+        <span class="s2">"init_gain"</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="s2">"init_gain"</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)),</span>
+        <span class="s2">"weight_transform"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="s2">"weight_transform"</span><span class="p">,</span> <span class="s2">"exp"</span><span class="p">)),</span>
+        <span class="s2">"weight_norm_order"</span><span class="p">:</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="s2">"weight_norm_order"</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+        <span class="s2">"gamma"</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="s2">"gamma"</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)),</span>
+        <span class="s2">"output_chunk_size"</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="s2">"output_chunk_size"</span><span class="p">,</span> <span class="mi">2048</span><span class="p">)),</span>
+        <span class="s2">"workspace_mb"</span><span class="p">:</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="s2">"workspace_mb"</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+        <span class="s2">"cache_transformed_weights"</span><span class="p">:</span> <span class="nb">bool</span><span class="p">(</span>
+            <span class="nb">getattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="s2">"cache_transformed_weights"</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+        <span class="p">),</span>
+        <span class="s2">"projection_backend"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="s2">"projection_backend"</span><span class="p">,</span> <span class="s2">"eager"</span><span class="p">)),</span>
+    <span class="p">}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_make_indexed_replacement</span><span class="p">(</span>
+    <span class="n">source</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span>
+    <span class="n">indices</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">raw_weights</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">options</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">index_dtype</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"int64"</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">IndexedSparseLinear</span><span class="p">:</span>
+    <span class="n">replacement_options</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">options</span> <span class="ow">or</span> <span class="n">_replacement_options</span><span class="p">(</span><span class="n">source</span><span class="p">))</span>
+    <span class="n">device</span><span class="p">,</span> <span class="n">dtype</span> <span class="o">=</span> <span class="n">_module_device_and_dtype</span><span class="p">(</span><span class="n">source</span><span class="p">)</span>
+    <span class="n">replacement</span> <span class="o">=</span> <span class="n">IndexedSparseLinear</span><span class="p">(</span>
+        <span class="n">in_features</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">source</span><span class="o">.</span><span class="n">in_features</span><span class="p">),</span>
+        <span class="n">out_features</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">source</span><span class="o">.</span><span class="n">out_features</span><span class="p">),</span>
+        <span class="n">K</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span>
+        <span class="n">connection_indices</span><span class="o">=</span><span class="n">indices</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">(),</span>
+        <span class="n">index_dtype</span><span class="o">=</span><span class="n">index_dtype</span><span class="p">,</span>
+        <span class="n">persistent_indices</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="o">**</span><span class="n">replacement_options</span><span class="p">,</span>
+    <span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
+        <span class="n">replacement</span><span class="o">.</span><span class="n">connection_indices</span><span class="o">.</span><span class="n">copy_</span><span class="p">(</span>
+            <span class="n">indices</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="o">=</span><span class="n">replacement</span><span class="o">.</span><span class="n">connection_indices</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="n">replacement</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">copy_</span><span class="p">(</span><span class="n">raw_weights</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">))</span>
+    <span class="n">replacement</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">requires_grad_</span><span class="p">(</span><span class="n">source</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">requires_grad</span><span class="p">)</span>
+    <span class="n">replacement</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">source</span><span class="o">.</span><span class="n">training</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">replacement</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_verify_layer_equivalence</span><span class="p">(</span>
+    <span class="n">source</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span>
+    <span class="n">replacement</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">atol</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">rtol</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">device</span><span class="p">,</span> <span class="n">dtype</span> <span class="o">=</span> <span class="n">_module_device_and_dtype</span><span class="p">(</span><span class="n">source</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">dtype</span><span class="o">.</span><span class="n">is_floating_point</span> <span class="ow">or</span> <span class="n">dtype</span><span class="o">.</span><span class="n">is_complex</span><span class="p">):</span>
+        <span class="k">return</span>
+    <span class="n">generator</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">Generator</span><span class="p">(</span><span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">)</span>
+    <span class="n">generator</span><span class="o">.</span><span class="n">manual_seed</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">sample</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span>
+        <span class="mi">2</span><span class="p">,</span>
+        <span class="nb">int</span><span class="p">(</span><span class="n">source</span><span class="o">.</span><span class="n">in_features</span><span class="p">),</span>
+        <span class="n">generator</span><span class="o">=</span><span class="n">generator</span><span class="p">,</span>
+        <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">,</span>
+        <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">source_training</span> <span class="o">=</span> <span class="n">source</span><span class="o">.</span><span class="n">training</span>
+    <span class="n">replacement_training</span> <span class="o">=</span> <span class="n">replacement</span><span class="o">.</span><span class="n">training</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">source</span><span class="o">.</span><span class="n">eval</span><span class="p">()</span>
+        <span class="n">replacement</span><span class="o">.</span><span class="n">eval</span><span class="p">()</span>
+        <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
+            <span class="n">expected</span> <span class="o">=</span> <span class="n">source</span><span class="p">(</span><span class="n">sample</span><span class="p">)</span>
+            <span class="n">observed</span> <span class="o">=</span> <span class="n">replacement</span><span class="p">(</span><span class="n">sample</span><span class="p">)</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="n">source</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">source_training</span><span class="p">)</span>
+        <span class="n">replacement</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">replacement_training</span><span class="p">)</span>
+    <span class="n">dtype_atol</span> <span class="o">=</span> <span class="mf">5e-3</span> <span class="k">if</span> <span class="n">dtype</span> <span class="ow">in</span> <span class="p">{</span><span class="n">torch</span><span class="o">.</span><span class="n">float16</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">bfloat16</span><span class="p">}</span> <span class="k">else</span> <span class="n">atol</span>
+    <span class="n">dtype_rtol</span> <span class="o">=</span> <span class="mf">5e-3</span> <span class="k">if</span> <span class="n">dtype</span> <span class="ow">in</span> <span class="p">{</span><span class="n">torch</span><span class="o">.</span><span class="n">float16</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">bfloat16</span><span class="p">}</span> <span class="k">else</span> <span class="n">rtol</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">torch</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">expected</span><span class="p">,</span> <span class="n">observed</span><span class="p">,</span> <span class="n">atol</span><span class="o">=</span><span class="n">dtype_atol</span><span class="p">,</span> <span class="n">rtol</span><span class="o">=</span><span class="n">dtype_rtol</span><span class="p">):</span>
+        <span class="n">maximum_error</span> <span class="o">=</span> <span class="nb">float</span><span class="p">((</span><span class="n">expected</span> <span class="o">-</span> <span class="n">observed</span><span class="p">)</span><span class="o">.</span><span class="n">abs</span><span class="p">()</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+            <span class="s2">"Sparse topology conversion changed layer outputs; "</span>
+            <span class="sa">f</span><span class="s2">"maximum absolute error=</span><span class="si">{</span><span class="n">maximum_error</span><span class="si">:</span><span class="s2">.6g</span><span class="si">}</span><span class="s2">"</span>
+        <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_convertible_support</span><span class="p">(</span>
+    <span class="n">module</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span>
+    <span class="n">config</span><span class="p">:</span> <span class="n">ModelCompressionConfig</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">sparse</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">sparse_topology</span>
+    <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">module</span><span class="p">)</span> <span class="ow">is</span> <span class="n">DenseToSparseLinear</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">module</span><span class="o">.</span><span class="n">noise_level</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Cannot losslessly freeze noisy DenseToSparseLinear"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">sparse</span><span class="o">.</span><span class="n">require_final_dense_to_sparse_step</span> <span class="ow">and</span> <span class="p">(</span>
+            <span class="n">module</span><span class="o">.</span><span class="n">current_k</span> <span class="o">!=</span> <span class="n">module</span><span class="o">.</span><span class="n">target_k</span>
+        <span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">"DenseToSparseLinear has not reached target K; finish its pruning "</span>
+                <span class="s2">"schedule or explicitly disable the final-step requirement"</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="n">_dense_topk_support</span><span class="p">(</span><span class="n">module</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">module</span><span class="p">)</span> <span class="ow">is</span> <span class="n">TopKLinear</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">module</span><span class="o">.</span><span class="n">noise_level</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Cannot losslessly freeze noisy TopKLinear"</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">_dense_topk_support</span><span class="p">(</span><span class="n">module</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">module</span><span class="p">)</span> <span class="ow">is</span> <span class="n">IndexedDynamicTopKLinear</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">sparse</span><span class="o">.</span><span class="n">allow_indexed_dynamic</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">module</span><span class="o">.</span><span class="n">selection</span> <span class="o">!=</span> <span class="s2">"standard"</span> <span class="ow">or</span> <span class="n">module</span><span class="o">.</span><span class="n">noise_level</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">"IndexedDynamicTopKLinear must use deterministic standard "</span>
+                <span class="s2">"selection with noise_level=0 before topology freezing"</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="n">_dynamic_indexed_support</span><span class="p">(</span><span class="n">module</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">module</span><span class="p">)</span> <span class="ow">is</span> <span class="n">IndexedRewireLinear</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">sparse</span><span class="o">.</span><span class="n">allow_indexed_rewire</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">return</span> <span class="n">_fixed_indexed_support</span><span class="p">(</span><span class="n">module</span><span class="p">)</span>
+    <span class="k">return</span> <span class="kc">None</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_record_for</span><span class="p">(</span>
+    <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">source</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span>
+    <span class="n">replacement</span><span class="p">:</span> <span class="n">IndexedSparseLinear</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">FrozenSparseModuleRecord</span><span class="p">:</span>
+    <span class="n">options</span> <span class="o">=</span> <span class="n">_replacement_options</span><span class="p">(</span><span class="n">replacement</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">FrozenSparseModuleRecord</span><span class="p">(</span>
+        <span class="n">path</span><span class="o">=</span><span class="n">path</span><span class="p">,</span>
+        <span class="n">source_type</span><span class="o">=</span><span class="nb">type</span><span class="p">(</span><span class="n">source</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span>
+        <span class="n">target_type</span><span class="o">=</span><span class="nb">type</span><span class="p">(</span><span class="n">replacement</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span>
+        <span class="n">in_features</span><span class="o">=</span><span class="n">replacement</span><span class="o">.</span><span class="n">in_features</span><span class="p">,</span>
+        <span class="n">out_features</span><span class="o">=</span><span class="n">replacement</span><span class="o">.</span><span class="n">out_features</span><span class="p">,</span>
+        <span class="n">synapses_per_output</span><span class="o">=</span><span class="n">replacement</span><span class="o">.</span><span class="n">K</span><span class="p">,</span>
+        <span class="n">index_dtype</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">replacement</span><span class="o">.</span><span class="n">connection_indices</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span><span class="o">.</span><span class="n">removeprefix</span><span class="p">(</span><span class="s2">"torch."</span><span class="p">),</span>
+        <span class="o">**</span><span class="n">options</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<div class="viewcode-block" id="freeze_sparse_topology_">
+<a class="viewcode-back" href="../../../api_reference.html#dendritic_modeling.deployment.compression.freeze_sparse_topology_">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">freeze_sparse_topology_</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span>
+    <span class="n">config</span><span class="p">:</span> <span class="n">ModelCompressionConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">FrozenSparseModuleRecord</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Replace deterministic dynamic sparse layers with exact fixed topology.</span>
+
+<span class="sd">    The operation mutates ``model`` and is intended for inference/export after</span>
+<span class="sd">    training. Existing :class:`IndexedSparseLinear` modules are already compact</span>
+<span class="sd">    and are left unchanged.</span>
+<span class="sd">    """</span>
+
+    <span class="n">policy</span> <span class="o">=</span> <span class="n">config</span> <span class="ow">or</span> <span class="n">ModelCompressionConfig</span><span class="p">()</span>
+    <span class="n">policy</span><span class="o">.</span><span class="n">validate</span><span class="p">()</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">policy</span><span class="o">.</span><span class="n">sparse_topology</span><span class="o">.</span><span class="n">enabled</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">[]</span>
+
+    <span class="n">candidates</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span>
+        <span class="nb">tuple</span><span class="p">[</span>
+            <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span>
+            <span class="nb">str</span><span class="p">,</span>
+            <span class="nb">str</span><span class="p">,</span>
+            <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span>
+            <span class="nb">tuple</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span>
+        <span class="p">]</span>
+    <span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">converted_paths</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">collect</span><span class="p">(</span><span class="n">parent</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span> <span class="n">prefix</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">child</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">parent</span><span class="o">.</span><span class="n">_modules</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
+            <span class="k">if</span> <span class="n">child</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">path</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">prefix</span><span class="si">}</span><span class="s2">.</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">"</span> <span class="k">if</span> <span class="n">prefix</span> <span class="k">else</span> <span class="n">name</span>
+            <span class="n">support</span> <span class="o">=</span> <span class="n">_convertible_support</span><span class="p">(</span><span class="n">child</span><span class="p">,</span> <span class="n">policy</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">support</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">collect</span><span class="p">(</span><span class="n">child</span><span class="p">,</span> <span class="n">path</span><span class="p">)</span>
+                <span class="k">continue</span>
+            <span class="n">previous_path</span> <span class="o">=</span> <span class="n">converted_paths</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="nb">id</span><span class="p">(</span><span class="n">child</span><span class="p">))</span>
+            <span class="k">if</span> <span class="n">previous_path</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s2">"Shared dynamic sparse modules cannot be frozen safely: "</span>
+                    <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">previous_path</span><span class="si">!r}</span><span class="s2"> and </span><span class="si">{</span><span class="n">path</span><span class="si">!r}</span><span class="s2"> reference the same module"</span>
+                <span class="p">)</span>
+            <span class="n">converted_paths</span><span class="p">[</span><span class="nb">id</span><span class="p">(</span><span class="n">child</span><span class="p">)]</span> <span class="o">=</span> <span class="n">path</span>
+            <span class="n">candidates</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">parent</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">child</span><span class="p">,</span> <span class="n">support</span><span class="p">))</span>
+
+    <span class="n">collect</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
+    <span class="n">unconverted</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">module</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">)"</span>
+        <span class="k">for</span> <span class="n">path</span><span class="p">,</span> <span class="n">module</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">named_modules</span><span class="p">()</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="p">(</span><span class="n">TopKLinear</span><span class="p">,</span> <span class="n">DeepstLinear</span><span class="p">))</span>
+        <span class="ow">and</span> <span class="nb">id</span><span class="p">(</span><span class="n">module</span><span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">converted_paths</span>
+    <span class="p">]</span>
+    <span class="k">if</span> <span class="n">unconverted</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">policy</span><span class="o">.</span><span class="n">sparse_topology</span><span class="o">.</span><span class="n">allow_unconverted</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">"sparse_topology cannot freeze these sparse layers losslessly: "</span>
+            <span class="o">+</span> <span class="s2">", "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">unconverted</span><span class="p">)</span>
+            <span class="o">+</span> <span class="s2">". Set sparse_topology.allow_unconverted: true to export them "</span>
+            <span class="s2">"unchanged, with their dense candidate weights."</span>
+        <span class="p">)</span>
+    <span class="n">prepared</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span>
+        <span class="nb">tuple</span><span class="p">[</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span> <span class="nb">str</span><span class="p">,</span> <span class="n">IndexedSparseLinear</span><span class="p">,</span> <span class="n">FrozenSparseModuleRecord</span><span class="p">]</span>
+    <span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">parent</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">child</span><span class="p">,</span> <span class="n">support</span> <span class="ow">in</span> <span class="n">candidates</span><span class="p">:</span>
+        <span class="n">indices</span><span class="p">,</span> <span class="n">raw_weights</span> <span class="o">=</span> <span class="n">support</span>
+        <span class="n">options</span> <span class="o">=</span> <span class="n">_replacement_options</span><span class="p">(</span><span class="n">child</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"projection_backend"</span><span class="p">,</span> <span class="s2">"workspace_mb"</span><span class="p">):</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">policy</span><span class="o">.</span><span class="n">sparse_topology</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">options</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+        <span class="n">replacement</span> <span class="o">=</span> <span class="n">_make_indexed_replacement</span><span class="p">(</span>
+            <span class="n">child</span><span class="p">,</span>
+            <span class="n">indices</span><span class="p">,</span>
+            <span class="n">raw_weights</span><span class="p">,</span>
+            <span class="n">options</span><span class="o">=</span><span class="n">options</span><span class="p">,</span>
+            <span class="n">index_dtype</span><span class="o">=</span><span class="n">policy</span><span class="o">.</span><span class="n">sparse_topology</span><span class="o">.</span><span class="n">index_dtype</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">policy</span><span class="o">.</span><span class="n">verification</span><span class="o">.</span><span class="n">enabled</span><span class="p">:</span>
+            <span class="n">_verify_layer_equivalence</span><span class="p">(</span>
+                <span class="n">child</span><span class="p">,</span>
+                <span class="n">replacement</span><span class="p">,</span>
+                <span class="n">atol</span><span class="o">=</span><span class="n">policy</span><span class="o">.</span><span class="n">verification</span><span class="o">.</span><span class="n">atol</span><span class="p">,</span>
+                <span class="n">rtol</span><span class="o">=</span><span class="n">policy</span><span class="o">.</span><span class="n">verification</span><span class="o">.</span><span class="n">rtol</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="n">prepared</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="p">(</span><span class="n">parent</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">replacement</span><span class="p">,</span> <span class="n">_record_for</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">child</span><span class="p">,</span> <span class="n">replacement</span><span class="p">))</span>
+        <span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">parent</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">replacement</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">prepared</span><span class="p">:</span>
+        <span class="n">parent</span><span class="o">.</span><span class="n">_modules</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">replacement</span>
+    <span class="k">return</span> <span class="p">[</span><span class="n">record</span> <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">record</span> <span class="ow">in</span> <span class="n">prepared</span><span class="p">]</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_module_at_path</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span> <span class="nb">str</span><span class="p">,</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">]:</span>
+    <span class="n">parts</span> <span class="o">=</span> <span class="n">path</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">"."</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">parts</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">path</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Compact module paths must be non-empty"</span><span class="p">)</span>
+    <span class="n">parent</span> <span class="o">=</span> <span class="n">model</span>
+    <span class="k">for</span> <span class="n">part</span> <span class="ow">in</span> <span class="n">parts</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]:</span>
+        <span class="n">child</span> <span class="o">=</span> <span class="n">parent</span><span class="o">.</span><span class="n">_modules</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">part</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">child</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Model has no module at compact path </span><span class="si">{</span><span class="n">path</span><span class="si">!r}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="n">parent</span> <span class="o">=</span> <span class="n">child</span>
+    <span class="n">name</span> <span class="o">=</span> <span class="n">parts</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">child</span> <span class="o">=</span> <span class="n">parent</span><span class="o">.</span><span class="n">_modules</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">child</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Model has no module at compact path </span><span class="si">{</span><span class="n">path</span><span class="si">!r}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">parent</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">child</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">prepare_model_for_compact_state_</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span>
+    <span class="n">manifest</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]],</span>
+    <span class="n">state_dict</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Reconstruct fixed indexed modules before strict compact-state loading."""</span>
+
+    <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">manifest</span><span class="p">:</span>
+        <span class="n">path</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">item</span><span class="p">[</span><span class="s2">"path"</span><span class="p">])</span>
+        <span class="n">parent</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">source</span> <span class="o">=</span> <span class="n">_module_at_path</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">path</span><span class="p">)</span>
+        <span class="n">index_key</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">.connection_indices"</span>
+        <span class="k">if</span> <span class="n">index_key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">state_dict</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Compact state is missing </span><span class="si">{</span><span class="n">index_key</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="n">indices</span> <span class="o">=</span> <span class="n">state_dict</span><span class="p">[</span><span class="n">index_key</span><span class="p">]</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">)</span>
+        <span class="n">expected_shape</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="nb">int</span><span class="p">(</span><span class="n">item</span><span class="p">[</span><span class="s2">"out_features"</span><span class="p">]),</span>
+            <span class="nb">int</span><span class="p">(</span><span class="n">item</span><span class="p">[</span><span class="s2">"synapses_per_output"</span><span class="p">]),</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">indices</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">!=</span> <span class="n">expected_shape</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"Compact topology shape for </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2"> is </span><span class="si">{</span><span class="nb">tuple</span><span class="p">(</span><span class="n">indices</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span><span class="si">}</span><span class="s2">, "</span>
+                <span class="sa">f</span><span class="s2">"expected </span><span class="si">{</span><span class="n">expected_shape</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">)</span>
+        <span class="n">weight_key</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">.pre_w"</span>
+        <span class="k">if</span> <span class="n">weight_key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">state_dict</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Compact state is missing </span><span class="si">{</span><span class="n">weight_key</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="n">replacement</span> <span class="o">=</span> <span class="n">_make_indexed_replacement</span><span class="p">(</span>
+            <span class="n">source</span><span class="p">,</span>
+            <span class="n">indices</span><span class="p">,</span>
+            <span class="n">state_dict</span><span class="p">[</span><span class="n">weight_key</span><span class="p">],</span>
+            <span class="n">index_dtype</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">item</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"index_dtype"</span><span class="p">,</span> <span class="s2">"int64"</span><span class="p">)),</span>
+            <span class="n">options</span><span class="o">=</span><span class="p">{</span>
+                <span class="n">key</span><span class="p">:</span> <span class="n">item</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+                <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="p">(</span>
+                    <span class="s2">"param_space"</span><span class="p">,</span>
+                    <span class="s2">"init_method"</span><span class="p">,</span>
+                    <span class="s2">"init_gain"</span><span class="p">,</span>
+                    <span class="s2">"weight_transform"</span><span class="p">,</span>
+                    <span class="s2">"weight_norm_order"</span><span class="p">,</span>
+                    <span class="s2">"gamma"</span><span class="p">,</span>
+                    <span class="s2">"output_chunk_size"</span><span class="p">,</span>
+                    <span class="s2">"workspace_mb"</span><span class="p">,</span>
+                    <span class="s2">"cache_transformed_weights"</span><span class="p">,</span>
+                    <span class="s2">"projection_backend"</span><span class="p">,</span>
+                <span class="p">)</span>
+            <span class="p">},</span>
+        <span class="p">)</span>
+        <span class="n">parent</span><span class="o">.</span><span class="n">_modules</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">replacement</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_module_of_indices</span><span class="p">(</span>
+    <span class="n">modules</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">],</span> <span class="n">key</span><span class="p">:</span> <span class="nb">str</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]:</span>
+    <span class="n">path</span> <span class="o">=</span> <span class="n">key</span><span class="p">[:</span> <span class="o">-</span><span class="nb">len</span><span class="p">(</span><span class="n">_INDICES</span><span class="p">)]</span>
+    <span class="k">if</span> <span class="n">path</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">path</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">"."</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">path</span><span class="p">,</span> <span class="kc">None</span>  <span class="c1"># e.g. ``base_connection_indices``: not an indexed layer</span>
+    <span class="n">path</span> <span class="o">=</span> <span class="n">path</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">path</span><span class="p">,</span> <span class="n">modules</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_contacts_may_be_reordered</span><span class="p">(</span>
+    <span class="n">module</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">key</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">state_dict</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+    <span class="bp">cls</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="n">module</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">(</span>
+        <span class="n">module</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="ow">and</span> <span class="nb">vars</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"SLOT_ORDER_MATTERS"</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">False</span>
+        <span class="ow">and</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="s2">"CONTACT_SLOT_STATE"</span><span class="p">,</span> <span class="p">()))</span> <span class="o">==</span> <span class="p">(</span><span class="s2">"pre_w"</span><span class="p">,)</span>
+        <span class="ow">and</span> <span class="ow">not</span> <span class="n">per_contact_tensors</span><span class="p">(</span><span class="n">state_dict</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
+    <span class="p">)</span>
+
+
+<div class="viewcode-block" id="bitmask_slot_order_keys">
+<a class="viewcode-back" href="../../../api_reference.html#dendritic_modeling.deployment.compression.bitmask_slot_order_keys">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">bitmask_slot_order_keys</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span>
+    <span class="n">state_dict</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""``connection_indices`` keys whose contacts keep their slot order.</span>
+
+<span class="sd">    The bitmask encoding of a compact checkpoint may reorder a layer's</span>
+<span class="sd">    contacts into ascending input order only when that changes nothing but</span>
+<span class="sd">    the order in which they are summed: the layer's class itself (not only a</span>
+<span class="sd">    parent class) declares ``SLOT_ORDER_MATTERS = False`` with ``pre_w`` as</span>
+<span class="sd">    its only per-contact tensor (``CONTACT_SLOT_STATE``), and its state holds</span>
+<span class="sd">    no other tensor with one entry per contact. Of the library's layers only</span>
+<span class="sd">    the fixed ``IndexedSparseLinear`` qualifies. Every other layer keeps its</span>
+<span class="sd">    slot order (see :func:`~dendritic_modeling.networks.checkpoints.compact_sparse_bitmask_state_dict`):</span>
+<span class="sd">    ``indexed_release`` (per-contact impact and ages; release draws and</span>
+<span class="sd">    cellwise rewiring follow slot positions), ``indexed_rewire`` (pruning</span>
+<span class="sd">    ties, pairing of new inputs with pruned slots), ``indexed_dynamic`` (Top-K</span>
+<span class="sd">    ties, selection noise) and layer types defined elsewhere.</span>
+<span class="sd">    """</span>
+    <span class="n">state</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">state_dict</span><span class="p">()</span> <span class="k">if</span> <span class="n">state_dict</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">state_dict</span>
+    <span class="n">modules</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">named_modules</span><span class="p">())</span>
+    <span class="n">keep</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">state</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">key</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="n">_INDICES</span><span class="p">):</span>
+            <span class="k">continue</span>
+        <span class="n">_</span><span class="p">,</span> <span class="n">module</span> <span class="o">=</span> <span class="n">_module_of_indices</span><span class="p">(</span><span class="n">modules</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">_contacts_may_be_reordered</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
+            <span class="n">keep</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">keep</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_reordered_contact_warnings</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span> <span class="n">encodings</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Layers whose contacts a checkpoint stores reordered although they matter.</span>
+
+<span class="sd">    Bitmask encodings before 2026-10-13 reordered every layer's contacts and</span>
+<span class="sd">    weights into ascending input order and left other per-contact tensors in</span>
+<span class="sd">    their slots. The stored label (``"bitmask"``) cannot tell whether a row</span>
+<span class="sd">    was already ascending, so each such layer is reported.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">encodings</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">[]</span>
+    <span class="n">state</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">state_dict</span><span class="p">()</span>
+    <span class="n">modules</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">named_modules</span><span class="p">())</span>
+    <span class="n">warnings</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">label</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">encodings</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
+        <span class="k">if</span> <span class="n">label</span> <span class="o">!=</span> <span class="n">BITMASK_ASCENDING_ENCODING</span> <span class="ow">or</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">state</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="n">path</span><span class="p">,</span> <span class="n">module</span> <span class="o">=</span> <span class="n">_module_of_indices</span><span class="p">(</span><span class="n">modules</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">module</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">_contacts_may_be_reordered</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
+            <span class="k">continue</span>
+        <span class="n">message</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">path</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="s1">'&lt;root&gt;'</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">module</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">): this checkpoint stores "</span>
+            <span class="s2">"its contacts reordered into ascending input order, as bitmask "</span>
+            <span class="s2">"encodings written before 2026-10-13 did for every layer"</span>
+        <span class="p">)</span>
+        <span class="n">others</span> <span class="o">=</span> <span class="n">per_contact_tensors</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">others</span><span class="p">:</span>
+            <span class="n">message</span> <span class="o">+=</span> <span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"; </span><span class="si">{</span><span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">name</span><span class="o">.</span><span class="n">rsplit</span><span class="p">(</span><span class="s1">'.'</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">name</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">others</span><span class="p">)</span><span class="si">}</span><span class="s2"> kept "</span>
+                <span class="s2">"their slots and may be attached to other contacts"</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">module</span><span class="p">),</span> <span class="s2">"SLOT_ORDER_MATTERS"</span><span class="p">,</span> <span class="kc">True</span><span class="p">):</span>
+            <span class="n">message</span> <span class="o">+=</span> <span class="p">(</span>
+                <span class="s2">"; training updates that follow the slot order can differ from "</span>
+                <span class="s2">"the source model's"</span>
+            <span class="p">)</span>
+        <span class="n">warnings</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="n">message</span> <span class="o">+</span> <span class="s2">". Export it again from the source checkpoint to keep the "</span>
+            <span class="s2">"contact order."</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="n">warnings</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">compact_model_checkpoint</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span>
+    <span class="n">source_checkpoint</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">,</span>
+    <span class="n">output_checkpoint</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">,</span>
+    <span class="n">config</span><span class="p">:</span> <span class="n">ModelCompressionConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">provenance</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Freeze native sparse topology and save a self-describing checkpoint.</span>
+
+<span class="sd">    With the ``bitmask`` topology encoding, layers listed by</span>
+<span class="sd">    :func:`bitmask_slot_order_keys` keep their contact order exactly; the</span>
+<span class="sd">    others are stored with their contacts in ascending input order.</span>
+<span class="sd">    """</span>
+
+    <span class="n">policy</span> <span class="o">=</span> <span class="n">config</span> <span class="ow">or</span> <span class="n">ModelCompressionConfig</span><span class="p">()</span>
+    <span class="n">source</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">source_checkpoint</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
+    <span class="n">output</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">output_checkpoint</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">source</span><span class="o">.</span><span class="n">is_file</span><span class="p">():</span>
+        <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="n">source</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">source</span> <span class="o">==</span> <span class="n">output</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Compact output must differ from the source checkpoint"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">output</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+        <span class="k">raise</span> <span class="ne">FileExistsError</span><span class="p">(</span><span class="n">output</span><span class="p">)</span>
+
+    <span class="n">records</span> <span class="o">=</span> <span class="n">freeze_sparse_topology_</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">policy</span><span class="p">)</span>
+    <span class="n">state</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">state_dict</span><span class="p">()</span>
+    <span class="n">compact_state</span><span class="p">,</span> <span class="n">encodings</span> <span class="o">=</span> <span class="n">compact_model_state_dict</span><span class="p">(</span>
+        <span class="n">state</span><span class="p">,</span>
+        <span class="n">topology_encoding</span><span class="o">=</span><span class="n">policy</span><span class="o">.</span><span class="n">sparse_topology</span><span class="o">.</span><span class="n">topology_encoding</span><span class="p">,</span>
+        <span class="n">keep_slot_order</span><span class="o">=</span><span class="n">bitmask_slot_order_keys</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">state</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="n">source_bytes</span> <span class="o">=</span> <span class="n">source</span><span class="o">.</span><span class="n">stat</span><span class="p">()</span><span class="o">.</span><span class="n">st_size</span>
+    <span class="n">payload</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">"format"</span><span class="p">:</span> <span class="n">COMPACT_CHECKPOINT_FORMAT</span><span class="p">,</span>
+        <span class="s2">"format_version"</span><span class="p">:</span> <span class="n">COMPACT_CHECKPOINT_VERSION</span><span class="p">,</span>
+        <span class="s2">"state_dict"</span><span class="p">:</span> <span class="n">compact_state</span><span class="p">,</span>
+        <span class="s2">"sparse_topology_manifest"</span><span class="p">:</span> <span class="p">[</span><span class="n">asdict</span><span class="p">(</span><span class="n">record</span><span class="p">)</span> <span class="k">for</span> <span class="n">record</span> <span class="ow">in</span> <span class="n">records</span><span class="p">],</span>
+        <span class="s2">"sparse_index_encoding"</span><span class="p">:</span> <span class="n">encodings</span><span class="p">,</span>
+        <span class="s2">"compression_config"</span><span class="p">:</span> <span class="n">asdict</span><span class="p">(</span><span class="n">policy</span><span class="p">),</span>
+        <span class="s2">"provenance"</span><span class="p">:</span> <span class="nb">dict</span><span class="p">(</span><span class="n">provenance</span> <span class="ow">or</span> <span class="p">{}),</span>
+        <span class="s2">"source"</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">"path"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">source</span><span class="p">),</span>
+            <span class="s2">"sha256"</span><span class="p">:</span> <span class="n">sha256_file</span><span class="p">(</span><span class="n">source</span><span class="p">),</span>
+            <span class="s2">"bytes"</span><span class="p">:</span> <span class="n">source_bytes</span><span class="p">,</span>
+        <span class="p">},</span>
+    <span class="p">}</span>
+    <span class="n">atomic_torch_save</span><span class="p">(</span><span class="n">payload</span><span class="p">,</span> <span class="n">output</span><span class="p">)</span>
+    <span class="n">output_bytes</span> <span class="o">=</span> <span class="n">output</span><span class="o">.</span><span class="n">stat</span><span class="p">()</span><span class="o">.</span><span class="n">st_size</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s2">"output"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">output</span><span class="p">),</span>
+        <span class="s2">"output_sha256"</span><span class="p">:</span> <span class="n">sha256_file</span><span class="p">(</span><span class="n">output</span><span class="p">),</span>
+        <span class="s2">"output_bytes"</span><span class="p">:</span> <span class="n">output_bytes</span><span class="p">,</span>
+        <span class="s2">"source"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">source</span><span class="p">),</span>
+        <span class="s2">"source_bytes"</span><span class="p">:</span> <span class="n">source_bytes</span><span class="p">,</span>
+        <span class="s2">"size_reduction_factor"</span><span class="p">:</span> <span class="n">source_bytes</span> <span class="o">/</span> <span class="nb">max</span><span class="p">(</span><span class="n">output_bytes</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span>
+        <span class="s2">"converted_modules"</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">records</span><span class="p">),</span>
+        <span class="s2">"topology_encoding"</span><span class="p">:</span> <span class="n">policy</span><span class="o">.</span><span class="n">sparse_topology</span><span class="o">.</span><span class="n">topology_encoding</span><span class="p">,</span>
+    <span class="p">}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">load_compact_model_checkpoint</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span>
+    <span class="n">checkpoint</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">strict</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">apply_dense_runtime</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Load a compact checkpoint into a model built from its training config.</span>
+
+<span class="sd">    The report's ``contact_order_warnings`` lists layers whose contacts the</span>
+<span class="sd">    checkpoint stores reordered although their per-contact state or training</span>
+<span class="sd">    updates depend on the slot order (bitmask files written before</span>
+<span class="sd">    2026-10-13); each is also logged as a warning.</span>
+<span class="sd">    """</span>
+
+    <span class="n">resolved</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">checkpoint</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
+    <span class="n">payload</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">resolved</span><span class="p">,</span> <span class="n">map_location</span><span class="o">=</span><span class="s2">"cpu"</span><span class="p">,</span> <span class="n">weights_only</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">payload</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="ow">or</span> <span class="n">payload</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"format"</span><span class="p">)</span> <span class="o">!=</span> <span class="p">(</span>
+        <span class="n">COMPACT_CHECKPOINT_FORMAT</span>
+    <span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Checkpoint is not a dendritic compact checkpoint"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">payload</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"format_version"</span><span class="p">)</span> <span class="o">!=</span> <span class="n">COMPACT_CHECKPOINT_VERSION</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"Unsupported compact checkpoint version </span><span class="si">{</span><span class="n">payload</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'format_version'</span><span class="p">)</span><span class="si">!r}</span><span class="s2">"</span>
+        <span class="p">)</span>
+    <span class="n">state</span> <span class="o">=</span> <span class="n">extract_model_state_dict</span><span class="p">(</span><span class="n">payload</span><span class="p">)</span>
+    <span class="n">state</span> <span class="o">=</span> <span class="n">decode_sparse_bitmask_state_dict</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+    <span class="n">manifest</span> <span class="o">=</span> <span class="n">payload</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"sparse_topology_manifest"</span><span class="p">,</span> <span class="p">[])</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">manifest</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">"sparse_topology_manifest must be a list"</span><span class="p">)</span>
+    <span class="n">prepare_model_for_compact_state_</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">manifest</span><span class="p">,</span> <span class="n">state</span><span class="p">)</span>
+    <span class="n">incompatible</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">load_state_dict</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="n">strict</span><span class="p">)</span>
+    <span class="n">contact_order_warnings</span> <span class="o">=</span> <span class="n">_reordered_contact_warnings</span><span class="p">(</span>
+        <span class="n">model</span><span class="p">,</span> <span class="n">payload</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"sparse_index_encoding"</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="k">for</span> <span class="n">warning</span> <span class="ow">in</span> <span class="n">contact_order_warnings</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="n">warning</span><span class="p">)</span>
+    <span class="n">runtime_report</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">apply_dense_runtime</span><span class="p">:</span>
+        <span class="n">compression_payload</span> <span class="o">=</span> <span class="n">payload</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"compression_config"</span><span class="p">,</span> <span class="p">{})</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">compression_payload</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">"compression_config must be a mapping"</span><span class="p">)</span>
+        <span class="n">policy</span> <span class="o">=</span> <span class="n">ModelCompressionConfig</span><span class="p">(</span><span class="o">**</span><span class="n">compression_payload</span><span class="p">)</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.deployment.torchao</span><span class="w"> </span><span class="kn">import</span> <span class="n">optimize_dense_runtime_</span>
+
+        <span class="n">model</span><span class="o">.</span><span class="n">eval</span><span class="p">()</span>
+        <span class="n">runtime_report</span> <span class="o">=</span> <span class="n">optimize_dense_runtime_</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">policy</span><span class="o">.</span><span class="n">dense_runtime</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s2">"checkpoint"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">resolved</span><span class="p">),</span>
+        <span class="s2">"sha256"</span><span class="p">:</span> <span class="n">sha256_file</span><span class="p">(</span><span class="n">resolved</span><span class="p">),</span>
+        <span class="s2">"missing_keys"</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">incompatible</span><span class="o">.</span><span class="n">missing_keys</span><span class="p">),</span>
+        <span class="s2">"unexpected_keys"</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">incompatible</span><span class="o">.</span><span class="n">unexpected_keys</span><span class="p">),</span>
+        <span class="s2">"converted_modules"</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">manifest</span><span class="p">),</span>
+        <span class="s2">"contact_order_warnings"</span><span class="p">:</span> <span class="n">contact_order_warnings</span><span class="p">,</span>
+        <span class="s2">"dense_runtime"</span><span class="p">:</span> <span class="n">runtime_report</span><span class="p">,</span>
+    <span class="p">}</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s2">"COMPACT_CHECKPOINT_FORMAT"</span><span class="p">,</span>
+    <span class="s2">"COMPACT_CHECKPOINT_VERSION"</span><span class="p">,</span>
+    <span class="s2">"FrozenSparseModuleRecord"</span><span class="p">,</span>
+    <span class="s2">"bitmask_slot_order_keys"</span><span class="p">,</span>
+    <span class="s2">"compact_model_checkpoint"</span><span class="p">,</span>
+    <span class="s2">"freeze_sparse_topology_"</span><span class="p">,</span>
+    <span class="s2">"load_compact_model_checkpoint"</span><span class="p">,</span>
+    <span class="s2">"prepare_model_for_compact_state_"</span><span class="p">,</span>
+<span class="p">]</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024-2026, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

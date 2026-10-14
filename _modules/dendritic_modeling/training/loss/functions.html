@@ -1,0 +1,1368 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>dendritic_modeling.training.loss.functions &mdash; DendriNet v0.2.0</title>
+      <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../../_static/documentation_options.js?v=938c9ccc"></script>
+      <script src="../../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../../index.html" class="icon icon-home">
+            DendriNet
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../examples.html">Example configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Building models</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../network_architectures.html">Model architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../dendritic_neurons.html">Dendritic neurons</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../synapses.html">Synapses and connectivity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../population_networks.html">Population networks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../temporal_dynamics.html">Temporal dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../structured_ei_cores.html">Structured E/I cores</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../conductance_options.html">Conductance options</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../comparison_models.html">Baselines and comparison models</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Configuration</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../configuration_guide.html">Configuration guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../config_reference.html">Annotated reference configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../training_strategies.html">Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../distributed_training.html">Distributed training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../performance_kernels.html">Sparse execution and performance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Data and analysis</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../datasets.html">Datasets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../analysis.html">Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../analyzers.html">Analyzer reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../checkpoint_analysis.html">Analyzing saved checkpoints</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Running experiments</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../runs_and_outputs.html">Runs and outputs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../sweeps.html">Parameter sweeps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../model_compression.html">Compact checkpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../project_provenance.html">Project provenance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../available_components.html">Component catalogue</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../options_reference.html">Options reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../cli_reference.html">Command-line reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../api_reference.html">Python API</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../extending.html">Extending DendriNet</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../engineering_architecture.html">Engineering architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../contributing.html">Contributing</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">DendriNet</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">dendritic_modeling.training.loss.functions</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for dendritic_modeling.training.loss.functions</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span><span class="w"> </span><span class="nn">difflib</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">contextlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">contextmanager</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">ClassVar</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Union</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">torch</span><span class="w"> </span><span class="kn">import</span> <span class="n">nn</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">torch.distributions</span><span class="w"> </span><span class="kn">import</span> <span class="n">Categorical</span><span class="p">,</span> <span class="n">Normal</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">torch.nn</span><span class="w"> </span><span class="kn">import</span> <span class="n">functional</span> <span class="k">as</span> <span class="n">F</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config.choices</span><span class="w"> </span><span class="kn">import</span> <span class="n">normalize_choice</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config.regularization</span><span class="w"> </span><span class="kn">import</span> <span class="n">EI_RATIO_METRICS</span><span class="p">,</span> <span class="n">EI_RATIO_SCOPES</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config.training</span><span class="w"> </span><span class="kn">import</span> <span class="n">STABILIZE_MODES</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">DendriticBranchLayer</span><span class="p">,</span>
+    <span class="n">ParametricActivation</span><span class="p">,</span>
+    <span class="n">TopKLinear</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.classical.autoencoder</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">BaseVariationalAutoencoder</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.plugins</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_plugins</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.utils.hooks</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">ForwardHookRemovalMixin</span><span class="p">,</span>
+    <span class="n">iter_modules_of_type</span><span class="p">,</span>
+    <span class="n">register_forward_hook_groups</span><span class="p">,</span>
+    <span class="n">register_hook_groups</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">LossBuilder</span> <span class="o">=</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="s2">"LossFunction"</span><span class="p">]</span>
+<span class="n">LOSS_FUNCTION_REGISTRY</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">LossBuilder</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_identity_reduction</span><span class="p">(</span><span class="n">loss</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return unreduced loss tensors for non-mean/sum reductions."""</span>
+
+    <span class="k">return</span> <span class="n">loss</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_loss_reduction_fn</span><span class="p">(</span><span class="n">reduction</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Return the callable form of the project loss reduction convention."""</span>
+
+    <span class="k">if</span> <span class="n">reduction</span> <span class="o">==</span> <span class="s2">"mean"</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">mean</span>
+    <span class="k">if</span> <span class="n">reduction</span> <span class="o">==</span> <span class="s2">"sum"</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">sum</span>
+    <span class="k">return</span> <span class="n">_identity_reduction</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_reduce_tensor_loss</span><span class="p">(</span><span class="n">loss</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">reduction</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Apply the project loss reduction convention to a tensor."""</span>
+
+    <span class="k">return</span> <span class="n">_loss_reduction_fn</span><span class="p">(</span><span class="n">reduction</span><span class="p">)(</span><span class="n">loss</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_difference_first_mean_error</span><span class="p">(</span>
+    <span class="n">reduction_fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span>
+    <span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">y</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return the historical voltage mean-error term."""</span>
+    <span class="k">return</span> <span class="n">reduction_fn</span><span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="n">y</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_separate_reduction_mean_error</span><span class="p">(</span>
+    <span class="n">reduction_fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span>
+    <span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">y</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return the historical E/I balance mean-error term."""</span>
+    <span class="k">return</span> <span class="n">reduction_fn</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">-</span> <span class="n">reduction_fn</span><span class="p">(</span><span class="n">y</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_build_pair_metric_fn</span><span class="p">(</span>
+    <span class="n">loss_metric</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">reduction</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">eps</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">error_context</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">reduce_mean_error_difference_first</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Build a two-tensor metric while preserving domain-specific formulas."""</span>
+    <span class="n">reduction_fn</span> <span class="o">=</span> <span class="n">_loss_reduction_fn</span><span class="p">(</span><span class="n">reduction</span><span class="p">)</span>
+    <span class="n">mean_error_fn</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">_difference_first_mean_error</span>
+        <span class="k">if</span> <span class="n">reduce_mean_error_difference_first</span>
+        <span class="k">else</span> <span class="n">_separate_reduction_mean_error</span>
+    <span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">loss_metric</span> <span class="o">==</span> <span class="s2">"mse"</span><span class="p">:</span>
+        <span class="k">return</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">reduction_fn</span><span class="p">((</span><span class="n">x</span> <span class="o">-</span> <span class="n">y</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">loss_metric</span> <span class="o">==</span> <span class="s2">"log_mse"</span><span class="p">:</span>
+        <span class="k">return</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">reduction_fn</span><span class="p">((</span><span class="n">x</span> <span class="o">-</span> <span class="n">y</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="n">eps</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">loss_metric</span> <span class="o">==</span> <span class="s2">"mae"</span><span class="p">:</span>
+        <span class="k">return</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">reduction_fn</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="n">y</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">loss_metric</span> <span class="o">==</span> <span class="s2">"log_mae"</span><span class="p">:</span>
+        <span class="k">return</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">reduction_fn</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="n">y</span><span class="p">))</span> <span class="o">+</span> <span class="n">eps</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">loss_metric</span> <span class="o">==</span> <span class="s2">"squared_mean_error"</span><span class="p">:</span>
+        <span class="k">return</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">mean_error_fn</span><span class="p">(</span><span class="n">reduction_fn</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span>
+    <span class="k">if</span> <span class="n">loss_metric</span> <span class="o">==</span> <span class="s2">"log_squared_mean_error"</span><span class="p">:</span>
+        <span class="k">return</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">mean_error_fn</span><span class="p">(</span><span class="n">reduction_fn</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span> <span class="o">+</span> <span class="n">eps</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">loss_metric</span> <span class="o">==</span> <span class="s2">"abs_mean_error"</span><span class="p">:</span>
+        <span class="k">return</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">mean_error_fn</span><span class="p">(</span><span class="n">reduction_fn</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">loss_metric</span> <span class="o">==</span> <span class="s2">"log_abs_mean_error"</span><span class="p">:</span>
+        <span class="k">return</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">log</span><span class="p">(</span>
+            <span class="n">torch</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">mean_error_fn</span><span class="p">(</span><span class="n">reduction_fn</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">))</span> <span class="o">+</span> <span class="n">eps</span>
+        <span class="p">)</span>
+
+    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Invalid metric for </span><span class="si">{</span><span class="n">error_context</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">loss_metric</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="register_loss_function">
+<a class="viewcode-back" href="../../../../api_reference.html#dendritic_modeling.training.loss.functions.register_loss_function">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">register_loss_function</span><span class="p">(</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">builder</span><span class="p">:</span> <span class="n">LossBuilder</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">aliases</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="n">allow_override</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Register a loss-function builder.</span>
+
+<span class="sd">    Names are stored as written; ``get_loss_function`` falls back to a</span>
+<span class="sd">    case-insensitive match. Builders are zero-argument callables that return</span>
+<span class="sd">    a ``LossFunction``.</span>
+<span class="sd">    """</span>
+    <span class="n">names</span> <span class="o">=</span> <span class="p">[</span><span class="n">name</span><span class="p">,</span> <span class="o">*</span><span class="n">aliases</span><span class="p">]</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">names</span> <span class="ow">or</span> <span class="nb">any</span><span class="p">(</span><span class="ow">not</span> <span class="nb">str</span><span class="p">(</span><span class="n">item</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">names</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"loss function name and aliases must be non-empty"</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">names</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">LOSS_FUNCTION_REGISTRY</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">allow_override</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Loss function '</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">' is already registered"</span><span class="p">)</span>
+        <span class="n">LOSS_FUNCTION_REGISTRY</span><span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">key</span><span class="p">)]</span> <span class="o">=</span> <span class="n">builder</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">unregister_loss_function</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Remove a registered loss function if present."""</span>
+    <span class="n">LOSS_FUNCTION_REGISTRY</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">name</span><span class="p">),</span> <span class="kc">None</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">get_available_loss_functions</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Return registered loss function names, including those of plugins."""</span>
+    <span class="n">load_plugins</span><span class="p">()</span>
+    <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">LOSS_FUNCTION_REGISTRY</span><span class="p">)</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">LossFunction</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="c1"># Model tasks (``model.task``) the loss is defined for; None for losses</span>
+    <span class="c1"># that apply to any task (MSE also fits one-hot classification targets) or</span>
+    <span class="c1"># check their targets themselves.</span>
+    <span class="n">supported_tasks</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="n">Optional</span><span class="p">[</span><span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]]]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="c1"># Sequence losses the recurrent trainer applies to whole sequences instead</span>
+    <span class="c1"># of substituting its task loss.</span>
+    <span class="n">temporal_event_loss</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="nb">bool</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">sequence_prediction_loss</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="nb">bool</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reduction</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"mean"</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">reduction</span> <span class="o">=</span> <span class="n">reduction</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_loss_name</span> <span class="o">=</span> <span class="s2">"Base Loss"</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">from_predictions</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">predictions</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Evaluate a pointwise loss from outputs that were already computed.</span>
+
+<span class="sd">        Model-dependent losses intentionally inherit this default so callers can</span>
+<span class="sd">        fall back to ``forward(model, x, y)`` without changing their semantics.</span>
+<span class="sd">        """</span>
+
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">MSELoss</span><span class="p">(</span><span class="n">LossFunction</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reduction</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"mean"</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">reduction</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_loss_name</span> <span class="o">=</span> <span class="s2">"Mean Squared Error"</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mse</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">MSELoss</span><span class="p">(</span><span class="n">reduction</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">reduction</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">from_predictions</span><span class="p">(</span><span class="n">model</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="n">y</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">from_predictions</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">predictions</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">mse</span><span class="p">(</span><span class="n">predictions</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">LogMSELoss</span><span class="p">(</span><span class="n">MSELoss</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reduction</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"mean"</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">reduction</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_loss_name</span> <span class="o">=</span> <span class="s2">"Log Mean Squared Error"</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">from_predictions</span><span class="p">(</span><span class="n">model</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="n">y</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">from_predictions</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">predictions</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+        <span class="n">mse</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">from_predictions</span><span class="p">(</span><span class="n">predictions</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">mse</span> <span class="o">+</span> <span class="mf">1e-12</span><span class="p">)</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">CrossEntropyLoss</span><span class="p">(</span><span class="n">LossFunction</span><span class="p">):</span>
+    <span class="n">supported_tasks</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">({</span><span class="s2">"classification"</span><span class="p">})</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reduction</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"mean"</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">reduction</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_loss_name</span> <span class="o">=</span> <span class="s2">"Cross Entropy"</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ce</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">CrossEntropyLoss</span><span class="p">(</span><span class="n">reduction</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">reduction</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">from_predictions</span><span class="p">(</span><span class="n">model</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="n">y</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">from_predictions</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">predictions</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">ce</span><span class="p">(</span><span class="n">predictions</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">TemporalEventCrossEntropyLoss</span><span class="p">(</span><span class="n">LossFunction</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Cross-entropy for predicting one event time from a sequence of logits.</span>
+
+<span class="sd">    Predictions must have shape ``[batch, time]`` or ``[batch, time, 1]``.</span>
+<span class="sd">    Targets may be integer event indices with shape ``[batch]`` or normalized</span>
+<span class="sd">    non-negative temporal target distributions with shape ``[batch, time]``.</span>
+<span class="sd">    The latter supports smooth timing targets without treating each timestep as</span>
+<span class="sd">    an independent binary decision.</span>
+<span class="sd">    """</span>
+
+    <span class="n">temporal_event_loss</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reduction</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"mean"</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">reduction</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_loss_name</span> <span class="o">=</span> <span class="s2">"Temporal Event Cross Entropy"</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">from_predictions</span><span class="p">(</span><span class="n">model</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="n">y</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">from_predictions</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">predictions</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">predictions</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">3</span> <span class="ow">and</span> <span class="n">predictions</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">logits</span> <span class="o">=</span> <span class="n">predictions</span><span class="o">.</span><span class="n">squeeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">predictions</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="n">logits</span> <span class="o">=</span> <span class="n">predictions</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">"temporal event predictions must have shape [batch, time] or "</span>
+                <span class="sa">f</span><span class="s2">"[batch, time, 1], got </span><span class="si">{</span><span class="nb">list</span><span class="p">(</span><span class="n">predictions</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">y</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">y</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="n">logits</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"temporal event target batch dimension changed"</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">y</span><span class="o">.</span><span class="n">dtype</span> <span class="o">==</span> <span class="n">torch</span><span class="o">.</span><span class="n">bool</span> <span class="ow">or</span> <span class="n">y</span><span class="o">.</span><span class="n">is_floating_point</span><span class="p">()</span> <span class="ow">or</span> <span class="n">y</span><span class="o">.</span><span class="n">is_complex</span><span class="p">():</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">"hard temporal event targets must use an integer dtype"</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">F</span><span class="o">.</span><span class="n">cross_entropy</span><span class="p">(</span><span class="n">logits</span><span class="p">,</span> <span class="n">y</span><span class="o">.</span><span class="n">long</span><span class="p">(),</span> <span class="n">reduction</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">reduction</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">y</span><span class="o">.</span><span class="n">shape</span> <span class="o">!=</span> <span class="n">logits</span><span class="o">.</span><span class="n">shape</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">"soft temporal event targets must match [batch, time] logits, "</span>
+                <span class="sa">f</span><span class="s2">"got target </span><span class="si">{</span><span class="nb">list</span><span class="p">(</span><span class="n">y</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span><span class="si">}</span><span class="s2"> and logits </span><span class="si">{</span><span class="nb">list</span><span class="p">(</span><span class="n">logits</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">y</span><span class="o">.</span><span class="n">is_floating_point</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">"soft temporal event targets must be floating point"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">torch</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">y</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">()</span> <span class="ow">or</span> <span class="nb">bool</span><span class="p">((</span><span class="n">y</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">()):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">"soft temporal event targets must be finite and non-negative"</span>
+            <span class="p">)</span>
+        <span class="n">target_mass</span> <span class="o">=</span> <span class="n">y</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdim</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">bool</span><span class="p">((</span><span class="n">target_mass</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">()):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"each soft temporal event target must have positive mass"</span><span class="p">)</span>
+        <span class="n">normalized_target</span> <span class="o">=</span> <span class="n">y</span> <span class="o">/</span> <span class="n">target_mass</span>
+        <span class="n">per_sample</span> <span class="o">=</span> <span class="o">-</span><span class="p">(</span><span class="n">normalized_target</span> <span class="o">*</span> <span class="n">F</span><span class="o">.</span><span class="n">log_softmax</span><span class="p">(</span><span class="n">logits</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">))</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">_reduce_tensor_loss</span><span class="p">(</span><span class="n">per_sample</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">reduction</span><span class="p">)</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">MaskedDualTaskTemporalLoss</span><span class="p">(</span><span class="n">LossFunction</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Balanced binary-logit loss for packed fast and memory supervision.</span>
+
+<span class="sd">    Predictions must be ``[batch, time, 2]`` logits. Targets must be floating</span>
+<span class="sd">    ``[batch, time, 4]`` tensors containing ``fast_label``, ``fast_mask``,</span>
+<span class="sd">    ``memory_label``, and ``memory_mask``. Each of the fast-positive,</span>
+<span class="sd">    fast-negative, memory-positive, and memory-negative strata receives equal</span>
+<span class="sd">    weight. Single-process training loss calls require all four strata in the</span>
+<span class="sd">    batch. Distributed training and validation instead use additive stratum</span>
+<span class="sd">    statistics, so individual batches on one DDP rank may omit a stratum as</span>
+<span class="sd">    long as every stratum is present in the corresponding global batch.</span>
+
+<span class="sd">    The two outputs are independent binary logits. Evaluation must apply a</span>
+<span class="sd">    sigmoid and threshold each head separately; an argmax across heads is not a</span>
+<span class="sd">    valid prediction rule.</span>
+<span class="sd">    """</span>
+
+    <span class="n">sequence_prediction_loss</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">exact_sequence_validation_statistics</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">exact_distributed_training_statistics</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reduction</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"mean"</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">reduction</span> <span class="o">!=</span> <span class="s2">"mean"</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"masked dual-task temporal loss only supports mean"</span><span class="p">)</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">reduction</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_loss_name</span> <span class="o">=</span> <span class="s2">"Masked Dual-Task Temporal Loss"</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">from_predictions</span><span class="p">(</span><span class="n">model</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="n">y</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_validated_strata</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">predictions</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="n">y</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">require_nonempty</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span>
+        <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="nb">tuple</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span> <span class="o">...</span><span class="p">],</span>
+    <span class="p">]:</span>
+        <span class="k">if</span> <span class="n">predictions</span><span class="o">.</span><span class="n">ndim</span> <span class="o">!=</span> <span class="mi">3</span> <span class="ow">or</span> <span class="n">predictions</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">"masked dual-task predictions must have shape [batch, time, 2], "</span>
+                <span class="sa">f</span><span class="s2">"got </span><span class="si">{</span><span class="nb">list</span><span class="p">(</span><span class="n">predictions</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="n">y</span><span class="o">.</span><span class="n">ndim</span> <span class="o">!=</span> <span class="mi">3</span> <span class="ow">or</span> <span class="n">y</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">4</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">"masked dual-task targets must have shape [batch, time, 4], "</span>
+                <span class="sa">f</span><span class="s2">"got </span><span class="si">{</span><span class="nb">list</span><span class="p">(</span><span class="n">y</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="n">y</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="mi">2</span><span class="p">]</span> <span class="o">!=</span> <span class="n">predictions</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="mi">2</span><span class="p">]:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">"masked dual-task target batch and time dimensions must match "</span>
+                <span class="s2">"predictions"</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">predictions</span><span class="o">.</span><span class="n">is_floating_point</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">"masked dual-task predictions must be floating point"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">y</span><span class="o">.</span><span class="n">is_floating_point</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">"masked dual-task targets must be floating point"</span><span class="p">)</span>
+        <span class="n">fast_label</span><span class="p">,</span> <span class="n">fast_mask</span><span class="p">,</span> <span class="n">memory_label</span><span class="p">,</span> <span class="n">memory_mask</span> <span class="o">=</span> <span class="n">y</span><span class="o">.</span><span class="n">unbind</span><span class="p">(</span><span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">target_checks</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span>
+            <span class="p">(</span>
+                <span class="n">torch</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">predictions</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">(),</span>
+                <span class="n">torch</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">y</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">(),</span>
+                <span class="p">((</span><span class="n">fast_label</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="o">|</span> <span class="p">(</span><span class="n">fast_label</span> <span class="o">==</span> <span class="mi">1</span><span class="p">))</span><span class="o">.</span><span class="n">all</span><span class="p">(),</span>
+                <span class="p">((</span><span class="n">memory_label</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="o">|</span> <span class="p">(</span><span class="n">memory_label</span> <span class="o">==</span> <span class="mi">1</span><span class="p">))</span><span class="o">.</span><span class="n">all</span><span class="p">(),</span>
+                <span class="p">((</span><span class="n">fast_mask</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="o">|</span> <span class="p">(</span><span class="n">fast_mask</span> <span class="o">==</span> <span class="mi">1</span><span class="p">))</span><span class="o">.</span><span class="n">all</span><span class="p">(),</span>
+                <span class="p">((</span><span class="n">memory_mask</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="o">|</span> <span class="p">(</span><span class="n">memory_mask</span> <span class="o">==</span> <span class="mi">1</span><span class="p">))</span><span class="o">.</span><span class="n">all</span><span class="p">(),</span>
+            <span class="p">)</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span>
+        <span class="p">(</span>
+            <span class="n">predictions_finite</span><span class="p">,</span>
+            <span class="n">targets_finite</span><span class="p">,</span>
+            <span class="n">fast_binary</span><span class="p">,</span>
+            <span class="n">memory_binary</span><span class="p">,</span>
+            <span class="n">fast_mask_binary</span><span class="p">,</span>
+            <span class="n">memory_mask_binary</span><span class="p">,</span>
+        <span class="p">)</span> <span class="o">=</span> <span class="p">(</span><span class="nb">bool</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">target_checks</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">tolist</span><span class="p">())</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">predictions_finite</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"masked dual-task predictions must be finite"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">targets_finite</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"masked dual-task targets must be finite"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">fast_binary</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"fast_label must be binary"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">memory_binary</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"memory_label must be binary"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">fast_mask_binary</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"fast_mask must be binary"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">memory_mask_binary</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"memory_mask must be binary"</span><span class="p">)</span>
+
+        <span class="n">fast_active</span> <span class="o">=</span> <span class="n">fast_mask</span><span class="o">.</span><span class="n">bool</span><span class="p">()</span>
+        <span class="n">memory_active</span> <span class="o">=</span> <span class="n">memory_mask</span><span class="o">.</span><span class="n">bool</span><span class="p">()</span>
+        <span class="n">strata</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="p">(</span><span class="n">fast_active</span> <span class="o">&amp;</span> <span class="n">fast_label</span><span class="o">.</span><span class="n">bool</span><span class="p">(),</span> <span class="s2">"fast-positive"</span><span class="p">),</span>
+            <span class="p">(</span><span class="n">fast_active</span> <span class="o">&amp;</span> <span class="o">~</span><span class="n">fast_label</span><span class="o">.</span><span class="n">bool</span><span class="p">(),</span> <span class="s2">"fast-negative"</span><span class="p">),</span>
+            <span class="p">(</span><span class="n">memory_active</span> <span class="o">&amp;</span> <span class="n">memory_label</span><span class="o">.</span><span class="n">bool</span><span class="p">(),</span> <span class="s2">"memory-positive"</span><span class="p">),</span>
+            <span class="p">(</span><span class="n">memory_active</span> <span class="o">&amp;</span> <span class="o">~</span><span class="n">memory_label</span><span class="o">.</span><span class="n">bool</span><span class="p">(),</span> <span class="s2">"memory-negative"</span><span class="p">),</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">require_nonempty</span><span class="p">:</span>
+            <span class="n">counts</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span>
+                <span class="p">[</span><span class="n">selection</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="k">for</span> <span class="n">selection</span><span class="p">,</span> <span class="n">_name</span> <span class="ow">in</span> <span class="n">strata</span><span class="p">]</span>
+            <span class="p">)</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span>
+            <span class="n">missing</span> <span class="o">=</span> <span class="p">[</span>
+                <span class="n">name</span>
+                <span class="k">for</span> <span class="n">count</span><span class="p">,</span> <span class="p">(</span><span class="n">_selection</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span>
+                    <span class="n">counts</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">tolist</span><span class="p">(),</span>
+                    <span class="n">strata</span><span class="p">,</span>
+                    <span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="k">if</span> <span class="nb">int</span><span class="p">(</span><span class="n">count</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="mi">0</span>
+            <span class="p">]</span>
+            <span class="k">if</span> <span class="n">missing</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">"masked dual-task </span><span class="si">{</span><span class="n">missing</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2"> stratum must be nonempty"</span>
+                <span class="p">)</span>
+        <span class="k">return</span> <span class="n">fast_label</span><span class="p">,</span> <span class="n">memory_label</span><span class="p">,</span> <span class="n">strata</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_pointwise_losses</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">predictions</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="n">fast_label</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="n">memory_label</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="n">F</span><span class="o">.</span><span class="n">binary_cross_entropy_with_logits</span><span class="p">(</span>
+                <span class="n">predictions</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">fast_label</span><span class="p">,</span> <span class="n">reduction</span><span class="o">=</span><span class="s2">"none"</span>
+            <span class="p">),</span>
+            <span class="n">F</span><span class="o">.</span><span class="n">binary_cross_entropy_with_logits</span><span class="p">(</span>
+                <span class="n">predictions</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">memory_label</span><span class="p">,</span> <span class="n">reduction</span><span class="o">=</span><span class="s2">"none"</span>
+            <span class="p">),</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">from_predictions</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">predictions</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+        <span class="n">fast_label</span><span class="p">,</span> <span class="n">memory_label</span><span class="p">,</span> <span class="n">strata</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_validated_strata</span><span class="p">(</span>
+            <span class="n">predictions</span><span class="p">,</span>
+            <span class="n">y</span><span class="p">,</span>
+            <span class="n">require_nonempty</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="n">fast_pointwise</span><span class="p">,</span> <span class="n">memory_pointwise</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pointwise_losses</span><span class="p">(</span>
+            <span class="n">predictions</span><span class="p">,</span>
+            <span class="n">fast_label</span><span class="p">,</span>
+            <span class="n">memory_label</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">fast_loss</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span>
+            <span class="n">fast_pointwise</span><span class="p">[</span><span class="n">strata</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span> <span class="o">+</span> <span class="n">fast_pointwise</span><span class="p">[</span><span class="n">strata</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">]]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+        <span class="p">)</span>
+        <span class="n">memory_loss</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span>
+            <span class="n">memory_pointwise</span><span class="p">[</span><span class="n">strata</span><span class="p">[</span><span class="mi">2</span><span class="p">][</span><span class="mi">0</span><span class="p">]]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+            <span class="o">+</span> <span class="n">memory_pointwise</span><span class="p">[</span><span class="n">strata</span><span class="p">[</span><span class="mi">3</span><span class="p">][</span><span class="mi">0</span><span class="p">]]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">fast_loss</span> <span class="o">+</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">memory_loss</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">validation_sums_and_counts</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">predictions</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="n">y</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">"""Return additive float64 sufficient statistics for exact validation."""</span>
+
+        <span class="n">sums</span><span class="p">,</span> <span class="n">counts</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">training_sums_and_counts</span><span class="p">(</span><span class="n">predictions</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">sums</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">float64</span><span class="p">),</span> <span class="n">counts</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">training_sums_and_counts</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">predictions</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="n">y</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">"""Return differentiable local sums and detached integer counts.</span>
+
+<span class="sd">        Sums retain the pointwise-loss dtype and autograd graph. This lets a</span>
+<span class="sd">        distributed trainer normalize each rank's differentiable contribution</span>
+<span class="sd">        by global counts without attempting to all-reduce an autograd tensor.</span>
+<span class="sd">        """</span>
+
+        <span class="n">fast_label</span><span class="p">,</span> <span class="n">memory_label</span><span class="p">,</span> <span class="n">strata</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_validated_strata</span><span class="p">(</span>
+            <span class="n">predictions</span><span class="p">,</span>
+            <span class="n">y</span><span class="p">,</span>
+            <span class="n">require_nonempty</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">fast_pointwise</span><span class="p">,</span> <span class="n">memory_pointwise</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pointwise_losses</span><span class="p">(</span>
+            <span class="n">predictions</span><span class="p">,</span>
+            <span class="n">fast_label</span><span class="p">,</span>
+            <span class="n">memory_label</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">pointwise</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">fast_pointwise</span><span class="p">,</span>
+            <span class="n">fast_pointwise</span><span class="p">,</span>
+            <span class="n">memory_pointwise</span><span class="p">,</span>
+            <span class="n">memory_pointwise</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">sums</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span>
+            <span class="p">[</span>
+                <span class="n">values</span><span class="p">[</span><span class="n">selection</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+                <span class="k">for</span> <span class="n">values</span><span class="p">,</span> <span class="p">(</span><span class="n">selection</span><span class="p">,</span> <span class="n">_name</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span>
+                    <span class="n">pointwise</span><span class="p">,</span>
+                    <span class="n">strata</span><span class="p">,</span>
+                    <span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                <span class="p">)</span>
+            <span class="p">]</span>
+        <span class="p">)</span>
+        <span class="n">counts</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span>
+            <span class="p">[</span><span class="n">selection</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">int64</span><span class="p">)</span> <span class="k">for</span> <span class="n">selection</span><span class="p">,</span> <span class="n">_name</span> <span class="ow">in</span> <span class="n">strata</span><span class="p">]</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">sums</span><span class="p">,</span> <span class="n">counts</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">reduce_distributed_training_sums_and_counts</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">local_sums</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="n">global_counts</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">world_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Build the rank-local scalar whose DDP-averaged gradient is global.</span>
+
+<span class="sd">        DDP averages parameter gradients across ranks. Multiplying each local</span>
+<span class="sd">        contribution by ``world_size`` therefore makes the post-all-reduce</span>
+<span class="sd">        gradient equal to the gradient of the equal-weight global stratum</span>
+<span class="sd">        means.</span>
+<span class="sd">        """</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">world_size</span><span class="p">,</span> <span class="nb">bool</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">world_size</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">"masked dual-task DDP world size must be an integer"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">world_size</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"masked dual-task DDP world size must be positive"</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">world_size</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">reduce_validation_sums_and_counts</span><span class="p">(</span>
+            <span class="n">local_sums</span><span class="p">,</span>
+            <span class="n">global_counts</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">reduce_validation_sums_and_counts</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">sums</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="n">counts</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Reduce globally accumulated four-stratum validation statistics."""</span>
+
+        <span class="k">if</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">sums</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">!=</span> <span class="p">(</span><span class="mi">4</span><span class="p">,)</span> <span class="ow">or</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">counts</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">!=</span> <span class="p">(</span><span class="mi">4</span><span class="p">,):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">"masked dual-task validation statistics must have shape [4]"</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">torch</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">sums</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"masked dual-task validation sums must be finite"</span><span class="p">)</span>
+        <span class="n">missing</span> <span class="o">=</span> <span class="p">(</span><span class="n">counts</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">missing</span><span class="p">):</span>
+            <span class="n">names</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="s2">"fast-positive"</span><span class="p">,</span>
+                <span class="s2">"fast-negative"</span><span class="p">,</span>
+                <span class="s2">"memory-positive"</span><span class="p">,</span>
+                <span class="s2">"memory-negative"</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="n">first</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span>
+                <span class="n">name</span> <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">absent</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">names</span><span class="p">,</span> <span class="n">missing</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="k">if</span> <span class="n">absent</span>
+            <span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"masked dual-task global </span><span class="si">{</span><span class="n">first</span><span class="si">}</span><span class="s2"> stratum must be nonempty"</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">sums</span> <span class="o">/</span> <span class="n">counts</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="n">sums</span><span class="o">.</span><span class="n">dtype</span><span class="p">))</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">BCELoss</span><span class="p">(</span><span class="n">LossFunction</span><span class="p">):</span>
+    <span class="n">supported_tasks</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">({</span><span class="s2">"classification"</span><span class="p">})</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reduction</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"mean"</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">reduction</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_loss_name</span> <span class="o">=</span> <span class="s2">"Binary Cross Entropy"</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">bce</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">BCELoss</span><span class="p">(</span><span class="n">reduction</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">reduction</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">from_predictions</span><span class="p">(</span><span class="n">model</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="n">y</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">from_predictions</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">predictions</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">bce</span><span class="p">(</span><span class="n">predictions</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">CategoricalNLLLoss</span><span class="p">(</span><span class="n">LossFunction</span><span class="p">):</span>
+    <span class="n">supported_tasks</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">({</span><span class="s2">"classification"</span><span class="p">})</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reduction</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"mean"</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">reduction</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_loss_name</span> <span class="o">=</span> <span class="s2">"Negative Log Likelihood"</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">from_predictions</span><span class="p">(</span><span class="n">model</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="n">y</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">from_predictions</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">predictions</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+        <span class="c1"># Argument validation would read the labels back to the host on every</span>
+        <span class="c1"># call; out-of-range labels still fail in the gather.</span>
+        <span class="n">nll</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span> <span class="o">*</span> <span class="n">Categorical</span><span class="p">(</span><span class="n">logits</span><span class="o">=</span><span class="n">predictions</span><span class="p">,</span> <span class="n">validate_args</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">log_prob</span><span class="p">(</span><span class="n">y</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">_reduce_tensor_loss</span><span class="p">(</span><span class="n">nll</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">reduction</span><span class="p">)</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">VaeElboLoss</span><span class="p">(</span><span class="n">LossFunction</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reduction</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"mean"</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">reduction</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_loss_name</span> <span class="o">=</span> <span class="s2">"VAE ELBO"</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mse</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">MSELoss</span><span class="p">(</span><span class="n">reduction</span><span class="o">=</span><span class="s2">"none"</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span> <span class="n">BaseVariationalAutoencoder</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+        <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">BaseVariationalAutoencoder</span><span class="p">),</span> <span class="p">(</span>
+            <span class="s2">"Model must be an instance of BaseVariationalAutoencoder"</span>
+            <span class="o">+</span> <span class="s2">"but got "</span>
+            <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">model</span><span class="p">))</span>
+        <span class="p">)</span>
+
+        <span class="n">z_mu</span><span class="p">,</span> <span class="n">z_sigma</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">encoder</span><span class="o">.</span><span class="n">latent_distribution</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="n">z</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">sigmoid</span><span class="p">(</span><span class="n">Normal</span><span class="p">(</span><span class="n">z_mu</span><span class="p">,</span> <span class="n">z_sigma</span><span class="p">)</span><span class="o">.</span><span class="n">rsample</span><span class="p">())</span>
+        <span class="n">x_reconstructed</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">decoder</span><span class="p">(</span><span class="n">z</span><span class="p">)</span>
+
+        <span class="n">mse</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">mse</span><span class="p">(</span><span class="n">x_reconstructed</span><span class="p">,</span> <span class="n">y</span><span class="p">),</span> <span class="n">dim</span><span class="o">=</span><span class="nb">tuple</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">x_reconstructed</span><span class="o">.</span><span class="n">dim</span><span class="p">()))</span>
+        <span class="p">)</span>
+
+        <span class="n">z_var</span> <span class="o">=</span> <span class="n">z_sigma</span><span class="o">**</span><span class="mi">2</span>
+        <span class="n">kl_div</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span>
+            <span class="n">z_mu</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">z_var</span> <span class="o">-</span> <span class="n">torch</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">z_var</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="nb">tuple</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">z_mu</span><span class="o">.</span><span class="n">dim</span><span class="p">()))</span>
+        <span class="p">)</span>
+
+        <span class="n">loss</span> <span class="o">=</span> <span class="n">mse</span> <span class="o">+</span> <span class="n">kl_div</span>
+
+        <span class="k">return</span> <span class="n">_reduce_tensor_loss</span><span class="p">(</span><span class="n">loss</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">reduction</span><span class="p">)</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">NegativeCosineSimilarityLoss</span><span class="p">(</span><span class="n">LossFunction</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reduction</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"mean"</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">reduction</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_loss_name</span> <span class="o">=</span> <span class="s2">"Negative Cosine Similarity"</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cosine_similarity</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">CosineSimilarity</span><span class="p">(</span><span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+        <span class="n">y_hat</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="n">cosine_similarity</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cosine_similarity</span><span class="p">(</span><span class="n">y_hat</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">_reduce_tensor_loss</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span> <span class="o">*</span> <span class="n">cosine_similarity</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">reduction</span><span class="p">)</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">LogAdjustedNegativeCosineSimilarityLoss</span><span class="p">(</span><span class="n">NegativeCosineSimilarityLoss</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Enable finetuning near perfect cosine similarity.</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reduction</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"mean"</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">reduction</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_loss_name</span> <span class="o">=</span> <span class="s2">"Log Adjusted Negative Cosine Similarity"</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+        <span class="n">neg_cos_sim</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">forward</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">neg_cos_sim</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">+</span> <span class="mf">1e-12</span><span class="p">)</span>
+
+
+<span class="nd">@contextmanager</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_recording_hooks</span><span class="p">(</span><span class="o">*</span><span class="n">losses</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Let the hooks of ``losses`` record activations only inside this block.</span>
+
+<span class="sd">    The warm-up losses read activations through forward hooks. Forwards</span>
+<span class="sd">    outside the loss (calibration, analyses) must not add to the lists.</span>
+<span class="sd">    """</span>
+    <span class="k">for</span> <span class="n">loss</span> <span class="ow">in</span> <span class="n">losses</span><span class="p">:</span>
+        <span class="n">loss</span><span class="o">.</span><span class="n">reset_activation_lists</span><span class="p">()</span>
+        <span class="n">loss</span><span class="o">.</span><span class="n">_recording</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">yield</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">loss</span> <span class="ow">in</span> <span class="n">losses</span><span class="p">:</span>
+            <span class="n">loss</span><span class="o">.</span><span class="n">_recording</span> <span class="o">=</span> <span class="kc">False</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">VoltageStabilizationLoss</span><span class="p">(</span><span class="n">ForwardHookRemovalMixin</span><span class="p">,</span> <span class="n">LossFunction</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Voltage / gate-occupancy stabilization loss.</span>
+
+<span class="sd">    Modes:</span>
+
+<span class="sd">    ``vinf``, ``vout``, ``both``</span>
+<span class="sd">        Legacy raw-voltage modes.  Drive V (input to the reactivation) or r</span>
+<span class="sd">        (output) toward a fixed ``target_voltage``.  Works well for shunting</span>
+<span class="sd">        morphology where V ∈ [0, 1] and 0.5 is a natural center, but poorly</span>
+<span class="sd">        for additive where the raw-voltage scale is architecture-dependent.</span>
+
+<span class="sd">    ``gate_occupancy`` **(recommended general mode)**</span>
+<span class="sd">        Stabilize in gate-relative coordinates instead of raw voltages.</span>
+<span class="sd">        Operates on the *post-gate output* ``r = (tanh(m*(V-b))+1)/2`` and</span>
+<span class="sd">        drives it toward a healthy occupancy regime:</span>
+
+<span class="sd">        * **Centering:** ``median(r) → 0.5`` (gate is centered).</span>
+<span class="sd">        * **Spread:** ``sat_lo + sat_hi → target_saturation`` where</span>
+<span class="sd">          ``sat_lo = mean(r &lt; 0.1)`` and ``sat_hi = mean(r &gt; 0.9)``</span>
+<span class="sd">          (default ``target_saturation = 0.2``, i.e. ~10% at each rail).</span>
+
+<span class="sd">        This is morphology-invariant by construction: it asks each branch to</span>
+<span class="sd">        reach the same *gate-output* operating regime regardless of whether</span>
+<span class="sd">        the underlying voltage is bounded (shunting) or unbounded (additive).</span>
+<span class="sd">        The mode is defined only for real parametric gates, so it hooks only</span>
+<span class="sd">        layers whose reactivation is a ``ParametricActivation``.</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">stabilize_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"vinf"</span><span class="p">,</span>
+        <span class="n">target_voltage</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.5</span><span class="p">,</span>
+        <span class="n">target_saturation</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.2</span><span class="p">,</span>
+        <span class="n">loss_metric</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"mse"</span><span class="p">,</span>
+        <span class="n">reduction</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"mean"</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">reduction</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_loss_name</span> <span class="o">=</span> <span class="s2">"Voltage Stabilization"</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">stabilize_mode</span> <span class="o">=</span> <span class="n">stabilize_mode</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">target_voltage</span> <span class="o">=</span> <span class="n">target_voltage</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">target_saturation</span> <span class="o">=</span> <span class="n">target_saturation</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">eps</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span><span class="o">.</span><span class="n">eps</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">stabilize_mode</span> <span class="o">=</span> <span class="n">normalize_choice</span><span class="p">(</span>
+            <span class="n">stabilize_mode</span><span class="p">,</span> <span class="n">STABILIZE_MODES</span><span class="p">,</span> <span class="n">field</span><span class="o">=</span><span class="s2">"stabilize_mode"</span>
+        <span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">save_inputs</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">save_outputs</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">stabilize_mode</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"vinf"</span><span class="p">,</span> <span class="s2">"both"</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">save_inputs</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">stabilize_mode</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"vout"</span><span class="p">,</span> <span class="s2">"both"</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">save_outputs</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">stabilize_mode</span> <span class="o">==</span> <span class="s2">"gate_occupancy"</span><span class="p">:</span>
+            <span class="c1"># gate_occupancy hooks on the reactivation output (r)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">save_outputs</span> <span class="o">=</span> <span class="kc">True</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">metric_fn</span> <span class="o">=</span> <span class="n">_build_pair_metric_fn</span><span class="p">(</span>
+            <span class="n">loss_metric</span><span class="p">,</span>
+            <span class="n">reduction</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">reduction</span><span class="p">,</span>
+            <span class="n">eps</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">eps</span><span class="p">,</span>
+            <span class="n">error_context</span><span class="o">=</span><span class="s2">"voltage stabilization"</span><span class="p">,</span>
+            <span class="n">reduce_mean_error_difference_first</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_recording</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">reset_activation_lists</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">attach_forward_hooks</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">):</span>
+        <span class="n">handles</span> <span class="o">=</span> <span class="n">register_forward_hook_groups</span><span class="p">(</span>
+            <span class="n">model</span><span class="p">,</span>
+            <span class="n">DendriticBranchLayer</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_attach_reactivation_hooks</span><span class="p">,</span>
+            <span class="n">predicate</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_should_hook_reactivation</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">handles</span><span class="p">:</span>
+            <span class="n">gates</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="s2">" with a parametric gate"</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">stabilize_mode</span> <span class="o">==</span> <span class="s2">"gate_occupancy"</span>
+                <span class="k">else</span> <span class="s2">""</span>
+            <span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"Voltage stabilization (</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">stabilize_mode</span><span class="si">}</span><span class="s2">) found no dendritic "</span>
+                <span class="sa">f</span><span class="s2">"branch layer</span><span class="si">{</span><span class="n">gates</span><span class="si">}</span><span class="s2"> to read, so its loss would be zero."</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="n">handles</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_attach_reactivation_hooks</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">module</span><span class="p">:</span> <span class="n">DendriticBranchLayer</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">hooks</span><span class="o">.</span><span class="n">RemovableHandle</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_register_reactivation_hook</span><span class="p">(</span><span class="n">module</span><span class="p">)]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_should_hook_reactivation</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">module</span><span class="p">:</span> <span class="n">DendriticBranchLayer</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">stabilize_mode</span> <span class="o">!=</span> <span class="s2">"gate_occupancy"</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">return</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">module</span><span class="o">.</span><span class="n">reactivation</span><span class="p">,</span> <span class="n">ParametricActivation</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_register_reactivation_hook</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">module</span><span class="p">:</span> <span class="n">DendriticBranchLayer</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">hooks</span><span class="o">.</span><span class="n">RemovableHandle</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">module</span><span class="o">.</span><span class="n">reactivation</span><span class="o">.</span><span class="n">register_forward_hook</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">forward_hook</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward_hook</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">module</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">nn</span><span class="o">.</span><span class="n">Identity</span><span class="p">,</span> <span class="n">ParametricActivation</span><span class="p">],</span>
+        <span class="n">inputs</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="n">outputs</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_recording</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">save_inputs</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">voltages</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">inputs</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">save_outputs</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">voltages</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">outputs</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">reset_activation_lists</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">voltages</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_gate_occupancy_loss</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Compute loss in gate-output coordinates.</span>
+
+<span class="sd">        Drives: median(r) → 0.5 and total saturation → target_saturation.</span>
+<span class="sd">        """</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">voltages</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span>
+                <span class="mf">0.0</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">x</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">x</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">requires_grad</span><span class="o">=</span><span class="n">x</span><span class="o">.</span><span class="n">requires_grad</span>
+            <span class="p">)</span>
+
+        <span class="n">total_loss</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span>
+            <span class="mf">0.0</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">x</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">x</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">requires_grad</span><span class="o">=</span><span class="n">x</span><span class="o">.</span><span class="n">requires_grad</span>
+        <span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">voltages</span><span class="p">:</span>
+            <span class="c1"># r is the gate output, shape [B, D] or [B, ...].</span>
+            <span class="n">r_flat</span> <span class="o">=</span> <span class="n">r</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+
+            <span class="c1"># Centering: drive median(r) toward 0.5.</span>
+            <span class="c1"># Use a differentiable proxy: mean(r) → 0.5.</span>
+            <span class="c1"># (median is not differentiable; mean tracks it for unimodal</span>
+            <span class="c1"># distributions, which r approximately is.)</span>
+            <span class="n">center_loss</span> <span class="o">=</span> <span class="p">(</span><span class="n">r_flat</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span> <span class="o">-</span> <span class="mf">0.5</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span>
+
+            <span class="c1"># Spread: drive saturation toward target.</span>
+            <span class="c1"># sat_lo = fraction with r &lt; 0.1, sat_hi = fraction with r &gt; 0.9.</span>
+            <span class="c1"># Use soft thresholds for differentiability:</span>
+            <span class="c1">#   soft_sat_lo = mean(sigmoid(k * (0.1 - r)))</span>
+            <span class="c1">#   soft_sat_hi = mean(sigmoid(k * (r - 0.9)))</span>
+            <span class="c1"># with k = 20 (sharp enough to approximate the indicator).</span>
+            <span class="n">k</span> <span class="o">=</span> <span class="mf">20.0</span>
+            <span class="n">sat_lo</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">sigmoid</span><span class="p">(</span><span class="n">k</span> <span class="o">*</span> <span class="p">(</span><span class="mf">0.1</span> <span class="o">-</span> <span class="n">r_flat</span><span class="p">))</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+            <span class="n">sat_hi</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">sigmoid</span><span class="p">(</span><span class="n">k</span> <span class="o">*</span> <span class="p">(</span><span class="n">r_flat</span> <span class="o">-</span> <span class="mf">0.9</span><span class="p">))</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+            <span class="n">total_sat</span> <span class="o">=</span> <span class="n">sat_lo</span> <span class="o">+</span> <span class="n">sat_hi</span>
+            <span class="n">sat_target</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">target_saturation</span>
+            <span class="n">spread_loss</span> <span class="o">=</span> <span class="p">(</span><span class="n">total_sat</span> <span class="o">-</span> <span class="n">sat_target</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span>
+
+            <span class="n">total_loss</span> <span class="o">=</span> <span class="n">total_loss</span> <span class="o">+</span> <span class="n">center_loss</span> <span class="o">+</span> <span class="n">spread_loss</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">voltages</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">return</span> <span class="n">total_loss</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">compute_loss</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">voltages</span><span class="p">:</span>
+            <span class="n">voltages</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">voltages</span><span class="p">,</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">voltages</span> <span class="o">=</span> <span class="p">[]</span>
+
+            <span class="n">target</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">full_like</span><span class="p">(</span><span class="n">voltages</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">target_voltage</span><span class="p">)</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">metric_fn</span><span class="p">(</span><span class="n">voltages</span><span class="p">,</span> <span class="n">target</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span>
+                <span class="mf">0.0</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">x</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">x</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">requires_grad</span><span class="o">=</span><span class="n">x</span><span class="o">.</span><span class="n">requires_grad</span>
+            <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">stabilization_loss</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Objective of ``stabilize_mode`` on the activations just recorded."""</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">stabilize_mode</span> <span class="o">==</span> <span class="s2">"gate_occupancy"</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_gate_occupancy_loss</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">compute_loss</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+        <span class="k">with</span> <span class="n">_recording_hooks</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+            <span class="n">model</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">stabilization_loss</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">ExcitationInhibitionBalanceLoss</span><span class="p">(</span><span class="n">ForwardHookRemovalMixin</span><span class="p">,</span> <span class="n">LossFunction</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">loss_metric</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"mse"</span><span class="p">,</span> <span class="n">reduction</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"mean"</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">reduction</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_loss_name</span> <span class="o">=</span> <span class="s2">"Excitation-Inhibition Balance"</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">loss_metric</span> <span class="o">=</span> <span class="n">loss_metric</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">eps</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span><span class="o">.</span><span class="n">eps</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">metric_fn</span> <span class="o">=</span> <span class="n">_build_pair_metric_fn</span><span class="p">(</span>
+            <span class="n">loss_metric</span><span class="p">,</span>
+            <span class="n">reduction</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">reduction</span><span class="p">,</span>
+            <span class="n">eps</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">eps</span><span class="p">,</span>
+            <span class="n">error_context</span><span class="o">=</span><span class="s2">"excitation-inhibition balance"</span><span class="p">,</span>
+            <span class="n">reduce_mean_error_difference_first</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_recording</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">reset_activation_lists</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">attach_forward_hooks</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">):</span>
+        <span class="n">handles</span> <span class="o">=</span> <span class="n">register_forward_hook_groups</span><span class="p">(</span>
+            <span class="n">model</span><span class="p">,</span>
+            <span class="n">DendriticBranchLayer</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_attach_branch_balance_hooks</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">handles</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">"The E/I balance loss found no dendritic branch layer with both "</span>
+                <span class="s2">"excitatory and inhibitory synapses, so it would be zero."</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="n">handles</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_attach_branch_balance_hooks</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">module</span><span class="p">:</span> <span class="n">DendriticBranchLayer</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">hooks</span><span class="o">.</span><span class="n">RemovableHandle</span><span class="p">]:</span>
+        <span class="k">def</span><span class="w"> </span><span class="nf">_hook_specs</span><span class="p">():</span>
+            <span class="k">if</span> <span class="p">(</span>
+                <span class="n">module</span><span class="o">.</span><span class="n">branch_excitation</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+                <span class="ow">and</span> <span class="n">module</span><span class="o">.</span><span class="n">branch_inhibition</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="p">):</span>
+                <span class="k">yield</span> <span class="n">module</span><span class="o">.</span><span class="n">branch_excitation</span><span class="p">,</span> <span class="s2">"exc"</span>
+                <span class="k">yield</span> <span class="n">module</span><span class="o">.</span><span class="n">branch_inhibition</span><span class="p">,</span> <span class="s2">"inh"</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">_register_hook</span><span class="p">(</span><span class="n">spec</span><span class="p">):</span>
+            <span class="n">hook_module</span><span class="p">,</span> <span class="n">activation</span> <span class="o">=</span> <span class="n">spec</span>
+            <span class="k">return</span> <span class="p">[</span>
+                <span class="n">hook_module</span><span class="o">.</span><span class="n">register_forward_hook</span><span class="p">(</span>
+                    <span class="k">lambda</span> <span class="n">module</span><span class="p">,</span> <span class="n">inputs</span><span class="p">,</span> <span class="n">outputs</span><span class="p">,</span> <span class="n">activation</span><span class="o">=</span><span class="n">activation</span><span class="p">:</span> <span class="p">(</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">forward_hook</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">inputs</span><span class="p">,</span> <span class="n">outputs</span><span class="p">,</span> <span class="n">activation</span><span class="p">)</span>
+                    <span class="p">)</span>
+                <span class="p">)</span>
+            <span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">register_hook_groups</span><span class="p">(</span><span class="n">_hook_specs</span><span class="p">(),</span> <span class="n">_register_hook</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward_hook</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">module</span><span class="p">:</span> <span class="n">TopKLinear</span><span class="p">,</span>
+        <span class="n">inputs</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="n">outputs</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="n">activation</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_recording</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="k">if</span> <span class="n">activation</span> <span class="o">==</span> <span class="s2">"exc"</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">excitation</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">outputs</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">activation</span> <span class="o">==</span> <span class="s2">"inh"</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">inhibition</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">outputs</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">reset_activation_lists</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">excitation</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">inhibition</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">compute_loss</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">excitation</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">inhibition</span><span class="p">:</span>
+            <span class="n">excitation</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">excitation</span><span class="p">,</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">inhibition</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">inhibition</span><span class="p">,</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">excitation</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">inhibition</span> <span class="o">=</span> <span class="p">[]</span>
+
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">metric_fn</span><span class="p">(</span><span class="n">excitation</span><span class="p">,</span> <span class="n">inhibition</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span>
+                <span class="mf">0.0</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">x</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">x</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">requires_grad</span><span class="o">=</span><span class="n">x</span><span class="o">.</span><span class="n">requires_grad</span>
+            <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+        <span class="k">with</span> <span class="n">_recording_hooks</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+            <span class="n">model</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">compute_loss</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">HomeostaticControlLoss</span><span class="p">(</span><span class="n">ForwardHookRemovalMixin</span><span class="p">,</span> <span class="n">LossFunction</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Mean of a voltage-stabilization and the E/I balance objective.</span>
+
+<span class="sd">    The stabilization term is the ``VoltageStabilizationLoss`` objective of</span>
+<span class="sd">    ``stabilize_mode``, so ``gate_occupancy`` stabilizes gate outputs toward</span>
+<span class="sd">    the centred, ``target_saturation`` regime here as well.</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">stabilize_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"vinf"</span><span class="p">,</span>
+        <span class="n">target_voltage</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.5</span><span class="p">,</span>
+        <span class="n">target_saturation</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.2</span><span class="p">,</span>
+        <span class="n">loss_metric</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"mse"</span><span class="p">,</span>
+        <span class="n">reduction</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"mean"</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">reduction</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_loss_name</span> <span class="o">=</span> <span class="s2">"Homeostatic Control"</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">voltage_stabilization</span> <span class="o">=</span> <span class="n">VoltageStabilizationLoss</span><span class="p">(</span>
+            <span class="n">stabilize_mode</span><span class="o">=</span><span class="n">stabilize_mode</span><span class="p">,</span>
+            <span class="n">target_voltage</span><span class="o">=</span><span class="n">target_voltage</span><span class="p">,</span>
+            <span class="n">target_saturation</span><span class="o">=</span><span class="n">target_saturation</span><span class="p">,</span>
+            <span class="n">loss_metric</span><span class="o">=</span><span class="n">loss_metric</span><span class="p">,</span>
+            <span class="n">reduction</span><span class="o">=</span><span class="n">reduction</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ei_balance</span> <span class="o">=</span> <span class="n">ExcitationInhibitionBalanceLoss</span><span class="p">(</span>
+            <span class="n">loss_metric</span><span class="o">=</span><span class="n">loss_metric</span><span class="p">,</span> <span class="n">reduction</span><span class="o">=</span><span class="n">reduction</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">attach_forward_hooks</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">register_hook_groups</span><span class="p">(</span>
+            <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">voltage_stabilization</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ei_balance</span><span class="p">),</span>
+            <span class="k">lambda</span> <span class="n">loss_fn</span><span class="p">:</span> <span class="n">loss_fn</span><span class="o">.</span><span class="n">attach_forward_hooks</span><span class="p">(</span><span class="n">model</span><span class="p">),</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+        <span class="k">with</span> <span class="n">_recording_hooks</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">voltage_stabilization</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ei_balance</span><span class="p">):</span>
+            <span class="n">model</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="n">loss</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">voltage_stabilization</span><span class="o">.</span><span class="n">stabilization_loss</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="n">loss</span> <span class="o">=</span> <span class="n">loss</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">ei_balance</span><span class="o">.</span><span class="n">compute_loss</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">loss</span> <span class="o">/</span> <span class="mf">2.0</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">EIWeightRatioLoss</span><span class="p">(</span><span class="n">LossFunction</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Loss function to enforce a target ratio between excitatory and inhibitory synaptic weights.</span>
+
+<span class="sd">    This loss function computes the deviation from a target E/I weight ratio across</span>
+<span class="sd">    dendritic branch layers and adds it as a regularization term to encourage</span>
+<span class="sd">    biologically plausible E/I balance.</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">target_ratio</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.5</span><span class="p">,</span>
+        <span class="n">loss_weight</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.1</span><span class="p">,</span>
+        <span class="n">scope</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"per_branch"</span><span class="p">,</span>
+        <span class="n">metric</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"mean"</span><span class="p">,</span>
+        <span class="n">reduction</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"mean"</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">reduction</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_loss_name</span> <span class="o">=</span> <span class="s2">"E/I Weight Ratio"</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">target_ratio</span> <span class="o">=</span> <span class="n">target_ratio</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">loss_weight</span> <span class="o">=</span> <span class="n">loss_weight</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">scope</span> <span class="o">=</span> <span class="n">normalize_choice</span><span class="p">(</span><span class="n">scope</span><span class="p">,</span> <span class="n">EI_RATIO_SCOPES</span><span class="p">,</span> <span class="n">field</span><span class="o">=</span><span class="s2">"ei_ratio_scope"</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">metric</span> <span class="o">=</span> <span class="n">normalize_choice</span><span class="p">(</span>
+            <span class="n">metric</span><span class="p">,</span> <span class="n">EI_RATIO_METRICS</span><span class="p">,</span> <span class="n">field</span><span class="o">=</span><span class="s2">"ei_ratio_metric"</span>
+        <span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">reduction_fn</span> <span class="o">=</span> <span class="n">_loss_reduction_fn</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">reduction</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Compute E/I weight ratio loss."""</span>
+        <span class="n">ratio_losses</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">for</span> <span class="n">module</span> <span class="ow">in</span> <span class="n">iter_modules_of_type</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">DendriticBranchLayer</span><span class="p">):</span>
+            <span class="k">if</span> <span class="p">(</span>
+                <span class="n">module</span><span class="o">.</span><span class="n">branch_excitation</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+                <span class="ow">and</span> <span class="n">module</span><span class="o">.</span><span class="n">branch_inhibition</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+                <span class="ow">and</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">module</span><span class="o">.</span><span class="n">branch_excitation</span><span class="p">,</span> <span class="s2">"pruned_weight"</span><span class="p">)</span>
+                <span class="ow">and</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">module</span><span class="o">.</span><span class="n">branch_inhibition</span><span class="p">,</span> <span class="s2">"pruned_weight"</span><span class="p">)</span>
+            <span class="p">):</span>
+                <span class="n">exc_weights</span> <span class="o">=</span> <span class="p">(</span>
+                    <span class="n">module</span><span class="o">.</span><span class="n">branch_excitation</span><span class="o">.</span><span class="n">pruned_weight</span><span class="p">()</span>
+                <span class="p">)</span>  <span class="c1"># [n_branches, in_features]</span>
+                <span class="n">inh_weights</span> <span class="o">=</span> <span class="p">(</span>
+                    <span class="n">module</span><span class="o">.</span><span class="n">branch_inhibition</span><span class="o">.</span><span class="n">pruned_weight</span><span class="p">()</span>
+                <span class="p">)</span>  <span class="c1"># [n_branches, in_features]</span>
+
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">scope</span> <span class="o">==</span> <span class="s2">"per_branch"</span><span class="p">:</span>
+                    <span class="n">ratio_loss</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compute_per_branch_ratio_loss</span><span class="p">(</span>
+                        <span class="n">exc_weights</span><span class="p">,</span> <span class="n">inh_weights</span>
+                    <span class="p">)</span>
+                <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">scope</span> <span class="o">==</span> <span class="s2">"per_layer"</span><span class="p">:</span>
+                    <span class="n">ratio_loss</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compute_per_layer_ratio_loss</span><span class="p">(</span>
+                        <span class="n">exc_weights</span><span class="p">,</span> <span class="n">inh_weights</span>
+                    <span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>  <span class="c1"># global: the per-layer ratio, averaged over layers</span>
+                    <span class="n">ratio_loss</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compute_global_ratio_loss</span><span class="p">(</span>
+                        <span class="n">exc_weights</span><span class="p">,</span> <span class="n">inh_weights</span>
+                    <span class="p">)</span>
+                <span class="n">ratio_losses</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ratio_loss</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">ratio_losses</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">"E/I weight-ratio regularization is enabled, but no branch layer "</span>
+                <span class="s2">"has both feed-forward excitatory and inhibitory synapses"</span>
+            <span class="p">)</span>
+        <span class="n">total_ratio_loss</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">reduction_fn</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span><span class="n">ratio_losses</span><span class="p">))</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">loss_weight</span> <span class="o">*</span> <span class="n">total_ratio_loss</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_compute_per_branch_ratio_loss</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">exc_weights</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">inh_weights</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Compute ratio loss per branch."""</span>
+        <span class="c1"># Compute weight statistics per branch</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">metric</span> <span class="o">==</span> <span class="s2">"mean"</span><span class="p">:</span>
+            <span class="n">exc_stats</span> <span class="o">=</span> <span class="n">exc_weights</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># [n_branches]</span>
+            <span class="n">inh_stats</span> <span class="o">=</span> <span class="n">inh_weights</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># [n_branches]</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">metric</span> <span class="o">==</span> <span class="s2">"median"</span><span class="p">:</span>
+            <span class="n">exc_stats</span> <span class="o">=</span> <span class="n">exc_weights</span><span class="o">.</span><span class="n">median</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">inh_stats</span> <span class="o">=</span> <span class="n">inh_weights</span><span class="o">.</span><span class="n">median</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>  <span class="c1"># rms</span>
+            <span class="n">exc_stats</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">exc_weights</span><span class="o">**</span><span class="mi">2</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">))</span>
+            <span class="n">inh_stats</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">inh_weights</span><span class="o">**</span><span class="mi">2</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">))</span>
+
+        <span class="c1"># Compute actual E/I ratio per branch (avoid division by zero)</span>
+        <span class="n">actual_ratios</span> <span class="o">=</span> <span class="n">exc_stats</span> <span class="o">/</span> <span class="p">(</span><span class="n">inh_stats</span> <span class="o">+</span> <span class="mf">1e-8</span><span class="p">)</span>
+
+        <span class="c1"># Compute loss as squared deviation from target</span>
+        <span class="n">ratio_loss</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">mean</span><span class="p">((</span><span class="n">actual_ratios</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">target_ratio</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">ratio_loss</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_compute_per_layer_ratio_loss</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">exc_weights</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">inh_weights</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Compute ratio loss per layer (average across branches first)."""</span>
+        <span class="c1"># Average across branches, then compute ratio</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">metric</span> <span class="o">==</span> <span class="s2">"mean"</span><span class="p">:</span>
+            <span class="n">exc_layer_mean</span> <span class="o">=</span> <span class="n">exc_weights</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+            <span class="n">inh_layer_mean</span> <span class="o">=</span> <span class="n">inh_weights</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">metric</span> <span class="o">==</span> <span class="s2">"median"</span><span class="p">:</span>
+            <span class="n">exc_layer_mean</span> <span class="o">=</span> <span class="n">exc_weights</span><span class="o">.</span><span class="n">median</span><span class="p">()</span>
+            <span class="n">inh_layer_mean</span> <span class="o">=</span> <span class="n">inh_weights</span><span class="o">.</span><span class="n">median</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>  <span class="c1"># rms</span>
+            <span class="n">exc_layer_mean</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">exc_weights</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span>
+            <span class="n">inh_layer_mean</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">inh_weights</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span>
+
+        <span class="c1"># Compute layer-level ratio</span>
+        <span class="n">actual_ratio</span> <span class="o">=</span> <span class="n">exc_layer_mean</span> <span class="o">/</span> <span class="p">(</span><span class="n">inh_layer_mean</span> <span class="o">+</span> <span class="mf">1e-8</span><span class="p">)</span>
+
+        <span class="c1"># Compute loss</span>
+        <span class="n">ratio_loss</span> <span class="o">=</span> <span class="p">(</span><span class="n">actual_ratio</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">target_ratio</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span>
+        <span class="k">return</span> <span class="n">ratio_loss</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_compute_global_ratio_loss</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">exc_weights</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">inh_weights</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Compute global ratio loss across entire network."""</span>
+        <span class="c1"># Same as per_layer but will be aggregated across all layers by reduction_fn</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compute_per_layer_ratio_loss</span><span class="p">(</span><span class="n">exc_weights</span><span class="p">,</span> <span class="n">inh_weights</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_register_builtin_loss_functions</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">register_loss_function</span><span class="p">(</span>
+        <span class="s2">"mse"</span><span class="p">,</span>
+        <span class="n">MSELoss</span><span class="p">,</span>
+        <span class="n">aliases</span><span class="o">=</span><span class="p">(</span><span class="s2">"mean_squared_error"</span><span class="p">,),</span>
+    <span class="p">)</span>
+    <span class="n">register_loss_function</span><span class="p">(</span>
+        <span class="s2">"log_mse"</span><span class="p">,</span>
+        <span class="n">LogMSELoss</span><span class="p">,</span>
+        <span class="n">aliases</span><span class="o">=</span><span class="p">(</span><span class="s2">"log_mean_squared_error"</span><span class="p">,),</span>
+    <span class="p">)</span>
+    <span class="n">register_loss_function</span><span class="p">(</span>
+        <span class="s2">"ce"</span><span class="p">,</span>
+        <span class="n">CrossEntropyLoss</span><span class="p">,</span>
+        <span class="n">aliases</span><span class="o">=</span><span class="p">(</span><span class="s2">"cross_entropy"</span><span class="p">,),</span>
+    <span class="p">)</span>
+    <span class="n">register_loss_function</span><span class="p">(</span>
+        <span class="s2">"temporal_event_ce"</span><span class="p">,</span>
+        <span class="n">TemporalEventCrossEntropyLoss</span><span class="p">,</span>
+        <span class="n">aliases</span><span class="o">=</span><span class="p">(</span><span class="s2">"temporal_event_cross_entropy"</span><span class="p">,),</span>
+    <span class="p">)</span>
+    <span class="n">register_loss_function</span><span class="p">(</span>
+        <span class="s2">"masked_dual_task_temporal"</span><span class="p">,</span>
+        <span class="n">MaskedDualTaskTemporalLoss</span><span class="p">,</span>
+        <span class="n">aliases</span><span class="o">=</span><span class="p">(</span><span class="s2">"masked_dual_task"</span><span class="p">,),</span>
+    <span class="p">)</span>
+    <span class="n">register_loss_function</span><span class="p">(</span>
+        <span class="s2">"bce"</span><span class="p">,</span>
+        <span class="n">BCELoss</span><span class="p">,</span>
+        <span class="n">aliases</span><span class="o">=</span><span class="p">(</span><span class="s2">"binary_cross_entropy"</span><span class="p">,),</span>
+    <span class="p">)</span>
+    <span class="n">register_loss_function</span><span class="p">(</span>
+        <span class="s2">"cat_nll"</span><span class="p">,</span>
+        <span class="n">CategoricalNLLLoss</span><span class="p">,</span>
+        <span class="n">aliases</span><span class="o">=</span><span class="p">(</span><span class="s2">"categorical_negative_log_likelihood"</span><span class="p">,),</span>
+    <span class="p">)</span>
+    <span class="n">register_loss_function</span><span class="p">(</span>
+        <span class="s2">"vae_elbo"</span><span class="p">,</span>
+        <span class="n">VaeElboLoss</span><span class="p">,</span>
+        <span class="n">aliases</span><span class="o">=</span><span class="p">(</span><span class="s2">"variational_autoencoder_elbo"</span><span class="p">,),</span>
+    <span class="p">)</span>
+    <span class="n">register_loss_function</span><span class="p">(</span>
+        <span class="s2">"neg_cos_sim"</span><span class="p">,</span>
+        <span class="n">NegativeCosineSimilarityLoss</span><span class="p">,</span>
+        <span class="n">aliases</span><span class="o">=</span><span class="p">(</span><span class="s2">"negative_cosine_similarity"</span><span class="p">,),</span>
+    <span class="p">)</span>
+    <span class="n">register_loss_function</span><span class="p">(</span>
+        <span class="s2">"log_adj_neg_cos_sim"</span><span class="p">,</span>
+        <span class="n">LogAdjustedNegativeCosineSimilarityLoss</span><span class="p">,</span>
+        <span class="n">aliases</span><span class="o">=</span><span class="p">(</span><span class="s2">"log_adjusted_negative_cosine_similarity"</span><span class="p">,),</span>
+    <span class="p">)</span>
+
+
+<span class="n">_register_builtin_loss_functions</span><span class="p">()</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">validate_task_loss</span><span class="p">(</span><span class="n">task</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">loss</span><span class="p">:</span> <span class="n">LossFunction</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">owner</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Raise when ``loss`` is not defined for ``model.task``.</span>
+
+<span class="sd">    Cross-entropy on regression targets treats them as soft class</span>
+<span class="sd">    probabilities (or, for one output, is identically zero), so the mismatch</span>
+<span class="sd">    would train a meaningless objective.</span>
+<span class="sd">    """</span>
+    <span class="n">supported</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="n">loss</span><span class="p">)</span><span class="o">.</span><span class="n">supported_tasks</span>
+    <span class="k">if</span> <span class="n">task</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">supported</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="nb">str</span><span class="p">(</span><span class="n">task</span><span class="p">)</span> <span class="ow">in</span> <span class="n">supported</span><span class="p">:</span>
+        <span class="k">return</span>
+    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">owner</span><span class="si">}</span><span class="s2">: training.main.common.loss_function </span><span class="si">{</span><span class="n">loss</span><span class="o">.</span><span class="n">_loss_name</span><span class="si">!r}</span><span class="s2"> is "</span>
+        <span class="sa">f</span><span class="s2">"defined for </span><span class="si">{</span><span class="s1">'/'</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">supported</span><span class="p">))</span><span class="si">}</span><span class="s2"> tasks, not model.task="</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">task</span><span class="si">!r}</span><span class="s2">; choose a </span><span class="si">{</span><span class="n">task</span><span class="si">}</span><span class="s2"> loss (for example 'mse' for regression, "</span>
+        <span class="s2">"'ce' for classification)"</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">get_loss_function</span><span class="p">(</span><span class="n">loss_function</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">LossFunction</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Build the registered loss ``loss_function`` (exact, else case-insensitive)."""</span>
+    <span class="k">if</span> <span class="n">loss_function</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">LOSS_FUNCTION_REGISTRY</span><span class="p">:</span>
+        <span class="n">load_plugins</span><span class="p">()</span>
+    <span class="n">builder</span> <span class="o">=</span> <span class="n">LOSS_FUNCTION_REGISTRY</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">loss_function</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">builder</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">folded</span> <span class="o">=</span> <span class="p">{</span><span class="n">name</span><span class="o">.</span><span class="n">lower</span><span class="p">():</span> <span class="n">name</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">LOSS_FUNCTION_REGISTRY</span><span class="p">}</span>
+        <span class="n">name</span> <span class="o">=</span> <span class="n">folded</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">loss_function</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">())</span>
+        <span class="k">if</span> <span class="n">name</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">matches</span> <span class="o">=</span> <span class="n">difflib</span><span class="o">.</span><span class="n">get_close_matches</span><span class="p">(</span>
+                <span class="nb">str</span><span class="p">(</span><span class="n">loss_function</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">(),</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">folded</span><span class="p">),</span> <span class="n">n</span><span class="o">=</span><span class="mi">1</span>
+            <span class="p">)</span>
+            <span class="n">hint</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">" (did you mean </span><span class="si">{</span><span class="n">folded</span><span class="p">[</span><span class="n">matches</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span><span class="si">!r}</span><span class="s2">?)"</span> <span class="k">if</span> <span class="n">matches</span> <span class="k">else</span> <span class="s2">""</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Invalid loss function: </span><span class="si">{</span><span class="n">loss_function</span><span class="si">!r}{</span><span class="n">hint</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="n">builder</span> <span class="o">=</span> <span class="n">LOSS_FUNCTION_REGISTRY</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">builder</span><span class="p">()</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024-2026, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

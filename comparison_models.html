@@ -1,0 +1,658 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Baselines and comparison models &mdash; DendriNet v0.2.0</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=938c9ccc"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Configuration guide" href="configuration_guide.html" />
+    <link rel="prev" title="Conductance options" href="conductance_options.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            DendriNet
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Example configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Building models</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="network_architectures.html">Model architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dendritic_neurons.html">Dendritic neurons</a></li>
+<li class="toctree-l1"><a class="reference internal" href="synapses.html">Synapses and connectivity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="population_networks.html">Population networks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="temporal_dynamics.html">Temporal dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="structured_ei_cores.html">Structured E/I cores</a></li>
+<li class="toctree-l1"><a class="reference internal" href="conductance_options.html">Conductance options</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Baselines and comparison models</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#controls-matched-to-a-dendritic-reference">Controls matched to a dendritic reference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#dense-and-sparse-affine-mlps">Dense and sparse affine MLPs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#recurrent-baselines">Recurrent baselines</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#mlp-building-blocks">MLP building blocks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#parameter-budget-model-families">Parameter-budget model families</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#signed-readouts">Signed readouts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#readout-initialization">Readout initialization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#numerical-utilities">Numerical utilities</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#streaming-covariance">Streaming covariance</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#passive-branch-and-soma-equilibrium">Passive branch and soma equilibrium</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Configuration</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="configuration_guide.html">Configuration guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config_reference.html">Annotated reference configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="training_strategies.html">Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="distributed_training.html">Distributed training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="performance_kernels.html">Sparse execution and performance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Data and analysis</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="datasets.html">Datasets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="analysis.html">Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="analyzers.html">Analyzer reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="checkpoint_analysis.html">Analyzing saved checkpoints</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Running experiments</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="runs_and_outputs.html">Runs and outputs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sweeps.html">Parameter sweeps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="model_compression.html">Compact checkpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="project_provenance.html">Project provenance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="available_components.html">Component catalogue</a></li>
+<li class="toctree-l1"><a class="reference internal" href="options_reference.html">Options reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cli_reference.html">Command-line reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api_reference.html">Python API</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="extending.html">Extending DendriNet</a></li>
+<li class="toctree-l1"><a class="reference internal" href="engineering_architecture.html">Engineering architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">DendriNet</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Baselines and comparison models</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/comparison_models.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="baselines-and-comparison-models">
+<span id="baseline-models"></span><h1>Baselines and comparison models<a class="headerlink" href="#baselines-and-comparison-models" title="Link to this heading"></a></h1>
+<p>DendriNet includes conventional networks to compare with dendritic cores:
+point-neuron controls matched in size to a dendritic reference, dense and
+sparse affine MLPs, and recurrent baselines. They are core types, selected
+with <code class="docutils literal notranslate"><span class="pre">model.core.type</span></code> like the dendritic cores (<a class="reference internal" href="available_components.html#core-types"><span class="std std-ref">Core types</span></a> lists
+every type), and they train with the same training strategies. The second
+half of the page describes Python utilities for comparisons at a fixed
+parameter budget and a few numerical helpers.</p>
+<section id="controls-matched-to-a-dendritic-reference">
+<span id="matched-controls"></span><h2>Controls matched to a dendritic reference<a class="headerlink" href="#controls-matched-to-a-dendritic-reference" title="Link to this heading"></a></h2>
+<p>These core types build a point-neuron network whose size follows a dendritic
+reference core. The reference is described by the same sections a dendritic
+core uses: the structured E/I sections <code class="docutils literal notranslate"><span class="pre">model.core.architecture</span></code> and
+<code class="docutils literal notranslate"><span class="pre">model.core.connectivity</span></code> (with <code class="docutils literal notranslate"><span class="pre">morphology</span></code>, <code class="docutils literal notranslate"><span class="pre">sparsity</span></code> and the other
+structured sections; see <a class="reference internal" href="structured_ei_cores.html"><span class="doc">Structured E/I cores</span></a>), or, where the table
+says so, a <code class="docutils literal notranslate"><span class="pre">model.core.population_network</span></code> block. The builder constructs the
+reference only to count it; the control contains no dendritic operations.</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 24.0%" />
+<col style="width: 50.0%" />
+<col style="width: 26.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><code class="docutils literal notranslate"><span class="pre">model.core.type</span></code></p></th>
+<th class="head"><p>Network</p></th>
+<th class="head"><p>Reference</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">point_mlp</span></code></p></td>
+<td><p>One hidden layer of point neurons, <code class="docutils literal notranslate"><span class="pre">Linear</span> <span class="pre">-&gt;</span> <span class="pre">activation</span> <span class="pre">-&gt;</span> <span class="pre">Linear</span></code>,
+with the smallest hidden width whose parameter count reaches the
+reference’s effective parameter count: its active synaptic contacts
+after Top-K selection plus its dendritic couplings and gate
+parameters. The output width is the reference’s output width.</p></td>
+<td><p>Structured E/I sections or <code class="docutils literal notranslate"><span class="pre">population_network</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">total_param_mlp</span></code></p></td>
+<td><p>With a structured reference: a dense MLP with as many linear layers as
+the reference has dendritic branch layers in total (E and I trees of
+every layer), equal hidden widths, a sigmoid after every layer and at
+least as many weights as the reference has trainable parameters. With
+a <code class="docutils literal notranslate"><span class="pre">population_network</span></code> reference: the one-hidden-layer ReLU network
+of <code class="docutils literal notranslate"><span class="pre">point_mlp</span></code>, matched to the reference’s trainable parameter
+count.</p></td>
+<td><p>Structured E/I sections or <code class="docutils literal notranslate"><span class="pre">population_network</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">active_param_mlp</span></code></p></td>
+<td><p>As <code class="docutils literal notranslate"><span class="pre">total_param_mlp</span></code>, matched to the reference’s active synapses,
+dendritic couplings and gate parameters instead of its total parameter
+count. With a <code class="docutils literal notranslate"><span class="pre">population_network</span></code> reference it is the same network
+as <code class="docutils literal notranslate"><span class="pre">point_mlp</span></code>.</p></td>
+<td><p>Structured E/I sections or <code class="docutils literal notranslate"><span class="pre">population_network</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ss_mlp</span></code></p></td>
+<td><p>A sparse structured MLP: the last layer of the reference rebuilt as
+signed Top-K synapses on the same branch structure, with signed branch
+couplings and <code class="docutils literal notranslate"><span class="pre">param_tanh</span></code> gates, without E/I sign constraints or
+shunting.</p></td>
+<td><p>Structured E/I sections</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ss_mlp_flat</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">ss_mlp</span></code> built from the flattened reference (all branch compartments
+attached directly to the soma).</p></td>
+<td><p>Structured E/I sections</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">sparse_active_matched_point</span></code></p></td>
+<td><p>One fixed-index sparse affine layer followed by ReLU. Every output is
+active; the weights spread as evenly as possible over the outputs so
+that weights plus biases equal the reference’s effective parameter
+count. Needs <code class="docutils literal notranslate"><span class="pre">model.core.sparsity.indexed.seed</span></code>, which fixes the
+support.</p></td>
+<td><p>Structured E/I sections</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">direct_active_matched_point</span></code></p></td>
+<td><p>One dense <code class="docutils literal notranslate"><span class="pre">Linear</span> <span class="pre">-&gt;</span> <span class="pre">ReLU</span></code> bottleneck whose width matches the
+reference’s effective parameter count (within 1 %), zero-padded to
+the reference’s output width. The width must fit in that output width.</p></td>
+<td><p>Structured E/I sections</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">sparse_active_matched_point_conv</span></code> (alias
+<code class="docutils literal notranslate"><span class="pre">spatial_sparse_active_matched_point</span></code>)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">sparse_active_matched_point</span></code> applied to every local patch of a
+<code class="docutils literal notranslate"><span class="pre">(batch,</span> <span class="pre">channels,</span> <span class="pre">height,</span> <span class="pre">width)</span></code> input, with the patch geometry of
+<code class="docutils literal notranslate"><span class="pre">model.core.spatial</span></code> (<code class="docutils literal notranslate"><span class="pre">kernel_size</span></code>, <code class="docutils literal notranslate"><span class="pre">stride</span></code>, <code class="docutils literal notranslate"><span class="pre">padding</span></code>).</p></td>
+<td><p>Structured E/I sections and <code class="docutils literal notranslate"><span class="pre">model.core.spatial</span></code></p></td>
+</tr>
+</tbody>
+</table>
+<p><code class="docutils literal notranslate"><span class="pre">model.core.target_active_parameters</span></code> replaces the count taken from the
+reference for <code class="docutils literal notranslate"><span class="pre">sparse_active_matched_point</span></code>. Matching parameter counts does
+not equalize compute or activation memory.</p>
+<p>A <code class="docutils literal notranslate"><span class="pre">point_mlp</span></code> control for the population network of
+<code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_feedforward.yaml</span></code> repeats the
+population block under <code class="docutils literal notranslate"><span class="pre">type:</span> <span class="pre">point_mlp</span></code>:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">core</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">point_mlp</span>
+<span class="w">    </span><span class="nt">population_network</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">layers</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">layer0</span>
+<span class="w">          </span><span class="nt">readout_population</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">e</span>
+<span class="w">          </span><span class="nt">population_defaults</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">ff_excitatory_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30</span>
+<span class="w">            </span><span class="nt">ff_inhibitory_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">15</span>
+<span class="w">          </span><span class="nt">populations</span><span class="p">:</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">i</span><span class="p p-Indicator">,</span><span class="nt"> polarity</span><span class="p">:</span><span class="w"> </span><span class="nv">inhibitory</span><span class="p p-Indicator">,</span><span class="nt"> n_neurons</span><span class="p">:</span><span class="w"> </span><span class="nv">32</span><span class="p p-Indicator">,</span><span class="nt"> branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">1</span><span class="p p-Indicator">]}</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">e</span><span class="p p-Indicator">,</span><span class="nt"> polarity</span><span class="p">:</span><span class="w"> </span><span class="nv">excitatory</span><span class="p p-Indicator">,</span><span class="nt"> n_neurons</span><span class="p">:</span><span class="w"> </span><span class="nv">128</span><span class="p p-Indicator">,</span><span class="nt"> branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">4</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">4</span><span class="p p-Indicator">]}</span>
+<span class="w">          </span><span class="nt">connections</span><span class="p">:</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">input</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">i</span><span class="p p-Indicator">}</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">input</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">e</span><span class="p p-Indicator">}</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">i</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">e</span><span class="p p-Indicator">}</span>
+</pre></div>
+</div>
+<p>A fixed-support control for a structured E/I core gives the reference
+sections and the support seed:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">core</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">sparse_active_matched_point</span>
+<span class="w">    </span><span class="nt">architecture</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">excitatory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">64</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">inhibitory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">16</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">excitatory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">2</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">2</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">inhibitory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">1</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">connectivity</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">ee_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">16</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">ei_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">8</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">ie_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">4</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">ii_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">sparsity</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">indexed</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">11</span>
+</pre></div>
+</div>
+</section>
+<section id="dense-and-sparse-affine-mlps">
+<span id="affine-mlp"></span><h2>Dense and sparse affine MLPs<a class="headerlink" href="#dense-and-sparse-affine-mlps" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">model.core.type:</span> <span class="pre">affine_mlp</span></code> builds a conventional multilayer perceptron
+with signed weights, in one of three modes, from
+<code class="docutils literal notranslate"><span class="pre">model.core.affine_mlp</span></code>:</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">dense</span></code></dt><dd><p>Dense <code class="docutils literal notranslate"><span class="pre">nn.Linear</span></code> layers.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">fixed</span></code></dt><dd><p>Sparse layers with a fixed random support of <code class="docutils literal notranslate"><span class="pre">fanin</span></code> inputs per unit,
+stored as indices and weights (<code class="docutils literal notranslate"><span class="pre">IndexedSparseLinear</span></code>). Each layer’s
+support comes from its entry in <code class="docutils literal notranslate"><span class="pre">connectivity_seeds</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">topk</span></code></dt><dd><p>Learned Top-K layers (<code class="docutils literal notranslate"><span class="pre">TopKLinear</span></code>): every unit uses its <code class="docutils literal notranslate"><span class="pre">fanin</span></code>
+weights of largest magnitude in each forward pass.</p>
+</dd>
+</dl>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">encoder</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">identity</span>
+<span class="w">    </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">input_dim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">784</span>
+<span class="w">  </span><span class="nt">core</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">affine_mlp</span>
+<span class="w">    </span><span class="nt">affine_mlp</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">dimensions</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">784</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">256</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">128</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">fixed</span>
+<span class="w">      </span><span class="nt">fanin</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">64</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">32</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">connectivity_seeds</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">101</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">102</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">dropout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.1</span>
+<span class="w">  </span><span class="nt">decoder</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MLP</span>
+<span class="w">    </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">hidden_dims</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[]</span>
+<span class="w">      </span><span class="nt">output_dim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+</pre></div>
+</div>
+<p>The options of <code class="docutils literal notranslate"><span class="pre">model.core.affine_mlp</span></code>:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 26.0%" />
+<col style="width: 16.0%" />
+<col style="width: 58.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Option</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dimensions</span></code></p></td>
+<td><p>(required)</p></td>
+<td><p>Widths from input to output, at least two. The first must equal the
+encoder output size.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">mode</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">dense</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">dense</span></code>, <code class="docutils literal notranslate"><span class="pre">fixed</span></code> or <code class="docutils literal notranslate"><span class="pre">topk</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">fanin</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[]</span></code></p></td>
+<td><p>Inputs per unit for each layer (<code class="docutils literal notranslate"><span class="pre">fixed</span></code> and <code class="docutils literal notranslate"><span class="pre">topk</span></code>); not allowed
+in <code class="docutils literal notranslate"><span class="pre">dense</span></code> mode.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">connectivity_seeds</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[]</span></code></p></td>
+<td><p>One support seed per layer, required by <code class="docutils literal notranslate"><span class="pre">fixed</span></code> and rejected by the
+other modes.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">initialization</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">kaiming_normal</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">kaiming_normal</span></code>, or <code class="docutils literal notranslate"><span class="pre">kaiming_uniform_xavier_readout</span></code> (<code class="docutils literal notranslate"><span class="pre">dense</span></code>
+only: Kaiming-uniform hidden layers and a Xavier-uniform last layer).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">activation</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">relu</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">relu</span></code> or <code class="docutils literal notranslate"><span class="pre">leaky_relu</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">negative_slope</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">0.1</span></code></p></td>
+<td><p>Slope of <code class="docutils literal notranslate"><span class="pre">leaky_relu</span></code> for negative inputs.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">activate_output</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
+<td><p>Apply the activation (and dropout) after the last layer too. Set it to
+<code class="docutils literal notranslate"><span class="pre">false</span></code> when the last layer produces classifier logits.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dropout</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">null</span></code></p></td>
+<td><p>Dropout probability after each activation. <code class="docutils literal notranslate"><span class="pre">null</span></code> adds no dropout
+modules; <code class="docutils literal notranslate"><span class="pre">0.0</span></code> adds modules that do nothing, which keeps the module
+layout (and checkpoint keys) of a run with dropout.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">output_weight_scale</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">1.0</span></code></p></td>
+<td><p>Factor applied to the last layer’s initial weights.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">projection_backend</span></code>, <code class="docutils literal notranslate"><span class="pre">workspace_mb</span></code>, <code class="docutils literal notranslate"><span class="pre">index_dtype</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">eager</span></code>, <code class="docutils literal notranslate"><span class="pre">128.0</span></code>, <code class="docutils literal notranslate"><span class="pre">int32</span></code></p></td>
+<td><p>Execution settings of <code class="docutils literal notranslate"><span class="pre">fixed</span></code> layers (see <a class="reference internal" href="performance_kernels.html#indexed-backends"><span class="std std-ref">Projection backends</span></a>);
+the other modes do not read them.</p></td>
+</tr>
+</tbody>
+</table>
+<p>Initialization: <code class="docutils literal notranslate"><span class="pre">dense</span></code> mode constructs all layers, then draws every weight
+with Kaiming-normal initialization (the ReLU gain, also for <code class="docutils literal notranslate"><span class="pre">leaky_relu</span></code>)
+and sets the biases to zero. <code class="docutils literal notranslate"><span class="pre">fixed</span></code> layers draw normal weights with
+standard deviation <code class="docutils literal notranslate"><span class="pre">sqrt(2</span> <span class="pre">/</span> <span class="pre">fanin)</span></code>. <code class="docutils literal notranslate"><span class="pre">topk</span></code> layers draw standard-normal
+weights and rescale each unit’s weights so that its initially selected weights
+have squared norm 2. All modes then multiply the last layer’s weights by
+<code class="docutils literal notranslate"><span class="pre">output_weight_scale</span></code>. The weights come from the global PyTorch random
+stream, which the builder does not reseed; <code class="docutils literal notranslate"><span class="pre">connectivity_seeds</span></code> fix only the
+support of <code class="docutils literal notranslate"><span class="pre">fixed</span></code> layers.</p>
+<p>The built model is a flat <code class="docutils literal notranslate"><span class="pre">nn.Sequential</span></code> (numeric checkpoint keys) that
+also forwards the weight decay, weight boosting and rewiring steps of the
+optimizer to its sparse layers. The same model can be built from Python:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">AffineMLPConfig</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.factory</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_architecture</span>
+
+<span class="n">config</span> <span class="o">=</span> <span class="n">AffineMLPConfig</span><span class="p">(</span>
+    <span class="n">dimensions</span><span class="o">=</span><span class="p">[</span><span class="mi">128</span><span class="p">,</span> <span class="mi">64</span><span class="p">,</span> <span class="mi">10</span><span class="p">],</span>
+    <span class="n">mode</span><span class="o">=</span><span class="s2">"fixed"</span><span class="p">,</span>
+    <span class="n">fanin</span><span class="o">=</span><span class="p">[</span><span class="mi">16</span><span class="p">,</span> <span class="mi">8</span><span class="p">],</span>
+    <span class="n">connectivity_seeds</span><span class="o">=</span><span class="p">[</span><span class="mi">101</span><span class="p">,</span> <span class="mi">10101</span><span class="p">],</span>
+    <span class="n">activate_output</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">model</span> <span class="o">=</span> <span class="n">get_architecture</span><span class="p">(</span><span class="s2">"affine_mlp"</span><span class="p">,</span> <span class="n">config</span><span class="p">,</span> <span class="n">input_dim</span><span class="o">=</span><span class="mi">128</span><span class="p">)</span>
+<span class="n">resolved</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">affine_mlp_config</span>  <span class="c1"># the configuration as a dictionary</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">dendritic_modeling.networks.architectures.classical.mlp.build_affine_mlp(config)</span></code>
+returns the same model. To count the parameters of Top-K models,
+<code class="docutils literal notranslate"><span class="pre">dendritic_modeling.analysis.utils.model_resources.topk_parameter_inventory(model)</span></code>
+returns the trainable parameters, the Top-K candidate weights, the parameters
+retained after Top-K selection and the buffer bytes; it counts parameters and
+does not estimate memory or speed. <code class="docutils literal notranslate"><span class="pre">topk</span></code> layers can be converted to fixed
+indexed layers for inference; see <a class="reference internal" href="model_compression.html#compact-checkpoints"><span class="std std-ref">Compact checkpoints</span></a>.</p>
+</section>
+<section id="recurrent-baselines">
+<span id="baseline-recurrent-cores"></span><h2>Recurrent baselines<a class="headerlink" href="#recurrent-baselines" title="Link to this heading"></a></h2>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">gru</span></code>, <code class="docutils literal notranslate"><span class="pre">lstm</span></code>, <code class="docutils literal notranslate"><span class="pre">vanilla_rnn</span></code> (alias <code class="docutils literal notranslate"><span class="pre">rnn</span></code>)</dt><dd><p>Standard PyTorch recurrent networks configured by
+<code class="docutils literal notranslate"><span class="pre">model.core.baseline_rnn</span></code>: <code class="docutils literal notranslate"><span class="pre">hidden_dim</span></code> (default 64), <code class="docutils literal notranslate"><span class="pre">num_layers</span></code>,
+<code class="docutils literal notranslate"><span class="pre">dropout</span></code>, <code class="docutils literal notranslate"><span class="pre">output_mode</span></code> (<code class="docutils literal notranslate"><span class="pre">last</span></code>, <code class="docutils literal notranslate"><span class="pre">mean</span></code> or <code class="docutils literal notranslate"><span class="pre">all</span></code> time steps),
+<code class="docutils literal notranslate"><span class="pre">input_projection_dims</span></code> (linear and ReLU layers before the recurrence),
+<code class="docutils literal notranslate"><span class="pre">use_layernorm</span></code> (layer normalization of the recurrence input and
+output), <code class="docutils literal notranslate"><span class="pre">init_method</span></code> (<code class="docutils literal notranslate"><span class="pre">default</span></code> or <code class="docutils literal notranslate"><span class="pre">orthogonal</span></code> recurrent
+weights), <code class="docutils literal notranslate"><span class="pre">lstm_forget_bias</span></code> and the GRU update-gate biases
+<code class="docutils literal notranslate"><span class="pre">gru_fast_update_bias</span></code>, <code class="docutils literal notranslate"><span class="pre">gru_slow_update_bias</span></code> and
+<code class="docutils literal notranslate"><span class="pre">gru_slow_fraction</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">heterogeneous_leak_ctrnn</span></code> (alias <code class="docutils literal notranslate"><span class="pre">heterogeneous_ctrnn</span></code>)</dt><dd><p>A continuous-time point-neuron E/I network with sparse indexed contacts
+and leaky channels of several time constants per output neuron,
+configured by <code class="docutils literal notranslate"><span class="pre">model.core.heterogeneous_leak_ctrnn</span></code>. <code class="docutils literal notranslate"><span class="pre">tau_values</span></code>
+lists the time constants, <code class="docutils literal notranslate"><span class="pre">owner_tau_patterns</span></code> assigns them to the
+channels of each output neuron, and the <code class="docutils literal notranslate"><span class="pre">*_contacts</span></code> fields set the
+numbers of input, recurrent and readout contacts. The class
+<code class="docutils literal notranslate"><span class="pre">HeterogeneousLeakCTRNNConfig</span></code> in
+<code class="docutils literal notranslate"><span class="pre">dendritic_modeling.networks.architectures.recurrent</span></code> checks that these
+counts agree.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">legendre_memory</span></code></dt><dd><p>The fixed linear memory of a Legendre delay network: each memory channel
+holds <code class="docutils literal notranslate"><span class="pre">memory_order</span></code> Legendre coefficients of its input over a sliding
+window of length <code class="docutils literal notranslate"><span class="pre">theta</span></code> (time step <code class="docutils literal notranslate"><span class="pre">dt</span></code>). Sparse learned contacts
+write the input into the channels and read the coefficients out. It is
+configured by <code class="docutils literal notranslate"><span class="pre">model.core.legendre_memory</span></code>; the state transition is
+fixed, not trained.</p>
+</dd>
+</dl>
+<p>The keys of these sections are checked when the model is built, and a
+misspelled one raises an error that names the section and suggests the
+closest key. <code class="docutils literal notranslate"><span class="pre">input_dim</span></code> is set from the encoder output and the cell of
+<code class="docutils literal notranslate"><span class="pre">baseline_rnn</span></code> from the core type: a written <code class="docutils literal notranslate"><span class="pre">input_dim</span></code> that differs
+from the encoder output, or a <code class="docutils literal notranslate"><span class="pre">cell_type</span></code> other than the core type’s cell,
+raises.</p>
+<p>Recurrent cores read sequences and train with
+<code class="docutils literal notranslate"><span class="pre">training.main.strategy:</span> <span class="pre">recurrent</span></code> (see <a class="reference internal" href="training_strategies.html#training-strategies"><span class="std std-ref">Training strategies</span></a>). A GRU
+baseline:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">core</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gru</span>
+<span class="w">    </span><span class="nt">baseline_rnn</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">hidden_dim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">128</span>
+<span class="w">      </span><span class="nt">num_layers</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="w">      </span><span class="nt">output_mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">last</span>
+</pre></div>
+</div>
+<p>A small heterogeneous-leak network, with two time constants per output neuron:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">core</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">heterogeneous_leak_ctrnn</span>
+<span class="w">    </span><span class="nt">heterogeneous_leak_ctrnn</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">input_projection_dims</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">3</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">n_excitatory_outputs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<span class="w">      </span><span class="nt">n_inhibitory_outputs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="w">      </span><span class="nt">channels_per_output</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
+<span class="w">      </span><span class="nt">tau_values</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">9.0</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">3.0</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">owner_tau_patterns</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">owner_count</span><span class="p">:</span><span class="w"> </span><span class="nv">3</span><span class="p p-Indicator">,</span><span class="nt"> tau_counts</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">2</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">2</span><span class="p p-Indicator">],</span><span class="nt"> excitatory_owner_count</span><span class="p">:</span><span class="w"> </span><span class="nv">2</span><span class="p p-Indicator">}</span>
+<span class="w">      </span><span class="nt">input_contacts</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30</span>
+<span class="w">      </span><span class="nt">recurrent_excitatory_contacts</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">18</span>
+<span class="w">      </span><span class="nt">recurrent_inhibitory_contacts</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">9</span>
+<span class="w">      </span><span class="nt">readout_contacts</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
+<span class="w">      </span><span class="nt">topology_seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">711</span>
+<span class="w">      </span><span class="nt">initialization_seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">919</span>
+</pre></div>
+</div>
+<p>A Legendre memory with two memory channels of order 4 for sequences of three
+input features. Each contact count lies between the larger and the product of
+the two widths it connects: <code class="docutils literal notranslate"><span class="pre">input_contacts</span></code> between the input features and
+the memory channels, <code class="docutils literal notranslate"><span class="pre">readout_contacts</span></code> between the
+<code class="docutils literal notranslate"><span class="pre">n_memory_channels</span> <span class="pre">*</span> <span class="pre">memory_order</span></code> coefficients and <code class="docutils literal notranslate"><span class="pre">output_dim</span></code>.
+<code class="docutils literal notranslate"><span class="pre">dendritic-train</span></code> sets <code class="docutils literal notranslate"><span class="pre">model.encoder.params.input_dim</span></code> from the data:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">encoder</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">identity</span>
+<span class="w">    </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">input_dim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
+<span class="w">  </span><span class="nt">core</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">legendre_memory</span>
+<span class="w">    </span><span class="nt">legendre_memory</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">output_dim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<span class="w">      </span><span class="nt">memory_order</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
+<span class="w">      </span><span class="nt">n_memory_channels</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<span class="w">      </span><span class="nt">theta</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8.0</span>
+<span class="w">      </span><span class="nt">input_contacts</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<span class="w">      </span><span class="nt">readout_contacts</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">9</span>
+</pre></div>
+</div>
+<p>The recurrent E/I cores themselves are described in
+<a class="reference internal" href="structured_ei_cores.html#recurrent-structured-cores"><span class="std std-ref">Recurrent structured cores</span></a>, <a class="reference internal" href="structured_ei_cores.html#unified-ei"><span class="std std-ref">Unified E/I core</span></a> and
+<a class="reference internal" href="population_networks.html"><span class="doc">Population networks</span></a>.</p>
+</section>
+<section id="mlp-building-blocks">
+<h2>MLP building blocks<a class="headerlink" href="#mlp-building-blocks" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">mlp</span></code> (the decoder MLP) and <code class="docutils literal notranslate"><span class="pre">effectivematchedparammlp</span></code> are building
+blocks that take flat parameters, not core types: <code class="docutils literal notranslate"><span class="pre">model.core.type</span></code> set to
+one of them raises an error that names the alternatives. For a plain MLP core
+use <code class="docutils literal notranslate"><span class="pre">affine_mlp</span></code>; for a matched control use <code class="docutils literal notranslate"><span class="pre">point_mlp</span></code>.
+<a class="reference internal" href="available_components.html#core-types"><span class="std std-ref">Core types</span></a> lists the other names of this kind.</p>
+</section>
+<section id="parameter-budget-model-families">
+<h2>Parameter-budget model families<a class="headerlink" href="#parameter-budget-model-families" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">dendritic_modeling.networks.benchmarks.parameter_budget</span></code> builds whole
+models (input encoding, hidden layers and a counted affine readout) for
+comparisons at a fixed parameter budget, from Python. <code class="docutils literal notranslate"><span class="pre">FAMILIES</span></code> lists the
+families:</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">dense</span></code></dt><dd><p>Dense hidden layers.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">sparse</span></code></dt><dd><p>Fixed-support sparse hidden layers (<code class="docutils literal notranslate"><span class="pre">contacts_e</span> <span class="pre">+</span> <span class="pre">contacts_i</span></code> inputs per
+unit).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">dendritic_signed</span></code>, <code class="docutils literal notranslate"><span class="pre">dendritic_additive</span></code>, <code class="docutils literal notranslate"><span class="pre">dendritic_shunting</span></code></dt><dd><p><code class="docutils literal notranslate"><span class="pre">ConfigurableEINetwork</span></code> trees with signed weights, or positive E/I
+conductances combined additively or by shunting.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">grouped_gated</span></code></dt><dd><p>A conventional control without dendritic dynamics: sparse gated subunits
+(as many per unit as the matching dendritic morphology has sites), group
+RMS normalization and a learned sum.</p>
+</dd>
+</dl>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.benchmarks.parameter_budget</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">build_model</span><span class="p">,</span>
+    <span class="n">match_parameter_budget</span><span class="p">,</span>
+    <span class="n">model_report</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">spec</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">"family"</span><span class="p">:</span> <span class="s2">"dendritic_shunting"</span><span class="p">,</span>
+    <span class="s2">"input_dim"</span><span class="p">:</span> <span class="mi">784</span><span class="p">,</span>
+    <span class="s2">"output_dim"</span><span class="p">:</span> <span class="mi">10</span><span class="p">,</span>
+    <span class="s2">"branch_factors"</span><span class="p">:</span> <span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span>
+    <span class="s2">"contacts_e"</span><span class="p">:</span> <span class="mi">8</span><span class="p">,</span>
+    <span class="s2">"contacts_i"</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+<span class="p">}</span>
+<span class="n">model</span> <span class="o">=</span> <span class="n">build_model</span><span class="p">({</span><span class="o">**</span><span class="n">spec</span><span class="p">,</span> <span class="s2">"width"</span><span class="p">:</span> <span class="mi">64</span><span class="p">})</span>
+<span class="n">report</span> <span class="o">=</span> <span class="n">model_report</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>  <span class="c1"># counted parameters, storage, topology hash</span>
+<span class="n">matched_spec</span><span class="p">,</span> <span class="n">matched_report</span> <span class="o">=</span> <span class="n">match_parameter_budget</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="mi">100_000</span><span class="p">)</span>
+<span class="n">matched_model</span> <span class="o">=</span> <span class="n">build_model</span><span class="p">(</span><span class="n">matched_spec</span><span class="p">)</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">build_model</span></code> seeds its own random stream (<code class="docutils literal notranslate"><span class="pre">seed</span></code> for parameters,
+<code class="docutils literal notranslate"><span class="pre">topology_seed</span></code>, default <code class="docutils literal notranslate"><span class="pre">seed</span></code>, for the fixed support) and leaves the
+caller’s generator untouched. Unknown spec keys raise. Further fields:
+<code class="docutils literal notranslate"><span class="pre">width</span></code> (exposed hidden units), <code class="docutils literal notranslate"><span class="pre">network_depth</span></code>, <code class="docutils literal notranslate"><span class="pre">activation</span></code> (<code class="docutils literal notranslate"><span class="pre">relu</span></code>,
+<code class="docutils literal notranslate"><span class="pre">softplus</span></code>, <code class="docutils literal notranslate"><span class="pre">sigmoid</span></code>, or the learned gates <code class="docutils literal notranslate"><span class="pre">param_relu</span></code> and
+<code class="docutils literal notranslate"><span class="pre">param_tanh</span></code>, which need <code class="docutils literal notranslate"><span class="pre">activation_init:</span> <span class="pre">{gain,</span> <span class="pre">threshold}</span></code>),
+<code class="docutils literal notranslate"><span class="pre">input_encoding</span></code> (<code class="docutils literal notranslate"><span class="pre">signed_split</span></code>, <code class="docutils literal notranslate"><span class="pre">nonnegative</span></code> or <code class="docutils literal notranslate"><span class="pre">raw</span></code>; positive
+E/I families reject <code class="docutils literal notranslate"><span class="pre">raw</span></code>), <code class="docutils literal notranslate"><span class="pre">initialization</span></code> (<code class="docutils literal notranslate"><span class="pre">fan_in</span></code>, the default, or
+<code class="docutils literal notranslate"><span class="pre">legacy_xavier</span></code> for Xavier-normal initialization), <code class="docutils literal notranslate"><span class="pre">clip_contacts</span></code> and
+<code class="docutils literal notranslate"><span class="pre">projection_backend</span></code>. An optional <code class="docutils literal notranslate"><span class="pre">readout</span></code> selects a signed dense,
+<code class="docutils literal notranslate"><span class="pre">low_rank</span></code> (<code class="docutils literal notranslate"><span class="pre">rank</span></code>) or <code class="docutils literal notranslate"><span class="pre">indexed</span></code> (<code class="docutils literal notranslate"><span class="pre">topk</span></code>) output allocation.</p>
+<p><code class="docutils literal notranslate"><span class="pre">match_parameter_budget</span></code> searches the integer <code class="docutils literal notranslate"><span class="pre">width</span></code> whose whole-model
+parameter count is within <code class="docutils literal notranslate"><span class="pre">tolerance</span></code> (default 2 %) of the target and
+raises when no width qualifies; it never pads with inert parameters. Matching
+parameters does not equalize compute or activation memory.</p>
+</section>
+<section id="signed-readouts">
+<h2>Signed readouts<a class="headerlink" href="#signed-readouts" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">dendritic_modeling.networks.utils.readouts.make_signed_readout(input_dim,</span>
+<span class="pre">output_dim,</span> <span class="pre">*,</span> <span class="pre">rank=None,</span> <span class="pre">topk=None,</span> <span class="pre">bias=False,</span> <span class="pre">init_std=0.02,</span> <span class="pre">seed=None,</span>
+<span class="pre">projection_backend=&quot;eager&quot;)</span></code> returns a dense <code class="docutils literal notranslate"><span class="pre">nn.Linear</span></code> (no budget), two
+dense low-rank factors (<code class="docutils literal notranslate"><span class="pre">rank</span></code>), or an <code class="docutils literal notranslate"><span class="pre">IndexedSparseLinear</span></code> with fixed
+support of <code class="docutils literal notranslate"><span class="pre">topk</span></code> inputs per output. <code class="docutils literal notranslate"><span class="pre">rank</span></code> and <code class="docutils literal notranslate"><span class="pre">topk</span></code> are mutually
+exclusive, and indexed readouts take no bias.</p>
+</section>
+<section id="readout-initialization">
+<h2>Readout initialization<a class="headerlink" href="#readout-initialization" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">dendritic_modeling.training.readout_initialization.initialize_readout(model,</span>
+<span class="pre">training_inputs,</span> <span class="pre">spec)</span></code> optionally rescales an existing <code class="docutils literal notranslate"><span class="pre">nn.Linear</span></code>
+<code class="docutils literal notranslate"><span class="pre">model.readout</span></code> before training:</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">{&quot;mode&quot;:</span> <span class="pre">&quot;preserve&quot;}</span></code></dt><dd><p>Leaves the model unchanged.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">{&quot;mode&quot;:</span> <span class="pre">&quot;train_batch_rms&quot;,</span> <span class="pre">&quot;target_rms&quot;:</span> <span class="pre">r,</span> <span class="pre">&quot;examples&quot;:</span> <span class="pre">n}</span></code></dt><dd><p>Multiplies the readout weights and bias by one factor so the logits of the
+first <code class="docutils literal notranslate"><span class="pre">n</span></code> training inputs have root-mean-square <code class="docutils literal notranslate"><span class="pre">r</span></code>. Only training
+inputs are used, never labels or validation data; the hidden state is
+verified unchanged by hash, and any failure restores the original state.</p>
+</dd>
+</dl>
+<p>It returns a record of the calibration (initial and achieved RMS, scale,
+examples used, hashes) to store with the run: it changes the optimization
+starting point, not the model class or its parameter count.</p>
+</section>
+<section id="numerical-utilities">
+<h2>Numerical utilities<a class="headerlink" href="#numerical-utilities" title="Link to this heading"></a></h2>
+<section id="streaming-covariance">
+<h3>Streaming covariance<a class="headerlink" href="#streaming-covariance" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">dendritic_modeling.analysis.utils.streaming_covariance.StreamingCovariance(n_features)</span></code>
+merges the means and centered second moments of successive
+<code class="docutils literal notranslate"><span class="pre">(observations,</span> <span class="pre">features)</span></code> batches in float64 without retaining
+observations. <code class="docutils literal notranslate"><span class="pre">covariance</span></code> returns the sample covariance (<code class="docutils literal notranslate"><span class="pre">n</span> <span class="pre">-</span> <span class="pre">1</span></code>
+normalization) once two observations have been seen.</p>
+</section>
+<section id="passive-branch-and-soma-equilibrium">
+<h3>Passive branch and soma equilibrium<a class="headerlink" href="#passive-branch-and-soma-equilibrium" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.passive_equilibrium.passive_star_soma_voltage(excitation,</span>
+<span class="pre">membrane_conductance,</span> <span class="pre">axial_conductance,</span> <span class="pre">soma_leak=1.0)</span></code> returns the
+steady-state soma voltage of independent passive stars: branches with input
+current <code class="docutils literal notranslate"><span class="pre">E</span></code>, membrane load <code class="docutils literal notranslate"><span class="pre">h</span> <span class="pre">&gt;</span> <span class="pre">0</span></code> and axial coupling <code class="docutils literal notranslate"><span class="pre">g</span> <span class="pre">&gt;=</span> <span class="pre">0</span></code> around a
+soma with leak to reversal zero. Each branch settles at</p>
+<div class="math notranslate nohighlight">
+\[V_b = \frac{E + g\,s}{h + g},\]</div>
+<p>where <span class="math notranslate nohighlight">\(s\)</span> is the soma voltage, and the final dimension indexes the
+branches. The expression keeps a positive denominator, so it stays accurate at
+large <span class="math notranslate nohighlight">\(g\)</span>, and it is differentiable.</p>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="conductance_options.html" class="btn btn-neutral float-left" title="Conductance options" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="configuration_guide.html" class="btn btn-neutral float-right" title="Configuration guide" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024-2026, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

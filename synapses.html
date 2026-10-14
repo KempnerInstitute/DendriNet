@@ -1,0 +1,1151 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Synapses and connectivity &mdash; DendriNet v0.2.0</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=938c9ccc"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Population networks" href="population_networks.html" />
+    <link rel="prev" title="Dendritic neurons" href="dendritic_neurons.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            DendriNet
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Example configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Building models</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="network_architectures.html">Model architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dendritic_neurons.html">Dendritic neurons</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Synapses and connectivity</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#configuration-keys">Configuration keys</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#top-k-synapses">Top-K synapses</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sparse-synapse-types">Sparse synapse types</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#stochastic-top-k">Stochastic Top-K</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#variance-top-k">Variance Top-K</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#dense-to-sparse-pruning">Dense-to-sparse pruning</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#deepst-rewiring">DeepST rewiring</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#indexed-synapses">Indexed synapses</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#weight-transforms">Weight transforms</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#synapse-initialization">Synapse initialization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#blocklinear">BlockLinear</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#structured-connectivity">Structured connectivity</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#methods">Methods</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#spatial-morphology">Spatial morphology</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#index-manifests">Index manifests</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="population_networks.html">Population networks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="temporal_dynamics.html">Temporal dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="structured_ei_cores.html">Structured E/I cores</a></li>
+<li class="toctree-l1"><a class="reference internal" href="conductance_options.html">Conductance options</a></li>
+<li class="toctree-l1"><a class="reference internal" href="comparison_models.html">Baselines and comparison models</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Configuration</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="configuration_guide.html">Configuration guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config_reference.html">Annotated reference configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="training_strategies.html">Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="distributed_training.html">Distributed training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="performance_kernels.html">Sparse execution and performance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Data and analysis</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="datasets.html">Datasets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="analysis.html">Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="analyzers.html">Analyzer reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="checkpoint_analysis.html">Analyzing saved checkpoints</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Running experiments</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="runs_and_outputs.html">Runs and outputs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sweeps.html">Parameter sweeps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="model_compression.html">Compact checkpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="project_provenance.html">Project provenance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="available_components.html">Component catalogue</a></li>
+<li class="toctree-l1"><a class="reference internal" href="options_reference.html">Options reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cli_reference.html">Command-line reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api_reference.html">Python API</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="extending.html">Extending DendriNet</a></li>
+<li class="toctree-l1"><a class="reference internal" href="engineering_architecture.html">Engineering architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">DendriNet</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Synapses and connectivity</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/synapses.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="synapses-and-connectivity">
+<h1>Synapses and connectivity<a class="headerlink" href="#synapses-and-connectivity" title="Link to this heading"></a></h1>
+<p>Every compartment of a dendritic neuron (<a class="reference internal" href="dendritic_neurons.html"><span class="doc">Dendritic neurons</span></a>) reads its
+inputs through sparse synapse banks: one bank per input pathway, in which each
+compartment keeps at most <code class="docutils literal notranslate"><span class="pre">K</span></code> active contacts. This page describes the
+default Top-K synapses, the other sparse synapse types, the weight transforms
+that keep synaptic weights positive, the initializers of the synaptic weights
+and child couplings, the <code class="docutils literal notranslate"><span class="pre">BlockLinear</span></code> coupling between a branch and its
+children, and structured connectivity, which restricts the inputs a
+compartment may contact.</p>
+<nav class="contents local" id="on-this-page">
+<p class="topic-title">On this page</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#configuration-keys" id="id5">Configuration keys</a></p></li>
+<li><p><a class="reference internal" href="#top-k-synapses" id="id6">Top-K synapses</a></p></li>
+<li><p><a class="reference internal" href="#sparse-synapse-types" id="id7">Sparse synapse types</a></p></li>
+<li><p><a class="reference internal" href="#weight-transforms" id="id8">Weight transforms</a></p></li>
+<li><p><a class="reference internal" href="#synapse-initialization" id="id9">Synapse initialization</a></p></li>
+<li><p><a class="reference internal" href="#blocklinear" id="id10">BlockLinear</a></p></li>
+<li><p><a class="reference internal" href="#structured-connectivity" id="id11">Structured connectivity</a></p></li>
+</ul>
+</nav>
+<section id="configuration-keys">
+<span id="synapse-options"></span><h2><a class="toc-backref" href="#id5" role="doc-backlink">Configuration keys</a><a class="headerlink" href="#configuration-keys" title="Link to this heading"></a></h2>
+<p>Structured E/I cores read the synapse options from the <code class="docutils literal notranslate"><span class="pre">model.core</span></code>
+sections <code class="docutils literal notranslate"><span class="pre">connectivity</span></code>, <code class="docutils literal notranslate"><span class="pre">sparsity</span></code>, <code class="docutils literal notranslate"><span class="pre">morphology</span></code>, <code class="docutils literal notranslate"><span class="pre">blocklinear</span></code> and
+<code class="docutils literal notranslate"><span class="pre">implementation</span></code>. Population networks read them as population fields, in
+<code class="docutils literal notranslate"><span class="pre">model.core.population_network.layers[].population_defaults</span></code> or a
+population’s <code class="docutils literal notranslate"><span class="pre">population</span></code> block (unified E/I cores use the same fields in
+<code class="docutils literal notranslate"><span class="pre">model.core.unified_ei.layers[].excitatory</span></code> and <code class="docutils literal notranslate"><span class="pre">.inhibitory</span></code>):</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 40.0%" />
+<col style="width: 34.0%" />
+<col style="width: 26.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Structured E/I core (<code class="docutils literal notranslate"><span class="pre">model.core.</span></code>)</p></th>
+<th class="head"><p>Population field</p></th>
+<th class="head"><p>Default</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">connectivity.ee_synapses_per_branch_per_layer</span></code> (and <code class="docutils literal notranslate"><span class="pre">ie</span></code>, <code class="docutils literal notranslate"><span class="pre">ei</span></code>,
+<code class="docutils literal notranslate"><span class="pre">ii</span></code>, <code class="docutils literal notranslate"><span class="pre">rec_*_synapses_per_branch</span></code>)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">ff_excitatory_synapses</span></code>, <code class="docutils literal notranslate"><span class="pre">ff_inhibitory_synapses</span></code>,
+<code class="docutils literal notranslate"><span class="pre">rec_excitatory_synapses</span></code>, <code class="docutils literal notranslate"><span class="pre">rec_inhibitory_synapses</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[40]</span></code>, <code class="docutils literal notranslate"><span class="pre">[10]</span></code>, <code class="docutils literal notranslate"><span class="pre">[0]</span></code>, <code class="docutils literal notranslate"><span class="pre">[0]</span></code>, <code class="docutils literal notranslate"><span class="pre">[0]</span></code>; <code class="docutils literal notranslate"><span class="pre">8</span></code>, <code class="docutils literal notranslate"><span class="pre">4</span></code>, <code class="docutils literal notranslate"><span class="pre">0</span></code>, <code class="docutils literal notranslate"><span class="pre">0</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">sparsity.type</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">topk_type</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">standard</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">sparsity.noise_level</span></code>, <code class="docutils literal notranslate"><span class="pre">weight_norm_order</span></code>, <code class="docutils literal notranslate"><span class="pre">gamma</span></code>,
+<code class="docutils literal notranslate"><span class="pre">temperature</span></code>, <code class="docutils literal notranslate"><span class="pre">ultrafast</span></code>, <code class="docutils literal notranslate"><span class="pre">variance_score</span></code>,
+<code class="docutils literal notranslate"><span class="pre">gradient_scaling</span></code>, <code class="docutils literal notranslate"><span class="pre">init_method</span></code></p></td>
+<td><p>the same names with the prefix <code class="docutils literal notranslate"><span class="pre">topk_</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">0.0</span></code>, unset, <code class="docutils literal notranslate"><span class="pre">1.0</span></code>, <code class="docutils literal notranslate"><span class="pre">0.5</span></code>, <code class="docutils literal notranslate"><span class="pre">true</span></code>, <code class="docutils literal notranslate"><span class="pre">absolute</span></code>, <code class="docutils literal notranslate"><span class="pre">none</span></code>,
+<code class="docutils literal notranslate"><span class="pre">xavier_normal</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">sparsity.dense_to_sparse.&lt;key&gt;</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">dense_to_sparse_&lt;key&gt;</span></code></p></td>
+<td><p>see <a class="reference internal" href="#synapse-dense-to-sparse"><span class="std std-ref">Dense-to-sparse pruning</span></a></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">sparsity.deepst.&lt;key&gt;</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&lt;key&gt;</span></code> without a prefix (<code class="docutils literal notranslate"><span class="pre">rewiring_mode</span></code>, <code class="docutils literal notranslate"><span class="pre">sigma</span></code>, …)</p></td>
+<td><p>see <a class="reference internal" href="#synapse-deepst"><span class="std std-ref">DeepST rewiring</span></a></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">sparsity.indexed.seed</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">indexed_seed</span></code></p></td>
+<td><p>filled by training</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">sparsity.indexed.&lt;key&gt;</span></code> (<code class="docutils literal notranslate"><span class="pre">candidate_size</span></code>, <code class="docutils literal notranslate"><span class="pre">selection</span></code>,
+<code class="docutils literal notranslate"><span class="pre">rewire_*</span></code> and the runtime options)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">indexed_&lt;key&gt;</span></code></p></td>
+<td><p>see <a class="reference internal" href="#synapse-indexed"><span class="std std-ref">Indexed synapses</span></a></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">sparsity.indexed.release_&lt;key&gt;</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">release_&lt;key&gt;</span></code></p></td>
+<td><p>see <a class="reference internal" href="conductance_options.html#conductance-options"><span class="std std-ref">Conductance options</span></a></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">morphology.weight_transform</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">weight_transform</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">softplus</span></code> (structured), <code class="docutils literal notranslate"><span class="pre">exp</span></code> (population)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">morphology.dbl_init_method</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">dbl_init_method</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">analytical_expectation</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">implementation.adaptive_initialization</span></code>,
+<code class="docutils literal notranslate"><span class="pre">adaptive_initialization_policy</span></code>, <code class="docutils literal notranslate"><span class="pre">adaptive_target_conductance</span></code>,
+<code class="docutils literal notranslate"><span class="pre">initial_child_conductance</span></code>, <code class="docutils literal notranslate"><span class="pre">initial_conductance_scale</span></code>,
+<code class="docutils literal notranslate"><span class="pre">initial_child_conductance_log_sd</span></code></p></td>
+<td><p>the same names</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">true</span></code>, <code class="docutils literal notranslate"><span class="pre">preserve_shunting_center</span></code>, <code class="docutils literal notranslate"><span class="pre">5.0</span></code>, <code class="docutils literal notranslate"><span class="pre">1.0</span></code>, <code class="docutils literal notranslate"><span class="pre">1.0</span></code>,
+<code class="docutils literal notranslate"><span class="pre">0.0</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">blocklinear.efficient</span></code>, <code class="docutils literal notranslate"><span class="pre">blocklinear.gradient_scaling</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">efficient_blocklinear</span></code>, <code class="docutils literal notranslate"><span class="pre">blocklinear_gradient_scaling</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code>, <code class="docutils literal notranslate"><span class="pre">none</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">connectivity.structured</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">structured_connectivity</span></code></p></td>
+<td><p>disabled</p></td>
+</tr>
+</tbody>
+</table>
+<p>In a structured E/I core the four feedforward counts are named by source and
+target: <code class="docutils literal notranslate"><span class="pre">ee</span></code> (excitatory input onto excitatory cells), <code class="docutils literal notranslate"><span class="pre">ie</span></code> (inhibitory
+input onto excitatory cells), <code class="docutils literal notranslate"><span class="pre">ei</span></code> (excitatory input onto inhibitory cells)
+and <code class="docutils literal notranslate"><span class="pre">ii</span></code> (inhibitory input onto inhibitory cells), with one entry per network
+layer. Every bank of a core or population uses the same synapse type. When a
+configuration leaves them unset, training fills <code class="docutils literal notranslate"><span class="pre">sparsity.indexed.seed</span></code> and
+the population <code class="docutils literal notranslate"><span class="pre">indexed_seed</span></code> from <code class="docutils literal notranslate"><span class="pre">experiment.topology_seed</span></code>
+(<a class="reference internal" href="configuration_guide.html#random-seeds"><span class="std std-ref">Random seeds and reproducibility flags</span></a>).</p>
+</section>
+<section id="top-k-synapses">
+<span id="topk-linear"></span><h2><a class="toc-backref" href="#id6" role="doc-backlink">Top-K synapses</a><a class="headerlink" href="#top-k-synapses" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">TopKLinear</span></code>, the <code class="docutils literal notranslate"><span class="pre">standard</span></code> synapse type, stores a dense trainable matrix
+of raw parameters <span class="math notranslate nohighlight">\(P\)</span> (<code class="docutils literal notranslate"><span class="pre">pre_w</span></code>) with one row per compartment and one
+column per input. On every forward pass it computes the weights
+<span class="math notranslate nohighlight">\(W = \phi(P)\)</span> with the weight transform <span class="math notranslate nohighlight">\(\phi\)</span>
+(<a class="reference internal" href="#weight-transforms"><span class="std std-ref">Weight transforms</span></a>), keeps the <code class="docutils literal notranslate"><span class="pre">K</span></code> largest raw parameters of each row
+(largest magnitudes for signed <code class="docutils literal notranslate"><span class="pre">identity</span></code> weights) and returns
+<span class="math notranslate nohighlight">\(y = x\,(M \odot W)^\top\)</span> for the selection mask <span class="math notranslate nohighlight">\(M\)</span>. Options:</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">K</span></code></dt><dd><p>Active synapses per compartment: the synapse count of the pathway. A count
+larger than the number of inputs is reduced to the number of inputs. A
+compartment has fewer active synapses when a connectivity mask allows
+fewer inputs.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">noise_level</span></code> (default <code class="docutils literal notranslate"><span class="pre">0.0</span></code>)</dt><dd><p>Standard deviation of Gaussian noise added to the raw parameters before the
+selection, in training mode only. Evaluation always uses the deterministic
+selection.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">weight_norm_order</span></code> (default unset)</dt><dd><p>When set to <code class="docutils literal notranslate"><span class="pre">p</span></code>, every row of the selected weights is divided by its
+L<sub>p</sub> norm.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">gamma</span></code> (default <code class="docutils literal notranslate"><span class="pre">1.0</span></code>)</dt><dd><p>Multiplies the normalized rows of the inhibitory banks (excitatory banks
+use <code class="docutils literal notranslate"><span class="pre">1</span></code>); it has an effect only together with <code class="docutils literal notranslate"><span class="pre">weight_norm_order</span></code>.</p>
+</dd>
+</dl>
+<p>Because the mask is applied to a dense matrix, memory and compute grow with
+the number of inputs, not with <code class="docutils literal notranslate"><span class="pre">K</span></code>; the indexed types
+(<a class="reference internal" href="#synapse-indexed"><span class="std std-ref">Indexed synapses</span></a>) store only the active contacts. Unselected synapses
+receive no gradient. During training a maintenance step multiplies the active
+weights by <code class="docutils literal notranslate"><span class="pre">1</span> <span class="pre">-</span> <span class="pre">lr</span> <span class="pre">*</span> <span class="pre">training.main.common.synapse_decay_rate</span></code> before every
+optimizer step (<code class="docutils literal notranslate"><span class="pre">lr</span></code> is the learning rate of their parameter group;
+<code class="docutils literal notranslate"><span class="pre">synapse_decay_rate</span></code> defaults to <code class="docutils literal notranslate"><span class="pre">0.01</span></code>), and <code class="docutils literal notranslate"><span class="pre">weight_boosting:</span> <span class="pre">true</span></code>
+multiplies the unselected candidates by <code class="docutils literal notranslate"><span class="pre">1</span> <span class="pre">+</span> <span class="pre">lr</span> <span class="pre">*</span> <span class="pre">synapse_decay_rate</span></code>, so
+the selected set changes when active weights fall below unselected ones.
+<a class="reference internal" href="training_strategies.html"><span class="doc">Training</span></a> describes this maintenance step for every synapse
+type. The FSDP entry point does not run it and rejects the rewiring types
+(<a class="reference internal" href="distributed_training.html#distributed-training"><span class="std std-ref">Distributed training</span></a>).</p>
+<p><code class="docutils literal notranslate"><span class="pre">TopKLinear(in_features,</span> <span class="pre">out_features,</span> <span class="pre">K,</span> <span class="pre">init_method=&quot;xavier_normal&quot;,</span>
+<span class="pre">noise_level=0.0,</span> <span class="pre">weight_transform=&quot;exp&quot;,</span> <span class="pre">weight_norm_order=None,</span> <span class="pre">gamma=1.0,</span>
+<span class="pre">connection_mask=None)</span></code> is exported from <code class="docutils literal notranslate"><span class="pre">dendritic_modeling.networks</span></code>;
+<code class="docutils literal notranslate"><span class="pre">weight_mask()</span></code> returns the current selection and <code class="docutils literal notranslate"><span class="pre">pruned_weight()</span></code> the
+selected weights.</p>
+</section>
+<section id="sparse-synapse-types">
+<span id="synapse-variants"></span><h2><a class="toc-backref" href="#id7" role="doc-backlink">Sparse synapse types</a><a class="headerlink" href="#sparse-synapse-types" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">model.core.sparsity.type</span></code> (population field <code class="docutils literal notranslate"><span class="pre">topk_type</span></code>) selects the
+sparse layer of every synapse bank. The name is not checked when the
+configuration loads; an unknown name raises when the model is built, listing
+the registered types.</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 19.0%" />
+<col style="width: 23.0%" />
+<col style="width: 33.0%" />
+<col style="width: 25.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Type (aliases)</p></th>
+<th class="head"><p>Stores per bank</p></th>
+<th class="head"><p>Selection and changes during training</p></th>
+<th class="head"><p>Options read</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">standard</span></code> (<code class="docutils literal notranslate"><span class="pre">topk</span></code>)</p></td>
+<td><p>dense raw parameters <code class="docutils literal notranslate"><span class="pre">[out,</span> <span class="pre">in]</span></code></p></td>
+<td><p>Top-K of the raw parameters, recomputed every forward pass</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">noise_level</span></code>, <code class="docutils literal notranslate"><span class="pre">weight_norm_order</span></code>, <code class="docutils literal notranslate"><span class="pre">gamma</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">stochastic</span></code></p></td>
+<td><p>as <code class="docutils literal notranslate"><span class="pre">standard</span></code></p></td>
+<td><p>sampled selection in training, deterministic Top-K in evaluation</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">temperature</span></code>, <code class="docutils literal notranslate"><span class="pre">ultrafast</span></code>, <code class="docutils literal notranslate"><span class="pre">noise_level</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">variance</span></code></p></td>
+<td><p>as <code class="docutils literal notranslate"><span class="pre">standard</span></code>, plus running input moments <code class="docutils literal notranslate"><span class="pre">[in]</span></code></p></td>
+<td><p>Top-K of the transformed weight times an input statistic</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">variance_score</span></code>, <code class="docutils literal notranslate"><span class="pre">noise_level</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">dense_to_sparse</span></code> (<code class="docutils literal notranslate"><span class="pre">annealed_topk</span></code>, <code class="docutils literal notranslate"><span class="pre">dense-to-sparse</span></code>,
+<code class="docutils literal notranslate"><span class="pre">dense_to_sparse_topk</span></code>, <code class="docutils literal notranslate"><span class="pre">annealed-topk</span></code>)</p></td>
+<td><p>as <code class="docutils literal notranslate"><span class="pre">standard</span></code>, plus a schedule step and a frozen mask</p></td>
+<td><p>the number of active synapses anneals from a dense start to <code class="docutils literal notranslate"><span class="pre">K</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">sparsity.dense_to_sparse.*</span></code>, <code class="docutils literal notranslate"><span class="pre">noise_level</span></code>,
+<code class="docutils literal notranslate"><span class="pre">weight_norm_order</span></code>, <code class="docutils literal notranslate"><span class="pre">gamma</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">deepst</span></code></p></td>
+<td><p>dense raw parameters and a Boolean mask <code class="docutils literal notranslate"><span class="pre">[out,</span> <span class="pre">in]</span></code></p></td>
+<td><p>fixed budget; weak contacts are pruned and regrown at random</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">sparsity.deepst.*</span></code> (except the <code class="docutils literal notranslate"><span class="pre">credit_*</span></code> keys)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">credit_deepst</span></code></p></td>
+<td><p>as <code class="docutils literal notranslate"><span class="pre">deepst</span></code>, plus credit traces</p></td>
+<td><p>swaps weak contacts for candidates that the <code class="docutils literal notranslate"><span class="pre">local_ca</span></code> gradient
+predicts to be better</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">sparsity.deepst.*</span></code>; requires <code class="docutils literal notranslate"><span class="pre">rewiring_mode:</span> <span class="pre">constant_branch</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">indexed</span></code></p></td>
+<td><p>weights and input indices <code class="docutils literal notranslate"><span class="pre">[out,</span> <span class="pre">K]</span></code></p></td>
+<td><p>fixed contacts; only the weights train</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">weight_norm_order</span></code>, <code class="docutils literal notranslate"><span class="pre">gamma</span></code>, seed, runtime options</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">indexed_dynamic</span></code> (<code class="docutils literal notranslate"><span class="pre">indexed-dynamic</span></code>, <code class="docutils literal notranslate"><span class="pre">indexed_dynamic_topk</span></code>)</p></td>
+<td><p>weights and indices of <code class="docutils literal notranslate"><span class="pre">C</span></code> candidates <code class="docutils literal notranslate"><span class="pre">[out,</span> <span class="pre">C]</span></code></p></td>
+<td><p>Top-K (or sampled) selection among the fixed candidates</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">candidate_size</span></code>, <code class="docutils literal notranslate"><span class="pre">selection</span></code>, <code class="docutils literal notranslate"><span class="pre">temperature</span></code>, <code class="docutils literal notranslate"><span class="pre">ultrafast</span></code>,
+<code class="docutils literal notranslate"><span class="pre">noise_level</span></code>, <code class="docutils literal notranslate"><span class="pre">weight_norm_order</span></code>, <code class="docutils literal notranslate"><span class="pre">gamma</span></code>, seed, runtime
+options</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">indexed_rewire</span></code> (<code class="docutils literal notranslate"><span class="pre">indexed-rewire</span></code>, <code class="docutils literal notranslate"><span class="pre">indexed_rewire_topk</span></code>)</p></td>
+<td><p>as <code class="docutils literal notranslate"><span class="pre">indexed</span></code>, plus a rewiring step and seed</p></td>
+<td><p>periodically moves the weakest contacts of each row to new inputs</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">rewire_frequency</span></code>, <code class="docutils literal notranslate"><span class="pre">rewire_quantile</span></code>, <code class="docutils literal notranslate"><span class="pre">rewire_until_step</span></code>, as
+<code class="docutils literal notranslate"><span class="pre">indexed</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">indexed_release</span></code></p></td>
+<td><p>as <code class="docutils literal notranslate"><span class="pre">indexed</span></code>, plus a contact-impact average and contact ages
+<code class="docutils literal notranslate"><span class="pre">[out,</span> <span class="pre">K]</span></code></p></td>
+<td><p>fixed contacts with probabilistic release in training; contacts change
+through the impact rewiring controller</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">release_*</span></code>, as <code class="docutils literal notranslate"><span class="pre">indexed</span></code>; see <a class="reference internal" href="conductance_options.html#conductance-options"><span class="std std-ref">Conductance options</span></a></p></td>
+</tr>
+</tbody>
+</table>
+<p>All types read <code class="docutils literal notranslate"><span class="pre">K</span></code> (except <code class="docutils literal notranslate"><span class="pre">deepst</span></code> without <code class="docutils literal notranslate"><span class="pre">constant_branch</span></code>, below),
+the weight transform and the connectivity masks of <a class="reference internal" href="#structured-connectivity"><span class="std std-ref">Structured connectivity</span></a>.
+Building raises when an option is set that the type does not apply:
+<code class="docutils literal notranslate"><span class="pre">noise_level</span></code> for <code class="docutils literal notranslate"><span class="pre">indexed</span></code>, <code class="docutils literal notranslate"><span class="pre">indexed_rewire</span></code>, <code class="docutils literal notranslate"><span class="pre">indexed_release</span></code>,
+<code class="docutils literal notranslate"><span class="pre">deepst</span></code> and <code class="docutils literal notranslate"><span class="pre">credit_deepst</span></code>; <code class="docutils literal notranslate"><span class="pre">weight_norm_order</span></code> or a <code class="docutils literal notranslate"><span class="pre">gamma</span></code> other
+than <code class="docutils literal notranslate"><span class="pre">1</span></code> for <code class="docutils literal notranslate"><span class="pre">stochastic</span></code>, <code class="docutils literal notranslate"><span class="pre">variance</span></code>, <code class="docutils literal notranslate"><span class="pre">deepst</span></code> and <code class="docutils literal notranslate"><span class="pre">credit_deepst</span></code>;
+<code class="docutils literal notranslate"><span class="pre">variance_score:</span> <span class="pre">relative</span></code> for any type but <code class="docutils literal notranslate"><span class="pre">variance</span></code>; and a
+<code class="docutils literal notranslate"><span class="pre">deepst.init_method</span></code> other than the default or <code class="docutils literal notranslate"><span class="pre">null</span></code>. The other
+type-specific options (<code class="docutils literal notranslate"><span class="pre">temperature</span></code>, <code class="docutils literal notranslate"><span class="pre">ultrafast</span></code>, the <code class="docutils literal notranslate"><span class="pre">indexed</span></code>,
+<code class="docutils literal notranslate"><span class="pre">dense_to_sparse</span></code> and <code class="docutils literal notranslate"><span class="pre">deepst</span></code> blocks and the release options) are not
+checked: a type that does not read them ignores them.
+<code class="docutils literal notranslate"><span class="pre">register_sparse_layer</span></code> adds a type (<a class="reference internal" href="available_components.html#extension-registries"><span class="std std-ref">Extension registries</span></a>), and
+<code class="docutils literal notranslate"><span class="pre">get_available_sparse_types()</span></code> lists the registered names (both in
+<code class="docutils literal notranslate"><span class="pre">dendritic_modeling.networks.architectures.excitation_inhibition.synapse</span></code>).</p>
+<section id="stochastic-top-k">
+<h3>Stochastic Top-K<a class="headerlink" href="#stochastic-top-k" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">stochastic</span></code> samples the active set in training mode. With
+<code class="docutils literal notranslate"><span class="pre">ultrafast:</span> <span class="pre">true</span></code> (the default) it adds Gaussian noise with standard
+deviation <code class="docutils literal notranslate"><span class="pre">max(0.01,</span> <span class="pre">temperature)</span> <span class="pre">*</span> <span class="pre">(1</span> <span class="pre">+</span> <span class="pre">noise_level)</span></code> to the raw parameters
+and keeps the <code class="docutils literal notranslate"><span class="pre">K</span></code> largest. With <code class="docutils literal notranslate"><span class="pre">ultrafast:</span> <span class="pre">false</span></code> it ranks the transformed
+weights and keeps each input with probability
+<span class="math notranslate nohighlight">\(\sigma((K - r) / (K\,\tau))\)</span> for rank <span class="math notranslate nohighlight">\(r\)</span> and temperature
+<span class="math notranslate nohighlight">\(\tau\)</span>; a row with fewer than <code class="docutils literal notranslate"><span class="pre">K/2</span></code> sampled contacts adds its <code class="docutils literal notranslate"><span class="pre">K</span></code>
+strongest inputs, a row with more than <code class="docutils literal notranslate"><span class="pre">2K</span></code> keeps its <code class="docutils literal notranslate"><span class="pre">K</span></code> strongest, and an
+empty row keeps its strongest input. A <code class="docutils literal notranslate"><span class="pre">temperature</span></code> of <code class="docutils literal notranslate"><span class="pre">0</span></code> with
+<code class="docutils literal notranslate"><span class="pre">ultrafast:</span> <span class="pre">false</span></code> raises, because it would select exactly the standard
+Top-K. Evaluation uses the deterministic Top-K.</p>
+</section>
+<section id="variance-top-k">
+<h3>Variance Top-K<a class="headerlink" href="#variance-top-k" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">variance</span></code> tracks the first and second moments of every input with an
+exponential moving average (momentum <code class="docutils literal notranslate"><span class="pre">0.9</span></code>) during training forward passes
+and ranks contacts by the transformed weight (its magnitude for <code class="docutils literal notranslate"><span class="pre">identity</span></code>
+weights) times an input score. <code class="docutils literal notranslate"><span class="pre">variance_score:</span> <span class="pre">absolute</span></code> (default) uses the
+input variance; <code class="docutils literal notranslate"><span class="pre">relative</span></code> uses the scale-free <span class="math notranslate nohighlight">\(\mathrm{Var}[x] /
+E[x^2]\)</span>, so inputs coded on a small scale are not at a disadvantage. In
+evaluation the saved moments are used and not updated.</p>
+</section>
+<section id="dense-to-sparse-pruning">
+<span id="synapse-dense-to-sparse"></span><h3>Dense-to-sparse pruning<a class="headerlink" href="#dense-to-sparse-pruning" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">dense_to_sparse</span></code> starts with many active synapses, so all allowed contacts
+receive gradients early, and anneals the active count down to <code class="docutils literal notranslate"><span class="pre">K</span></code>. The
+options under <code class="docutils literal notranslate"><span class="pre">model.core.sparsity.dense_to_sparse</span></code> (population fields with
+the prefix <code class="docutils literal notranslate"><span class="pre">dense_to_sparse_</span></code>) are:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 26.0%" />
+<col style="width: 16.0%" />
+<col style="width: 58.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Option</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">initial_density</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">1.0</span></code></p></td>
+<td><p>Initial active fraction of the inputs, in <code class="docutils literal notranslate"><span class="pre">(0,</span> <span class="pre">1]</span></code>; the initial
+count is <code class="docutils literal notranslate"><span class="pre">ceil(initial_density</span> <span class="pre">*</span> <span class="pre">in_features)</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">initial_k</span></code></p></td>
+<td><p>unset</p></td>
+<td><p>Initial active count; replaces <code class="docutils literal notranslate"><span class="pre">initial_density</span></code> when set. It must
+lie between <code class="docutils literal notranslate"><span class="pre">K</span></code> and the number of inputs.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">start_step</span></code>, <code class="docutils literal notranslate"><span class="pre">end_step</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">0</span></code>, <code class="docutils literal notranslate"><span class="pre">1000</span></code></p></td>
+<td><p>Schedule steps between which the count decreases.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">update_interval</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">1</span></code></p></td>
+<td><p>The count changes only every this many steps.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">schedule</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">cubic</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">linear</span></code>, <code class="docutils literal notranslate"><span class="pre">cubic</span></code> (stays dense longer, then commits), <code class="docutils literal notranslate"><span class="pre">cosine</span></code>
+or <code class="docutils literal notranslate"><span class="pre">step</span></code> (drops to <code class="docutils literal notranslate"><span class="pre">K</span></code> at <code class="docutils literal notranslate"><span class="pre">end_step</span></code>).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">prune_metric</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">weight</span></code></p></td>
+<td><p>Ranking score: <code class="docutils literal notranslate"><span class="pre">weight</span></code> or <code class="docutils literal notranslate"><span class="pre">transformed_weight</span></code> (the transformed
+weight), <code class="docutils literal notranslate"><span class="pre">magnitude</span></code> (its absolute value), <code class="docutils literal notranslate"><span class="pre">pre_w</span></code> or <code class="docutils literal notranslate"><span class="pre">raw</span></code> (the
+raw parameter).</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">advance_on_forward</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
+<td><p>Count steps per training forward pass (one per sequence in recurrent
+networks); <code class="docutils literal notranslate"><span class="pre">false</span></code> counts optimizer steps.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">freeze_on_end</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>Freeze the final mask at <code class="docutils literal notranslate"><span class="pre">end_step</span></code>.</p></td>
+</tr>
+</tbody>
+</table>
+<p>Forward passes that run inside
+<code class="docutils literal notranslate"><span class="pre">dendritic_modeling.networks.utils.sparse_maintenance.frozen_sparse_state()</span></code>,
+such as auxiliary analysis passes, do not advance the schedule. The block
+<code class="docutils literal notranslate"><span class="pre">sparsity.annealed_topk</span></code> is a deprecated spelling of
+<code class="docutils literal notranslate"><span class="pre">sparsity.dense_to_sparse</span></code> and loads with a warning.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">core</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_shunting</span>
+<span class="w">    </span><span class="nt">architecture</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">excitatory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">32</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">excitatory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">2</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">2</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">sparsity</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dense_to_sparse</span>
+<span class="w">      </span><span class="nt">dense_to_sparse</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">initial_density</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span>
+<span class="w">        </span><span class="nt">start_step</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
+<span class="w">        </span><span class="nt">end_step</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4000</span>
+<span class="w">        </span><span class="nt">update_interval</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span>
+<span class="w">        </span><span class="nt">schedule</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cubic</span>
+<span class="w">        </span><span class="nt">freeze_on_end</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+</section>
+<section id="deepst-rewiring">
+<span id="synapse-deepst"></span><h3>DeepST rewiring<a class="headerlink" href="#deepst-rewiring" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">deepst</span></code> keeps a Boolean mask of active contacts over a dense parameter
+matrix. Every <code class="docutils literal notranslate"><span class="pre">rewire_frequency</span></code> optimizer steps (the count is saved with the
+layer) it prunes the active contacts whose weight plus Gaussian noise of
+standard deviation <code class="docutils literal notranslate"><span class="pre">sigma</span></code> (no noise with <code class="docutils literal notranslate"><span class="pre">use_noise:</span> <span class="pre">false</span></code>) is at most
+<code class="docutils literal notranslate"><span class="pre">weight_threshold</span></code>, and regrows as many contacts at random allowed inputs,
+starting at the threshold weight. The noise enters only this test. The options
+under <code class="docutils literal notranslate"><span class="pre">model.core.sparsity.deepst</span></code> (population fields without a prefix) are:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 34.0%" />
+<col style="width: 18.0%" />
+<col style="width: 48.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Option</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">rewiring_mode</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">global</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">global</span></code>: regrow anywhere in the bank; <code class="docutils literal notranslate"><span class="pre">local</span></code>: on the branch that
+lost the contact; <code class="docutils literal notranslate"><span class="pre">constant_branch</span></code>: keep exactly <code class="docutils literal notranslate"><span class="pre">K</span></code> contacts on
+every branch.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">excitatory_target_density</span></code>, <code class="docutils literal notranslate"><span class="pre">inhibitory_target_density</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">0.1</span></code>, <code class="docutils literal notranslate"><span class="pre">0.1</span></code></p></td>
+<td><p>Active fraction of the allowed contacts of the excitatory and
+inhibitory banks (<code class="docutils literal notranslate"><span class="pre">global</span></code> and <code class="docutils literal notranslate"><span class="pre">local</span></code> modes).</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">sigma</span></code>, <code class="docutils literal notranslate"><span class="pre">use_noise</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">0.05</span></code>, <code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
+<td><p>Noise of the prune test.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">weight_threshold</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">1e-6</span></code></p></td>
+<td><p>Prune threshold and weight of regrown contacts.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">rewire_frequency</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">1</span></code></p></td>
+<td><p>Optimizer steps between rewiring events.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">freeze_excitatory_connectivity</span></code>, <code class="docutils literal notranslate"><span class="pre">freeze_inhibitory_connectivity</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>Keep the contacts of that bank fixed.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">init_method</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">xavier_normal</span></code></p></td>
+<td><p>Initial draw of the raw parameters; <code class="docutils literal notranslate"><span class="pre">null</span></code> draws the initial and
+the regrown parameters uniformly from a small range instead.</p></td>
+</tr>
+</tbody>
+</table>
+<p>With <code class="docutils literal notranslate"><span class="pre">global</span></code> and <code class="docutils literal notranslate"><span class="pre">local</span></code> rewiring the synapse counts of the pathways are
+not used: each bank keeps <code class="docutils literal notranslate"><span class="pre">target_density</span></code> of its allowed contacts active,
+spread unevenly over the branches. Small inputs can then give a bank less than
+one contact per branch on average, which the default branch initializer
+rejects. <code class="docutils literal notranslate"><span class="pre">constant_branch</span></code> keeps each pathway’s configured synapse count
+active per branch instead. <code class="docutils literal notranslate"><span class="pre">deepst.synapses_per_branch</span></code> (population
+<code class="docutils literal notranslate"><span class="pre">synapses_per_branch</span></code>) sets that budget only for a <code class="docutils literal notranslate"><span class="pre">DeepstLinear</span></code> built
+without a count; dendritic branch layers always pass the pathway’s count, so
+building a model raises when it is set with another synapse type, with
+<code class="docutils literal notranslate"><span class="pre">global</span></code> or <code class="docutils literal notranslate"><span class="pre">local</span></code> rewiring, or to a value other than the count of a
+<code class="docutils literal notranslate"><span class="pre">constant_branch</span></code> bank. The topology draws from <code class="docutils literal notranslate"><span class="pre">sparsity.indexed.seed</span></code>
+(population <code class="docutils literal notranslate"><span class="pre">indexed_seed</span></code>); data-parallel training requires it.</p>
+<p><code class="docutils literal notranslate"><span class="pre">credit_deepst</span></code> requires <code class="docutils literal notranslate"><span class="pre">rewiring_mode:</span> <span class="pre">constant_branch</span></code> and the
+<code class="docutils literal notranslate"><span class="pre">local_ca</span></code> strategy (<a class="reference internal" href="training_strategies.html#local-credit-assignment"><span class="std std-ref">Local credit assignment</span></a>), which records the
+local gradient of every contact. It keeps an exponential trace of that
+gradient (<code class="docutils literal notranslate"><span class="pre">credit_trace_decay</span></code>, default <code class="docutils literal notranslate"><span class="pre">0.95</span></code>) at the active contacts and
+at a small pool of inactive candidates per branch
+(<code class="docutils literal notranslate"><span class="pre">credit_candidate_pool_size</span></code>, <code class="docutils literal notranslate"><span class="pre">8</span></code>). Moving the weight <span class="math notranslate nohighlight">\(w\)</span> of an
+active contact to a candidate is predicted to improve the loss by
+<span class="math notranslate nohighlight">\(w\,(\bar g_{active} - \bar g_{candidate})\)</span>; each rewiring event applies
+the best swaps that exceed <code class="docutils literal notranslate"><span class="pre">credit_swap_margin</span></code> (<code class="docutils literal notranslate"><span class="pre">0.0</span></code>) for up to
+<code class="docutils literal notranslate"><span class="pre">credit_turnover_fraction</span></code> (<code class="docutils literal notranslate"><span class="pre">0.1</span></code>) of each branch’s contacts, chosen among
+its weakest <code class="docutils literal notranslate"><span class="pre">credit_weak_active_pool_fraction</span></code> (<code class="docutils literal notranslate"><span class="pre">0.5</span></code>). Swaps start after
+<code class="docutils literal notranslate"><span class="pre">credit_warmup_steps</span></code> (<code class="docutils literal notranslate"><span class="pre">5</span></code>) recorded steps and need
+<code class="docutils literal notranslate"><span class="pre">credit_min_observations</span></code> (<code class="docutils literal notranslate"><span class="pre">5</span></code>) per candidate. <code class="docutils literal notranslate"><span class="pre">credit_selection</span></code> can be
+<code class="docutils literal notranslate"><span class="pre">credit</span></code> (default), <code class="docutils literal notranslate"><span class="pre">random</span></code> or <code class="docutils literal notranslate"><span class="pre">shuffled_credit</span></code> (controls), and
+<code class="docutils literal notranslate"><span class="pre">credit_force_turnover:</span> <span class="pre">true</span></code> applies the swaps even without a predicted
+gain. A layer that records no credit raises once the warm-up has passed, and
+multi-process training rejects <code class="docutils literal notranslate"><span class="pre">credit_deepst</span></code>.</p>
+</section>
+<section id="indexed-synapses">
+<span id="synapse-indexed"></span><h3>Indexed synapses<a class="headerlink" href="#indexed-synapses" title="Link to this heading"></a></h3>
+<p>The indexed types store only the contacts of each compartment, as a weight
+matrix and an integer index matrix of the same shape, so memory grows with
+<code class="docutils literal notranslate"><span class="pre">K</span></code> instead of the number of inputs. Their input indices are drawn without
+repetition from the allowed inputs of each row, from the topology seed.</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">indexed</span></code></dt><dd><p>Fixed contacts: inputs outside the drawn indices can never become active.
+Spatial and manifest connectivity rules (<a class="reference internal" href="#structured-connectivity"><span class="std std-ref">Structured connectivity</span></a>)
+supply the indices directly and require this type.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">indexed_dynamic</span></code></dt><dd><p>Stores <code class="docutils literal notranslate"><span class="pre">C</span></code> candidate contacts per row (<code class="docutils literal notranslate"><span class="pre">indexed.candidate_size</span></code>,
+population <code class="docutils literal notranslate"><span class="pre">indexed_candidate_size</span></code>) and selects <code class="docutils literal notranslate"><span class="pre">K</span></code> of them on every
+forward pass, so inactive candidates can become active without a dense
+matrix. Unset, <code class="docutils literal notranslate"><span class="pre">C</span></code> is <code class="docutils literal notranslate"><span class="pre">min(in_features,</span> <span class="pre">4</span> <span class="pre">K)</span></code> for each bank, reduced to
+the smallest number of allowed inputs of any row when a mask is present. A
+written value applies to every bank and must not exceed the smallest bank
+input (a small inhibitory population, for example). <code class="docutils literal notranslate"><span class="pre">indexed.selection</span></code>
+is <code class="docutils literal notranslate"><span class="pre">standard</span></code> (Top-K of the raw parameters, with <code class="docutils literal notranslate"><span class="pre">noise_level</span></code> noise in
+training) or <code class="docutils literal notranslate"><span class="pre">stochastic</span></code> (alias <code class="docutils literal notranslate"><span class="pre">rank_probabilistic</span></code>: sampling as in
+<a class="reference internal" href="#synapse-variants"><span class="std std-ref">stochastic Top-K</span></a>, controlled by <code class="docutils literal notranslate"><span class="pre">temperature</span></code>
+and <code class="docutils literal notranslate"><span class="pre">ultrafast</span></code>).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">indexed_rewire</span></code></dt><dd><p>Fixed number of contacts with turnover: every <code class="docutils literal notranslate"><span class="pre">indexed.rewire_frequency</span></code>
+optimizer steps (default <code class="docutils literal notranslate"><span class="pre">100</span></code>), until <code class="docutils literal notranslate"><span class="pre">rewire_until_step</span></code> (default
+unset, no end), the <code class="docutils literal notranslate"><span class="pre">ceil(rewire_quantile</span> <span class="pre">*</span> <span class="pre">K)</span></code> weakest contacts of each
+row (<code class="docutils literal notranslate"><span class="pre">rewire_quantile</span></code> default <code class="docutils literal notranslate"><span class="pre">0.05</span></code>) move to new random allowed
+inputs. The new contact keeps the weight of the slot it replaces, and its
+gradient is cleared. The rewiring stream is seeded and saved with the
+layer. It requires <code class="docutils literal notranslate"><span class="pre">persistent_indices:</span> <span class="pre">true</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">indexed_release</span></code></dt><dd><p>Stored contacts that each transmit with a probability that grows with the
+weight, in training; see <a class="reference internal" href="conductance_options.html#conductance-options"><span class="std std-ref">Conductance options</span></a>.</p>
+</dd>
+</dl>
+<p>The runtime options of the indexed types (<code class="docutils literal notranslate"><span class="pre">output_chunk_size</span></code>,
+<code class="docutils literal notranslate"><span class="pre">index_dtype</span></code>, <code class="docutils literal notranslate"><span class="pre">workspace_mb</span></code>, <code class="docutils literal notranslate"><span class="pre">cache_transformed_weights</span></code>,
+<code class="docutils literal notranslate"><span class="pre">recompute_backward</span></code>, <code class="docutils literal notranslate"><span class="pre">projection_backend</span></code>, <code class="docutils literal notranslate"><span class="pre">persistent_indices</span></code>,
+<code class="docutils literal notranslate"><span class="pre">init_mode</span></code>) choose the projection kernel and how indices are stored; they
+are described with the backends in <a class="reference internal" href="performance_kernels.html#indexed-backends"><span class="std std-ref">Projection backends</span></a>. With
+<code class="docutils literal notranslate"><span class="pre">persistent_indices:</span> <span class="pre">false</span></code> the checkpoint does not store the indices, so
+the layer needs an explicit seed to regenerate them.</p>
+<p>A structured core with candidate-pool synapses, and one with rewired indexed
+synapses:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">core</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_shunting</span>
+<span class="w">    </span><span class="nt">architecture</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">excitatory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">64</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">inhibitory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[]</span>
+<span class="w">      </span><span class="nt">excitatory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">2</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">2</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">connectivity</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">ee_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">16</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">ie_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">4</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">sparsity</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">indexed_dynamic</span>
+<span class="w">      </span><span class="nt">temperature</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.5</span>
+<span class="w">      </span><span class="nt">indexed</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">candidate_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64</span>
+<span class="w">        </span><span class="nt">selection</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">stochastic</span>
+</pre></div>
+</div>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">core</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_shunting</span>
+<span class="w">    </span><span class="nt">architecture</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">excitatory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">64</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">excitatory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">2</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">2</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">sparsity</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">indexed_rewire</span>
+<span class="w">      </span><span class="nt">indexed</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">rewire_frequency</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
+<span class="w">        </span><span class="nt">rewire_quantile</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.05</span>
+<span class="w">        </span><span class="nt">rewire_until_step</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10000</span>
+</pre></div>
+</div>
+<p>The population fields are <code class="docutils literal notranslate"><span class="pre">topk_type</span></code>, <code class="docutils literal notranslate"><span class="pre">indexed_rewire_frequency</span></code>,
+<code class="docutils literal notranslate"><span class="pre">indexed_rewire_quantile</span></code> and <code class="docutils literal notranslate"><span class="pre">indexed_rewire_until_step</span></code>:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">population_defaults</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">topk_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">indexed_rewire</span>
+<span class="w">  </span><span class="nt">indexed_rewire_frequency</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
+<span class="w">  </span><span class="nt">indexed_rewire_quantile</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.05</span>
+<span class="w">  </span><span class="nt">indexed_rewire_until_step</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10000</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="weight-transforms">
+<span id="id1"></span><h2><a class="toc-backref" href="#id8" role="doc-backlink">Weight transforms</a><a class="headerlink" href="#weight-transforms" title="Link to this heading"></a></h2>
+<p>Synaptic weights and child couplings are stored as raw parameters and passed
+through a weight transform <span class="math notranslate nohighlight">\(\phi\)</span>, selected by
+<code class="docutils literal notranslate"><span class="pre">model.core.morphology.weight_transform</span></code> (structured E/I cores, default
+<code class="docutils literal notranslate"><span class="pre">softplus</span></code>) or the population field <code class="docutils literal notranslate"><span class="pre">weight_transform</span></code> (default <code class="docutils literal notranslate"><span class="pre">exp</span></code>).
+The Python constructors (<code class="docutils literal notranslate"><span class="pre">DendriNet</span></code>, <code class="docutils literal notranslate"><span class="pre">DendriticBranchLayer</span></code>,
+<code class="docutils literal notranslate"><span class="pre">TopKLinear</span></code>, <code class="docutils literal notranslate"><span class="pre">BlockLinear</span></code>) default to <code class="docutils literal notranslate"><span class="pre">exp</span></code>. One transform applies to
+every synapse bank and coupling of a core or population.</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">exp</span></code></dt><dd><p><span class="math notranslate nohighlight">\(\phi(p) = e^p\)</span>: strictly positive weights.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">softplus</span></code></dt><dd><p><span class="math notranslate nohighlight">\(\phi(p) = \log(1 + e^p)\)</span>: strictly positive weights that grow only
+linearly in the raw parameter.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">relu</span></code></dt><dd><p><span class="math notranslate nohighlight">\(\phi(p) = \max(p, 0)\)</span>: nonnegative weights that can be exactly zero.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">identity</span></code></dt><dd><p><span class="math notranslate nohighlight">\(\phi(p) = p\)</span>: signed weights. The <code class="docutils literal notranslate"><span class="pre">*_signed</span></code> and <code class="docutils literal notranslate"><span class="pre">*_mlp</span></code>
+structured core types use it. Top-K selection ranks magnitudes, and the
+branch layers are initialized with Xavier-normal draws whatever the
+<code class="docutils literal notranslate"><span class="pre">dbl_init_method</span></code>.</p>
+</dd>
+</dl>
+<p>The positive transforms make every synapse act with one sign, as excitatory
+and inhibitory conductances. Shunting integration with <code class="docutils literal notranslate"><span class="pre">identity</span></code> weights logs
+a warning, because the denominator of the shunting voltage can then reach zero
+or turn negative. <code class="docutils literal notranslate"><span class="pre">biological_neuron:</span> <span class="pre">true</span></code> requires a nonnegative transform
+(<a class="reference internal" href="network_architectures.html#biological-constraints"><span class="std std-ref">Biological constraints</span></a>), and <code class="docutils literal notranslate"><span class="pre">indexed_release</span></code> accepts only <code class="docutils literal notranslate"><span class="pre">exp</span></code>
+and <code class="docutils literal notranslate"><span class="pre">softplus</span></code>.</p>
+</section>
+<section id="synapse-initialization">
+<span id="id2"></span><h2><a class="toc-backref" href="#id9" role="doc-backlink">Synapse initialization</a><a class="headerlink" href="#synapse-initialization" title="Link to this heading"></a></h2>
+<p>Two options set the initial synaptic weights. <code class="docutils literal notranslate"><span class="pre">model.core.sparsity.init_method</span></code>
+(population <code class="docutils literal notranslate"><span class="pre">topk_init_method</span></code>) names the PyTorch initializer that a sparse
+layer applies to its raw parameters when it is constructed: <code class="docutils literal notranslate"><span class="pre">xavier_normal</span></code>
+(default), <code class="docutils literal notranslate"><span class="pre">xavier_uniform</span></code>, <code class="docutils literal notranslate"><span class="pre">kaiming_normal</span></code>, <code class="docutils literal notranslate"><span class="pre">kaiming_uniform</span></code>,
+<code class="docutils literal notranslate"><span class="pre">orthogonal</span></code>, <code class="docutils literal notranslate"><span class="pre">normal</span></code>, <code class="docutils literal notranslate"><span class="pre">uniform</span></code> or <code class="docutils literal notranslate"><span class="pre">eye</span></code>. A dendritic branch layer
+then reinitializes every synapse bank and child coupling with
+<code class="docutils literal notranslate"><span class="pre">model.core.morphology.dbl_init_method</span></code> (population <code class="docutils literal notranslate"><span class="pre">dbl_init_method</span></code>), so
+in models built from a configuration <code class="docutils literal notranslate"><span class="pre">init_method</span></code> does not change the
+initial weights; it changes only how much of the global random stream the
+discarded draw uses, which matters without <code class="docutils literal notranslate"><span class="pre">initialization_seed</span></code>. It does
+not set the weights of rewired contacts either: <code class="docutils literal notranslate"><span class="pre">indexed_rewire</span></code> gives a
+regrown contact the weight of the contact it replaces (only an
+<code class="docutils literal notranslate"><span class="pre">IndexedRewireLinear</span></code> built in code with <code class="docutils literal notranslate"><span class="pre">rewire_init_policy=&quot;fresh&quot;</span></code>
+draws new weights with <code class="docutils literal notranslate"><span class="pre">init_method</span></code>). (<code class="docutils literal notranslate"><span class="pre">deepst</span></code> draws its parameters with
+<code class="docutils literal notranslate"><span class="pre">deepst.init_method</span></code>.)</p>
+<p><code class="docutils literal notranslate"><span class="pre">dbl_init_method</span></code> initializes the feedforward and recurrent banks, the
+<code class="docutils literal notranslate"><span class="pre">BlockLinear</span></code> couplings and the analytical gate prior
+(<a class="reference internal" href="dendritic_neurons.html#gate-initialization"><span class="std std-ref">Gate initialization and maintenance</span></a>) of every branch layer:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 26.0%" />
+<col style="width: 74.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><code class="docutils literal notranslate"><span class="pre">dbl_init_method</span></code></p></th>
+<th class="head"><p>Initialization</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">analytical_expectation</span></code> (default)</p></td>
+<td><p>Normal raw parameters whose means are chosen so that the expected
+weight of the <code class="docutils literal notranslate"><span class="pre">K</span></code> selected contacts gives equal expected excitatory
+and inhibitory conductances. Shunting child couplings follow the rule
+below; additive couplings start at <code class="docutils literal notranslate"><span class="pre">1</span></code>. For deep trees,
+<code class="docutils literal notranslate"><span class="pre">implementation.adaptive_initialization</span></code> (default <code class="docutils literal notranslate"><span class="pre">true</span></code>) lowers
+the expected conductances towards <code class="docutils literal notranslate"><span class="pre">adaptive_target_conductance</span></code>
+(default <code class="docutils literal notranslate"><span class="pre">5.0</span></code>): the default policy <code class="docutils literal notranslate"><span class="pre">preserve_shunting_center</span></code>
+keeps the shunting voltage centre <code class="docutils literal notranslate"><span class="pre">E</span> <span class="pre">/</span> <span class="pre">(E</span> <span class="pre">+</span> <span class="pre">I</span> <span class="pre">+</span> <span class="pre">L)</span></code>, while
+<code class="docutils literal notranslate"><span class="pre">legacy_scale</span></code> (and every additive layer) scales all conductances
+by a factor set by the contact counts and the number of terminal
+branches.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ei_equivalence</span></code></p></td>
+<td><p>Zero-mean normal raw parameters; the spread of the weaker of the
+excitatory and inhibitory banks is increased until their expected
+conductances match. Each shunting child coupling starts at
+<code class="docutils literal notranslate"><span class="pre">E</span> <span class="pre">+</span> <span class="pre">I</span> <span class="pre">+</span> <span class="pre">L</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">naive</span></code></p></td>
+<td><p>Zero-mean normal raw parameters with standard deviation
+<span class="math notranslate nohighlight">\(\sqrt{2 / (n_{in} + 1)}\)</span>; each shunting child coupling starts
+at <code class="docutils literal notranslate"><span class="pre">E</span> <span class="pre">+</span> <span class="pre">I</span> <span class="pre">+</span> <span class="pre">L</span></code>, and the gate prior sits at the expected voltage.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">default</span></code></p></td>
+<td><p>The draws of <code class="docutils literal notranslate"><span class="pre">naive</span></code>, with the fixed gate prior <span class="math notranslate nohighlight">\(m = 1.5,
+b = 0.5\)</span> (shunting) or <span class="math notranslate nohighlight">\(m = 0.1, b = 0\)</span> (additive).</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">mechanism_neutral</span></code></p></td>
+<td><p>Zero-mean normal draws and child couplings of
+<code class="docutils literal notranslate"><span class="pre">initial_child_conductance</span></code> (default <code class="docutils literal notranslate"><span class="pre">1</span></code>) whatever the
+integration rule, so a shunting and an additive model with the same
+seed start identical (<a class="reference internal" href="dendritic_neurons.html#comparing-integration-rules"><span class="std std-ref">Comparing integration rules</span></a>).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">fan_in_lognormal</span></code></p></td>
+<td><p>Log-normal conductances with mean <code class="docutils literal notranslate"><span class="pre">1</span> <span class="pre">/</span> <span class="pre">(total</span> <span class="pre">contacts</span> <span class="pre">of</span> <span class="pre">the</span>
+<span class="pre">compartment)</span></code> and log standard deviation <code class="docutils literal notranslate"><span class="pre">0.5</span></code>, times
+<code class="docutils literal notranslate"><span class="pre">initial_conductance_scale</span></code>; child couplings of mean
+<code class="docutils literal notranslate"><span class="pre">initial_child_conductance</span></code>, log-normal with
+<code class="docutils literal notranslate"><span class="pre">initial_child_conductance_log_sd</span></code> when that is positive. It
+requires <code class="docutils literal notranslate"><span class="pre">exp</span></code> or <code class="docutils literal notranslate"><span class="pre">softplus</span></code> weights and <code class="docutils literal notranslate"><span class="pre">init_policy:</span> <span class="pre">fixed</span></code>.</p></td>
+</tr>
+</tbody>
+</table>
+<p><code class="docutils literal notranslate"><span class="pre">initial_conductance_scale</span></code> other than <code class="docutils literal notranslate"><span class="pre">1</span></code> and a positive
+<code class="docutils literal notranslate"><span class="pre">initial_child_conductance_log_sd</span></code> require <code class="docutils literal notranslate"><span class="pre">fan_in_lognormal</span></code>;
+<code class="docutils literal notranslate"><span class="pre">initial_child_conductance</span></code> other than <code class="docutils literal notranslate"><span class="pre">1</span></code> requires <code class="docutils literal notranslate"><span class="pre">fan_in_lognormal</span></code>
+or <code class="docutils literal notranslate"><span class="pre">mechanism_neutral</span></code>. The adaptive options apply only to
+<code class="docutils literal notranslate"><span class="pre">analytical_expectation</span></code>. <a class="reference internal" href="conductance_options.html"><span class="doc">Conductance options</span></a> uses these options for
+conductance-based models.</p>
+<p>The shunting child-coupling rule of <code class="docutils literal notranslate"><span class="pre">analytical_expectation</span></code>: with expected
+excitatory and inhibitory conductances <span class="math notranslate nohighlight">\(E\)</span> and <span class="math notranslate nohighlight">\(I\)</span>, leak
+<span class="math notranslate nohighlight">\(L\)</span> and children at output <code class="docutils literal notranslate"><span class="pre">0.5</span></code>, a total coupling <span class="math notranslate nohighlight">\(G\)</span> holds the
+compartment at <span class="math notranslate nohighlight">\((E + 0.5\,G) / (E + I + L + G)\)</span>. <span class="math notranslate nohighlight">\(G\)</span> places this
+voltage at <code class="docutils literal notranslate"><span class="pre">0.49</span></code> when <span class="math notranslate nohighlight">\(E / (E + I + L) &lt; 0.48\)</span> and otherwise at the
+midpoint between <span class="math notranslate nohighlight">\(E / (E + I + L)\)</span> and <code class="docutils literal notranslate"><span class="pre">0.5</span></code>; when <span class="math notranslate nohighlight">\(E \ge I + L\)</span>
+(for example without inhibition), no coupling brings the voltage below
+<code class="docutils literal notranslate"><span class="pre">0.5</span></code> and <span class="math notranslate nohighlight">\(G = E + I + L\)</span> gives the midpoint. Each of the children
+receives <span class="math notranslate nohighlight">\(G\)</span> divided by their number, and the gate prior is centred on
+the same voltage.</p>
+</section>
+<section id="blocklinear">
+<span id="id3"></span><h2><a class="toc-backref" href="#id10" role="doc-backlink">BlockLinear</a><a class="headerlink" href="#blocklinear" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">BlockLinear</span></code> adds the outputs of the child branches to their parent. With
+<code class="docutils literal notranslate"><span class="pre">in_features</span></code> child compartments and <code class="docutils literal notranslate"><span class="pre">out_features</span></code> parents, each parent
+reads <code class="docutils literal notranslate"><span class="pre">block_size</span> <span class="pre">=</span> <span class="pre">in_features</span> <span class="pre">/</span> <span class="pre">out_features</span></code> consecutive children and
+weights them with its own couplings:</p>
+<div class="math notranslate nohighlight">
+\[C_j = \sum_{k=0}^{b-1} g_{jk}\, u_{j b + k}, \qquad
+G_j = \sum_{k=0}^{b-1} g_{jk}\]</div>
+<p>where <span class="math notranslate nohighlight">\(b\)</span> is <code class="docutils literal notranslate"><span class="pre">block_size</span></code>, <span class="math notranslate nohighlight">\(u\)</span> the child outputs and
+<span class="math notranslate nohighlight">\(g = \phi(\cdot)\)</span> the transformed raw couplings <code class="docutils literal notranslate"><span class="pre">log_weight</span></code> (shape
+<code class="docutils literal notranslate"><span class="pre">[out_features,</span> <span class="pre">block_size]</span></code>), with the weight transform of the layer. <span class="math notranslate nohighlight">\(C\)</span> is the child
+current and <code class="docutils literal notranslate"><span class="pre">sum_conductances()</span></code> returns <span class="math notranslate nohighlight">\(G\)</span>, which the shunting rule
+adds to the denominator (<a class="reference internal" href="dendritic_neurons.html#integration-modes"><span class="std std-ref">Integration modes</span></a>).</p>
+<p><code class="docutils literal notranslate"><span class="pre">BlockLinear</span></code> builds the dense <code class="docutils literal notranslate"><span class="pre">[out_features,</span> <span class="pre">in_features]</span></code>
+block-diagonal matrix on every forward pass. <code class="docutils literal notranslate"><span class="pre">EfficientBlockLinear</span></code> gives
+the same output with <code class="docutils literal notranslate"><span class="pre">O(out_features</span> <span class="pre">*</span> <span class="pre">block_size)</span></code> memory by reshaping the
+input to <code class="docutils literal notranslate"><span class="pre">[batch,</span> <span class="pre">out_features,</span> <span class="pre">block_size]</span></code>. Select it with
+<code class="docutils literal notranslate"><span class="pre">model.core.blocklinear.efficient:</span> <span class="pre">true</span></code> (population field
+<code class="docutils literal notranslate"><span class="pre">efficient_blocklinear</span></code>). <code class="docutils literal notranslate"><span class="pre">BlockLinear</span></code> is exported from
+<code class="docutils literal notranslate"><span class="pre">dendritic_modeling.networks</span></code>; <code class="docutils literal notranslate"><span class="pre">EfficientBlockLinear</span></code> lives in
+<code class="docutils literal notranslate"><span class="pre">dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.blocklinear</span></code>.
+The couplings train with <code class="docutils literal notranslate"><span class="pre">training.main.common.param_groups.blocklinear_lr</span></code>;
+<code class="docutils literal notranslate"><span class="pre">blocklinear.gradient_scaling</span></code> (<code class="docutils literal notranslate"><span class="pre">none</span></code>, <code class="docutils literal notranslate"><span class="pre">conductance_dynamic</span></code> or
+<code class="docutils literal notranslate"><span class="pre">distal_upweight_by_idx</span></code>; <a class="reference internal" href="structured_ei_cores.html#blocklinear-gradient-scaling"><span class="std std-ref">BlockLinear gradient scaling</span></a>) rescales their gradients.</p>
+</section>
+<section id="structured-connectivity">
+<span id="id4"></span><h2><a class="toc-backref" href="#id11" role="doc-backlink">Structured connectivity</a><a class="headerlink" href="#structured-connectivity" title="Link to this heading"></a></h2>
+<p>A structured connectivity rule restricts which inputs each compartment may
+contact. The synapse count stays the budget per compartment; the rule defines
+the allowed set, and Top-K selection, sampling, variance ranking, DeepST and
+indexed rewiring operate only inside it. Write the rule under
+<code class="docutils literal notranslate"><span class="pre">model.core.connectivity.structured</span></code> (structured E/I cores) or as the
+population field <code class="docutils literal notranslate"><span class="pre">structured_connectivity</span></code> (in <code class="docutils literal notranslate"><span class="pre">population_defaults</span></code> or a
+population’s <code class="docutils literal notranslate"><span class="pre">population</span></code> block).</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">core</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_shunting</span>
+<span class="w">    </span><span class="nt">architecture</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">excitatory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">64</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">inhibitory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">16</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">excitatory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">3</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">3</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">connectivity</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">ee_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">12</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">ie_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">6</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">ei_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">8</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">structured</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">        </span><span class="nt">seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">123</span>
+<span class="w">        </span><span class="nt">pathways</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">ee</span><span class="p">:</span><span class="w">                 </span><span class="c1"># excitatory input onto excitatory cells</span>
+<span class="w">            </span><span class="nt">method</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">fixed_indegree</span>
+<span class="w">            </span><span class="nt">indegree</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">24</span>
+<span class="w">          </span><span class="nt">ie</span><span class="p">:</span><span class="w">                 </span><span class="c1"># inhibitory cells onto excitatory cells</span>
+<span class="w">            </span><span class="nt">method</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bernoulli</span>
+<span class="w">            </span><span class="nt">probability</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.5</span>
+</pre></div>
+</div>
+<p>A block has <code class="docutils literal notranslate"><span class="pre">enabled</span></code> (default <code class="docutils literal notranslate"><span class="pre">false</span></code>), an optional <code class="docutils literal notranslate"><span class="pre">seed</span></code>, root keys
+that act as defaults for every pathway, and a <code class="docutils literal notranslate"><span class="pre">pathways</span></code> mapping with one
+rule per pathway; a pathway entry overrides the root keys. Pathway names refer
+to the banks of the target compartment:</p>
+<ul class="simple">
+<li><p>structured E/I cores: <code class="docutils literal notranslate"><span class="pre">ee</span></code>, <code class="docutils literal notranslate"><span class="pre">ie</span></code>, <code class="docutils literal notranslate"><span class="pre">ei</span></code> and <code class="docutils literal notranslate"><span class="pre">ii</span></code> (named as the
+synapse counts) and <code class="docutils literal notranslate"><span class="pre">rec_ee</span></code>, <code class="docutils literal notranslate"><span class="pre">rec_ie</span></code>, <code class="docutils literal notranslate"><span class="pre">rec_ei</span></code>, <code class="docutils literal notranslate"><span class="pre">rec_ii</span></code> for the
+recurrent banks;</p></li>
+<li><p>population networks: <code class="docutils literal notranslate"><span class="pre">ee</span></code> (all same-step excitatory sources of the
+population), <code class="docutils literal notranslate"><span class="pre">ie</span></code> (same-step inhibitory sources), <code class="docutils literal notranslate"><span class="pre">rec_ee</span></code> and
+<code class="docutils literal notranslate"><span class="pre">rec_ie</span></code> (delayed connections), whatever the polarity of the population.</p></li>
+</ul>
+<p>Aliases such as <code class="docutils literal notranslate"><span class="pre">e_to_e</span></code>, <code class="docutils literal notranslate"><span class="pre">exc_to_exc</span></code>, <code class="docutils literal notranslate"><span class="pre">i_to_e</span></code>, <code class="docutils literal notranslate"><span class="pre">recurrent_ee</span></code> and
+<code class="docutils literal notranslate"><span class="pre">rec_e_to_e</span></code> are accepted. Pathway names, rule keys and <code class="docutils literal notranslate"><span class="pre">spatial</span></code> keys are
+checked when the configuration loads (for population networks, when the model
+is built), and a misspelled one raises with a suggestion. An enabled block must
+define a rule at the root or in a pathway (a mask parameter, a <code class="docutils literal notranslate"><span class="pre">spatial</span></code>
+block or a <code class="docutils literal notranslate"><span class="pre">manifest_path</span></code>), or set <code class="docutils literal notranslate"><span class="pre">method:</span> <span class="pre">dense</span></code> on a pathway;
+otherwise it raises, because every pathway would stay dense.</p>
+<p>Four rule keys have a second spelling: <code class="docutils literal notranslate"><span class="pre">p_connect</span></code> (<code class="docutils literal notranslate"><span class="pre">probability</span></code>),
+<code class="docutils literal notranslate"><span class="pre">in_degree</span></code> (<code class="docutils literal notranslate"><span class="pre">indegree</span></code>), <code class="docutils literal notranslate"><span class="pre">kernel</span></code> (<code class="docutils literal notranslate"><span class="pre">distance_kernel</span></code>) and <code class="docutils literal notranslate"><span class="pre">sigma</span></code>
+(<code class="docutils literal notranslate"><span class="pre">distance_sigma</span></code>). The root and every pathway entry are read with the
+first names, so a pathway entry overrides a root value whichever spelling
+either uses. A rule that writes both spellings of one key raises, and so does
+a <code class="docutils literal notranslate"><span class="pre">pathways</span></code> mapping that names one pathway twice (<code class="docutils literal notranslate"><span class="pre">ee</span></code> and <code class="docutils literal notranslate"><span class="pre">e_to_e</span></code>).
+Before 2026-10-13 a pathway’s second spelling lost to the root key, which a
+<code class="docutils literal notranslate"><span class="pre">model.core.connectivity.structured</span></code> block always has: <code class="docutils literal notranslate"><span class="pre">kernel</span></code> and
+<code class="docutils literal notranslate"><span class="pre">sigma</span></code> written in a pathway were ignored, and <code class="docutils literal notranslate"><span class="pre">p_connect</span></code> and
+<code class="docutils literal notranslate"><span class="pre">in_degree</span></code> raised.</p>
+<section id="methods">
+<h3>Methods<a class="headerlink" href="#methods" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">method</span></code> (default <code class="docutils literal notranslate"><span class="pre">bernoulli</span></code>) selects the rule:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 30.0%" />
+<col style="width: 70.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><code class="docutils literal notranslate"><span class="pre">method</span></code> (aliases)</p></th>
+<th class="head"><p>Allowed inputs</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">bernoulli</span></code> (<code class="docutils literal notranslate"><span class="pre">probability</span></code>, <code class="docutils literal notranslate"><span class="pre">probabilistic</span></code>)</p></td>
+<td><p>Each input independently with <code class="docutils literal notranslate"><span class="pre">probability</span></code> (alias <code class="docutils literal notranslate"><span class="pre">p_connect</span></code>).
+A row that draws no input gets one.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">fixed_indegree</span></code> (<code class="docutils literal notranslate"><span class="pre">fixed_in_degree</span></code>, <code class="docutils literal notranslate"><span class="pre">indegree</span></code>)</p></td>
+<td><p>Exactly <code class="docutils literal notranslate"><span class="pre">indegree</span></code> (alias <code class="docutils literal notranslate"><span class="pre">in_degree</span></code>) inputs per compartment. A
+count smaller than <code class="docutils literal notranslate"><span class="pre">K</span></code> leaves a Top-K or DeepST compartment with
+fewer than <code class="docutils literal notranslate"><span class="pre">K</span></code> synapses; the indexed types raise.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">distance</span></code> (<code class="docutils literal notranslate"><span class="pre">distance_kernel</span></code>)</p></td>
+<td><p>Each input with probability <code class="docutils literal notranslate"><span class="pre">base_probability</span> <span class="pre">*</span> <span class="pre">k(d)</span></code> for the
+distance <span class="math notranslate nohighlight">\(d\)</span> between <code class="docutils literal notranslate"><span class="pre">pre_positions</span></code> (one coordinate list per
+input) and <code class="docutils literal notranslate"><span class="pre">post_positions</span></code> (one per compartment), with
+<code class="docutils literal notranslate"><span class="pre">distance_kernel</span></code> <code class="docutils literal notranslate"><span class="pre">gaussian</span></code> (<span class="math notranslate nohighlight">\(e^{-d^2 / 2\sigma^2}\)</span>),
+<code class="docutils literal notranslate"><span class="pre">exponential</span></code> (<span class="math notranslate nohighlight">\(e^{-d/\sigma}\)</span>) or <code class="docutils literal notranslate"><span class="pre">none</span></code>, and
+<span class="math notranslate nohighlight">\(\sigma\)</span> = <code class="docutils literal notranslate"><span class="pre">distance_sigma</span></code> (default <code class="docutils literal notranslate"><span class="pre">1.0</span></code>).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">level_feature_blocks</span></code> (<code class="docutils literal notranslate"><span class="pre">level_blocks</span></code>)</p></td>
+<td><p>The input ranges <code class="docutils literal notranslate"><span class="pre">[start,</span> <span class="pre">stop]</span></code> listed in <code class="docutils literal notranslate"><span class="pre">ranges_by_level</span></code> for
+the level, one entry (a range or a list of ranges) per level from the
+most distal level to the soma; the last entry repeats.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">inventory_feature_blocks</span></code> (<code class="docutils literal notranslate"><span class="pre">inventory_blocks</span></code>)</p></td>
+<td><p>A fixed inventory of branch types per neuron: <code class="docutils literal notranslate"><span class="pre">inventory_counts</span></code>
+branches per type, each reading its <code class="docutils literal notranslate"><span class="pre">feature_ranges</span></code> entry, spread
+over the dendritic levels (<code class="docutils literal notranslate"><span class="pre">tier_groups</span></code> assigns types to levels;
+<code class="docutils literal notranslate"><span class="pre">owner_count</span></code> is the number of neurons). Population networks only,
+without somatic synapses.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">spatial_morphology</span></code> (<code class="docutils literal notranslate"><span class="pre">morphology_spatial</span></code>)</p></td>
+<td><p>Fixed indices from image regions assigned to the branches
+(<a class="reference internal" href="#structured-connectivity-spatial"><span class="std std-ref">Spatial morphology</span></a>).</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">index_manifest</span></code> (<code class="docutils literal notranslate"><span class="pre">manifest</span></code>)</p></td>
+<td><p>Fixed indices read from the file <code class="docutils literal notranslate"><span class="pre">manifest_path</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">dense</span></code> (<code class="docutils literal notranslate"><span class="pre">none</span></code>, <code class="docutils literal notranslate"><span class="pre">all</span></code>)</p></td>
+<td><p>Every input; keeps a pathway dense when the root defines a rule.</p></td>
+</tr>
+</tbody>
+</table>
+<p><code class="docutils literal notranslate"><span class="pre">probability</span></code> and <code class="docutils literal notranslate"><span class="pre">indegree</span></code> accept a list with one value per network
+layer (<code class="docutils literal notranslate"><span class="pre">layers[i]</span></code> in a population network); the last value repeats. Each
+mask draws from its own stream, derived from <code class="docutils literal notranslate"><span class="pre">seed</span></code>, the pathway, the layer
+(in a population network, the population’s position in its layer and, after
+the first layer, the layer’s index), the level and the mask shape, so a seeded
+mask depends neither on the global random stream nor on the order in which
+the layers are built.</p>
+<p>Training fills an unset (or null) root <code class="docutils literal notranslate"><span class="pre">seed</span></code> from
+<code class="docutils literal notranslate"><span class="pre">experiment.topology_seed</span></code>: that of <code class="docutils literal notranslate"><span class="pre">model.core.connectivity.structured</span></code>,
+of a layer’s <code class="docutils literal notranslate"><span class="pre">population_defaults.structured_connectivity</span></code> (its populations
+inherit it; a population’s own rule is filled when the layer has no default
+rule or the population writes <code class="docutils literal notranslate"><span class="pre">seed:</span> <span class="pre">null</span></code>) and of a unified E/I
+population’s rule (offset by its layer after the first, since unified layers
+of equal shape would otherwise draw equal masks from one seed).
+<code class="docutils literal notranslate"><span class="pre">config.json</span></code> records the filled seeds, so a fixed
+topology seed fixes the masks, whatever the global random stream. A model
+built outside a training run from a rule without a <code class="docutils literal notranslate"><span class="pre">seed</span></code> draws its masks
+from the global random stream, and its <code class="docutils literal notranslate"><span class="pre">spatial_morphology</span></code> contacts use the
+base seed <code class="docutils literal notranslate"><span class="pre">0</span></code>; a pathway entry that writes <code class="docutils literal notranslate"><span class="pre">seed:</span> <span class="pre">null</span></code> keeps the global
+stream in training too.</p>
+<p>Before config_version 3 (<a class="reference internal" href="configuration_guide.html#config-version"><span class="std std-ref">Configuration format version</span></a>) training did not seed
+population or unified E/I rules, so their masks drew from the global random
+stream. Such a rule can write <code class="docutils literal notranslate"><span class="pre">seed:</span> <span class="pre">global_rng</span></code> to keep that: its random
+masks then always draw from the global stream, and training keeps the value.
+<code class="docutils literal notranslate"><span class="pre">spatial_morphology</span></code> needs an integer seed and rejects it, and so does
+<code class="docutils literal notranslate"><span class="pre">model.core.connectivity.structured</span></code>, which training has always seeded.
+<code class="docutils literal notranslate"><span class="pre">dendritic-upgrade-config</span></code> writes <code class="docutils literal notranslate"><span class="pre">seed:</span> <span class="pre">global_rng</span></code> (<code class="docutils literal notranslate"><span class="pre">seed:</span> <span class="pre">0</span></code> for a
+spatial rule) into version-2 files whose rules relied on this.</p>
+<p>A <code class="docutils literal notranslate"><span class="pre">distance</span></code> key that the pathway entry omits takes the root value, and the
+default where the root has none: <code class="docutils literal notranslate"><span class="pre">distance_kernel:</span> <span class="pre">gaussian</span></code> and
+<code class="docutils literal notranslate"><span class="pre">distance_sigma:</span> <span class="pre">1.0</span></code>, in <code class="docutils literal notranslate"><span class="pre">model.core.connectivity.structured</span></code> (whose
+typed root always has them) as in a population’s <code class="docutils literal notranslate"><span class="pre">structured_connectivity</span></code>.
+Before config_version 3 the typed root’s default kernel was <code class="docutils literal notranslate"><span class="pre">none</span></code>, which
+gives every input the probability <code class="docutils literal notranslate"><span class="pre">base_probability</span></code> whatever the
+positions; <code class="docutils literal notranslate"><span class="pre">dendritic-upgrade-config</span></code> writes <code class="docutils literal notranslate"><span class="pre">distance_kernel:</span> <span class="pre">none</span></code> into
+version-2 files whose distance rules relied on it.</p>
+<p>An omitted <code class="docutils literal notranslate"><span class="pre">base_probability</span></code> takes the rule’s <code class="docutils literal notranslate"><span class="pre">probability</span></code> (its own or
+the root’s), and <code class="docutils literal notranslate"><span class="pre">1.0</span></code> when a population rule has neither. The typed root
+always has <code class="docutils literal notranslate"><span class="pre">probability</span></code>, null unless written, so a
+<code class="docutils literal notranslate"><span class="pre">model.core.connectivity.structured</span></code> distance rule with neither key raises
+when the configuration loads; a null or non-numeric <code class="docutils literal notranslate"><span class="pre">base_probability</span></code>
+raises as well.</p>
+<p>Write <code class="docutils literal notranslate"><span class="pre">distance_kernel</span></code>, <code class="docutils literal notranslate"><span class="pre">distance_sigma</span></code> and <code class="docutils literal notranslate"><span class="pre">base_probability</span></code>
+explicitly. The same positions are used at every level that has synapses on
+the pathway, so <code class="docutils literal notranslate"><span class="pre">post_positions</span></code> must have as many entries as each of those
+levels has compartments (one level, in practice).</p>
+<p>In a population network, connection masks (from a <code class="docutils literal notranslate"><span class="pre">probability</span></code> below
+<code class="docutils literal notranslate"><span class="pre">1</span></code>, <code class="docutils literal notranslate"><span class="pre">target_levels</span></code> or <code class="docutils literal notranslate"><span class="pre">allow_self_recurrence:</span> <span class="pre">false</span></code>) and the
+population’s structured rule both restrict a pathway: it may use only the
+contacts both allow, and a compartment left without any allowed input raises.
+A rule that places exact contacts (<code class="docutils literal notranslate"><span class="pre">spatial_morphology</span></code> or an index
+manifest) cannot also follow a connection mask, so the combination raises;
+see <a class="reference internal" href="population_networks.html#population-connections"><span class="std std-ref">Connections</span></a>.</p>
+</section>
+<section id="spatial-morphology">
+<span id="structured-connectivity-spatial"></span><h3>Spatial morphology<a class="headerlink" href="#spatial-morphology" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">method:</span> <span class="pre">spatial_morphology</span></code> maps the tree of every neuron onto an image of
+shape <code class="docutils literal notranslate"><span class="pre">spatial.input_shape</span></code> <code class="docutils literal notranslate"><span class="pre">[C,</span> <span class="pre">H,</span> <span class="pre">W]</span></code> and gives each branch exactly <code class="docutils literal notranslate"><span class="pre">K</span></code>
+contacts drawn from the image region it owns. It produces compact fixed
+indices without a dense mask and requires <code class="docutils literal notranslate"><span class="pre">sparsity.type:</span> <span class="pre">indexed</span></code>
+(population <code class="docutils literal notranslate"><span class="pre">topk_type:</span> <span class="pre">indexed</span></code>). Every neuron has its own weights and
+indices; only the geometry is shared, so this is not a convolution. The input
+is flattened in <code class="docutils literal notranslate"><span class="pre">C,</span> <span class="pre">H,</span> <span class="pre">W</span></code> order, and <code class="docutils literal notranslate"><span class="pre">input_shape</span></code> must multiply to the
+input size of the pathway.</p>
+<p><code class="docutils literal notranslate"><span class="pre">spatial.region_mode</span></code> selects the regions:</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">partition</span></code> (default)</dt><dd><p>The image is divided recursively along <code class="docutils literal notranslate"><span class="pre">spatial.split_axes</span></code>, one axis
+(<code class="docutils literal notranslate"><span class="pre">height</span></code>/<code class="docutils literal notranslate"><span class="pre">y</span></code> or <code class="docutils literal notranslate"><span class="pre">width</span></code>/<code class="docutils literal notranslate"><span class="pre">x</span></code>) per branch factor, listed from the
+soma towards the distal branches. Regions are disjoint.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">overlapping_grid</span></code></dt><dd><p>Each parent’s region is divided on the most nearly square grid of its
+children; a window smaller than <code class="docutils literal notranslate"><span class="pre">spatial.minimum_window_shape</span></code>
+<code class="docutils literal notranslate"><span class="pre">[h,</span> <span class="pre">w]</span></code> is enlarged around its centre, so windows can overlap.
+<code class="docutils literal notranslate"><span class="pre">split_axes</span></code> is not used.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">random_windows</span></code></dt><dd><p>The window sizes of <code class="docutils literal notranslate"><span class="pre">overlapping_grid</span></code>, each placed independently and
+uniformly over the image. This keeps the number of contacts and the window
+sizes of every level but removes the alignment between parent and child
+windows. <code class="docutils literal notranslate"><span class="pre">spatial.region_seed</span></code> sets the placement separately from the
+contact draws.</p>
+</dd>
+</dl>
+<p>The excitatory and inhibitory banks of a neuron share the regions and draw
+their contacts independently. The indices are generated once, when the model
+is built, and do not change during training; adaptive rewiring is not
+available because it could move a contact out of its region. Fixed indexed
+synapses also give compact local-learning updates, so <code class="docutils literal notranslate"><span class="pre">local_ca</span></code> does not
+build the dense <code class="docutils literal notranslate"><span class="pre">[branches,</span> <span class="pre">pixels]</span></code> tensor. The flattened-map spatial core
+types (<code class="docutils literal notranslate"><span class="pre">tensor_map</span></code> and its aliases, <a class="reference internal" href="structured_ei_cores.html#spatial-cores"><span class="std std-ref">Embedded and spatial cores</span></a>) accept the same
+rule in their <code class="docutils literal notranslate"><span class="pre">model.core.connectivity.structured</span></code> section.</p>
+<p>A root-level rule applies to every pathway, including those whose sources are
+other cells rather than the image. Write it at the root only when all pathways
+read the image, for example a structured E/I core without inhibitory cells,
+where the excitatory cells read the inhibitory stream directly:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">core</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_shunting</span>
+<span class="w">    </span><span class="nt">architecture</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">excitatory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">32</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">inhibitory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[]</span>
+<span class="w">      </span><span class="nt">excitatory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">2</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">2</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">connectivity</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">ee_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">16</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">ie_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">4</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">structured</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">        </span><span class="nt">method</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">spatial_morphology</span>
+<span class="w">        </span><span class="nt">seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">42</span>
+<span class="w">        </span><span class="nt">spatial</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">input_shape</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">1</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">28</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">28</span><span class="p p-Indicator">]</span>
+<span class="w">          </span><span class="nt">split_axes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">height</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">width</span><span class="p p-Indicator">]</span><span class="w">   </span><span class="c1"># soma towards the distal branches</span>
+<span class="w">    </span><span class="nt">sparsity</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">indexed</span>
+</pre></div>
+</div>
+<p>Otherwise put the rule under the pathways that read the image. In a population
+network the <code class="docutils literal notranslate"><span class="pre">ee</span></code> pathway of a population collects all its same-step
+excitatory sources, so the rule below suits populations whose excitatory input
+is the image only; the inhibitory pathway from <code class="docutils literal notranslate"><span class="pre">pv</span></code> stays unstructured.
+Recurrent pathways reject spatial rules, because population states have no
+image geometry.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">core</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">population_network</span>
+<span class="w">    </span><span class="nt">population_network</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">layers</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">hidden</span>
+<span class="w">          </span><span class="nt">readout_population</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pyr</span>
+<span class="w">          </span><span class="nt">population_defaults</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">ff_excitatory_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">16</span>
+<span class="w">            </span><span class="nt">ff_inhibitory_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
+<span class="w">            </span><span class="nt">topk_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">indexed</span>
+<span class="w">            </span><span class="nt">structured_connectivity</span><span class="p">:</span>
+<span class="w">              </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">              </span><span class="nt">seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">42</span>
+<span class="w">              </span><span class="nt">pathways</span><span class="p">:</span>
+<span class="w">                </span><span class="nt">ee</span><span class="p">:</span>
+<span class="w">                  </span><span class="nt">method</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">spatial_morphology</span>
+<span class="w">                  </span><span class="nt">spatial</span><span class="p">:</span>
+<span class="w">                    </span><span class="nt">input_shape</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">1</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">28</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">28</span><span class="p p-Indicator">]</span>
+<span class="w">                    </span><span class="nt">region_mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">random_windows</span>
+<span class="w">                    </span><span class="nt">minimum_window_shape</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">4</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">4</span><span class="p p-Indicator">]</span>
+<span class="w">                    </span><span class="nt">region_seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">7</span>
+<span class="w">          </span><span class="nt">populations</span><span class="p">:</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">pyr</span><span class="p p-Indicator">,</span><span class="nt"> polarity</span><span class="p">:</span><span class="w"> </span><span class="nv">excitatory</span><span class="p p-Indicator">,</span><span class="nt"> n_neurons</span><span class="p">:</span><span class="w"> </span><span class="nv">32</span><span class="p p-Indicator">,</span><span class="nt"> branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">2</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">2</span><span class="p p-Indicator">]}</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">pv</span><span class="p p-Indicator">,</span><span class="nt"> polarity</span><span class="p">:</span><span class="w"> </span><span class="nv">inhibitory</span><span class="p p-Indicator">,</span><span class="nt"> n_neurons</span><span class="p">:</span><span class="w"> </span><span class="nv">8</span><span class="p p-Indicator">,</span><span class="nt"> branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">1</span><span class="p p-Indicator">]}</span>
+<span class="w">          </span><span class="nt">connections</span><span class="p">:</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">input</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">pyr</span><span class="p p-Indicator">}</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">input</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">pv</span><span class="p p-Indicator">}</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">pv</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">pyr</span><span class="p p-Indicator">}</span>
+</pre></div>
+</div>
+</section>
+<section id="index-manifests">
+<h3>Index manifests<a class="headerlink" href="#index-manifests" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">method:</span> <span class="pre">index_manifest</span></code> reads the exact contacts of every level from a file
+written with <code class="docutils literal notranslate"><span class="pre">torch.save</span></code>, for supports computed outside the model (for
+example from the weights of a trained network). The file has
+<code class="docutils literal notranslate"><span class="pre">format_version:</span> <span class="pre">1</span></code> and an <code class="docutils literal notranslate"><span class="pre">entries</span></code> mapping from
+<code class="docutils literal notranslate"><span class="pre">&quot;&lt;pathway&gt;/layer&lt;layer_idx&gt;/level&lt;level_idx&gt;&quot;</span></code> (level <code class="docutils literal notranslate"><span class="pre">0</span></code> is the most
+distal; in a population network <code class="docutils literal notranslate"><span class="pre">layer_idx</span></code> is the position of the
+population within its layer, and layers after the first use
+<code class="docutils literal notranslate"><span class="pre">&quot;&lt;pathway&gt;/network_layer&lt;i&gt;/layer&lt;layer_idx&gt;/level&lt;level_idx&gt;&quot;</span></code> for
+<code class="docutils literal notranslate"><span class="pre">layers[i]</span></code>) to
+<code class="docutils literal notranslate"><span class="pre">{&quot;indices&quot;:</span> <span class="pre">LongTensor[rows,</span> <span class="pre">K],</span> <span class="pre">&quot;in_features&quot;:</span> <span class="pre">int}</span></code>.
+<code class="docutils literal notranslate"><span class="pre">manifest_entry_key</span></code> builds these keys.
+<code class="docutils literal notranslate"><span class="pre">save_index_manifest</span></code> in
+<code class="docutils literal notranslate"><span class="pre">dendritic_modeling.networks.architectures.excitation_inhibition.synapse.index_manifest</span></code>
+writes a validated file. Loading fails when an entry is missing or does not
+match the geometry of the layer. Like <code class="docutils literal notranslate"><span class="pre">spatial_morphology</span></code>, this method
+requires <code class="docutils literal notranslate"><span class="pre">sparsity.type:</span> <span class="pre">indexed</span></code>.</p>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="dendritic_neurons.html" class="btn btn-neutral float-left" title="Dendritic neurons" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="population_networks.html" class="btn btn-neutral float-right" title="Population networks" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024-2026, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

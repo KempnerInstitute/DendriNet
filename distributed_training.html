@@ -1,0 +1,688 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Distributed training &mdash; DendriNet v0.2.0</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=938c9ccc"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Sparse execution and performance" href="performance_kernels.html" />
+    <link rel="prev" title="Training" href="training_strategies.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            DendriNet
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Example configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Building models</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="network_architectures.html">Model architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dendritic_neurons.html">Dendritic neurons</a></li>
+<li class="toctree-l1"><a class="reference internal" href="synapses.html">Synapses and connectivity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="population_networks.html">Population networks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="temporal_dynamics.html">Temporal dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="structured_ei_cores.html">Structured E/I cores</a></li>
+<li class="toctree-l1"><a class="reference internal" href="conductance_options.html">Conductance options</a></li>
+<li class="toctree-l1"><a class="reference internal" href="comparison_models.html">Baselines and comparison models</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Configuration</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="configuration_guide.html">Configuration guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config_reference.html">Annotated reference configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Training</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="training_strategies.html">Training</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Distributed training</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#launching-a-run">Launching a run</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#the-distributed-section">The distributed section</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#batches-samplers-and-validation">Batches, samplers and validation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ddp">DDP</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#fsdp">FSDP</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#fsdp-options">FSDP options</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#options-the-fsdp-trainer-rejects">Options the FSDP trainer rejects</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#wrapping-and-construction">Wrapping and construction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mixed-precision">Mixed precision</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#checkpoints-and-final-weights">Checkpoints and final weights</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#memory">Memory</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#troubleshooting">Troubleshooting</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="performance_kernels.html">Sparse execution and performance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Data and analysis</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="datasets.html">Datasets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="analysis.html">Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="analyzers.html">Analyzer reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="checkpoint_analysis.html">Analyzing saved checkpoints</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Running experiments</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="runs_and_outputs.html">Runs and outputs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sweeps.html">Parameter sweeps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="model_compression.html">Compact checkpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="project_provenance.html">Project provenance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="available_components.html">Component catalogue</a></li>
+<li class="toctree-l1"><a class="reference internal" href="options_reference.html">Options reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cli_reference.html">Command-line reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api_reference.html">Python API</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="extending.html">Extending DendriNet</a></li>
+<li class="toctree-l1"><a class="reference internal" href="engineering_architecture.html">Engineering architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">DendriNet</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Distributed training</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/distributed_training.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="distributed-training">
+<span id="id1"></span><h1>Distributed training<a class="headerlink" href="#distributed-training" title="Link to this heading"></a></h1>
+<p>DendriNet trains on several GPUs with one of two PyTorch runtimes:</p>
+<ul class="simple">
+<li><p><strong>DDP</strong> (<code class="docutils literal notranslate"><span class="pre">DistributedDataParallel</span></code>): every process holds a complete copy
+of the model and trains on its own shard of the training set; the gradients
+are averaged after every backward pass. <code class="docutils literal notranslate"><span class="pre">dendritic-train</span></code> runs it when
+<code class="docutils literal notranslate"><span class="pre">torchrun</span></code> launches it with several processes.</p></li>
+<li><p><strong>FSDP</strong> (<code class="docutils literal notranslate"><span class="pre">FullyShardedDataParallel</span></code>): the parameters, gradients and
+optimizer state are sharded across the processes, so a model larger than
+one GPU can train. The separate entry point
+<code class="docutils literal notranslate"><span class="pre">dendritic_modeling.scripts.training.train_experiments_fsdp</span></code> runs it, with
+a plain backpropagation loop.</p></li>
+</ul>
+<p>Both runtimes start one process per GPU and use the NCCL process-group
+backend, so they need CUDA GPUs.</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 14.0%" />
+<col style="width: 30.0%" />
+<col style="width: 56.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><code class="docutils literal notranslate"><span class="pre">distributed.mode</span></code></p></th>
+<th class="head"><p>Entry point</p></th>
+<th class="head"><p>When to use it</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">none</span></code> (default)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">dendritic-train</span></code></p></td>
+<td><p>The model fits on one GPU; one process.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ddp</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">dendritic-train</span></code> under <code class="docutils literal notranslate"><span class="pre">torchrun</span></code></p></td>
+<td><p>The model fits on one GPU and more GPUs should process more samples
+per step. Runs most strategies.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">fsdp</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">train_experiments_fsdp</span></code> under <code class="docutils literal notranslate"><span class="pre">torchrun</span></code></p></td>
+<td><p>The model does not fit on one GPU. Runs <code class="docutils literal notranslate"><span class="pre">standard</span></code> and
+<code class="docutils literal notranslate"><span class="pre">recurrent</span></code> backpropagation only.</p></td>
+</tr>
+</tbody>
+</table>
+<nav class="contents local" id="on-this-page">
+<p class="topic-title">On this page</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#launching-a-run" id="id2">Launching a run</a></p></li>
+<li><p><a class="reference internal" href="#the-distributed-section" id="id3">The distributed section</a></p></li>
+<li><p><a class="reference internal" href="#batches-samplers-and-validation" id="id4">Batches, samplers and validation</a></p></li>
+<li><p><a class="reference internal" href="#ddp" id="id5">DDP</a></p></li>
+<li><p><a class="reference internal" href="#fsdp" id="id6">FSDP</a></p></li>
+<li><p><a class="reference internal" href="#troubleshooting" id="id7">Troubleshooting</a></p></li>
+</ul>
+</nav>
+<section id="launching-a-run">
+<h2><a class="toc-backref" href="#id2" role="doc-backlink">Launching a run</a><a class="headerlink" href="#launching-a-run" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">torchrun</span></code> starts the processes. On one node with four GPUs:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># DDP</span>
+torchrun<span class="w"> </span>--nproc_per_node<span class="o">=</span><span class="m">4</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-m<span class="w"> </span>dendritic_modeling.scripts.training.train_experiments<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>configs/my_config.yaml
+
+<span class="c1"># FSDP</span>
+torchrun<span class="w"> </span>--nproc_per_node<span class="o">=</span><span class="m">4</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-m<span class="w"> </span>dendritic_modeling.scripts.training.train_experiments_fsdp<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>configs/config_exp_fsdp.yaml
+</pre></div>
+</div>
+<p>On several nodes, start <code class="docutils literal notranslate"><span class="pre">torchrun</span></code> on every node with the node count, the
+node’s rank and the address of the first node:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>torchrun<span class="w"> </span>--nnodes<span class="o">=</span><span class="m">2</span><span class="w"> </span>--node_rank<span class="o">=</span><span class="m">0</span><span class="w"> </span>--nproc_per_node<span class="o">=</span><span class="m">4</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--master_addr<span class="o">=</span>&lt;first-node-address&gt;<span class="w"> </span>--master_port<span class="o">=</span><span class="m">29500</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-m<span class="w"> </span>dendritic_modeling.scripts.training.train_experiments_fsdp<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>configs/my_config.yaml
+</pre></div>
+</div>
+<p>Both entry points take the options of <code class="docutils literal notranslate"><span class="pre">dendritic-train</span></code>
+(<a class="reference internal" href="cli_reference.html#cli-reference"><span class="std std-ref">Command-line reference</span></a>), such as <code class="docutils literal notranslate"><span class="pre">--output_dir</span></code>, <code class="docutils literal notranslate"><span class="pre">--seed</span></code> and
+<code class="docutils literal notranslate"><span class="pre">--epochs</span></code>. <code class="docutils literal notranslate"><span class="pre">--validate-only</span></code> under <code class="docutils literal notranslate"><span class="pre">torchrun</span></code> builds the datasets and
+the model, wraps the model (DDP or FSDP), builds the optimizer and the
+trainer, writes the construction records and exits without training. The
+launcher and the scheduler allocation set the number of nodes and GPUs, not
+the configuration file.</p>
+<p>For Slurm clusters the library includes job helpers:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Write a Slurm script for one run; --dry-run prints it, --submit submits it</span>
+python<span class="w"> </span>-m<span class="w"> </span>dendritic_modeling.scripts.tools.generate_slurm_job<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>configs/config_exp_fsdp.yaml<span class="w"> </span>--account<span class="w"> </span>ACCOUNT<span class="w"> </span>--partition<span class="w"> </span>PARTITION<span class="w"> </span>--dry-run
+</pre></div>
+</div>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">dendritic_modeling.scripts.tools.generate_slurm_job</span></code> writes a script for
+the entry point that <code class="docutils literal notranslate"><span class="pre">distributed.mode</span></code> selects: one GPU with <code class="docutils literal notranslate"><span class="pre">python</span></code>
+for <code class="docutils literal notranslate"><span class="pre">none</span></code>, and one process per GPU with <code class="docutils literal notranslate"><span class="pre">torchrun</span></code> on one node for
+<code class="docutils literal notranslate"><span class="pre">ddp</span></code> (<code class="docutils literal notranslate"><span class="pre">--gpus-per-node</span></code>, at least 2, is required) and <code class="docutils literal notranslate"><span class="pre">fsdp</span></code> (by
+default the smallest power of two GPUs whose sharded memory estimate fits
+<code class="docutils literal notranslate"><span class="pre">--gpu-memory-gb</span></code>, at most <code class="docutils literal notranslate"><span class="pre">--max-gpus-per-node</span></code>). <code class="docutils literal notranslate"><span class="pre">--account</span></code> and
+<code class="docutils literal notranslate"><span class="pre">--partition</span></code> are required.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">dendritic_modeling.scripts.tools.submit_fsdp_job</span></code> does the same for an
+FSDP configuration and submits by default (<code class="docutils literal notranslate"><span class="pre">--generate-only</span></code> writes the
+script only).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">dendritic_modeling.scripts.tools.estimate_gpu_requirements</span></code> estimates the
+GPU memory of a configuration (<code class="docutils literal notranslate"><span class="pre">--batch-size</span></code>, <code class="docutils literal notranslate"><span class="pre">--precision</span></code>).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">scripts/train_fsdp.sh</span></code> in the repository is an <code class="docutils literal notranslate"><span class="pre">sbatch</span></code> script that
+starts <code class="docutils literal notranslate"><span class="pre">train_experiments_fsdp</span></code> under <code class="docutils literal notranslate"><span class="pre">torchrun</span></code> on every node of the
+allocation, for multi-node FSDP runs. It takes the configuration and the
+number of GPUs per node, runs the checkout it is submitted from, and names
+no partition or account: pass them to <code class="docutils literal notranslate"><span class="pre">sbatch</span></code>.</p></li>
+</ul>
+<p>Sweeps launch DDP and FSDP conditions through <code class="docutils literal notranslate"><span class="pre">slurm_config</span></code> (<a class="reference internal" href="sweeps.html"><span class="doc">Parameter sweeps</span></a>).</p>
+</section>
+<section id="the-distributed-section">
+<span id="distributed-training-section"></span><h2><a class="toc-backref" href="#id3" role="doc-backlink">The distributed section</a><a class="headerlink" href="#the-distributed-section" title="Link to this heading"></a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">distributed</span></code> section of an FSDP configuration, with the two training
+options that every FSDP run of a model with sparse synapses needs
+(<a class="reference internal" href="#distributed-training-fsdp-restrictions"><span class="std std-ref">Options the FSDP trainer rejects</span></a>):</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">distributed</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">fsdp</span><span class="w">                 </span><span class="c1"># none | ddp | fsdp</span>
+<span class="w">  </span><span class="nt">timeout_seconds</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3600</span><span class="w">      </span><span class="c1"># null: 600 s under train_experiments, 1800 s under train_experiments_fsdp</span>
+<span class="w">  </span><span class="nt">fsdp</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">sharding_strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">FULL_SHARD</span>
+<span class="w">    </span><span class="nt">auto_wrap_policy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">indexed_synapses</span>
+<span class="w">    </span><span class="nt">mixed_precision</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">mixed_precision_dtype</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bf16</span>
+<span class="nt">training</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">main</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">common</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">synapse_decay_rate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.0</span><span class="w">    </span><span class="c1"># FSDP runs no sparse-synapse maintenance</span>
+<span class="w">      </span><span class="nt">weight_boosting</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">distributed.mode</span></code> declares the runtime, and each entry point checks it
+against its launch. <code class="docutils literal notranslate"><span class="pre">train_experiments</span></code> trains in one process (<code class="docutils literal notranslate"><span class="pre">none</span></code>) or
+with DDP under <code class="docutils literal notranslate"><span class="pre">torchrun</span></code> (<code class="docutils literal notranslate"><span class="pre">ddp</span></code>); <code class="docutils literal notranslate"><span class="pre">train_experiments_fsdp</span></code> trains with
+FSDP and needs <code class="docutils literal notranslate"><span class="pre">torchrun</span></code>. A mode the entry point cannot run raises:
+<code class="docutils literal notranslate"><span class="pre">fsdp</span></code> under <code class="docutils literal notranslate"><span class="pre">train_experiments</span></code>, <code class="docutils literal notranslate"><span class="pre">ddp</span></code> under the FSDP entry point, and
+<code class="docutils literal notranslate"><span class="pre">ddp</span></code> without <code class="docutils literal notranslate"><span class="pre">torchrun</span></code>. Otherwise the mode the run actually used (for
+example <code class="docutils literal notranslate"><span class="pre">none</span></code> for <code class="docutils literal notranslate"><span class="pre">mode:</span> <span class="pre">ddp</span></code> launched with one process) replaces the
+declared one, with a warning, and <code class="docutils literal notranslate"><span class="pre">config.json</span></code> records it. An unknown mode
+fails when the configuration loads, and so does a top-level <code class="docutils literal notranslate"><span class="pre">fsdp</span></code> block:
+FSDP settings are read only under <code class="docutils literal notranslate"><span class="pre">distributed.fsdp</span></code>
+(<code class="docutils literal notranslate"><span class="pre">dendritic-upgrade-config</span></code> removes a top-level block that repeats them or
+has <code class="docutils literal notranslate"><span class="pre">use_fsdp:</span> <span class="pre">false</span></code>, and reports any other).</p>
+<p><code class="docutils literal notranslate"><span class="pre">distributed.timeout_seconds</span></code> bounds how long a collective operation may
+wait before the process group aborts the run. <code class="docutils literal notranslate"><span class="pre">null</span></code> keeps PyTorch’s NCCL
+default of 600 seconds under <code class="docutils literal notranslate"><span class="pre">train_experiments</span></code> and uses 1800 seconds
+under <code class="docutils literal notranslate"><span class="pre">train_experiments_fsdp</span></code>. Work that only rank 0 does runs while the
+other ranks wait in their next collective: training-time analyses after each
+DDP epoch, and the data-driven gate calibration before FSDP wraps the model.
+Raise the timeout when those phases can take longer. Network settings of
+NCCL (interfaces, InfiniBand) belong to the launch environment, not the
+configuration.</p>
+</section>
+<section id="batches-samplers-and-validation">
+<h2><a class="toc-backref" href="#id4" role="doc-backlink">Batches, samplers and validation</a><a class="headerlink" href="#batches-samplers-and-validation" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">training.main.common.batch_size</span></code> is per process: with <code class="docutils literal notranslate"><span class="pre">W</span></code> processes one
+optimizer step sees <code class="docutils literal notranslate"><span class="pre">W</span> <span class="pre">*</span> <span class="pre">batch_size</span></code> samples, an epoch has <code class="docutils literal notranslate"><span class="pre">1/W</span></code> as many
+steps, and the learning rate is not rescaled. Schedules counted in optimizer
+steps or forward passes (indexed rewiring, dense-to-sparse schedules)
+therefore reach a given step at a different epoch when <code class="docutils literal notranslate"><span class="pre">W</span></code> changes.
+<code class="docutils literal notranslate"><span class="pre">training_summary.json</span></code> records the layout under <code class="docutils literal notranslate"><span class="pre">data_parallel</span></code>
+(<code class="docutils literal notranslate"><span class="pre">world_size</span></code>, <code class="docutils literal notranslate"><span class="pre">batch_size_per_rank</span></code>, <code class="docutils literal notranslate"><span class="pre">global_batch_size</span></code>,
+<code class="docutils literal notranslate"><span class="pre">train_steps_per_epoch</span></code>), and <code class="docutils literal notranslate"><span class="pre">runtime_environment.json</span></code> records the
+process group.</p>
+<p>The training set is split across the ranks by a <code class="docutils literal notranslate"><span class="pre">DistributedSampler</span></code> seeded
+with the loader seed; it reshuffles every epoch. Validation pads every rank to
+the same number of batches (<code class="docutils literal notranslate"><span class="pre">PaddedDistributedEvalSampler</span></code>) and leaves the
+padding out of the metrics, so the reported loss and accuracy are the
+sample-weighted means over the validation set, as in a single-process run, up
+to floating-point rounding and the configured mixed precision.</p>
+<p>Each rank trains on its own batch. Synapses whose training forward pass keeps
+statistics of the batch (the input moments of variance Top-K, the forward
+impact and source activity of release synapses) reduce their batch sums and
+counts over all ranks under DDP and FSDP, one all-reduce per such synapse and
+training forward pass. Every rank then keeps the statistics of the global
+batch and makes the same selections and rewiring decisions, as one process
+training on the combined batch would.</p>
+</section>
+<section id="ddp">
+<h2><a class="toc-backref" href="#id5" role="doc-backlink">DDP</a><a class="headerlink" href="#ddp" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">dendritic-train</span></code> wraps the model in <code class="docutils literal notranslate"><span class="pre">DistributedDataParallel</span></code> when
+<code class="docutils literal notranslate"><span class="pre">torchrun</span></code> starts it with several processes. Rank 0 creates the run
+directory and writes the run records, analyses and checkpoints; the other
+ranks train. Data-driven gate calibration runs before training, and rank 0’s
+calibrated gates are broadcast to every rank.</p>
+<p>DDP registers the parameters that require gradients when it wraps the model,
+and waits for a gradient of each of them in every backward pass. Options that
+change this set after wrapping, or train without such a backward pass, raise
+before the first step:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">freeze_layers</span></code>, <code class="docutils literal notranslate"><span class="pre">freeze_branches</span></code>, <code class="docutils literal notranslate"><span class="pre">freeze_branch_kl</span></code>,
+<code class="docutils literal notranslate"><span class="pre">multi_stage</span></code> and <code class="docutils literal notranslate"><span class="pre">presentation_stream</span></code> run in a single process only.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">voltage_stabilization</span></code>, <code class="docutils literal notranslate"><span class="pre">homeostatic_control</span></code> and <code class="docutils literal notranslate"><span class="pre">ei_equilibrium</span></code>
+raise, because their warm-up loss gives the decoder no gradient.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">reactivation_update_mode:</span> <span class="pre">quantile</span></code> or <code class="docutils literal notranslate"><span class="pre">frozen</span></code> raises for the
+strategies whose gradients DDP reduces (<code class="docutils literal notranslate"><span class="pre">standard</span></code>, <code class="docutils literal notranslate"><span class="pre">recurrent</span></code>,
+<code class="docutils literal notranslate"><span class="pre">soma_dfa</span></code>). <code class="docutils literal notranslate"><span class="pre">fa</span></code>, <code class="docutils literal notranslate"><span class="pre">dfa</span></code> and <code class="docutils literal notranslate"><span class="pre">local_ca</span></code> compute their gradients
+themselves, average them across the ranks before clipping, and accept it.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">training.main.common.impact_rewiring</span></code> raises.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">credit_deepst</span></code> synapses raise (their rewiring uses credit recorded
+before gradients are averaged), and so do DeepST synapses without a
+topology seed (<code class="docutils literal notranslate"><span class="pre">model.core.sparsity.indexed.seed</span></code>, or <code class="docutils literal notranslate"><span class="pre">indexed_seed</span></code> in
+a population network), which would rewire differently on each rank.</p></li>
+</ul>
+<p>The supported strategies are <code class="docutils literal notranslate"><span class="pre">standard</span></code>, <code class="docutils literal notranslate"><span class="pre">recurrent</span></code>, <code class="docutils literal notranslate"><span class="pre">fa</span></code>, <code class="docutils literal notranslate"><span class="pre">dfa</span></code>,
+<code class="docutils literal notranslate"><span class="pre">soma_dfa</span></code> and <code class="docutils literal notranslate"><span class="pre">local_ca</span></code> (<a class="reference internal" href="training_strategies.html#training-strategies"><span class="std std-ref">Training strategies</span></a>). Feedback-alignment
+matrices are drawn from the run seed and the block names, so every rank
+builds the same ones. MuonH relies on DDP averaging the gradients before its
+nonlinear update; for the first <code class="docutils literal notranslate"><span class="pre">muon_rank_consistency_check_steps</span></code> steps it
+compares the updated matrices across the ranks and raises if they differ.</p>
+</section>
+<section id="fsdp">
+<h2><a class="toc-backref" href="#id6" role="doc-backlink">FSDP</a><a class="headerlink" href="#fsdp" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">train_experiments_fsdp</span></code> sets a run up as <code class="docutils literal notranslate"><span class="pre">train_experiments</span></code> does: the
+same command-line options, configuration checks, run directory, seeds,
+datasets, model (including <code class="docutils literal notranslate"><span class="pre">model.initial_checkpoint</span></code>, which every rank
+loads before wrapping) and run records, so one configuration builds the same
+model under both entry points. The model stays on the CPU until FSDP wraps
+it, and each wrapped unit moves to its GPU as it is sharded. The FSDP trainer
+builds its optimizer from <code class="docutils literal notranslate"><span class="pre">training.main.optimizer</span></code> and the parameter groups
+of single-process training (trainable parameters only), so every parameter
+trains at the rate it would have without FSDP (<a class="reference internal" href="training_strategies.html#parameter-groups"><span class="std std-ref">Parameter groups and learning rates</span></a>).</p>
+<section id="fsdp-options">
+<h3>FSDP options<a class="headerlink" href="#fsdp-options" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">distributed.fsdp</span></code> takes these options:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 26.0%" />
+<col style="width: 17.0%" />
+<col style="width: 57.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Option</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">sharding_strategy</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">FULL_SHARD</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">FULL_SHARD</span></code>, <code class="docutils literal notranslate"><span class="pre">SHARD_GRAD_OP</span></code>, <code class="docutils literal notranslate"><span class="pre">NO_SHARD</span></code> or <code class="docutils literal notranslate"><span class="pre">HYBRID_SHARD</span></code>
+(case-insensitive).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">auto_wrap_policy</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">none</span></code></p></td>
+<td><p>How the model is split into FSDP units: <code class="docutils literal notranslate"><span class="pre">none</span></code> (the whole model is
+one unit), <code class="docutils literal notranslate"><span class="pre">indexed_synapses</span></code> (one unit per indexed synapse module)
+or <code class="docutils literal notranslate"><span class="pre">size</span></code> (PyTorch’s size-based policy).</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">min_num_params</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">1000000</span></code></p></td>
+<td><p>Smallest unit of <code class="docutils literal notranslate"><span class="pre">auto_wrap_policy:</span> <span class="pre">size</span></code>; any other policy rejects
+a different value.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">mixed_precision</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
+<td><p>Compute in reduced precision.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">mixed_precision_dtype</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">bf16</span></code></p></td>
+<td><p>The dtype of mixed precision for parameters, gradient reduction and
+buffers, unless set separately: <code class="docutils literal notranslate"><span class="pre">bf16</span></code>/<code class="docutils literal notranslate"><span class="pre">bfloat16</span></code>,
+<code class="docutils literal notranslate"><span class="pre">fp16</span></code>/<code class="docutils literal notranslate"><span class="pre">float16</span></code>/<code class="docutils literal notranslate"><span class="pre">half</span></code> or <code class="docutils literal notranslate"><span class="pre">fp32</span></code>/<code class="docutils literal notranslate"><span class="pre">float32</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">param_dtype</span></code>, <code class="docutils literal notranslate"><span class="pre">reduce_dtype</span></code>, <code class="docutils literal notranslate"><span class="pre">buffer_dtype</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">null</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">param_dtype</span></code> defaults to <code class="docutils literal notranslate"><span class="pre">mixed_precision_dtype</span></code>;
+<code class="docutils literal notranslate"><span class="pre">reduce_dtype</span></code> (gradient reduction) and <code class="docutils literal notranslate"><span class="pre">buffer_dtype</span></code> default to
+<code class="docutils literal notranslate"><span class="pre">param_dtype</span></code>. <code class="docutils literal notranslate"><span class="pre">buffer_dtype:</span> <span class="pre">keep</span></code> leaves buffers in their own
+dtype.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cpu_offload</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>Keep the sharded parameters in CPU memory (slower, less GPU memory).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">sync_module_states</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
+<td><p>Broadcast rank 0’s parameters and buffers when wrapping.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">use_orig_params</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
+<td><p>Keep the original parameters, which the parameter groups hold.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">limit_all_gathers</span></code>, <code class="docutils literal notranslate"><span class="pre">forward_prefetch</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">true</span></code>, <code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
+<td><p>Passed to <code class="docutils literal notranslate"><span class="pre">FullyShardedDataParallel</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">backward_prefetch</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">BACKWARD_PRE</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">BACKWARD_PRE</span></code> or <code class="docutils literal notranslate"><span class="pre">BACKWARD_POST</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">gradient_checkpointing</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>Recompute activations in the backward pass
+(<a class="reference internal" href="#distributed-training-memory"><span class="std std-ref">Memory</span></a>).</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">freeze_core</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>Readout-only training: freeze every core parameter before wrapping;
+the core still runs its full forward dynamics.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">cache_frozen_core_outputs</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>With <code class="docutils literal notranslate"><span class="pre">freeze_core</span></code>, compute the core outputs of each rank’s data
+once and train the readout on them in later epochs. It needs a frozen
+or parameter-free encoder.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cached_core_batch_size</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">null</span></code></p></td>
+<td><p>Batch size of the epochs that use the cached core outputs.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="options-the-fsdp-trainer-rejects">
+<span id="distributed-training-fsdp-restrictions"></span><h3>Options the FSDP trainer rejects<a class="headerlink" href="#options-the-fsdp-trainer-rejects" title="Link to this heading"></a></h3>
+<p>The FSDP loop is plain backpropagation with an optimizer step, so the entry
+point raises <code class="docutils literal notranslate"><span class="pre">ValueError</span></code>, listing every problem, for options that it would
+not apply:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 45.0%" />
+<col style="width: 55.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Option</p></th>
+<th class="head"><p>Reason</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">training.main.strategy</span></code> other than <code class="docutils literal notranslate"><span class="pre">standard</span></code> or <code class="docutils literal notranslate"><span class="pre">recurrent</span></code></p></td>
+<td><p>The loop is backpropagation.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">lr_schedule</span></code>, <code class="docutils literal notranslate"><span class="pre">lr_warmup_epochs</span></code>, and <code class="docutils literal notranslate"><span class="pre">strategies.recurrent</span></code>
+overrides that differ from <code class="docutils literal notranslate"><span class="pre">common</span></code></p></td>
+<td><p>There is no learning-rate scheduler; <code class="docutils literal notranslate"><span class="pre">use_amp</span></code> and
+<code class="docutils literal notranslate"><span class="pre">grad_clip_value</span></code> come from <code class="docutils literal notranslate"><span class="pre">common</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">training.main.regularization</span></code>, <code class="docutils literal notranslate"><span class="pre">training.main.pruning</span></code></p></td>
+<td><p>No auxiliary losses and no pruning step.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">reactivation_update_mode</span></code> other than <code class="docutils literal notranslate"><span class="pre">backprop</span></code>,
+<code class="docutils literal notranslate"><span class="pre">recalibrate_reactivation_every</span> <span class="pre">&gt;</span> <span class="pre">0</span></code></p></td>
+<td><p>No gate recalibration.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">synapse_decay_rate</span> <span class="pre">&gt;</span> <span class="pre">0</span></code> or <code class="docutils literal notranslate"><span class="pre">weight_boosting:</span> <span class="pre">true</span></code> with Top-K,
+indexed or DeepST synapses</p></td>
+<td><p>No sparse-synapse maintenance. The default <code class="docutils literal notranslate"><span class="pre">synapse_decay_rate</span></code> is
+0.01, so set it to 0.</p></td>
+</tr>
+<tr class="row-odd"><td><p>Rewiring synapses (<code class="docutils literal notranslate"><span class="pre">indexed_rewire</span></code>, DeepST, dense-to-sparse with
+<code class="docutils literal notranslate"><span class="pre">advance_on_forward:</span> <span class="pre">false</span></code>), <code class="docutils literal notranslate"><span class="pre">impact_rewiring</span></code></p></td>
+<td><p>No rewiring step and no topology controllers.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">best_state_device</span></code> or <code class="docutils literal notranslate"><span class="pre">save_best_checkpoint</span></code> other than their
+defaults</p></td>
+<td><p>The trainer keeps its final weights and tracks no best state.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">shuffle:</span> <span class="pre">false</span></code></p></td>
+<td><p>The FSDP sampler always shuffles.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">enable_nan_checking</span></code>, <code class="docutils literal notranslate"><span class="pre">profile_dataloader</span></code></p></td>
+<td><p>Not implemented in the FSDP step.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">optimizer.name:</span> <span class="pre">muonh</span></code> unless <code class="docutils literal notranslate"><span class="pre">sharding_strategy:</span> <span class="pre">NO_SHARD</span></code> and
+<code class="docutils literal notranslate"><span class="pre">use_orig_params:</span> <span class="pre">true</span></code></p></td>
+<td><p>Sharded units expose 1-D views of the matrices that MuonH
+orthogonalizes.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">fp16</span></code> parameters or reductions without <code class="docutils literal notranslate"><span class="pre">use_amp:</span> <span class="pre">true</span></code></p></td>
+<td><p>fp16 gradients underflow without the sharded gradient scaler.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">use_orig_params:</span> <span class="pre">false</span></code> with <code class="docutils literal notranslate"><span class="pre">param_groups.split_params</span></code></p></td>
+<td><p>The parameter groups hold module parameters, which FSDP would replace
+with flat parameters.</p></td>
+</tr>
+<tr class="row-even"><td><p>Parameters with zero dimensions</p></td>
+<td><p>FSDP shards only parameters with at least one dimension. The learned
+global output scale (<code class="docutils literal notranslate"><span class="pre">model.output_scale_mode:</span> <span class="pre">global</span></code>) is stored as
+a one-element vector and trains under FSDP.</p></td>
+</tr>
+</tbody>
+</table>
+<p>Losses that need the model itself, the sequence losses and autoencoder
+encoders also raise (<a class="reference internal" href="training_strategies.html#loss-functions"><span class="std std-ref">Loss functions</span></a>). Because the default
+<code class="docutils literal notranslate"><span class="pre">synapse_decay_rate</span></code> is positive, an FSDP configuration of a model with
+sparse synapses sets <code class="docutils literal notranslate"><span class="pre">synapse_decay_rate:</span> <span class="pre">0.0</span></code> and <code class="docutils literal notranslate"><span class="pre">weight_boosting:</span>
+<span class="pre">false</span></code> explicitly, as the example in <a class="reference internal" href="#distributed-training-section"><span class="std std-ref">The distributed section</span></a>
+does; <code class="docutils literal notranslate"><span class="pre">configs/config_exp_fsdp.yaml</span></code> is a complete FSDP configuration of a
+population network with indexed synapses. The FSDP trainer clips the global
+gradient norm unless <code class="docutils literal notranslate"><span class="pre">grad_clip_mode</span></code> says otherwise. It keeps the final
+weights: with <code class="docutils literal notranslate"><span class="pre">load_best_state_dict:</span> <span class="pre">true</span></code> it logs a warning and records
+<code class="docutils literal notranslate"><span class="pre">final_weights</span></code>, <code class="docutils literal notranslate"><span class="pre">load_best_state_dict_requested</span></code> and
+<code class="docutils literal notranslate"><span class="pre">load_best_state_dict_applied</span></code> in <code class="docutils literal notranslate"><span class="pre">training_summary.json</span></code>.
+<code class="docutils literal notranslate"><span class="pre">log_first_step_diagnostics:</span> <span class="pre">true</span></code> records statistics of the first
+optimizer step.</p>
+</section>
+<section id="wrapping-and-construction">
+<h3>Wrapping and construction<a class="headerlink" href="#wrapping-and-construction" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">auto_wrap_policy</span></code> decides the FSDP units. With <code class="docutils literal notranslate"><span class="pre">none</span></code> the whole model is
+one unit, so every GPU holds the complete model while it computes.
+<code class="docutils literal notranslate"><span class="pre">indexed_synapses</span></code> makes every indexed synapse module (<code class="docutils literal notranslate"><span class="pre">indexed</span></code> and
+<code class="docutils literal notranslate"><span class="pre">indexed_dynamic</span></code> synapses and their subclasses) its own unit, so the
+parameter all-gathers of a contact-heavy model stay bounded; <code class="docutils literal notranslate"><span class="pre">size</span></code> wraps
+every submodule with at least <code class="docutils literal notranslate"><span class="pre">min_num_params</span></code> parameters.</p>
+<p>Data-driven gate calibration (for example <code class="docutils literal notranslate"><span class="pre">occupancy_quantile</span></code>) runs on rank
+0 before wrapping, whether or not analyses are enabled, and reaches the other
+ranks through <code class="docutils literal notranslate"><span class="pre">sync_module_states</span></code>; a data-driven policy with
+<code class="docutils literal notranslate"><span class="pre">sync_module_states:</span> <span class="pre">false</span></code> raises.</p>
+<p>Every rank must hold the same indexed topology. With the default
+<code class="docutils literal notranslate"><span class="pre">init_mode:</span> <span class="pre">per_rank</span></code> each rank samples it from the same seed; with
+<code class="docutils literal notranslate"><span class="pre">init_mode:</span> <span class="pre">rank0_broadcast</span></code> (<code class="docutils literal notranslate"><span class="pre">model.core.sparsity.indexed.init_mode</span></code>, or
+<code class="docutils literal notranslate"><span class="pre">indexed_init_mode</span></code> in a population network) only rank 0 samples it, and
+the other ranks receive it when FSDP wraps the model with
+<code class="docutils literal notranslate"><span class="pre">sync_module_states:</span> <span class="pre">true</span></code>. Layers with <code class="docutils literal notranslate"><span class="pre">persistent_indices:</span> <span class="pre">false</span></code>
+regenerate their indices from an explicit seed when a checkpoint loads and
+check them against a stored <code class="docutils literal notranslate"><span class="pre">topology_fingerprint</span></code>
+(<a class="reference internal" href="performance_kernels.html#indexed-topology"><span class="std std-ref">Compact topology and checkpoints</span></a>).</p>
+</section>
+<section id="mixed-precision">
+<h3>Mixed precision<a class="headerlink" href="#mixed-precision" title="Link to this heading"></a></h3>
+<p>Mixed precision defaults to bf16. fp16 needs loss scaling
+(<code class="docutils literal notranslate"><span class="pre">training.main.common.use_amp:</span> <span class="pre">true</span></code>) and raises without it. FSDP casts
+every floating buffer to <code class="docutils literal notranslate"><span class="pre">buffer_dtype</span></code> for the rest of the run and keeps no
+full-precision copy, so buffers updated in place (variance Top-K statistics)
+lose precision and checkpoints store the rounded values; <code class="docutils literal notranslate"><span class="pre">buffer_dtype:</span>
+<span class="pre">keep</span></code> leaves buffers in their own dtype. Recurrent layers compute their
+decay factors <span class="math notranslate nohighlight">\(\exp(-\Delta t/\tau)\)</span> in the parameter dtype whatever
+<code class="docutils literal notranslate"><span class="pre">buffer_dtype</span></code> is: in bf16 every <span class="math notranslate nohighlight">\(\tau\)</span> above about 511 steps gives a
+factor of exactly 1, and that level stops responding to input. The entry point
+warns about such buffers (use <code class="docutils literal notranslate"><span class="pre">mixed_precision_dtype:</span> <span class="pre">fp32</span></code> for these time
+constants) and records them under <code class="docutils literal notranslate"><span class="pre">frozen_decay_buffers</span></code>, with the resolved
+dtypes under <code class="docutils literal notranslate"><span class="pre">fsdp_mixed_precision</span></code>, in <code class="docutils literal notranslate"><span class="pre">training_summary.json</span></code>.</p>
+</section>
+<section id="checkpoints-and-final-weights">
+<h3>Checkpoints and final weights<a class="headerlink" href="#checkpoints-and-final-weights" title="Link to this heading"></a></h3>
+<p>At the end of training the ranks gather the weights once; rank 0 saves them
+as a plain state dict, <code class="docutils literal notranslate"><span class="pre">final_model.pt</span></code> in the run directory, as
+single-process training does, and runs the final analyses on an unsharded copy
+of the model. The FSDP trainer runs no analyses during training, so analyzers
+with <code class="docutils literal notranslate"><span class="pre">training:</span> <span class="pre">true</span></code> run only on the final model.</p>
+<p>With <code class="docutils literal notranslate"><span class="pre">experiment.checkpointing.enabled:</span> <span class="pre">true</span></code> rank 0 also writes, under
+<code class="docutils literal notranslate"><span class="pre">&lt;run_dir&gt;/checkpoints/</span></code>:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">checkpoint_epoch_&lt;e&gt;.pt</span></code> every <code class="docutils literal notranslate"><span class="pre">save_every_n_epochs</span></code> epochs, where
+<code class="docutils literal notranslate"><span class="pre">e</span></code> counts epochs from 0; none is written after the last epoch;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">best_model.pt</span></code> at every validation improvement, when
+<code class="docutils literal notranslate"><span class="pre">early_stopping</span></code> is true;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">final_checkpoint.pt</span></code> at the end of training.</p></li>
+</ul>
+<p>These files come from <code class="docutils literal notranslate"><span class="pre">training.fsdp_utils.save_fsdp_checkpoint</span></code>: the
+unsharded model and optimizer state, the epoch, and the random generators of
+every rank (Python, NumPy, CPU and the rank’s CUDA device).
+<code class="docutils literal notranslate"><span class="pre">training.fsdp_utils.load_fsdp_checkpoint(model,</span> <span class="pre">optimizer,</span> <span class="pre">path)</span></code> restores
+them into a newly wrapped model and optimizer and returns the epoch, so
+training continued on the same number of ranks draws the same dropout masks
+and stochastic synapse selections as the uninterrupted run. A checkpoint from
+a different number of ranks, or one without generator state, raises unless
+<code class="docutils literal notranslate"><span class="pre">restore_random_state=False</span></code>. The training scripts have no resume option:
+call <code class="docutils literal notranslate"><span class="pre">load_fsdp_checkpoint</span></code> from your own launcher.</p>
+</section>
+<section id="memory">
+<span id="distributed-training-memory"></span><h3>Memory<a class="headerlink" href="#memory" title="Link to this heading"></a></h3>
+<p>When a run does not fit, in roughly this order:</p>
+<ul class="simple">
+<li><p>Reduce <code class="docutils literal notranslate"><span class="pre">training.main.common.batch_size</span></code>.</p></li>
+<li><p>Use <code class="docutils literal notranslate"><span class="pre">auto_wrap_policy:</span> <span class="pre">indexed_synapses</span></code> (or <code class="docutils literal notranslate"><span class="pre">size</span></code>) so that no GPU
+holds the whole model at once.</p></li>
+<li><p>Keep <code class="docutils literal notranslate"><span class="pre">sharding_strategy:</span> <span class="pre">FULL_SHARD</span></code>, which shards parameters, gradients
+and optimizer state.</p></li>
+<li><p>Enable <code class="docutils literal notranslate"><span class="pre">distributed.fsdp.gradient_checkpointing:</span> <span class="pre">true</span></code>. It recomputes, in
+the backward pass, the outermost dendritic branch layers, E/I layers and
+networks, and <code class="docutils literal notranslate"><span class="pre">nn.Linear</span></code> layers with more than 1000 inputs. Models whose
+synapses change state in their training forward pass (dense-to-sparse
+schedules advanced on the forward pass, variance Top-K, release synapses)
+reject it, because the recomputation would replay those updates and compute
+gradients for a different mask.</p></li>
+<li><p>Enable <code class="docutils literal notranslate"><span class="pre">distributed.fsdp.cpu_offload:</span> <span class="pre">true</span></code> (slower).</p></li>
+<li><p>Train only the readout with <code class="docutils literal notranslate"><span class="pre">freeze_core:</span> <span class="pre">true</span></code> and, for recurrent cores,
+<code class="docutils literal notranslate"><span class="pre">cache_frozen_core_outputs:</span> <span class="pre">true</span></code>.</p></li>
+</ul>
+<p>The entry point records the peak GPU memory, the maximum over the ranks, in
+<code class="docutils literal notranslate"><span class="pre">model_resources.json</span></code>.</p>
+</section>
+</section>
+<section id="troubleshooting">
+<h2><a class="toc-backref" href="#id7" role="doc-backlink">Troubleshooting</a><a class="headerlink" href="#troubleshooting" title="Link to this heading"></a></h2>
+<dl class="simple">
+<dt>NCCL timeouts</dt><dd><p>Raise <code class="docutils literal notranslate"><span class="pre">distributed.timeout_seconds</span></code> when rank 0 runs long analyses or
+calibration while the other ranks wait. If NCCL selects the wrong network
+interface, set <code class="docutils literal notranslate"><span class="pre">NCCL_SOCKET_IFNAME</span></code> (and, where needed,
+<code class="docutils literal notranslate"><span class="pre">NCCL_IB_DISABLE</span></code>) in the launch environment, and check the network
+connectivity between the nodes.</p>
+</dd>
+<dt>Out of GPU memory</dt><dd><p>See <a class="reference internal" href="#distributed-training-memory"><span class="std std-ref">Memory</span></a>.</p>
+</dd>
+<dt>An option is rejected at start</dt><dd><p>The FSDP entry point lists every option it would not apply in one error;
+remove them or train with <code class="docutils literal notranslate"><span class="pre">train_experiments</span></code>. DDP rejects the
+strategies and options listed under DDP.</p>
+</dd>
+<dt>Autoencoder encoders</dt><dd><p>Encoder pretraining (<a class="reference internal" href="available_components.html#encoder-pretraining"><span class="std std-ref">Pretraining autoencoder encoders</span></a>) runs in single-process
+training. A DDP run starts from the checkpoint of a single-process run
+(<code class="docutils literal notranslate"><span class="pre">model.initial_checkpoint</span></code>); the FSDP entry point rejects autoencoder
+encoders.</p>
+</dd>
+<dt>Monitoring</dt><dd><p>Rank 0 writes the run’s log files, <code class="docutils literal notranslate"><span class="pre">dendritic_modeling.log</span></code> and
+<code class="docutils literal notranslate"><span class="pre">train.log</span></code>, into the run directory (<a class="reference internal" href="runs_and_outputs.html#logging"><span class="std std-ref">Logging</span></a>). Watch GPU memory
+with <code class="docutils literal notranslate"><span class="pre">nvidia-smi</span></code>; when a scheduler runs the job, follow its job output
+file.</p>
+</dd>
+</dl>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="training_strategies.html" class="btn btn-neutral float-left" title="Training" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="performance_kernels.html" class="btn btn-neutral float-right" title="Sparse execution and performance" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024-2026, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

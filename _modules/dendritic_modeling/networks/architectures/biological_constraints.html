@@ -1,0 +1,537 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>dendritic_modeling.networks.architectures.biological_constraints &mdash; DendriNet v0.2.0</title>
+      <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../../_static/documentation_options.js?v=938c9ccc"></script>
+      <script src="../../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../../index.html" class="icon icon-home">
+            DendriNet
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../examples.html">Example configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Building models</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../network_architectures.html">Model architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../dendritic_neurons.html">Dendritic neurons</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../synapses.html">Synapses and connectivity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../population_networks.html">Population networks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../temporal_dynamics.html">Temporal dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../structured_ei_cores.html">Structured E/I cores</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../conductance_options.html">Conductance options</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../comparison_models.html">Baselines and comparison models</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Configuration</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../configuration_guide.html">Configuration guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../config_reference.html">Annotated reference configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../training_strategies.html">Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../distributed_training.html">Distributed training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../performance_kernels.html">Sparse execution and performance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Data and analysis</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../datasets.html">Datasets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../analysis.html">Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../analyzers.html">Analyzer reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../checkpoint_analysis.html">Analyzing saved checkpoints</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Running experiments</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../runs_and_outputs.html">Runs and outputs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../sweeps.html">Parameter sweeps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../model_compression.html">Compact checkpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../project_provenance.html">Project provenance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../available_components.html">Component catalogue</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../options_reference.html">Options reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../cli_reference.html">Command-line reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../api_reference.html">Python API</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../extending.html">Extending DendriNet</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../engineering_architecture.html">Engineering architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../contributing.html">Contributing</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">DendriNet</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">dendritic_modeling.networks.architectures.biological_constraints</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for dendritic_modeling.networks.architectures.biological_constraints</h1><div class="highlight"><pre>
+<span></span><span class="sd">"""The biological constraint set declared by ``model.core.biological_neuron``.</span>
+
+<span class="sd">``biological_neuron: true`` declares that a core is a biologically constrained</span>
+<span class="sd">E/I network. The check runs on the built model, on the modules the core</span>
+<span class="sd">actually contains, so core-type aliases, defaults and per-population settings</span>
+<span class="sd">are all taken into account. A core satisfies the set when:</span>
+
+<span class="sd">1. Synaptic weights are nonnegative. Every synapse bank uses a nonnegative</span>
+<span class="sd">   weight transform (``exp``, ``softplus`` or ``relu``), and the core has no</span>
+<span class="sd">   layer with unconstrained weights, such as the ``nn.Linear`` layers of an</span>
+<span class="sd">   input projection, an MLP inhibitory network or soma feedback.</span>
+<span class="sd">2. Excitation and inhibition stay separate (Dale's law). No synapse bank merges</span>
+<span class="sd">   excitatory and inhibitory inputs, and every source acts with one sign. An</span>
+<span class="sd">   inhibitory pathway reads the network input only when the transfer layer</span>
+<span class="sd">   splits it into separate excitatory and inhibitory channels</span>
+<span class="sd">   (``independent_pathways: true``); a duplicated input would make every input</span>
+<span class="sd">   channel both excite and inhibit. Each population-network connection uses the</span>
+<span class="sd">   pathway of its source's polarity.</span>
+<span class="sd">3. The input is nonnegative. The core rectifies its input before the first</span>
+<span class="sd">   synapses: ``transfer.output_activation`` is ``relu``, ``softplus`` or</span>
+<span class="sd">   ``sigmoid``, or a population network's ``input_transform`` is ``relu`` or</span>
+<span class="sd">   ``signed_split``.</span>
+<span class="sd">4. Every population emits nonnegative activity: spikes, a spike rate, or the</span>
+<span class="sd">   output of its soma gate. A gate that is nonnegative for every voltage</span>
+<span class="sd">   (``relu``, ``softplus``, ``sigmoid``, ``param_relu``, ``param_tanh``,</span>
+<span class="sd">   ``param_tanh_only_m``) qualifies. A gate that is nonnegative only for a</span>
+<span class="sd">   nonnegative voltage (``none``, ``endpoint_tanh``, ``linear_sigmoid``,</span>
+<span class="sd">   ``linear_tanh`` and their ``param_`` forms) qualifies when every level of the</span>
+<span class="sd">   population integrates by shunting with such gates and no synapse type has a</span>
+<span class="sd">   negative reversal potential, because shunting then keeps every voltage</span>
+<span class="sd">   nonnegative.</span>
+
+<span class="sd">The set covers structured EINet, unified E/I and population-network cores</span>
+<span class="sd">(:data:`dendritic_modeling.config.biological.BIOLOGICAL_CORE_TYPES`).</span>
+<span class="sd">"""</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Iterable</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch.nn</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">nn</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.activations.endpoint_tanh</span><span class="w"> </span><span class="kn">import</span> <span class="n">EndpointNormalizedTanh</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.activations.parametric</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">ParametricLinearSigmoid</span><span class="p">,</span>
+    <span class="n">ParametricLinearTanh</span><span class="p">,</span>
+    <span class="n">ParametricReLU</span><span class="p">,</span>
+    <span class="n">ParametricTanh</span><span class="p">,</span>
+    <span class="n">ParametricTanhOnlyM</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.dendrinet</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">DendriNet</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.excitation_inhibition.ei_network</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">ExcitationInhibitionNetwork</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.identity</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">IdentityInputTransform</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.recurrent.ei_network</span><span class="w"> </span><span class="kn">import</span> <span class="n">EINetwork</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.recurrent.population_constants</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">_FF_INH</span><span class="p">,</span>
+    <span class="n">_INPUT_E_SOURCE</span><span class="p">,</span>
+    <span class="n">_INPUT_I_SOURCE</span><span class="p">,</span>
+    <span class="n">_INPUT_SOURCE</span><span class="p">,</span>
+    <span class="n">_REC_INH</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.recurrent.population_network</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">PopulationNetwork</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.recurrent.stateful_dendrinet</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">StatefulDendriNet</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.utils.weight_transforms</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">NONNEGATIVE_WEIGHT_TRANSFORMS</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="c1"># Gates whose output is nonnegative for every input voltage.</span>
+<span class="n">_NONNEGATIVE_GATES</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">,</span>
+    <span class="n">nn</span><span class="o">.</span><span class="n">Softplus</span><span class="p">,</span>
+    <span class="n">nn</span><span class="o">.</span><span class="n">Sigmoid</span><span class="p">,</span>
+    <span class="n">ParametricReLU</span><span class="p">,</span>
+    <span class="n">ParametricTanh</span><span class="p">,</span>
+    <span class="n">ParametricTanhOnlyM</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="c1"># Gates whose output is nonnegative when the voltage is nonnegative. nn.Identity</span>
+<span class="c1"># is the soma output of a population without a gate (reactivate: false).</span>
+<span class="n">_NONNEGATIVE_ON_NONNEGATIVE_VOLTAGE</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">nn</span><span class="o">.</span><span class="n">Identity</span><span class="p">,</span>
+    <span class="n">EndpointNormalizedTanh</span><span class="p">,</span>
+    <span class="n">ParametricLinearSigmoid</span><span class="p">,</span>
+    <span class="n">ParametricLinearTanh</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">_RECTIFYING_ACTIVATIONS</span> <span class="o">=</span> <span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">,</span> <span class="n">nn</span><span class="o">.</span><span class="n">Softplus</span><span class="p">,</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sigmoid</span><span class="p">)</span>
+<span class="n">_UNCONSTRAINED_WEIGHT_LAYERS</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">,</span>
+    <span class="n">nn</span><span class="o">.</span><span class="n">Bilinear</span><span class="p">,</span>
+    <span class="n">nn</span><span class="o">.</span><span class="n">modules</span><span class="o">.</span><span class="n">conv</span><span class="o">.</span><span class="n">_ConvNd</span><span class="p">,</span>
+    <span class="n">nn</span><span class="o">.</span><span class="n">Embedding</span><span class="p">,</span>
+    <span class="n">nn</span><span class="o">.</span><span class="n">RNNBase</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="c1"># Where an unconstrained layer comes from, by a name in its module path.</span>
+<span class="n">_UNCONSTRAINED_ORIGINS</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="p">(</span><span class="s2">"input_projection"</span><span class="p">,</span> <span class="s2">"the input projection (input_projection_dims)"</span><span class="p">),</span>
+    <span class="p">(</span><span class="s2">"soma_feedback"</span><span class="p">,</span> <span class="s2">"soma feedback (soma_feedback_enabled)"</span><span class="p">),</span>
+    <span class="p">(</span><span class="s2">"inhibitory_cells"</span><span class="p">,</span> <span class="s2">"the MLP inhibitory network (inhibitory_network_type: mlp)"</span><span class="p">),</span>
+<span class="p">)</span>
+<span class="n">_POPULATION_MODULES</span> <span class="o">=</span> <span class="p">(</span><span class="n">DendriNet</span><span class="p">,</span> <span class="n">StatefulDendriNet</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="biological_violations">
+<a class="viewcode-back" href="../../../../api_reference.html#dendritic_modeling.networks.architectures.biological_constraints.biological_violations">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">biological_violations</span><span class="p">(</span><span class="n">core</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Return a description of every biological constraint ``core`` breaks."""</span>
+    <span class="k">return</span> <span class="p">[</span>
+        <span class="o">*</span><span class="n">_weight_violations</span><span class="p">(</span><span class="n">core</span><span class="p">),</span>
+        <span class="o">*</span><span class="n">_wiring_violations</span><span class="p">(</span><span class="n">core</span><span class="p">),</span>
+        <span class="o">*</span><span class="n">_input_violations</span><span class="p">(</span><span class="n">core</span><span class="p">),</span>
+        <span class="o">*</span><span class="n">_output_violations</span><span class="p">(</span><span class="n">core</span><span class="p">),</span>
+    <span class="p">]</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">enforce_biological_neuron</span><span class="p">(</span><span class="n">core_type</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">core</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Raise when a core declared ``biological_neuron: true`` breaks the set."""</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">_POPULATION_MODULES</span><span class="p">)</span> <span class="k">for</span> <span class="n">module</span> <span class="ow">in</span> <span class="n">core</span><span class="o">.</span><span class="n">modules</span><span class="p">()):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"model.core.biological_neuron is true, but the </span><span class="si">{</span><span class="n">core_type</span><span class="si">!r}</span><span class="s2"> core "</span>
+            <span class="s2">"contains no dendritic populations."</span>
+        <span class="p">)</span>
+    <span class="n">violations</span> <span class="o">=</span> <span class="n">biological_violations</span><span class="p">(</span><span class="n">core</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">violations</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"model.core.biological_neuron is true, but the </span><span class="si">{</span><span class="n">core_type</span><span class="si">!r}</span><span class="s2"> core "</span>
+            <span class="s2">"breaks the biological constraint set:</span><span class="se">\n</span><span class="s2">- "</span>
+            <span class="o">+</span> <span class="s2">"</span><span class="se">\n</span><span class="s2">- "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">violations</span><span class="p">)</span>
+            <span class="o">+</span> <span class="s2">"</span><span class="se">\n</span><span class="s2">Change these settings, or set model.core.biological_neuron: false."</span>
+        <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_owns_parameters</span><span class="p">(</span><span class="n">module</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+    <span class="k">return</span> <span class="nb">next</span><span class="p">(</span><span class="n">module</span><span class="o">.</span><span class="n">parameters</span><span class="p">(</span><span class="n">recurse</span><span class="o">=</span><span class="kc">False</span><span class="p">),</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_examples</span><span class="p">(</span><span class="n">names</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="n">shown</span> <span class="o">=</span> <span class="s2">", "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">names</span><span class="p">[:</span><span class="mi">3</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">shown</span> <span class="o">+</span> <span class="p">(</span><span class="sa">f</span><span class="s2">" and </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">names</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">3</span><span class="si">}</span><span class="s2"> more"</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">names</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">3</span> <span class="k">else</span> <span class="s2">""</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_weight_violations</span><span class="p">(</span><span class="n">core</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+    <span class="n">signed_banks</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">unconstrained</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">merged</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">module</span> <span class="ow">in</span> <span class="n">core</span><span class="o">.</span><span class="n">named_modules</span><span class="p">():</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">_UNCONSTRAINED_WEIGHT_LAYERS</span><span class="p">):</span>
+            <span class="n">origin</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span>
+                <span class="p">(</span><span class="n">text</span> <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">text</span> <span class="ow">in</span> <span class="n">_UNCONSTRAINED_ORIGINS</span> <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">name</span><span class="p">),</span>
+                <span class="sa">f</span><span class="s2">"a </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">module</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2"> layer"</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="n">unconstrained</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">origin</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="s2">"synapse_mode"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"mlp"</span><span class="p">:</span>
+            <span class="n">merged</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+        <span class="n">transform</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="s2">"weight_transform"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">transform</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">_owns_parameters</span><span class="p">(</span><span class="n">module</span><span class="p">):</span>
+            <span class="k">continue</span>
+        <span class="n">transform</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">transform</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">transform</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">NONNEGATIVE_WEIGHT_TRANSFORMS</span><span class="p">:</span>
+            <span class="n">signed_banks</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">transform</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+    <span class="n">violations</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="sa">f</span><span class="s2">"synapse banks use the signed weight transform </span><span class="si">{</span><span class="n">transform</span><span class="si">!r}</span><span class="s2"> "</span>
+        <span class="sa">f</span><span class="s2">"(</span><span class="si">{</span><span class="n">_examples</span><span class="p">(</span><span class="n">names</span><span class="p">)</span><span class="si">}</span><span class="s2">); use exp, softplus or relu"</span>
+        <span class="k">for</span> <span class="n">transform</span><span class="p">,</span> <span class="n">names</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">signed_banks</span><span class="o">.</span><span class="n">items</span><span class="p">())</span>
+    <span class="p">]</span>
+    <span class="n">violations</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">origin</span><span class="si">}</span><span class="s2"> has unconstrained (signed) weights (</span><span class="si">{</span><span class="n">_examples</span><span class="p">(</span><span class="n">names</span><span class="p">)</span><span class="si">}</span><span class="s2">)"</span>
+        <span class="k">for</span> <span class="n">origin</span><span class="p">,</span> <span class="n">names</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">unconstrained</span><span class="o">.</span><span class="n">items</span><span class="p">())</span>
+    <span class="p">)</span>
+    <span class="k">if</span> <span class="n">merged</span><span class="p">:</span>
+        <span class="n">violations</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="s2">"the MLP synapse mode merges excitatory and inhibitory inputs into one "</span>
+            <span class="sa">f</span><span class="s2">"signed synapse bank (</span><span class="si">{</span><span class="n">_examples</span><span class="p">(</span><span class="n">merged</span><span class="p">)</span><span class="si">}</span><span class="s2">)"</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="n">violations</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_has_inhibitory_pathway</span><span class="p">(</span><span class="n">cells</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+    <span class="k">return</span> <span class="nb">any</span><span class="p">(</span>
+        <span class="nb">getattr</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span> <span class="s2">"branch_inhibition"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">cells</span><span class="p">,</span> <span class="s2">"branch_layers"</span><span class="p">,</span> <span class="p">())</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_duplicates_input</span><span class="p">(</span><span class="n">transfer</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Whether the inhibitory input stream repeats the excitatory channels."""</span>
+    <span class="k">return</span> <span class="n">transfer</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span>
+        <span class="nb">getattr</span><span class="p">(</span><span class="n">transfer</span><span class="p">,</span> <span class="s2">"pathway_split"</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span> <span class="n">IdentityInputTransform</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_duplicated_stream_message</span><span class="p">(</span><span class="n">readers</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="k">return</span> <span class="p">(</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">readers</span><span class="p">)</span><span class="si">}</span><span class="s2"> read the transferred inhibitory stream, which "</span>
+        <span class="s2">"repeats the excitatory input channels (transfer independent_pathways: "</span>
+        <span class="s2">"false), so every input channel both excites and inhibits; set "</span>
+        <span class="s2">"independent_pathways: true to split the input into excitatory and "</span>
+        <span class="s2">"inhibitory channels"</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_wiring_violations</span><span class="p">(</span><span class="n">core</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">core</span><span class="p">,</span> <span class="n">ExcitationInhibitionNetwork</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">_duplicates_input</span><span class="p">(</span><span class="n">core</span><span class="o">.</span><span class="n">transfer_fn</span><span class="p">):</span>
+            <span class="k">return</span> <span class="p">[]</span>
+        <span class="n">first</span> <span class="o">=</span> <span class="n">core</span><span class="o">.</span><span class="n">layers</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">readers</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="n">first</span><span class="o">.</span><span class="n">inhibitory_cells</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">_has_inhibitory_pathway</span><span class="p">(</span><span class="n">first</span><span class="o">.</span><span class="n">excitatory_cells</span><span class="p">):</span>
+                <span class="n">readers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">"first-layer excitatory cells"</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">_has_inhibitory_pathway</span><span class="p">(</span><span class="n">first</span><span class="o">.</span><span class="n">inhibitory_cells</span><span class="p">):</span>
+            <span class="n">readers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">"first-layer inhibitory cells"</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">_duplicated_stream_message</span><span class="p">(</span><span class="n">readers</span><span class="p">)]</span> <span class="k">if</span> <span class="n">readers</span> <span class="k">else</span> <span class="p">[]</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">core</span><span class="p">,</span> <span class="n">EINetwork</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">core</span><span class="o">.</span><span class="n">transfer_fn</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">_duplicates_input</span><span class="p">(</span><span class="n">core</span><span class="o">.</span><span class="n">transfer_fn</span><span class="p">):</span>
+            <span class="k">return</span> <span class="p">[]</span>
+        <span class="n">readers</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">layer</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">core</span><span class="o">.</span><span class="n">layers</span><span class="p">):</span>
+            <span class="n">direct</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">layer</span><span class="o">.</span><span class="n">direct_ff_inhibitory_to_excitatory</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">index</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">direct</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="k">if</span> <span class="n">layer</span><span class="o">.</span><span class="n">i_population</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">_has_inhibitory_pathway</span><span class="p">(</span><span class="n">layer</span><span class="o">.</span><span class="n">i_population</span><span class="p">):</span>
+                    <span class="n">readers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">"layer </span><span class="si">{</span><span class="n">index</span><span class="si">}</span><span class="s2"> inhibitory cells"</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">direct</span> <span class="ow">and</span> <span class="n">_has_inhibitory_pathway</span><span class="p">(</span><span class="n">layer</span><span class="o">.</span><span class="n">e_population</span><span class="p">):</span>
+                <span class="n">readers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">"layer </span><span class="si">{</span><span class="n">index</span><span class="si">}</span><span class="s2"> excitatory cells"</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">_duplicated_stream_message</span><span class="p">(</span><span class="n">readers</span><span class="p">)]</span> <span class="k">if</span> <span class="n">readers</span> <span class="k">else</span> <span class="p">[]</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">core</span><span class="p">,</span> <span class="n">PopulationNetwork</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">_population_wiring_violations</span><span class="p">(</span><span class="n">core</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">[]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_population_wiring_violations</span><span class="p">(</span><span class="n">core</span><span class="p">:</span> <span class="n">PopulationNetwork</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+    <span class="n">violations</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">first_sources</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="n">connection</span><span class="o">.</span><span class="n">source</span>
+        <span class="k">for</span> <span class="n">connection</span> <span class="ow">in</span> <span class="n">core</span><span class="o">.</span><span class="n">layers</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">connections</span>
+        <span class="k">if</span> <span class="n">connection</span><span class="o">.</span><span class="n">enabled</span>
+    <span class="p">}</span>
+    <span class="k">if</span> <span class="p">(</span>
+        <span class="n">_duplicates_input</span><span class="p">(</span><span class="n">core</span><span class="o">.</span><span class="n">transfer_fn</span><span class="p">)</span>
+        <span class="ow">and</span> <span class="n">_INPUT_I_SOURCE</span> <span class="ow">in</span> <span class="n">first_sources</span>
+        <span class="ow">and</span> <span class="n">first_sources</span> <span class="o">&amp;</span> <span class="p">{</span><span class="n">_INPUT_SOURCE</span><span class="p">,</span> <span class="n">_INPUT_E_SOURCE</span><span class="p">}</span>
+    <span class="p">):</span>
+        <span class="n">violations</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="s2">"the first layer reads input_i together with input or input_e, which "</span>
+            <span class="s2">"carry the same channels because the input is not split, so every "</span>
+            <span class="s2">"input channel both excites and inhibits; set use_transfer: true with "</span>
+            <span class="s2">"transfer_params.independent_pathways: true"</span>
+        <span class="p">)</span>
+    <span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="n">core</span><span class="o">.</span><span class="n">layers</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">connection</span> <span class="ow">in</span> <span class="n">layer</span><span class="o">.</span><span class="n">connections</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">connection</span><span class="o">.</span><span class="n">enabled</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">polarity</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">_source_polarity</span><span class="p">(</span><span class="n">connection</span><span class="o">.</span><span class="n">source</span><span class="p">)</span>
+            <span class="n">sign</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="s2">"inhibitory"</span>
+                <span class="k">if</span> <span class="n">connection</span><span class="o">.</span><span class="n">pathway</span> <span class="ow">in</span> <span class="p">{</span><span class="n">_FF_INH</span><span class="p">,</span> <span class="n">_REC_INH</span><span class="p">}</span>
+                <span class="k">else</span> <span class="s2">"excitatory"</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="n">sign</span> <span class="o">!=</span> <span class="n">polarity</span><span class="p">:</span>
+                <span class="n">violations</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">"connection </span><span class="si">{</span><span class="n">connection</span><span class="o">.</span><span class="n">source</span><span class="si">}</span><span class="s2"> -&gt; </span><span class="si">{</span><span class="n">connection</span><span class="o">.</span><span class="n">target</span><span class="si">}</span><span class="s2"> in "</span>
+                    <span class="sa">f</span><span class="s2">"layer </span><span class="si">{</span><span class="n">layer</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">name</span><span class="si">!r}</span><span class="s2"> uses pathway "</span>
+                    <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">connection</span><span class="o">.</span><span class="n">pathway</span><span class="si">!r}</span><span class="s2">, but its source is </span><span class="si">{</span><span class="n">polarity</span><span class="si">}</span><span class="s2">"</span>
+                <span class="p">)</span>
+    <span class="k">return</span> <span class="n">violations</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_rectifies</span><span class="p">(</span><span class="n">transfer</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">transfer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span>
+        <span class="nb">getattr</span><span class="p">(</span><span class="n">transfer</span><span class="p">,</span> <span class="s2">"activation_fn"</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span> <span class="n">_RECTIFYING_ACTIVATIONS</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_input_violations</span><span class="p">(</span><span class="n">core</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+    <span class="n">unrectified</span> <span class="o">=</span> <span class="s2">"rectify it with transfer output_activation relu, softplus or sigmoid"</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">core</span><span class="p">,</span> <span class="n">ExcitationInhibitionNetwork</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">_rectifies</span><span class="p">(</span><span class="n">core</span><span class="o">.</span><span class="n">transfer_fn</span><span class="p">):</span>
+            <span class="k">return</span> <span class="p">[]</span>
+        <span class="n">activation</span> <span class="o">=</span> <span class="n">core</span><span class="o">.</span><span class="n">transfer_fn</span><span class="o">.</span><span class="n">output_activation</span>
+        <span class="k">return</span> <span class="p">[</span>
+            <span class="sa">f</span><span class="s2">"the input reaches the synapses unrectified (transfer "</span>
+            <span class="sa">f</span><span class="s2">"output_activation </span><span class="si">{</span><span class="n">activation</span><span class="si">!r}</span><span class="s2">); </span><span class="si">{</span><span class="n">unrectified</span><span class="si">}</span><span class="s2">"</span>
+        <span class="p">]</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">core</span><span class="p">,</span> <span class="n">EINetwork</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">core</span><span class="o">.</span><span class="n">transfer_fn</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[</span>
+                <span class="s2">"the core has no transfer layer, so nothing rectifies its input; "</span>
+                <span class="sa">f</span><span class="s2">"enable the transfer layer and </span><span class="si">{</span><span class="n">unrectified</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">]</span>
+        <span class="k">if</span> <span class="n">_rectifies</span><span class="p">(</span><span class="n">core</span><span class="o">.</span><span class="n">transfer_fn</span><span class="p">):</span>
+            <span class="k">return</span> <span class="p">[]</span>
+        <span class="k">return</span> <span class="p">[</span>
+            <span class="s2">"the input reaches the synapses unrectified (transfer "</span>
+            <span class="sa">f</span><span class="s2">"output_activation </span><span class="si">{</span><span class="n">core</span><span class="o">.</span><span class="n">transfer_fn</span><span class="o">.</span><span class="n">output_activation</span><span class="si">!r}</span><span class="s2">); "</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">unrectified</span><span class="si">}</span><span class="s2">"</span>
+        <span class="p">]</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">core</span><span class="p">,</span> <span class="n">PopulationNetwork</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">core</span><span class="o">.</span><span class="n">input_transform</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">"relu"</span><span class="p">,</span> <span class="s2">"signed_split"</span><span class="p">}</span> <span class="ow">or</span> <span class="n">_rectifies</span><span class="p">(</span>
+            <span class="n">core</span><span class="o">.</span><span class="n">transfer_fn</span>
+        <span class="p">):</span>
+            <span class="k">return</span> <span class="p">[]</span>
+        <span class="k">return</span> <span class="p">[</span>
+            <span class="s2">"the input reaches the synapses unrectified (population_network "</span>
+            <span class="sa">f</span><span class="s2">"input_transform </span><span class="si">{</span><span class="n">core</span><span class="o">.</span><span class="n">input_transform</span><span class="si">!r}</span><span class="s2">); set input_transform "</span>
+            <span class="s2">"relu or signed_split, or a rectifying transfer_params "</span>
+            <span class="s2">"output_activation"</span>
+        <span class="p">]</span>
+    <span class="k">return</span> <span class="p">[]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_gate_name</span><span class="p">(</span><span class="n">gate</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="k">return</span> <span class="s2">"none"</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">gate</span><span class="p">,</span> <span class="n">nn</span><span class="o">.</span><span class="n">Identity</span><span class="p">)</span> <span class="k">else</span> <span class="nb">type</span><span class="p">(</span><span class="n">gate</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_has_negative_reversal</span><span class="p">(</span><span class="n">population</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">population</span><span class="p">,</span> <span class="s2">"synapse_types_enabled"</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="n">types</span> <span class="o">=</span> <span class="n">population</span><span class="o">.</span><span class="n">synapse_types</span>
+    <span class="k">return</span> <span class="nb">any</span><span class="p">(</span>
+        <span class="nb">float</span><span class="p">(</span><span class="n">synapse_type</span><span class="o">.</span><span class="n">reversal_potential</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mf">0.0</span>
+        <span class="k">for</span> <span class="n">group</span> <span class="ow">in</span> <span class="p">(</span><span class="n">types</span><span class="o">.</span><span class="n">excitatory</span><span class="p">,</span> <span class="n">types</span><span class="o">.</span><span class="n">inhibitory</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">synapse_type</span> <span class="ow">in</span> <span class="n">group</span><span class="o">.</span><span class="n">types</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_population_output_problem</span><span class="p">(</span><span class="n">population</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Why ``population`` can emit negative activity, or None when it cannot."""</span>
+    <span class="n">spiking_soma</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">population</span><span class="p">,</span> <span class="s2">"spiking_soma"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">spiking_soma</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">spiking_soma</span><span class="o">.</span><span class="n">output_mode</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">"spikes"</span><span class="p">,</span> <span class="s2">"rate"</span><span class="p">}:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="s2">"its spiking soma reads out the membrane potential "</span>
+            <span class="s2">"(spike_readout: membrane), which can be negative"</span>
+        <span class="p">)</span>
+    <span class="n">layers</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">population</span><span class="o">.</span><span class="n">branch_layers</span><span class="p">)</span>
+    <span class="n">gates</span> <span class="o">=</span> <span class="p">[</span><span class="n">layer</span><span class="o">.</span><span class="n">reactivation</span> <span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="n">layers</span><span class="p">]</span>
+    <span class="n">soma_gate</span> <span class="o">=</span> <span class="n">gates</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">soma_gate</span><span class="p">,</span> <span class="n">_NONNEGATIVE_GATES</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">soma_gate</span><span class="p">,</span> <span class="n">_NONNEGATIVE_ON_NONNEGATIVE_VOLTAGE</span><span class="p">):</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">"its soma gate </span><span class="si">{</span><span class="n">_gate_name</span><span class="p">(</span><span class="n">soma_gate</span><span class="p">)</span><span class="si">}</span><span class="s2"> can emit negative values"</span>
+    <span class="n">reason</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">(</span><span class="n">layer</span><span class="o">.</span><span class="n">use_shunting</span> <span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="n">layers</span><span class="p">):</span>
+        <span class="n">reason</span> <span class="o">=</span> <span class="s2">"additive integration can make the voltage negative"</span>
+    <span class="k">elif</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">(</span>
+        <span class="nb">isinstance</span><span class="p">(</span><span class="n">gate</span><span class="p">,</span> <span class="n">_NONNEGATIVE_GATES</span> <span class="o">+</span> <span class="n">_NONNEGATIVE_ON_NONNEGATIVE_VOLTAGE</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">gate</span> <span class="ow">in</span> <span class="n">gates</span>
+    <span class="p">):</span>
+        <span class="n">reason</span> <span class="o">=</span> <span class="s2">"a dendritic gate can emit negative values"</span>
+    <span class="k">elif</span> <span class="n">_has_negative_reversal</span><span class="p">(</span><span class="n">population</span><span class="p">):</span>
+        <span class="n">reason</span> <span class="o">=</span> <span class="s2">"a synapse type has a negative reversal potential"</span>
+    <span class="k">if</span> <span class="n">reason</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">return</span> <span class="p">(</span>
+        <span class="sa">f</span><span class="s2">"its soma gate </span><span class="si">{</span><span class="n">_gate_name</span><span class="p">(</span><span class="n">soma_gate</span><span class="p">)</span><span class="si">}</span><span class="s2"> is nonnegative only for a "</span>
+        <span class="sa">f</span><span class="s2">"nonnegative voltage, and </span><span class="si">{</span><span class="n">reason</span><span class="si">}</span><span class="s2">; use a nonnegative gate such as "</span>
+        <span class="s2">"param_tanh, param_relu or relu"</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_output_violations</span><span class="p">(</span><span class="n">core</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+    <span class="n">violations</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">module</span> <span class="ow">in</span> <span class="n">core</span><span class="o">.</span><span class="n">named_modules</span><span class="p">():</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">_POPULATION_MODULES</span><span class="p">):</span>
+            <span class="k">continue</span>
+        <span class="n">problem</span> <span class="o">=</span> <span class="n">_population_output_problem</span><span class="p">(</span><span class="n">module</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">problem</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">violations</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">"population </span><span class="si">{</span><span class="n">name</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="s1">'core'</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">problem</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">violations</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"biological_violations"</span><span class="p">,</span> <span class="s2">"enforce_biological_neuron"</span><span class="p">]</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024-2026, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

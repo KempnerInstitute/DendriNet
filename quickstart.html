@@ -6,20 +6,20 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Quick Start &mdash; Dendritic Modeling Framework v0.1.0</title>
+  <title>Quickstart &mdash; DendriNet v0.2.0</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
 
   
       <script src="_static/jquery.js?v=5d32c60e"></script>
       <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="_static/documentation_options.js?v=01f34227"></script>
+      <script src="_static/documentation_options.js?v=938c9ccc"></script>
       <script src="_static/doctools.js?v=fd6eb6e6"></script>
       <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Runnable Config Examples" href="examples.html" />
+    <link rel="next" title="Example configurations" href="examples.html" />
     <link rel="prev" title="Installation" href="installation.html" /> 
 </head>
 
@@ -32,7 +32,7 @@
           
           
           <a href="index.html" class="icon icon-home">
-            Dendritic Modeling Framework
+            DendriNet
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
@@ -42,39 +42,68 @@
   </form>
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
-              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+              <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Quick Start</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#train-an-e-i-network-on-mnist">Train an E-I network on MNIST</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#override-parameters-from-the-command-line">Override parameters from the command line</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#distributed-training-ddp-fsdp">Distributed training (DDP / FSDP)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#run-a-parameter-sweep">Run a parameter sweep</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#example-model-runs">Example model runs</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#output-structure">Output structure</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#wandb-integration">WandB integration</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#minimal-configuration-example">Minimal configuration example</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Quickstart</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#train-a-population-network-on-mnist">Train a population network on MNIST</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#read-the-run-directory">Read the run directory</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#analyze-the-checkpoint">Analyze the checkpoint</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#generate-a-sweep">Generate a sweep</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#train-on-several-gpus">Train on several GPUs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#use-dendrinet-from-python">Use DendriNet from Python</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#next-steps">Next steps</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="examples.html">Runnable Config Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Example configurations</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
+<p class="caption" role="heading"><span class="caption-text">Building models</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="network_architectures.html">Network Architectures</a></li>
-<li class="toctree-l1"><a class="reference internal" href="training_strategies.html">Training Strategies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="network_architectures.html">Model architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dendritic_neurons.html">Dendritic neurons</a></li>
+<li class="toctree-l1"><a class="reference internal" href="synapses.html">Synapses and connectivity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="population_networks.html">Population networks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="temporal_dynamics.html">Temporal dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="structured_ei_cores.html">Structured E/I cores</a></li>
+<li class="toctree-l1"><a class="reference internal" href="conductance_options.html">Conductance options</a></li>
+<li class="toctree-l1"><a class="reference internal" href="comparison_models.html">Baselines and comparison models</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Configuration</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="configuration_guide.html">Configuration guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config_reference.html">Annotated reference configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="training_strategies.html">Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="distributed_training.html">Distributed training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="performance_kernels.html">Sparse execution and performance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Data and analysis</span></p>
+<ul>
 <li class="toctree-l1"><a class="reference internal" href="datasets.html">Datasets</a></li>
 <li class="toctree-l1"><a class="reference internal" href="analysis.html">Analysis</a></li>
-<li class="toctree-l1"><a class="reference internal" href="engineering_architecture.html">Engineering Architecture</a></li>
-<li class="toctree-l1"><a class="reference internal" href="configuration_guide.html">Configuration Guide</a></li>
-<li class="toctree-l1"><a class="reference internal" href="transformer_llm_scaling.html">Dendritic LLM Scaling Workflow</a></li>
-<li class="toctree-l1"><a class="reference internal" href="initialization_comparison_policy.html">Initialization Comparison Policy</a></li>
-<li class="toctree-l1"><a class="reference internal" href="sweeps.html">Parameter Sweeps</a></li>
-<li class="toctree-l1"><a class="reference internal" href="fsdp_troubleshooting.html">Distributed Training Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="analyzers.html">Analyzer reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="checkpoint_analysis.html">Analyzing saved checkpoints</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Running experiments</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="runs_and_outputs.html">Runs and outputs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sweeps.html">Parameter sweeps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="model_compression.html">Compact checkpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="project_provenance.html">Project provenance</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Reference</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="config_reference.html">Population-Network Reference Config</a></li>
-<li class="toctree-l1"><a class="reference internal" href="available_components.html">Available Components</a></li>
+<li class="toctree-l1"><a class="reference internal" href="available_components.html">Component catalogue</a></li>
+<li class="toctree-l1"><a class="reference internal" href="options_reference.html">Options reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cli_reference.html">Command-line reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api_reference.html">Python API</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="extending.html">Extending DendriNet</a></li>
+<li class="toctree-l1"><a class="reference internal" href="engineering_architecture.html">Engineering architecture</a></li>
 <li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
 </ul>
 
@@ -84,7 +113,7 @@
 
     <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-          <a href="index.html">Dendritic Modeling Framework</a>
+          <a href="index.html">DendriNet</a>
       </nav>
 
       <div class="wy-nav-content">
@@ -92,7 +121,7 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
-      <li class="breadcrumb-item active">Quick Start</li>
+      <li class="breadcrumb-item active">Quickstart</li>
       <li class="wy-breadcrumbs-aside">
             <a href="_sources/quickstart.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -102,119 +131,35 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="quick-start">
-<h1>Quick Start<a class="headerlink" href="#quick-start" title="Link to this heading"></a></h1>
-<section id="train-an-e-i-network-on-mnist">
-<h2>Train an E-I network on MNIST<a class="headerlink" href="#train-an-e-i-network-on-mnist" title="Link to this heading"></a></h2>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>dendritic_modeling.scripts.training.train_experiments<span class="w"> </span>configs/config_exp.yaml
+  <section id="quickstart">
+<h1>Quickstart<a class="headerlink" href="#quickstart" title="Link to this heading"></a></h1>
+<p>DendriNet models replace the point neurons of a neural network with dendritic
+neurons: each neuron is a tree of branch compartments that receive sparse
+excitatory (E) and inhibitory (I) synapses. A compartment combines its
+excitation and inhibition by shunting (divisive) or additive integration,
+passes the result through a branch nonlinearity (a reactivation gate), and
+feeds its parent compartment, up to the soma. A population network arranges
+these neurons in named E and I populations connected by explicit, directed
+connections, in feedforward or recurrent layers.</p>
+<p>This page trains a small population network on MNIST, reads the files the run
+writes, analyzes the trained checkpoint and generates a parameter sweep. Run
+the commands from the root of the repository checkout, after installing the
+package as described in <a class="reference internal" href="installation.html"><span class="doc">Installation</span></a>.</p>
+<section id="train-a-population-network-on-mnist">
+<h2>Train a population network on MNIST<a class="headerlink" href="#train-a-population-network-on-mnist" title="Link to this heading"></a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>dendritic-train<span class="w"> </span>configs/examples/population_network_feedforward.yaml<span class="w"> </span>--epochs<span class="w"> </span><span class="m">1</span>
 </pre></div>
 </div>
-<p>This runs a single experiment using the default configuration. Results are
-saved to the run output directory configured under <code class="docutils literal notranslate"><span class="pre">outputs</span></code>.</p>
-</section>
-<section id="override-parameters-from-the-command-line">
-<h2>Override parameters from the command line<a class="headerlink" href="#override-parameters-from-the-command-line" title="Link to this heading"></a></h2>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>dendritic_modeling.scripts.training.train_experiments<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>configs/config_exp.yaml<span class="w"> </span>--seed<span class="w"> </span><span class="m">42</span><span class="w"> </span>--output_dir<span class="w"> </span>results/my_run<span class="w"> </span>--run_name<span class="w"> </span>mnist_seed42
-</pre></div>
-</div>
-</section>
-<section id="distributed-training-ddp-fsdp">
-<h2>Distributed training (DDP / FSDP)<a class="headerlink" href="#distributed-training-ddp-fsdp" title="Link to this heading"></a></h2>
-<p>Use the package entry points directly; wrap them in a site-local SLURM script
-when running on a cluster:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># DDP</span>
-torchrun<span class="w"> </span>--nproc_per_node<span class="o">=</span><span class="m">4</span><span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>-m<span class="w"> </span>dendritic_modeling.scripts.training.train_experiments<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>configs/my_config.yaml
-
-<span class="c1"># FSDP</span>
-python<span class="w"> </span>-m<span class="w"> </span>dendritic_modeling.scripts.training.train_experiments_fsdp<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>configs/my_config.yaml
-</pre></div>
-</div>
-<p>See <a class="reference internal" href="configuration_guide.html"><span class="doc">Configuration Guide</span></a> for details on the <code class="docutils literal notranslate"><span class="pre">distributed:</span></code> config block.</p>
-</section>
-<section id="run-a-parameter-sweep">
-<h2>Run a parameter sweep<a class="headerlink" href="#run-a-parameter-sweep" title="Link to this heading"></a></h2>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Generate configs and submit jobs</span>
-python<span class="w"> </span>-m<span class="w"> </span>dendritic_modeling.scripts.sweeps.sweep_manager<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--config<span class="w"> </span>configs/sweep_config.yaml
-
-<span class="c1"># Analyze results</span>
-python<span class="w"> </span>-m<span class="w"> </span>dendritic_modeling.scripts.sweeps.result_analyzer<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>/path/to/sweep/results
-</pre></div>
-</div>
-</section>
-<section id="example-model-runs">
-<h2>Example model runs<a class="headerlink" href="#example-model-runs" title="Link to this heading"></a></h2>
-<p>The repository includes a curated set of population-network examples plus
-specialized vision and transformer replacement configs. See <a class="reference internal" href="examples.html"><span class="doc">Runnable Config Examples</span></a>
-for the full list.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># MNIST, single-layer E/I population network</span>
-<span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>configs/examples/population_network_feedforward.yaml
-
-<span class="c1"># CIFAR-10, one 128E/32I layer, [3, 3, 3] morphology, 40E/10I synapses</span>
-<span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>configs/examples/population_network_cifar10.yaml
-
-<span class="c1"># Two-layer population network with explicit cross-layer routing</span>
-<span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>configs/examples/population_network_two_layer.yaml
-
-<span class="c1"># Memory-efficient indexed rewiring on MNIST</span>
-<span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>configs/examples/population_network_indexed_rewire_mnist.yaml
-
-<span class="c1"># AlexNet fc7 replacement with a 500E-only dendritic tensor-map core</span>
-<span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>configs/vision/alexnet_fc7_dendritic_500.yaml
-
-<span class="c1"># Named Pyr/PV/SST recurrent population network</span>
-<span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>configs/examples/population_network_recurrent_pyr_pv_sst.yaml
-
-<span class="c1"># Spiking soma with rate-decoded spike readout and spike-train analysis</span>
-<span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>configs/examples/population_network_spiking.yaml
-</pre></div>
-</div>
-</section>
-<section id="output-structure">
-<h2>Output structure<a class="headerlink" href="#output-structure" title="Link to this heading"></a></h2>
-<p>A typical experiment produces:</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>output/experiment_name/
-+-- config.json          # Saved resolved configuration
-+-- final_model.pt       # Final network weights
-+-- performance/         # Training metrics and plots
-+-- analysis/            # Optional analysis outputs
-`-- checkpoints/         # Optional checkpoints
-</pre></div>
-</div>
-</section>
-<section id="wandb-integration">
-<h2>WandB integration<a class="headerlink" href="#wandb-integration" title="Link to this heading"></a></h2>
-<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">wandb</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">use_wandb</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
-<span class="w">  </span><span class="nt">project</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic-modeling</span>
-</pre></div>
-</div>
-</section>
-<section id="minimal-configuration-example">
-<h2>Minimal configuration example<a class="headerlink" href="#minimal-configuration-example" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_feedforward.yaml</span></code> defines one
+feedforward layer with an inhibitory population <code class="docutils literal notranslate"><span class="pre">i</span></code> (32 cells) and an
+excitatory population <code class="docutils literal notranslate"><span class="pre">e</span></code> (128 cells with <code class="docutils literal notranslate"><span class="pre">[4,</span> <span class="pre">4]</span></code> branch factors). The
+input drives both populations, <code class="docutils literal notranslate"><span class="pre">i</span></code> inhibits <code class="docutils literal notranslate"><span class="pre">e</span></code>, and <code class="docutils literal notranslate"><span class="pre">e</span></code> feeds a small
+MLP decoder. The model part of the file, without its synapse and gate
+options, is:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">task</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">classification</span>
 <span class="w">  </span><span class="nt">encoder</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Identity</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">identity</span>
 <span class="w">  </span><span class="nt">core</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">population_network</span>
 <span class="w">    </span><span class="nt">population_network</span><span class="p">:</span>
@@ -222,47 +167,176 @@ for the full list.</p>
 <span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">layer0</span>
 <span class="w">          </span><span class="nt">readout_population</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">e</span>
 <span class="w">          </span><span class="nt">population_defaults</span><span class="p">:</span>
-<span class="w">            </span><span class="nt">ff_excitatory_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
-<span class="w">            </span><span class="nt">ff_inhibitory_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
-<span class="w">            </span><span class="nt">rec_excitatory_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
-<span class="w">            </span><span class="nt">rec_inhibitory_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
-<span class="w">            </span><span class="nt">somatic_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
-<span class="w">            </span><span class="nt">reactivate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
-<span class="w">            </span><span class="nt">reactivation_init_policy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">occupancy_quantile</span>
-<span class="w">            </span><span class="nt">weight_transform</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">softplus</span>
+<span class="w">            </span><span class="nt">ff_excitatory_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30</span>
+<span class="w">            </span><span class="nt">ff_inhibitory_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">15</span>
 <span class="w">          </span><span class="nt">populations</span><span class="p">:</span>
-<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">i</span>
-<span class="w">              </span><span class="nt">polarity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">inhibitory</span>
-<span class="w">              </span><span class="nt">n_neurons</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">16</span>
-<span class="w">              </span><span class="nt">branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">1</span><span class="p p-Indicator">]</span>
-<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">e</span>
-<span class="w">              </span><span class="nt">polarity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">excitatory</span>
-<span class="w">              </span><span class="nt">n_neurons</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64</span>
-<span class="w">              </span><span class="nt">branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">3</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">3</span><span class="p p-Indicator">]</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">i</span><span class="p p-Indicator">,</span><span class="nt"> polarity</span><span class="p">:</span><span class="w"> </span><span class="nv">inhibitory</span><span class="p p-Indicator">,</span><span class="nt"> n_neurons</span><span class="p">:</span><span class="w"> </span><span class="nv">32</span><span class="p p-Indicator">,</span><span class="nt"> branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">1</span><span class="p p-Indicator">]}</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">e</span><span class="p p-Indicator">,</span><span class="nt"> polarity</span><span class="p">:</span><span class="w"> </span><span class="nv">excitatory</span><span class="p p-Indicator">,</span><span class="nt"> n_neurons</span><span class="p">:</span><span class="w"> </span><span class="nv">128</span><span class="p p-Indicator">,</span><span class="nt"> branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">4</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">4</span><span class="p p-Indicator">]}</span>
 <span class="w">          </span><span class="nt">connections</span><span class="p">:</span>
-<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">input</span>
-<span class="w">              </span><span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">i</span>
-<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">input</span>
-<span class="w">              </span><span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">e</span>
-<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">i</span>
-<span class="w">              </span><span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">e</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">input</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">i</span><span class="p p-Indicator">}</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">input</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">e</span><span class="p p-Indicator">}</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">i</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">e</span><span class="p p-Indicator">}</span>
 <span class="w">  </span><span class="nt">decoder</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Identity</span>
-
-<span class="nt">training</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">main</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">standard</span>
-<span class="w">    </span><span class="nt">common</span><span class="p">:</span>
-<span class="w">      </span><span class="nt">epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span>
-<span class="w">      </span><span class="nt">batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">128</span>
-<span class="w">      </span><span class="nt">loss_function</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ce</span>
-
-<span class="nt">data</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">dataset_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mnist</span>
-<span class="w">  </span><span class="nt">processing</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">flatten</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MLP</span>
+<span class="w">    </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">hidden_dims</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">32</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">output_dim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
 </pre></div>
 </div>
+<p><a class="reference internal" href="population_networks.html"><span class="doc">Population networks</span></a> explains every field. The file allows up to 50
+epochs, with early stopping; <code class="docutils literal notranslate"><span class="pre">--epochs</span> <span class="pre">1</span></code> shortens the run for an initial
+check. Without a GPU the run trains on the CPU.</p>
+<p>The first run downloads MNIST into <code class="docutils literal notranslate"><span class="pre">&lt;data</span> <span class="pre">root&gt;/datasets/mnist/</span></code>. The data
+root is <code class="docutils literal notranslate"><span class="pre">data.base_dir</span></code> when it is set, else the <code class="docutils literal notranslate"><span class="pre">DENDRITIC_DATA_DIR</span></code>
+environment variable, else <code class="docutils literal notranslate"><span class="pre">$XDG_CACHE_HOME/dendritic_modeling</span></code> (by
+default <code class="docutils literal notranslate"><span class="pre">~/.cache/dendritic_modeling</span></code>); <code class="docutils literal notranslate"><span class="pre">--data_dir</span> <span class="pre">&lt;dir&gt;</span></code> sets
+<code class="docutils literal notranslate"><span class="pre">data.base_dir</span></code> for one run. See <a class="reference internal" href="datasets.html"><span class="doc">Datasets</span></a>.</p>
+<p>Other command-line options change the run without editing the file:
+<code class="docutils literal notranslate"><span class="pre">--seed</span></code>, <code class="docutils literal notranslate"><span class="pre">--epochs</span></code>, <code class="docutils literal notranslate"><span class="pre">--output_dir</span></code>, <code class="docutils literal notranslate"><span class="pre">--run_name</span></code>, <code class="docutils literal notranslate"><span class="pre">--data_dir</span></code>,
+the learning rates (<code class="docutils literal notranslate"><span class="pre">--lr</span></code>, <code class="docutils literal notranslate"><span class="pre">--topk_lr</span></code>, <code class="docutils literal notranslate"><span class="pre">--blocklinear_lr</span></code>,
+<code class="docutils literal notranslate"><span class="pre">--reactivation_lr</span></code>, <code class="docutils literal notranslate"><span class="pre">--decoder_lr</span></code>), <code class="docutils literal notranslate"><span class="pre">--learning_strategy</span></code> and
+<code class="docutils literal notranslate"><span class="pre">--error_broadcast_mode</span></code>. Every other option is set in the YAML file or
+varied with a sweep. <a class="reference internal" href="cli_reference.html#cli-reference"><span class="std std-ref">Command-line reference</span></a> lists the options of every
+command.</p>
+<p>To check a configuration without training, add <code class="docutils literal notranslate"><span class="pre">--validate-only</span></code>: the
+command loads and validates the file, builds the datasets, the model, the
+calibrated gates, the optimizer and the trainer, writes the construction
+records and stops.</p>
+</section>
+<section id="read-the-run-directory">
+<h2>Read the run directory<a class="headerlink" href="#read-the-run-directory" title="Link to this heading"></a></h2>
+<p>The run writes into <code class="docutils literal notranslate"><span class="pre">outputs/population_network_feedforward_&lt;YYYYMMDD_HHMMSS&gt;/</span></code>
+(<code class="docutils literal notranslate"><span class="pre">outputs.results_dir</span></code> and <code class="docutils literal notranslate"><span class="pre">outputs.run_name</span></code> of the example). The
+one-epoch CPU run produced:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>outputs/population_network_feedforward_&lt;YYYYMMDD_HHMMSS&gt;/
+|-- config.json                       # resolved configuration
+|-- dendritic_modeling.log            # complete log of the run
+|-- final_model.pt                    # final weights
+|-- init_gate_stats.json              # gate parameters after building
+|-- main_network/
+|   `-- standard_best_model.pt        # best-validation weights
+|-- model_resources.json              # parameter and synapse counts
+|-- nparams                           # total parameter count (JSON)
+|-- operator_card.json                # integration rule, gates, morphology
+|-- performance/
+|   `-- final.json                    # accuracy, AUC, log-likelihood
+|-- post_calibration_gate_stats.json  # gate parameters after calibration
+|-- reactivation_calibration.json     # data-driven gate calibration
+|-- resolved_seeds.json               # every random seed and numerics flag
+|-- runtime_environment.json          # library commit, dependency versions
+|-- train.log                         # run-setup log
+`-- training_summary.json             # losses per epoch, best epoch
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">performance/final.json</span></code> holds the metrics that <code class="docutils literal notranslate"><span class="pre">analysis.performance</span></code>
+enables, on the training, validation and test splits:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>{
+    "accuracy": {"train": 0.830, "valid": 0.831, "test": 0.838},
+    "auc": {"train": 0.979, "valid": 0.978, "test": 0.979},
+    "categorical_loglikelihood": {"train": -0.643, "valid": -0.654, "test": -0.636}
+}
+</pre></div>
+</div>
+<p>These values come from the one-epoch CPU run (rounded); yours will differ.
+<a class="reference internal" href="runs_and_outputs.html#run-outputs"><span class="std std-ref">Run directory layout</span></a> describes every file, the checkpoint names and how to
+choose the run directory.</p>
+</section>
+<section id="analyze-the-checkpoint">
+<h2>Analyze the checkpoint<a class="headerlink" href="#analyze-the-checkpoint" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">dendritic-analyze-checkpoint</span></code> rebuilds the model and the dataset splits
+from a run’s <code class="docutils literal notranslate"><span class="pre">config.json</span></code>, loads a checkpoint and runs the analyses that
+an analysis profile enables, without training. Save this profile as
+<code class="docutils literal notranslate"><span class="pre">weight_analysis.yaml</span></code>:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">analysis</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">weight</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+<p>and run it on the trained weights:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Replace the timestamp below with the directory created by your run.</span>
+<span class="nv">RUN</span><span class="o">=</span><span class="s2">"outputs/population_network_feedforward_&lt;YYYYMMDD_HHMMSS&gt;"</span>
+dendritic-analyze-checkpoint<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--config<span class="w"> </span><span class="s2">"</span><span class="nv">$RUN</span><span class="s2">/config.json"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--checkpoint<span class="w"> </span><span class="s2">"</span><span class="nv">$RUN</span><span class="s2">/final_model.pt"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--analysis-config<span class="w"> </span>weight_analysis.yaml<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--output-dir<span class="w"> </span>outputs/weight_analysis
+</pre></div>
+</div>
+<p>The output directory receives <code class="docutils literal notranslate"><span class="pre">weight_analysis/</span></code> (synaptic weight
+statistics and figures), <code class="docutils literal notranslate"><span class="pre">checkpoint_analysis_provenance.json</span></code> (digests of
+the config, checkpoint and profile, and the seeds and dataset sizes used), the
+seed and environment records and the logs. <a class="reference internal" href="analysis.html#analyzer-catalogue"><span class="std std-ref">Analyzer catalogue</span></a> lists
+every analyzer, and <a class="reference internal" href="checkpoint_analysis.html#checkpoint-analysis"><span class="std std-ref">Analyzing saved checkpoints</span></a> describes the command.</p>
+</section>
+<section id="generate-a-sweep">
+<h2>Generate a sweep<a class="headerlink" href="#generate-a-sweep" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">configs/sweep_config.yaml</span></code> varies the synapse counts and the excitatory
+branch factors of a population network over five seeds per combination.
+Generate its configurations and job scripts without submitting them:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>dendritic-sweep<span class="w"> </span>--config<span class="w"> </span>configs/sweep_config.yaml<span class="w"> </span>--generate-only
+</pre></div>
+</div>
+<p>This writes 40 configurations to <code class="docutils literal notranslate"><span class="pre">outputs/sweep_run_&lt;YYYYMMDDHHMMSS&gt;/configs/</span></code>,
+the Slurm job scripts to <code class="docutils literal notranslate"><span class="pre">jobs/</span></code>, a <code class="docutils literal notranslate"><span class="pre">submit_all_jobs.sh</span></code> script and a
+<code class="docutils literal notranslate"><span class="pre">frozen_sweep_manifest.json</span></code> that records the source checkout. Without a
+Slurm account and partition the job scripts hold placeholders; generate them
+again with <code class="docutils literal notranslate"><span class="pre">--slurm-account</span> <span class="pre">&lt;account&gt;</span> <span class="pre">--slurm-partition</span> <span class="pre">&lt;partition&gt;</span></code>, or run
+<code class="docutils literal notranslate"><span class="pre">dendritic-sweep</span> <span class="pre">--config</span> <span class="pre">configs/sweep_config.yaml</span></code> with those options to
+generate and submit in one step. <a class="reference internal" href="sweeps.html"><span class="doc">Parameter sweeps</span></a> describes the sweep file and
+the result collection.</p>
+</section>
+<section id="train-on-several-gpus">
+<h2>Train on several GPUs<a class="headerlink" href="#train-on-several-gpus" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">torchrun</span></code> launches distributed training. Distributed data parallel (DDP)
+runs the training module in each process; fully sharded data parallel (FSDP)
+uses its own entry point and a config with <code class="docutils literal notranslate"><span class="pre">distributed.mode:</span> <span class="pre">fsdp</span></code>. Write
+<code class="docutils literal notranslate"><span class="pre">distributed.mode:</span> <span class="pre">ddp</span></code> in a config meant for DDP: a config with
+<code class="docutils literal notranslate"><span class="pre">distributed.mode:</span> <span class="pre">none</span></code>, such as <code class="docutils literal notranslate"><span class="pre">configs/config_exp.yaml</span></code>, also trains
+with DDP under <code class="docutils literal notranslate"><span class="pre">torchrun</span></code>, and the run warns and records <code class="docutils literal notranslate"><span class="pre">ddp</span></code> in its
+<code class="docutils literal notranslate"><span class="pre">config.json</span></code>.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># DDP on 4 GPUs</span>
+torchrun<span class="w"> </span>--nproc_per_node<span class="o">=</span><span class="m">4</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-m<span class="w"> </span>dendritic_modeling.scripts.training.train_experiments<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>configs/config_exp.yaml
+
+<span class="c1"># FSDP on 4 GPUs</span>
+torchrun<span class="w"> </span>--nproc_per_node<span class="o">=</span><span class="m">4</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-m<span class="w"> </span>dendritic_modeling.scripts.training.train_experiments_fsdp<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>configs/config_exp_fsdp.yaml
+</pre></div>
+</div>
+<p>See <a class="reference internal" href="distributed_training.html#distributed-training"><span class="std std-ref">Distributed training</span></a>.</p>
+</section>
+<section id="use-dendrinet-from-python">
+<h2>Use DendriNet from Python<a class="headerlink" href="#use-dendrinet-from-python" title="Link to this heading"></a></h2>
+<p>The model builder that <code class="docutils literal notranslate"><span class="pre">dendritic-train</span></code> uses is available directly:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_config</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.scripts.script_utils.setup_utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">initialize_model</span>
+
+<span class="n">config</span> <span class="o">=</span> <span class="n">load_config</span><span class="p">(</span><span class="s2">"configs/examples/population_network_feedforward.yaml"</span><span class="p">)</span>
+<span class="n">config</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">encoder</span><span class="o">.</span><span class="n">params</span><span class="o">.</span><span class="n">input_dim</span> <span class="o">=</span> <span class="mi">784</span>  <span class="c1"># dendritic-train sets it from the data</span>
+<span class="n">model</span><span class="p">,</span> <span class="n">encoder</span> <span class="o">=</span> <span class="n">initialize_model</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">model</span><span class="p">)</span>
+<span class="n">logits</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">784</span><span class="p">))</span>  <span class="c1"># shape (8, 10)</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">initialize_model</span></code> builds the model only. <code class="docutils literal notranslate"><span class="pre">dendritic-train</span></code> also
+calibrates data-driven gates on training data, trains, and writes the run
+directory.</p>
+</section>
+<section id="next-steps">
+<h2>Next steps<a class="headerlink" href="#next-steps" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="examples.html"><span class="doc">Example configurations</span></a>: every shipped configuration and what it shows.</p></li>
+<li><p><a class="reference internal" href="network_architectures.html"><span class="doc">Model architecture</span></a>: the encoder, core and decoder of a model and
+the core types.</p></li>
+<li><p><a class="reference internal" href="training_strategies.html"><span class="doc">Training</span></a>: backpropagation, feedback alignment and local
+credit-assignment rules.</p></li>
+<li><p><a class="reference internal" href="analysis.html"><span class="doc">Analysis</span></a>: the analyzers and their outputs.</p></li>
+<li><p><a class="reference internal" href="configuration_guide.html"><span class="doc">Configuration guide</span></a>: how configuration files are loaded and
+checked.</p></li>
+</ul>
 </section>
 </section>
 
@@ -271,13 +345,13 @@ for the full list.</p>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="installation.html" class="btn btn-neutral float-left" title="Installation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="examples.html" class="btn btn-neutral float-right" title="Runnable Config Examples" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="examples.html" class="btn btn-neutral float-right" title="Example configurations" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>
 
   <div role="contentinfo">
-    <p>&#169; Copyright 2025, Kempner Institute.</p>
+    <p>&#169; Copyright 2024-2026, Kempner Institute.</p>
   </div>
 
   Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a

@@ -6,21 +6,21 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Engineering Architecture &mdash; Dendritic Modeling Framework v0.1.0</title>
+  <title>Engineering architecture &mdash; DendriNet v0.2.0</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
 
   
       <script src="_static/jquery.js?v=5d32c60e"></script>
       <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="_static/documentation_options.js?v=01f34227"></script>
+      <script src="_static/documentation_options.js?v=938c9ccc"></script>
       <script src="_static/doctools.js?v=fd6eb6e6"></script>
       <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Configuration Guide" href="configuration_guide.html" />
-    <link rel="prev" title="Analysis" href="analysis.html" /> 
+    <link rel="next" title="Contributing" href="contributing.html" />
+    <link rel="prev" title="Extending DendriNet" href="extending.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -32,7 +32,7 @@
           
           
           <a href="index.html" class="icon icon-home">
-            Dendritic Modeling Framework
+            DendriNet
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
@@ -42,40 +42,68 @@
   </form>
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
-              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+              <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quick Start</a></li>
-<li class="toctree-l1"><a class="reference internal" href="examples.html">Runnable Config Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Example configurations</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
-<ul class="current">
-<li class="toctree-l1"><a class="reference internal" href="network_architectures.html">Network Architectures</a></li>
-<li class="toctree-l1"><a class="reference internal" href="training_strategies.html">Training Strategies</a></li>
+<p class="caption" role="heading"><span class="caption-text">Building models</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="network_architectures.html">Model architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dendritic_neurons.html">Dendritic neurons</a></li>
+<li class="toctree-l1"><a class="reference internal" href="synapses.html">Synapses and connectivity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="population_networks.html">Population networks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="temporal_dynamics.html">Temporal dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="structured_ei_cores.html">Structured E/I cores</a></li>
+<li class="toctree-l1"><a class="reference internal" href="conductance_options.html">Conductance options</a></li>
+<li class="toctree-l1"><a class="reference internal" href="comparison_models.html">Baselines and comparison models</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Configuration</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="configuration_guide.html">Configuration guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config_reference.html">Annotated reference configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="training_strategies.html">Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="distributed_training.html">Distributed training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="performance_kernels.html">Sparse execution and performance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Data and analysis</span></p>
+<ul>
 <li class="toctree-l1"><a class="reference internal" href="datasets.html">Datasets</a></li>
 <li class="toctree-l1"><a class="reference internal" href="analysis.html">Analysis</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Engineering Architecture</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#system-overview">System Overview</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#repository-layout">Repository Layout</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#build-path-from-yaml-to-model">Build Path: From YAML to Model</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#feedforward-and-recurrent-e-i-consistency">Feedforward and Recurrent E/I Consistency</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#recurrent-dynamics-boundaries">Recurrent Dynamics Boundaries</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#key-runtime-objects">Key Runtime Objects</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#artifacts-and-outputs">Artifacts and Outputs</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#how-to-extend-safely">How To Extend Safely</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#current-safe-extension-apis">Current Safe Extension APIs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="analyzers.html">Analyzer reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="checkpoint_analysis.html">Analyzing saved checkpoints</a></li>
 </ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="configuration_guide.html">Configuration Guide</a></li>
-<li class="toctree-l1"><a class="reference internal" href="transformer_llm_scaling.html">Dendritic LLM Scaling Workflow</a></li>
-<li class="toctree-l1"><a class="reference internal" href="initialization_comparison_policy.html">Initialization Comparison Policy</a></li>
-<li class="toctree-l1"><a class="reference internal" href="sweeps.html">Parameter Sweeps</a></li>
-<li class="toctree-l1"><a class="reference internal" href="fsdp_troubleshooting.html">Distributed Training Guide</a></li>
+<p class="caption" role="heading"><span class="caption-text">Running experiments</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="runs_and_outputs.html">Runs and outputs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sweeps.html">Parameter sweeps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="model_compression.html">Compact checkpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="project_provenance.html">Project provenance</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Reference</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="config_reference.html">Population-Network Reference Config</a></li>
-<li class="toctree-l1"><a class="reference internal" href="available_components.html">Available Components</a></li>
+<li class="toctree-l1"><a class="reference internal" href="available_components.html">Component catalogue</a></li>
+<li class="toctree-l1"><a class="reference internal" href="options_reference.html">Options reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cli_reference.html">Command-line reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api_reference.html">Python API</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="extending.html">Extending DendriNet</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Engineering architecture</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#package-layout">Package layout</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#how-a-training-run-executes">How a training run executes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#feedforward-and-recurrent-e-i-layers">Feedforward and recurrent E/I layers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#recurrent-module-boundaries">Recurrent module boundaries</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#key-modules">Key modules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#adding-a-component">Adding a component</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#debugging-a-run">Debugging a run</a></li>
+</ul>
+</li>
 <li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
 </ul>
 
@@ -85,7 +113,7 @@
 
     <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-          <a href="index.html">Dendritic Modeling Framework</a>
+          <a href="index.html">DendriNet</a>
       </nav>
 
       <div class="wy-nav-content">
@@ -93,7 +121,7 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
-      <li class="breadcrumb-item active">Engineering Architecture</li>
+      <li class="breadcrumb-item active">Engineering architecture</li>
       <li class="wy-breadcrumbs-aside">
             <a href="_sources/engineering_architecture.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -104,295 +132,281 @@
            <div itemprop="articleBody">
              
   <section id="engineering-architecture">
-<h1>Engineering Architecture<a class="headerlink" href="#engineering-architecture" title="Link to this heading"></a></h1>
-<p>This page is for engineers working inside the repository. It focuses on how
-the codebase is organized, where the main control points live, and how a run
-moves from YAML to artifacts.</p>
-<section id="system-overview">
-<h2>System Overview<a class="headerlink" href="#system-overview" title="Link to this heading"></a></h2>
-<p>The framework has a small number of stable layers:</p>
-<a class="reference internal image-reference" href="_images/system-overview.svg"><img alt="System overview of configs, datasets, model factory, training, analysis, and artifacts." src="_images/system-overview.svg" style="width: 100%;" />
+<h1>Engineering architecture<a class="headerlink" href="#engineering-architecture" title="Link to this heading"></a></h1>
+<p>This page is for developers who change the library. It maps the package,
+follows a training run from the YAML file to the run directory, and names the
+modules to read when tracing a bug or adding a component.</p>
+<figure class="align-default" id="id1">
+<a class="reference internal image-reference" href="_images/system-overview.svg"><img alt="System overview. Configuration (example YAML, typed config, alias resolution, registries, factory) feeds the model modules (encoder: identity, pathway router or autoencoders; population core with biophysical options; decoder: MLP or identity) and the training, sweep and analysis stack (data loaders, trainers, sweeps, analysis manager, artifacts)." src="_images/system-overview.svg" style="width: 100%;" />
 </a>
-<p>For neuron-level and operator-level diagrams of the dendritic core itself, see
-<a class="reference internal" href="network_architectures.html"><span class="doc">Network Architectures</span></a>. That page shows the actual <code class="docutils literal notranslate"><span class="pre">DendriNet</span></code> tree
-layout, <code class="docutils literal notranslate"><span class="pre">TopKLinear</span></code> synapse banks, <code class="docutils literal notranslate"><span class="pre">BlockLinear</span></code> branch aggregation, and
-the E/I layer stack used by the factory.</p>
-<p>The practical rule of thumb is:</p>
-<ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">config/</span></code> and <code class="docutils literal notranslate"><span class="pre">configs/</span></code> define intent.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/networks</span></code> defines model behavior.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/scripts</span></code> turns config into a runnable experiment.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/training</span></code> defines update rules and training loops.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/analysis</span></code> turns checkpoints and trajectories into diagnostics.</p></li>
-</ul>
-</section>
-<section id="repository-layout">
-<h2>Repository Layout<a class="headerlink" href="#repository-layout" title="Link to this heading"></a></h2>
-<p>The main directories are:</p>
+<figcaption>
+<p><span class="caption-text">The configuration is loaded into typed settings, the factory builds the
+encoder, core and decoder through the registries, and the trainers,
+sweeps and analysis manager produce the run’s artifacts.</span><a class="headerlink" href="#id1" title="Link to this image"></a></p>
+</figcaption>
+</figure>
+<p>For the structure of the dendritic neurons themselves, see
+<a class="reference internal" href="network_architectures.html"><span class="doc">Model architecture</span></a> and <a class="reference internal" href="dendritic_neurons.html"><span class="doc">Dendritic neurons</span></a>.</p>
+<section id="package-layout">
+<h2>Package layout<a class="headerlink" href="#package-layout" title="Link to this heading"></a></h2>
+<p>The Python package <code class="docutils literal notranslate"><span class="pre">dendritic_modeling</span></code> lives in <code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling</span></code>:</p>
 <table class="docutils align-default">
 <colgroup>
-<col style="width: 20.0%" />
-<col style="width: 80.0%" />
+<col style="width: 30.0%" />
+<col style="width: 70.0%" />
 </colgroup>
 <thead>
-<tr class="row-odd"><th class="head"><p>Path</p></th>
-<th class="head"><p>Responsibility</p></th>
+<tr class="row-odd"><th class="head"><p>Subpackage</p></th>
+<th class="head"><p>Contents</p></th>
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/config</span></code></p></td>
-<td><p>Structured config dataclasses and config-facing defaults.</p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">config</span></code></p></td>
+<td><p>Typed configuration dataclasses, the strict loader (<code class="docutils literal notranslate"><span class="pre">load_config</span></code>,
+<code class="docutils literal notranslate"><span class="pre">config_from_mapping</span></code>), retired and renamed keys (<code class="docutils literal notranslate"><span class="pre">keys.py</span></code>), the
+rules for which <code class="docutils literal notranslate"><span class="pre">model.core</span></code> sections and encoder/decoder options each
+type reads (<code class="docutils literal notranslate"><span class="pre">core_sections.py</span></code>, <code class="docutils literal notranslate"><span class="pre">io_params.py</span></code>) and core-type alias
+semantics (<code class="docutils literal notranslate"><span class="pre">model_aliases.py</span></code>).</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/datasets</span></code></p></td>
-<td><p>Standard dataset loaders, synthetic tasks, and dataset utilities.</p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">datasets</span></code></p></td>
+<td><p>Vision, synthetic and sequence datasets, the dataset registry and the
+data-root resolution (<code class="docutils literal notranslate"><span class="pre">paths.py</span></code>).</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/networks/architectures</span></code></p></td>
-<td><p>Feedforward E/I cores, recurrent E/I cores, dendritic operators, and baselines.</p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">networks.architectures</span></code></p></td>
+<td><p>The architecture factory and registry, and the cores:
+<code class="docutils literal notranslate"><span class="pre">excitation_inhibition</span></code> (structured E/I networks, dendritic trees,
+sparse synapses and their kernels), <code class="docutils literal notranslate"><span class="pre">recurrent</span></code> (population networks,
+unified E/I networks, baseline recurrent networks), <code class="docutils literal notranslate"><span class="pre">classical</span></code>
+(MLP, CNN, autoencoder and pathway-router building blocks and the
+matched controls), <code class="docutils literal notranslate"><span class="pre">vision</span></code> (dendritic AlexNet), <code class="docutils literal notranslate"><span class="pre">replacement</span></code>
+(input and output adapters that place a dendritic core inside another
+network) and <code class="docutils literal notranslate"><span class="pre">transformer</span></code> (dendritic replacements of transformer
+feed-forward blocks).</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/training</span></code></p></td>
-<td><p>Training strategies such as backprop and local learning variants.</p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">networks</span></code> (other)</p></td>
+<td><p>Activation and reactivation-gate builders (<code class="docutils literal notranslate"><span class="pre">activations</span></code>), weight
+transforms, sparse-maintenance and readout helpers (<code class="docutils literal notranslate"><span class="pre">utils</span></code>), the
+parameter-budget model families (<code class="docutils literal notranslate"><span class="pre">benchmarks</span></code>) and checkpoint helpers
+(<code class="docutils literal notranslate"><span class="pre">checkpoints.py</span></code>).</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/analysis</span></code></p></td>
-<td><p>Reusable analyzers and the analysis manager used by training and evaluation scripts.</p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">models</span></code></p></td>
+<td><p>The wrappers that combine encoder, core and decoder: <code class="docutils literal notranslate"><span class="pre">Classifier</span></code>,
+<code class="docutils literal notranslate"><span class="pre">RecurrentClassifier</span></code> and <code class="docutils literal notranslate"><span class="pre">Regressor</span></code>, with parameter groups for the
+optimizer.</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/scripts</span></code></p></td>
-<td><p>Top-level experiment entry points, environment setup, and config canonicalization.</p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">training</span></code></p></td>
+<td><p>The trainer factory and strategies (<code class="docutils literal notranslate"><span class="pre">strategies</span></code>; the local-learning
+implementation is split into mixins under
+<code class="docutils literal notranslate"><span class="pre">strategies/local_learning_parts</span></code>), optimizers, losses,
+regularization and pruning, data loaders and FSDP helpers.</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">configs/</span></code></p></td>
-<td><p>Example and experiment YAMLs.</p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">analysis</span></code></p></td>
+<td><p>The analysis manager (<code class="docutils literal notranslate"><span class="pre">managers</span></code>), the analyzer registry, and the
+analyzers (<code class="docutils literal notranslate"><span class="pre">core</span></code>, <code class="docutils literal notranslate"><span class="pre">metrics</span></code>, <code class="docutils literal notranslate"><span class="pre">tools</span></code>) with shared helpers
+(<code class="docutils literal notranslate"><span class="pre">utils</span></code>).</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">docs/</span></code></p></td>
-<td><p>User-facing and engineering-facing documentation.</p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">deployment</span></code></p></td>
+<td><p>Compact export of trained models with frozen sparse topology
+(<code class="docutils literal notranslate"><span class="pre">compression.py</span></code>) and the optional torchao backends.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">kernels</span></code></p></td>
+<td><p>Triton kernels for indexed synapses (<code class="docutils literal notranslate"><span class="pre">triton_ell.py</span></code>).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">plotting</span></code></p></td>
+<td><p>Plotting helpers used by the analyzers.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">scripts</span></code></p></td>
+<td><p>The command-line programs: <code class="docutils literal notranslate"><span class="pre">training</span></code>, <code class="docutils literal notranslate"><span class="pre">sweeps</span></code>, <code class="docutils literal notranslate"><span class="pre">analysis</span></code>,
+<code class="docutils literal notranslate"><span class="pre">deployment</span></code>, <code class="docutils literal notranslate"><span class="pre">tools</span></code> (Slurm job writers, GPU memory estimates),
+<code class="docutils literal notranslate"><span class="pre">benchmarks</span></code>, <code class="docutils literal notranslate"><span class="pre">verification</span></code> and <code class="docutils literal notranslate"><span class="pre">docs</span></code>, with shared helpers in
+<code class="docutils literal notranslate"><span class="pre">script_utils</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">utils</span></code></p></td>
+<td><p>Logging setup, seeds and reproducibility records, the runtime
+environment record, information-estimation utilities
+(<code class="docutils literal notranslate"><span class="pre">utils/information</span></code>) and general helpers.</p></td>
 </tr>
 </tbody>
 </table>
+<p>Outside the package, the repository holds <code class="docutils literal notranslate"><span class="pre">configs/</span></code> (example and reference
+YAML files; see <a class="reference internal" href="examples.html"><span class="doc">Example configurations</span></a>), <code class="docutils literal notranslate"><span class="pre">docs/</span></code> (these pages), <code class="docutils literal notranslate"><span class="pre">tests/</span></code>,
+<code class="docutils literal notranslate"><span class="pre">setup/</span></code> (environment file, constraints files and
+<code class="docutils literal notranslate"><span class="pre">freeze_constraints.py</span></code>) and <code class="docutils literal notranslate"><span class="pre">scripts/train_fsdp.sh</span></code> (a Slurm launcher
+for FSDP training).</p>
 </section>
-<section id="build-path-from-yaml-to-model">
-<h2>Build Path: From YAML to Model<a class="headerlink" href="#build-path-from-yaml-to-model" title="Link to this heading"></a></h2>
-<p>Most experiment entry points follow the same build sequence:</p>
-<a class="reference internal image-reference" href="_images/training-analysis-flow.svg"><img alt="Experiment build and training flow from YAML through canonicalization, model init, training, analysis, and saved artifacts." src="_images/training-analysis-flow.svg" style="width: 100%;" />
+<section id="how-a-training-run-executes">
+<h2>How a training run executes<a class="headerlink" href="#how-a-training-run-executes" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">dendritic-train</span></code> calls <code class="docutils literal notranslate"><span class="pre">dendritic_modeling.scripts.training.train_experiments.main</span></code>,
+which runs these steps:</p>
+<ol class="arabic simple">
+<li><p><strong>Load the configuration.</strong> <code class="docutils literal notranslate"><span class="pre">dendritic_modeling.config.load_config</span></code>
+applies the command-line options as dot-path overrides and builds the
+typed configuration. Unknown keys raise; retired and renamed keys produce
+a warning or an error that names the replacement (see
+<a class="reference internal" href="configuration_guide.html#strict-loader"><span class="std std-ref">How configs are checked</span></a>).
+<code class="docutils literal notranslate"><span class="pre">utils.training_stability_validator.validate_training_stability</span></code> then
+rejects configurations with known critical problems.</p></li>
+<li><p><strong>Start distributed training</strong>, when launched by <code class="docutils literal notranslate"><span class="pre">torchrun</span></code>, and check
+<code class="docutils literal notranslate"><span class="pre">distributed.mode</span></code> against the launcher.</p></li>
+<li><p><strong>Set up the run</strong> (<code class="docutils literal notranslate"><span class="pre">scripts.script_utils.setup_utils.setup_environment</span></code>):
+resolve the seed streams and numerics settings, create the run directory
+and its log files, write <code class="docutils literal notranslate"><span class="pre">resolved_seeds.json</span></code> and
+<code class="docutils literal notranslate"><span class="pre">runtime_environment.json</span></code>, load the datasets
+(<code class="docutils literal notranslate"><span class="pre">datasets.get_unified_datasets</span></code>: registered datasets first, then the
+built-in loaders) and build the model.</p></li>
+<li><p><strong>Build the model</strong> (<code class="docutils literal notranslate"><span class="pre">setup_utils.initialize_model</span></code>): the encoder, the
+core through <code class="docutils literal notranslate"><span class="pre">networks.architectures.factory.get_architecture</span></code> and the
+decoder, wrapped in a <code class="docutils literal notranslate"><span class="pre">Classifier</span></code>, <code class="docutils literal notranslate"><span class="pre">RecurrentClassifier</span></code> or
+<code class="docutils literal notranslate"><span class="pre">Regressor</span></code>. Structured E/I cores resolve their type aliases
+(<code class="docutils literal notranslate"><span class="pre">config.model_aliases</span></code>) while they are built.</p></li>
+<li><p><strong>Record the start state</strong>: wrap the model for DDP when there are several
+processes, write <code class="docutils literal notranslate"><span class="pre">init_gate_stats.json</span></code> and <code class="docutils literal notranslate"><span class="pre">config.json</span></code>.</p></li>
+<li><p><strong>Prepare training</strong>: create the analysis manager
+(<code class="docutils literal notranslate"><span class="pre">analysis.AnalysisManager</span></code>), calibrate data-driven reactivation gates
+(<code class="docutils literal notranslate"><span class="pre">reactivation_calibration.json</span></code>), create the optimizer from the
+model’s parameter groups and the trainer from
+<code class="docutils literal notranslate"><span class="pre">training.factory.get_trainer</span></code>. <code class="docutils literal notranslate"><span class="pre">--validate-only</span></code> stops here, after
+writing <code class="docutils literal notranslate"><span class="pre">nparams</span></code>, <code class="docutils literal notranslate"><span class="pre">model_resources.json</span></code> and
+<code class="docutils literal notranslate"><span class="pre">operator_card.json</span></code>.</p></li>
+<li><p><strong>Train</strong>, then apply pruning when it is configured.</p></li>
+<li><p><strong>Write the results</strong>: <code class="docutils literal notranslate"><span class="pre">nparams</span></code>, <code class="docutils literal notranslate"><span class="pre">model_resources.json</span></code>,
+<code class="docutils literal notranslate"><span class="pre">operator_card.json</span></code>, <code class="docutils literal notranslate"><span class="pre">training_summary.json</span></code>, <code class="docutils literal notranslate"><span class="pre">final_model.pt</span></code>,
+and the outputs of the final analysis.</p></li>
+</ol>
+<p><a class="reference internal" href="runs_and_outputs.html#run-outputs"><span class="std std-ref">Run directory layout</span></a> describes every file. The FSDP entry point
+(<code class="docutils literal notranslate"><span class="pre">train_experiments_fsdp</span></code>) follows the same order with an FSDP-wrapped
+model and its own trainer.</p>
+<figure class="align-default" id="id2">
+<a class="reference internal image-reference" href="_images/training-analysis-flow.svg"><img alt="Experiment lifecycle. Build and initialization: load YAML, resolve config, build model, gate calibration, data loaders. Training paths: standard backpropagation, local rules, recurrent backpropagation through time, distributed training, metrics. Analysis, sweeps and reproducibility: analysis runtime, analyzers, sweeps, run artifacts, comparisons of paired seeds and checkpoint summaries." src="_images/training-analysis-flow.svg" style="width: 100%;" />
 </a>
-<p>The important engineering points are:</p>
-<ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">config.model_aliases.canonicalize_model_core_flags</span></code> and
-<code class="docutils literal notranslate"><span class="pre">canonicalize_rnn_core_flags</span></code> normalize alias-driven settings before model
-construction. <code class="docutils literal notranslate"><span class="pre">scripts.script_utils.config_utils</span></code> provides script-facing
-wrappers around the same behavior.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">setup_utils.initialize_model</span></code> is the standard entry point for creating a
-model from the resolved config.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">networks.architectures.factory.get_architecture</span></code> is the central dispatch
-point from config type strings to actual modules. Project-local
-architectures can register extension builders with
-<code class="docutils literal notranslate"><span class="pre">networks.architectures.register_architecture</span></code> without editing the factory.</p></li>
-<li><p>post-build gate diagnostics write <code class="docutils literal notranslate"><span class="pre">init_gate_stats.json</span></code> when learnable
-reactivation gates are present.</p></li>
-</ul>
+<figcaption>
+<p><span class="caption-text">The resolved configuration drives model construction, gate
+initialization, training, analysis and the saved artifacts.</span><a class="headerlink" href="#id2" title="Link to this image"></a></p>
+</figcaption>
+</figure>
 </section>
-<section id="feedforward-and-recurrent-e-i-consistency">
-<h2>Feedforward and Recurrent E/I Consistency<a class="headerlink" href="#feedforward-and-recurrent-e-i-consistency" title="Link to this heading"></a></h2>
-<p>The feedforward and recurrent E/I stacks share the same branch-level building
-blocks. The recurrent stack adds temporal state and recurrent routing, but it
-does not redefine the dendritic branch semantics.</p>
-<a class="reference internal image-reference" href="_images/recurrent-ei-flow.svg"><img alt="Recurrent E/I architecture showing shared branch logic, stateful dendritic traces, recurrent masking, and outputs." src="_images/recurrent-ei-flow.svg" style="width: 100%;" />
+<section id="feedforward-and-recurrent-e-i-layers">
+<h2>Feedforward and recurrent E/I layers<a class="headerlink" href="#feedforward-and-recurrent-e-i-layers" title="Link to this heading"></a></h2>
+<p>The feedforward and recurrent E/I layers use the same branch-level building
+blocks (<code class="docutils literal notranslate"><span class="pre">DendriticBranchLayer</span></code> and the initialization in
+<code class="docutils literal notranslate"><span class="pre">dendritic/initialize*.py</span></code>). The recurrent layers add temporal state and
+recurrent synapses; they do not change how a branch integrates its inputs.</p>
+<figure class="align-default" id="id3">
+<a class="reference internal image-reference" href="_images/recurrent-ei-flow.svg"><img alt="One time step t of a recurrent unified E/I layer. The inhibitory population updates first from the excitatory stream x_ff, the inhibitory stream x_I and the previous-step outputs, and produces h_I(t). The excitatory population then reads x_ff, the same-step h_I(t) and the previous-step outputs, and produces s_E(t). Only s_E(t) goes to the next layer or the decoder. The layer state holds s_E(t-1) and h_I(t-1) and is replaced by s_E(t) and h_I(t)." src="_images/recurrent-ei-flow.svg" style="width: 100%;" />
 </a>
-<p>The consistency contract is:</p>
-<ul class="simple">
-<li><p>both feedforward and recurrent E/I models use the same branch-layer logic
-for dendritic integration and reactivation-gate initialization</p></li>
-<li><p>recurrent aliases only add type-implied flags and recurrent connectivity;
-they do not change the underlying dendritic branch implementation</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">allow_self_recurrence</span></code> is a recurrent-only extension that masks
-same-population self-feedback while preserving other recurrent connectivity</p></li>
-<li><p>positive shunting safety is enforced at the transfer-layer boundary, so raw
-inputs may be normalized as long as the transfer output is clamped back to a
-non-negative range before the first shunting layer</p></li>
-</ul>
+<figcaption>
+<p><span class="caption-text">One time step of a recurrent unified E/I layer (<code class="docutils literal notranslate"><span class="pre">EILayerConfig</span></code> with an
+excitatory and an inhibitory <code class="docutils literal notranslate"><span class="pre">PopulationConfig</span></code>).</span><a class="headerlink" href="#id3" title="Link to this image"></a></p>
+</figcaption>
+</figure>
+<p>At each time step the inhibitory population updates first, from the
+feedforward excitatory and inhibitory streams and the previous-step outputs
+of both populations. The excitatory population then reads the feedforward
+stream, the same-step inhibitory output and the previous-step outputs. Only
+the excitatory output goes to the next layer or to the decoder.
+<code class="docutils literal notranslate"><span class="pre">allow_self_recurrence:</span> <span class="pre">false</span></code> removes the previous-step input of each
+population to itself and keeps the recurrence between the two populations.
+See <a class="reference internal" href="structured_ei_cores.html#unified-ei"><span class="std std-ref">Unified E/I core</span></a>.</p>
 </section>
-<section id="recurrent-dynamics-boundaries">
-<h2>Recurrent Dynamics Boundaries<a class="headerlink" href="#recurrent-dynamics-boundaries" title="Link to this heading"></a></h2>
-<p>The recurrent dendritic implementation is split by runtime responsibility:</p>
+<section id="recurrent-module-boundaries">
+<h2>Recurrent module boundaries<a class="headerlink" href="#recurrent-module-boundaries" title="Link to this heading"></a></h2>
+<p>The recurrent dendritic implementation in
+<code class="docutils literal notranslate"><span class="pre">networks/architectures/recurrent</span></code> is split by responsibility:</p>
 <ul class="simple">
-<li><p>network orchestration: <code class="docutils literal notranslate"><span class="pre">population_network.py</span></code> builds ordered
-population-network layers, manages sequence state, and applies readout
-reduction</p></li>
+<li><p>network orchestration: <code class="docutils literal notranslate"><span class="pre">population_network.py</span></code> builds the ordered
+population-network layers, manages the sequence state and reduces the
+readout;</p></li>
 <li><p>layer routing: <code class="docutils literal notranslate"><span class="pre">population_layer.py</span></code> maps named populations and directed
-connections into <code class="docutils literal notranslate"><span class="pre">StatefulDendriNet</span></code> modules</p></li>
-<li><p>config/state helpers: <code class="docutils literal notranslate"><span class="pre">population_configs.py</span></code>, <code class="docutils literal notranslate"><span class="pre">population_sources.py</span></code>,
-<code class="docutils literal notranslate"><span class="pre">population_state.py</span></code>, and <code class="docutils literal notranslate"><span class="pre">population_constants.py</span></code> define the
-dataclasses and source normalization used by both feedforward and recurrent
-population-network execution</p></li>
-<li><p>population configuration: <code class="docutils literal notranslate"><span class="pre">ei_config.py</span></code> defines synapse counts, dendritic
-morphology, temporal constants, synapse-type options, soma dynamics, branch
-spike options, and soma-feedback options</p></li>
-<li><p>temporal population execution: <code class="docutils literal notranslate"><span class="pre">stateful_dendrinet.py</span></code> owns branch-layer
-construction and the recurrent step</p></li>
-<li><p>typed synapse dynamics: <code class="docutils literal notranslate"><span class="pre">stateful_typed_dynamics.py</span></code> integrates configured
-receptor traces, short-term plasticity, voltage gates, and typed shunting or
-additive currents</p></li>
+connections onto <code class="docutils literal notranslate"><span class="pre">StatefulDendriNet</span></code> modules;</p></li>
+<li><p>configuration and state: <code class="docutils literal notranslate"><span class="pre">population_configs.py</span></code>,
+<code class="docutils literal notranslate"><span class="pre">population_common.py</span></code>, <code class="docutils literal notranslate"><span class="pre">population_sources.py</span></code>,
+<code class="docutils literal notranslate"><span class="pre">population_state.py</span></code> and <code class="docutils literal notranslate"><span class="pre">population_constants.py</span></code> hold the
+dataclasses, source-name normalization and runtime state;</p></li>
+<li><p>population options: <code class="docutils literal notranslate"><span class="pre">ei_config.py</span></code> defines <code class="docutils literal notranslate"><span class="pre">PopulationConfig</span></code>
+(synapse counts, morphology, time constants, synapse types, soma dynamics,
+dendritic spikes, soma feedback);</p></li>
+<li><p>temporal execution: <code class="docutils literal notranslate"><span class="pre">stateful_dendrinet.py</span></code> owns the branch layers and
+the per-step update, with helpers in <code class="docutils literal notranslate"><span class="pre">stateful_layers.py</span></code>,
+<code class="docutils literal notranslate"><span class="pre">stateful_setup.py</span></code>, <code class="docutils literal notranslate"><span class="pre">stateful_step.py</span></code> and <code class="docutils literal notranslate"><span class="pre">stateful_feedback.py</span></code>;</p></li>
+<li><p>typed synapse dynamics: <code class="docutils literal notranslate"><span class="pre">stateful_typed_dynamics.py</span></code> integrates
+receptor traces, short-term plasticity, voltage gates and typed shunting
+or additive currents;</p></li>
+<li><p>soma and branch events: <code class="docutils literal notranslate"><span class="pre">spiking_soma.py</span></code> (leaky integrate-and-fire
+somas) and <code class="docutils literal notranslate"><span class="pre">dendritic_spikes.py</span></code> (branch spikes and plateaus);</p></li>
+<li><p>morphology: <code class="docutils literal notranslate"><span class="pre">dendritic_geometry.py</span></code> (level sizes and synapse budgets);</p></li>
+<li><p>structured recurrent cores: the <code class="docutils literal notranslate"><span class="pre">structured_*</span></code> modules translate the
+structured E/I sections into recurrent networks;</p></li>
+<li><p>unified E/I networks: <code class="docutils literal notranslate"><span class="pre">ei_layer.py</span></code>, <code class="docutils literal notranslate"><span class="pre">ei_network.py</span></code> and
+<code class="docutils literal notranslate"><span class="pre">ei_state.py</span></code>; baselines: <code class="docutils literal notranslate"><span class="pre">baseline_rnn.py</span></code>,
+<code class="docutils literal notranslate"><span class="pre">heterogeneous_leak_ctrnn.py</span></code> and <code class="docutils literal notranslate"><span class="pre">legendre_memory.py</span></code>.</p></li>
 </ul>
-<p>LIF soma dynamics live in <code class="docutils literal notranslate"><span class="pre">spiking_soma.py</span></code>. Local dendritic branch
-spike/plateau updates live in <code class="docutils literal notranslate"><span class="pre">dendritic_spikes.py</span></code>. <code class="docutils literal notranslate"><span class="pre">StatefulDendriNet</span></code>
-remains the orchestration point for per-timestep state updates; geometry
-helpers live in <code class="docutils literal notranslate"><span class="pre">dendritic_geometry.py</span></code>. New recurrent features should follow
-the same boundary rule: standalone dynamics belong in a focused helper or
-mixin, while branch construction and the ordered step remain in
+<p>A new recurrent feature puts its standalone dynamics in a focused helper
+module and leaves the branch construction and the ordered step in
 <code class="docutils literal notranslate"><span class="pre">StatefulDendriNet</span></code>.</p>
 </section>
-<section id="key-runtime-objects">
-<h2>Key Runtime Objects<a class="headerlink" href="#key-runtime-objects" title="Link to this heading"></a></h2>
-<p>When you are tracing a bug or extending the code, these are the most useful
-landmarks to keep in mind:</p>
+<section id="key-modules">
+<h2>Key modules<a class="headerlink" href="#key-modules" title="Link to this heading"></a></h2>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/scripts/training/train_experiments.py</span></code>:
-experiment entry point for standard training</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/scripts/script_utils/setup_utils.py</span></code>:
-environment setup and model initialization</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/config/model_aliases.py</span></code>:
-config alias canonicalization and type-implied model defaults</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/scripts/script_utils/config_utils.py</span></code>:
-script compatibility wrappers and config-to-runtime flattening helpers</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/networks/architectures/factory.py</span></code>:
-model factory and architecture dispatch</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/networks/architectures/registry.py</span></code>:
-extension registry for project-local architecture builders</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/networks/architectures/excitation_inhibition</span></code>:
-feedforward E/I implementation</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/networks/architectures/excitation_inhibition/synapse</span></code>:
-sparse synapse implementations and sparse-layer factory. <code class="docutils literal notranslate"><span class="pre">factory.py</span></code> owns
-sparse layer registration and lookup. <code class="docutils literal notranslate"><span class="pre">indexed.py</span></code> is the public facade for
-fixed indexed, adaptive rewiring, and candidate-pool indexed TopK layers;
-implementation files are split by behavior.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/networks/architectures/recurrent</span></code>:
-recurrent unified-EI and population-network implementation</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/networks/architectures/replacement</span></code>:
-shared replacement-cell components: input adapters, dendritic core/output
-adapter contracts, and layerwise replacement-stack helpers</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/networks/architectures/transformer</span></code>:
-transformer FFN replacement modules, config translation, parameter estimates,
-and Hugging Face patching utilities. Transformer code owns placement inside
-decoder blocks; the reusable replacement-cell contract lives in
-<code class="docutils literal notranslate"><span class="pre">architectures/replacement</span></code>. Population-network translation helpers live in
-<code class="docutils literal notranslate"><span class="pre">config_translation_population.py</span></code> while <code class="docutils literal notranslate"><span class="pre">config_translation.py</span></code> remains
-the stable public builder surface.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/networks/architectures/classical/pretrained.py</span></code>:
-vision-backbone splitter for <code class="docutils literal notranslate"><span class="pre">model.vision_replacement</span></code>; resolves contiguous
-<code class="docutils literal notranslate"><span class="pre">target_modules</span></code> into encoder/core/decoder tensor contracts, including
-spatial CNN spans when the core is convolutional</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/training/vision_replacement.py</span></code>:
-block-output distillation loop for vision replacement cores or patched full
-vision models using cached tensors</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/training/_transformer_replacement</span></code>:
-transformer replacement training internals split by common result types, data
-sources, checkpoint loading, evaluation, joint LM losses, and training loops.
-<code class="docutils literal notranslate"><span class="pre">training/transformer_replacement.py</span></code> remains the public import facade.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/training/strategies/local_learning.py</span></code>:
-public local-learning strategy. Signal construction, recorders, broadcast
-helpers, STDP rules, and modulators live in focused <code class="docutils literal notranslate"><span class="pre">local_learning_*</span></code>
-mixins.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/training/optimizers/factory.py</span></code>:
-registry-backed optimizer construction</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/training/loss/functions.py</span></code>:
-registry-backed loss-function construction</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/datasets/registry.py</span></code>:
-extension registry for project-local dataset loaders</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/datasets/sequence</span></code>:
-sequence dataset package split by task family. <code class="docutils literal notranslate"><span class="pre">sequence_datasets.py</span></code>
-remains a compatibility facade.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/analysis/registry.py</span></code>:
-analyzer metadata registry for discovery and future manager refactors</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/analysis/managers/analysis_manager.py</span></code>:
-lifecycle coordinator for analyzers</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/analysis/core/information_parts/information_helpers.py</span></code> and
-<code class="docutils literal notranslate"><span class="pre">information_parts/information_results.py</span></code>: pure information-analysis
-utilities for estimator math, unit conversion, metric filtering, result
-aggregation, and layer-level summaries. <code class="docutils literal notranslate"><span class="pre">information_metrics_mixin.py</span></code>,
-<code class="docutils literal notranslate"><span class="pre">information_hooks_mixin.py</span></code>, and <code class="docutils literal notranslate"><span class="pre">information_signal_mixin.py</span></code> separate
-metric computation, hook collection, and LDA/E-I signal summaries.
-<code class="docutils literal notranslate"><span class="pre">information.py</span></code> keeps the public <code class="docutils literal notranslate"><span class="pre">InformationAnalyzer</span></code> entry point.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/networks/architectures/excitation_inhibition/dendritic/initialize.py</span></code>:
-compatibility facade for dendritic branch initialization. Expectation math,
-reactivation calibration, scaling, and named initialization methods live in
-the adjacent <code class="docutils literal notranslate"><span class="pre">initialize_*</span></code> modules.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">scripts/training/train_experiments.py</span></code>: the training entry point.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">scripts/script_utils/setup_utils.py</span></code>: run setup and <code class="docutils literal notranslate"><span class="pre">initialize_model</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">config/config.py</span></code>: <code class="docutils literal notranslate"><span class="pre">load_config</span></code>, <code class="docutils literal notranslate"><span class="pre">config_from_mapping</span></code> and
+<code class="docutils literal notranslate"><span class="pre">load_analysis_config</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">networks/architectures/factory.py</span></code>: <code class="docutils literal notranslate"><span class="pre">get_architecture</span></code> and the
+built-in core builders (with <code class="docutils literal notranslate"><span class="pre">factory_recurrent.py</span></code>,
+<code class="docutils literal notranslate"><span class="pre">factory_spatial.py</span></code> and <code class="docutils literal notranslate"><span class="pre">factory_unified.py</span></code>);
+<code class="docutils literal notranslate"><span class="pre">networks/architectures/registry.py</span></code>: registered architectures.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">networks/architectures/excitation_inhibition/ei_network.py</span></code>:
+<code class="docutils literal notranslate"><span class="pre">ConfigurableEINetwork</span></code>, the structured E/I core.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">networks/architectures/excitation_inhibition/dendritic/</span></code>: <code class="docutils literal notranslate"><span class="pre">DendriNet</span></code>,
+<code class="docutils literal notranslate"><span class="pre">DendriticBranchLayer</span></code>, <code class="docutils literal notranslate"><span class="pre">BlockLinear</span></code> and the initialization methods
+(<code class="docutils literal notranslate"><span class="pre">initialize.py</span></code> re-exports the <code class="docutils literal notranslate"><span class="pre">initialize_*</span></code> modules).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">networks/architectures/excitation_inhibition/synapse/</span></code>: the sparse
+synapse classes, their registry (<code class="docutils literal notranslate"><span class="pre">factory.py</span></code>), the indexed synapses
+(<code class="docutils literal notranslate"><span class="pre">indexed.py</span></code> re-exports the fixed, rewiring and candidate-pool
+variants) and the projection backends (<code class="docutils literal notranslate"><span class="pre">kernels/backend.py</span></code>).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">models/base.py</span></code>: parameter groups and the training hooks shared by the
+model wrappers.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">training/factory.py</span></code>: <code class="docutils literal notranslate"><span class="pre">get_trainer</span></code> and the strategy registry;
+<code class="docutils literal notranslate"><span class="pre">training/strategies/</span></code>: the trainers; <code class="docutils literal notranslate"><span class="pre">training/optimizers/</span></code> and
+<code class="docutils literal notranslate"><span class="pre">training/loss/</span></code>: optimizer and loss registries.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">datasets/standard_datasets.py</span></code>: <code class="docutils literal notranslate"><span class="pre">get_unified_datasets</span></code>;
+<code class="docutils literal notranslate"><span class="pre">datasets/registry.py</span></code>: registered datasets; <code class="docutils literal notranslate"><span class="pre">datasets/sequence/</span></code>:
+sequence tasks, with the builder registry in <code class="docutils literal notranslate"><span class="pre">sequence/builders</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">analysis/managers/analysis_manager.py</span></code>: runs the analyzers;
+<code class="docutils literal notranslate"><span class="pre">analysis/registry.py</span></code>: analyzer metadata (configuration field, class,
+output directory) from which the manager builds the built-in analyzers.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">analysis/core/information.py</span></code>: <code class="docutils literal notranslate"><span class="pre">InformationAnalyzer</span></code>; its
+implementation mixins live in <code class="docutils literal notranslate"><span class="pre">analysis/core/information_parts/</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">networks/architectures/classical/pretrained.py</span></code>: a torchvision backbone
+splitter (<code class="docutils literal notranslate"><span class="pre">list_backbone_layers</span></code>), a Python API that the training entry
+points do not use.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">utils/runtime_environment.py</span></code> and <code class="docutils literal notranslate"><span class="pre">utils/logging_config.py</span></code>: the
+environment record and the logging setup.</p></li>
 </ul>
 </section>
-<section id="artifacts-and-outputs">
-<h2>Artifacts and Outputs<a class="headerlink" href="#artifacts-and-outputs" title="Link to this heading"></a></h2>
-<p>A normal run can produce:</p>
-<ul class="simple">
-<li><p>resolved <code class="docutils literal notranslate"><span class="pre">config.json</span></code></p></li>
-<li><p>checkpoints and optimizer state</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">performance</span></code> summaries</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">init_gate_stats.json</span></code> for gate-aware models</p></li>
-<li><p>analyzer-specific JSON, tensors, and figures</p></li>
-</ul>
-<p>When debugging reproducibility or regressions, the first artifacts to compare
-are usually:</p>
+<section id="adding-a-component">
+<h2>Adding a component<a class="headerlink" href="#adding-a-component" title="Link to this heading"></a></h2>
 <ol class="arabic simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">config.json</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">init_gate_stats.json</span></code></p></li>
-<li><p>the first few epoch metrics</p></li>
-<li><p>analyzer outputs tied to the affected subsystem</p></li>
+<li><p>Add or extend the typed configuration field in
+<code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/config</span></code>, with validation, so the loader accepts
+and checks it.</p></li>
+<li><p>Implement the component and register it where a registry exists (see
+<a class="reference internal" href="available_components.html#extension-registries"><span class="std std-ref">Extension registries</span></a>), or add it to the built-in dispatch.</p></li>
+<li><p>Keep the default behaviour unchanged: a new option is off by default, and
+a test shows that the default output does not change.</p></li>
+<li><p>Add focused tests next to the changed subsystem (see <a class="reference internal" href="contributing.html"><span class="doc">Contributing</span></a>).</p></li>
+<li><p>Document the option on the page that explains its topic, and add an
+example configuration when it helps.</p></li>
 </ol>
 </section>
-<section id="how-to-extend-safely">
-<h2>How To Extend Safely<a class="headerlink" href="#how-to-extend-safely" title="Link to this heading"></a></h2>
-<p>When adding model, data, optimizer, loss, or analysis behavior, use this
-extension pattern:</p>
-<ol class="arabic simple">
-<li><p>add or extend a config field in <code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/config</span></code></p></li>
-<li><p>normalize any alias behavior in <code class="docutils literal notranslate"><span class="pre">config/model_aliases.py</span></code> or the relevant
-config helper</p></li>
-<li><p>register the component when a registry exists:
-<code class="docutils literal notranslate"><span class="pre">register_architecture</span></code>, <code class="docutils literal notranslate"><span class="pre">register_optimizer</span></code>, <code class="docutils literal notranslate"><span class="pre">register_loss_function</span></code>,
-or <code class="docutils literal notranslate"><span class="pre">register_dataset</span></code></p></li>
-<li><p>add at least one focused test near the changed subsystem</p></li>
-<li><p>document the control point in the relevant doc page</p></li>
-</ol>
-<p>That sequence keeps feedforward and recurrent behavior aligned and reduces the
-chance of config-only drift.</p>
-</section>
-<section id="current-safe-extension-apis">
-<h2>Current Safe Extension APIs<a class="headerlink" href="#current-safe-extension-apis" title="Link to this heading"></a></h2>
-<p>These extension points let project-local components add named behavior without
-shadowing built-in config strings.</p>
-<table class="docutils align-default">
-<colgroup>
-<col style="width: 25.0%" />
-<col style="width: 35.0%" />
-<col style="width: 40.0%" />
-</colgroup>
-<thead>
-<tr class="row-odd"><th class="head"><p>Component family</p></th>
-<th class="head"><p>API</p></th>
-<th class="head"><p>Builder contract</p></th>
-</tr>
-</thead>
-<tbody>
-<tr class="row-even"><td><p>Architecture</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">register_architecture(name,</span> <span class="pre">builder)</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">builder(parameters,</span> <span class="pre">input_dim=None,</span> <span class="pre">suffix_input_dim=None)</span> <span class="pre">-&gt;</span> <span class="pre">nn.Module</span></code></p></td>
-</tr>
-<tr class="row-odd"><td><p>Optimizer</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">register_optimizer(name,</span> <span class="pre">builder)</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">builder(model_parameters,</span> <span class="pre">optimizer_config)</span> <span class="pre">-&gt;</span> <span class="pre">torch.optim.Optimizer</span></code></p></td>
-</tr>
-<tr class="row-even"><td><p>Loss function</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">register_loss_function(name,</span> <span class="pre">builder)</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">builder()</span> <span class="pre">-&gt;</span> <span class="pre">LossFunction</span></code></p></td>
-</tr>
-<tr class="row-odd"><td><p>Dataset</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">register_dataset(name,</span> <span class="pre">builder)</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">builder(task_cfg)</span> <span class="pre">-&gt;</span> <span class="pre">(train_ds,</span> <span class="pre">valid_ds,</span> <span class="pre">test_ds)</span></code></p></td>
-</tr>
-<tr class="row-even"><td><p>Analyzer metadata</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">register_analyzer(name,</span> <span class="pre">...)</span></code></p></td>
-<td><p>Records config field, class path, save directory, and manager attribute</p></td>
-</tr>
-</tbody>
-</table>
-<p>The analyzer registry records analyzer metadata. <code class="docutils literal notranslate"><span class="pre">AnalysisManager</span></code> owns
-execution order and analyzer-specific call signatures, so registry entries do
-not change analysis output by themselves.</p>
+<section id="debugging-a-run">
+<h2>Debugging a run<a class="headerlink" href="#debugging-a-run" title="Link to this heading"></a></h2>
+<p>When a result changes unexpectedly, compare the run directories in this
+order: <code class="docutils literal notranslate"><span class="pre">config.json</span></code>, <code class="docutils literal notranslate"><span class="pre">resolved_seeds.json</span></code>, <code class="docutils literal notranslate"><span class="pre">runtime_environment.json</span></code>
+(library commit, dependency versions, devices), <code class="docutils literal notranslate"><span class="pre">init_gate_stats.json</span></code>,
+the first epochs in <code class="docutils literal notranslate"><span class="pre">training_summary.json</span></code> and the logs, then the outputs
+of the analyzers for the affected subsystem. See <a class="reference internal" href="runs_and_outputs.html#run-outputs"><span class="std std-ref">Run directory layout</span></a> and
+<a class="reference internal" href="runs_and_outputs.html#run-reproducibility"><span class="std std-ref">Reproducibility</span></a>.</p>
 </section>
 </section>
 
@@ -400,14 +414,14 @@ not change analysis output by themselves.</p>
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="analysis.html" class="btn btn-neutral float-left" title="Analysis" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="configuration_guide.html" class="btn btn-neutral float-right" title="Configuration Guide" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="extending.html" class="btn btn-neutral float-left" title="Extending DendriNet" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="contributing.html" class="btn btn-neutral float-right" title="Contributing" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>
 
   <div role="contentinfo">
-    <p>&#169; Copyright 2025, Kempner Institute.</p>
+    <p>&#169; Copyright 2024-2026, Kempner Institute.</p>
   </div>
 
   Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a

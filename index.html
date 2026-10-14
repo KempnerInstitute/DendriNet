@@ -6,14 +6,14 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Dendritic Modeling Framework &mdash; Dendritic Modeling Framework v0.1.0</title>
+  <title>DendriNet &mdash; DendriNet v0.2.0</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
 
   
       <script src="_static/jquery.js?v=5d32c60e"></script>
       <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="_static/documentation_options.js?v=01f34227"></script>
+      <script src="_static/documentation_options.js?v=938c9ccc"></script>
       <script src="_static/doctools.js?v=fd6eb6e6"></script>
       <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/js/theme.js"></script>
@@ -31,7 +31,7 @@
           
           
           <a href="#" class="icon icon-home">
-            Dendritic Modeling Framework
+            DendriNet
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
@@ -41,29 +41,59 @@
   </form>
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
-              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+              <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quick Start</a></li>
-<li class="toctree-l1"><a class="reference internal" href="examples.html">Runnable Config Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Example configurations</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
+<p class="caption" role="heading"><span class="caption-text">Building models</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="network_architectures.html">Network Architectures</a></li>
-<li class="toctree-l1"><a class="reference internal" href="training_strategies.html">Training Strategies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="network_architectures.html">Model architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dendritic_neurons.html">Dendritic neurons</a></li>
+<li class="toctree-l1"><a class="reference internal" href="synapses.html">Synapses and connectivity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="population_networks.html">Population networks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="temporal_dynamics.html">Temporal dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="structured_ei_cores.html">Structured E/I cores</a></li>
+<li class="toctree-l1"><a class="reference internal" href="conductance_options.html">Conductance options</a></li>
+<li class="toctree-l1"><a class="reference internal" href="comparison_models.html">Baselines and comparison models</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Configuration</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="configuration_guide.html">Configuration guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config_reference.html">Annotated reference configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="training_strategies.html">Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="distributed_training.html">Distributed training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="performance_kernels.html">Sparse execution and performance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Data and analysis</span></p>
+<ul>
 <li class="toctree-l1"><a class="reference internal" href="datasets.html">Datasets</a></li>
 <li class="toctree-l1"><a class="reference internal" href="analysis.html">Analysis</a></li>
-<li class="toctree-l1"><a class="reference internal" href="engineering_architecture.html">Engineering Architecture</a></li>
-<li class="toctree-l1"><a class="reference internal" href="configuration_guide.html">Configuration Guide</a></li>
-<li class="toctree-l1"><a class="reference internal" href="transformer_llm_scaling.html">Dendritic LLM Scaling Workflow</a></li>
-<li class="toctree-l1"><a class="reference internal" href="initialization_comparison_policy.html">Initialization Comparison Policy</a></li>
-<li class="toctree-l1"><a class="reference internal" href="sweeps.html">Parameter Sweeps</a></li>
-<li class="toctree-l1"><a class="reference internal" href="fsdp_troubleshooting.html">Distributed Training Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="analyzers.html">Analyzer reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="checkpoint_analysis.html">Analyzing saved checkpoints</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Running experiments</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="runs_and_outputs.html">Runs and outputs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sweeps.html">Parameter sweeps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="model_compression.html">Compact checkpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="project_provenance.html">Project provenance</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Reference</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="config_reference.html">Population-Network Reference Config</a></li>
-<li class="toctree-l1"><a class="reference internal" href="available_components.html">Available Components</a></li>
+<li class="toctree-l1"><a class="reference internal" href="available_components.html">Component catalogue</a></li>
+<li class="toctree-l1"><a class="reference internal" href="options_reference.html">Options reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cli_reference.html">Command-line reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api_reference.html">Python API</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="extending.html">Extending DendriNet</a></li>
+<li class="toctree-l1"><a class="reference internal" href="engineering_architecture.html">Engineering architecture</a></li>
 <li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
 </ul>
 
@@ -73,7 +103,7 @@
 
     <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-          <a href="#">Dendritic Modeling Framework</a>
+          <a href="#">DendriNet</a>
       </nav>
 
       <div class="wy-nav-content">
@@ -81,7 +111,7 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="#" class="icon icon-home" aria-label="Home"></a></li>
-      <li class="breadcrumb-item active">Dendritic Modeling Framework</li>
+      <li class="breadcrumb-item active">DendriNet</li>
       <li class="wy-breadcrumbs-aside">
             <a href="_sources/index.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -91,269 +121,157 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="dendritic-modeling-framework">
-<h1>Dendritic Modeling Framework<a class="headerlink" href="#dendritic-modeling-framework" title="Link to this heading"></a></h1>
-<p>A framework for excitation-inhibition networks, dendritic architectures,
-baseline MLPs, recurrent models, training strategies, and analysis tools.</p>
+  <section id="dendrinet">
+<h1>DendriNet<a class="headerlink" href="#dendrinet" title="Link to this heading"></a></h1>
+<p>DendriNet is a PyTorch library for networks of dendritic neurons. Its Python
+package is <code class="docutils literal notranslate"><span class="pre">dendritic_modeling</span></code>. A DendriNet neuron is a tree of dendritic
+branches: each branch reads a sparse set of excitatory and inhibitory inputs,
+integrates them by shunting (divisive) or additive inhibition, and passes its
+output toward the soma. Neurons are grouped into named excitatory and
+inhibitory populations that can be feedforward or recurrent, rate-based or
+spiking. Experiments are described in YAML files that the library loads,
+validates, trains, analyzes and sweeps.</p>
 <figure class="align-default" id="id1">
-<a class="reference internal image-reference" href="_images/system-overview.svg"><img alt="System overview showing configs, canonicalization, registries, model factory, training, analysis, and artifacts." src="_images/system-overview.svg" style="width: 100%;" />
+<a class="reference internal image-reference" href="_images/system-overview.svg"><img alt="Overview: YAML configuration is loaded into typed settings, the factory builds an encoder, a dendritic core and a decoder, and trainers, sweeps and the analysis manager produce run artifacts." src="_images/system-overview.svg" style="width: 100%;" />
 </a>
 <figcaption>
-<p><span class="caption-text">The framework is configured from YAML, canonicalized into typed model
-settings, built through architecture registries and factories, trained with
-standard or local learning rules, and analyzed into reusable artifacts.</span><a class="headerlink" href="#id1" title="Link to this image"></a></p>
+<p><span class="caption-text">From a YAML file to trained models and analysis results.</span><a class="headerlink" href="#id1" title="Link to this image"></a></p>
 </figcaption>
 </figure>
+<p>Install the package from a clone of the repository and train the feedforward
+population-network example on MNIST for one epoch:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
-python<span class="w"> </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span>configs/config_exp.yaml
+dendritic-train<span class="w"> </span>configs/examples/population_network_feedforward.yaml<span class="w"> </span>--epochs<span class="w"> </span><span class="m">1</span>
 </pre></div>
 </div>
-<p>Every model follows the same three-part layout: <strong>encoder</strong> (Identity, MLP,
-CNN), <strong>core network</strong> (E-I core, dendritic MLP, MLP, or recurrent core), and
-<strong>decoder</strong> (Identity or MLP). All experiments are configured through YAML
-files.</p>
-<p>Start here:</p>
+<p>Every model has three parts: an <strong>encoder</strong> that prepares the input, a
+<strong>core</strong> that holds the dendritic network (or a baseline), and a <strong>decoder</strong>
+that maps the core output to the task. <a class="reference internal" href="network_architectures.html"><span class="doc">Model architecture</span></a> describes
+this structure and the families of cores.</p>
+<section id="where-to-start">
+<h2>Where to start<a class="headerlink" href="#where-to-start" title="Link to this heading"></a></h2>
 <table class="docutils align-default">
 <colgroup>
-<col style="width: 24.0%" />
-<col style="width: 36.0%" />
 <col style="width: 40.0%" />
+<col style="width: 60.0%" />
 </colgroup>
 <thead>
 <tr class="row-odd"><th class="head"><p>Goal</p></th>
 <th class="head"><p>Page</p></th>
-<th class="head"><p>First config to open</p></th>
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p>Run an E/I MNIST model</p></td>
-<td><p><a class="reference internal" href="quickstart.html"><span class="doc">Quick Start</span></a></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_feedforward.yaml</span></code></p></td>
+<tr class="row-even"><td><p>Install DendriNet and train a first model</p></td>
+<td><p><a class="reference internal" href="installation.html"><span class="doc">Installation</span></a>, <a class="reference internal" href="quickstart.html"><span class="doc">Quickstart</span></a></p></td>
 </tr>
-<tr class="row-odd"><td><p>Configure feedforward or recurrent population models</p></td>
-<td><p><a class="reference internal" href="network_architectures.html"><span class="doc">Network Architectures</span></a></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_feedforward.yaml</span></code></p></td>
+<tr class="row-odd"><td><p>Find a configuration to start from</p></td>
+<td><p><a class="reference internal" href="examples.html"><span class="doc">Example configurations</span></a></p></td>
 </tr>
-<tr class="row-even"><td><p>Browse config examples</p></td>
-<td><p><a class="reference internal" href="examples.html"><span class="doc">Runnable Config Examples</span></a></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_feedforward.yaml</span></code></p></td>
+<tr class="row-even"><td><p>Build populations of dendritic neurons</p></td>
+<td><p><a class="reference internal" href="population_networks.html"><span class="doc">Population networks</span></a></p></td>
 </tr>
-<tr class="row-odd"><td><p>Add heterogeneous morphologies, synapse types, spiking soma, or feedback</p></td>
-<td><p><a class="reference internal" href="available_components.html"><span class="doc">Available Components</span></a></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_heterogeneous_feedforward.yaml</span></code></p></td>
+<tr class="row-odd"><td><p>Choose integration rules, gates and synapse types</p></td>
+<td><p><a class="reference internal" href="dendritic_neurons.html"><span class="doc">Dendritic neurons</span></a>, <a class="reference internal" href="synapses.html"><span class="doc">Synapses and connectivity</span></a>, <a class="reference internal" href="temporal_dynamics.html"><span class="doc">Temporal dynamics</span></a></p></td>
 </tr>
-<tr class="row-even"><td><p>Sweep E/I balance, morphology, taus, or connection probabilities</p></td>
-<td><p><a class="reference internal" href="sweeps.html"><span class="doc">Parameter Sweeps</span></a></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">configs/sweep_config.yaml</span></code></p></td>
+<tr class="row-even"><td><p>Write and validate a configuration file</p></td>
+<td><p><a class="reference internal" href="configuration_guide.html"><span class="doc">Configuration guide</span></a></p></td>
 </tr>
-<tr class="row-odd"><td><p>Inspect metrics, routing, gates, spikes, and branch analyses</p></td>
-<td><p><a class="reference internal" href="analysis.html"><span class="doc">Analysis</span></a></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">analysis:</span></code> in <code class="docutils literal notranslate"><span class="pre">configs/config_exp.yaml</span></code></p></td>
+<tr class="row-odd"><td><p>Choose a learning rule or train on several GPUs</p></td>
+<td><p><a class="reference internal" href="training_strategies.html"><span class="doc">Training</span></a>, <a class="reference internal" href="distributed_training.html"><span class="doc">Distributed training</span></a></p></td>
+</tr>
+<tr class="row-even"><td><p>Find the files a run writes</p></td>
+<td><p><a class="reference internal" href="runs_and_outputs.html"><span class="doc">Runs and outputs</span></a></p></td>
+</tr>
+<tr class="row-odd"><td><p>Analyze trained models and saved checkpoints</p></td>
+<td><p><a class="reference internal" href="analysis.html"><span class="doc">Analysis</span></a>, <a class="reference internal" href="analyzers.html"><span class="doc">Analyzer reference</span></a>, <a class="reference internal" href="checkpoint_analysis.html"><span class="doc">Analyzing saved checkpoints</span></a></p></td>
+</tr>
+<tr class="row-even"><td><p>Run parameter sweeps</p></td>
+<td><p><a class="reference internal" href="sweeps.html"><span class="doc">Parameter sweeps</span></a></p></td>
+</tr>
+<tr class="row-odd"><td><p>Pin a project’s code to an exact library commit</p></td>
+<td><p><a class="reference internal" href="project_provenance.html"><span class="doc">Project provenance</span></a></p></td>
+</tr>
+<tr class="row-even"><td><p>Look up a component, an option or a command</p></td>
+<td><p><a class="reference internal" href="available_components.html"><span class="doc">Component catalogue</span></a>, <a class="reference internal" href="options_reference.html"><span class="doc">Options reference</span></a>,
+<a class="reference internal" href="cli_reference.html"><span class="doc">Command-line reference</span></a></p></td>
+</tr>
+<tr class="row-odd"><td><p>Add components from your own package</p></td>
+<td><p><a class="reference internal" href="extending.html"><span class="doc">Extending DendriNet</span></a></p></td>
 </tr>
 </tbody>
 </table>
-<p><code class="docutils literal notranslate"><span class="pre">model.core.type:</span> <span class="pre">population_network</span></code> is the main notation for feedforward
-stacks, recurrent microcircuits, named E/I populations, per-population
-morphologies, typed synapses, spiking soma, and soma-to-dendrite feedback. E/I
-alias configs are supported for saved experiments and comparison runs.</p>
 <div class="toctree-wrapper compound">
-<p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quick Start</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="quickstart.html#train-an-e-i-network-on-mnist">Train an E-I network on MNIST</a></li>
-<li class="toctree-l2"><a class="reference internal" href="quickstart.html#override-parameters-from-the-command-line">Override parameters from the command line</a></li>
-<li class="toctree-l2"><a class="reference internal" href="quickstart.html#distributed-training-ddp-fsdp">Distributed training (DDP / FSDP)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="quickstart.html#run-a-parameter-sweep">Run a parameter sweep</a></li>
-<li class="toctree-l2"><a class="reference internal" href="quickstart.html#example-model-runs">Example model runs</a></li>
-<li class="toctree-l2"><a class="reference internal" href="quickstart.html#output-structure">Output structure</a></li>
-<li class="toctree-l2"><a class="reference internal" href="quickstart.html#wandb-integration">WandB integration</a></li>
-<li class="toctree-l2"><a class="reference internal" href="quickstart.html#minimal-configuration-example">Minimal configuration example</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="examples.html">Runnable Config Examples</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="examples.html#example-map">Example Map</a></li>
-<li class="toctree-l2"><a class="reference internal" href="examples.html#feedforward-population-network">Feedforward Population Network</a></li>
-<li class="toctree-l2"><a class="reference internal" href="examples.html#cifar-10-and-developmental-sparsity">CIFAR-10 and Developmental Sparsity</a></li>
-<li class="toctree-l2"><a class="reference internal" href="examples.html#heterogeneous-and-multilayer-networks">Heterogeneous and Multilayer Networks</a></li>
-<li class="toctree-l2"><a class="reference internal" href="examples.html#recurrent-taus-spiking-and-feedback">Recurrent, Taus, Spiking, and Feedback</a></li>
-<li class="toctree-l2"><a class="reference internal" href="examples.html#local-learning">Local Learning</a></li>
-<li class="toctree-l2"><a class="reference internal" href="examples.html#transformer-replacement">Transformer Replacement</a></li>
-<li class="toctree-l2"><a class="reference internal" href="examples.html#vision-backbone-replacement">Vision Backbone Replacement</a></li>
-<li class="toctree-l2"><a class="reference internal" href="examples.html#other-public-config-areas">Other Public Config Areas</a></li>
-</ul>
-</li>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Example configurations</a></li>
 </ul>
 </div>
 <div class="toctree-wrapper compound">
-<p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
+<p class="caption" role="heading"><span class="caption-text">Building models</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="network_architectures.html">Network Architectures</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="network_architectures.html#architecture-pipeline">Architecture Pipeline</a></li>
-<li class="toctree-l2"><a class="reference internal" href="network_architectures.html#visual-overview">Visual Overview</a></li>
-<li class="toctree-l2"><a class="reference internal" href="network_architectures.html#core-network-types">Core Network Types</a></li>
-<li class="toctree-l2"><a class="reference internal" href="network_architectures.html#excitationinhibitionnetwork">ExcitationInhibitionNetwork</a></li>
-<li class="toctree-l2"><a class="reference internal" href="network_architectures.html#dendrinet">DendriNet</a></li>
-<li class="toctree-l2"><a class="reference internal" href="network_architectures.html#dendriticbranchlayer">DendriticBranchLayer</a></li>
-<li class="toctree-l2"><a class="reference internal" href="network_architectures.html#topklinear">TopKLinear</a></li>
-<li class="toctree-l2"><a class="reference internal" href="network_architectures.html#blocklinear">BlockLinear</a></li>
-<li class="toctree-l2"><a class="reference internal" href="network_architectures.html#shared-replacement-cells">Shared Replacement Cells</a></li>
-<li class="toctree-l2"><a class="reference internal" href="network_architectures.html#vision-backbone-replacement">Vision Backbone Replacement</a></li>
-<li class="toctree-l2"><a class="reference internal" href="network_architectures.html#transformer-ffn-replacement">Transformer FFN Replacement</a></li>
-<li class="toctree-l2"><a class="reference internal" href="network_architectures.html#activation-functions">Activation Functions</a></li>
-<li class="toctree-l2"><a class="reference internal" href="network_architectures.html#recurrent-e-i-network">Recurrent E-I Network</a></li>
-<li class="toctree-l2"><a class="reference internal" href="network_architectures.html#population-network-named-populations">Population Network / Named Populations</a></li>
-<li class="toctree-l2"><a class="reference internal" href="network_architectures.html#synapse-types-receptor-kinetics">Synapse Types / Receptor Kinetics</a></li>
-<li class="toctree-l2"><a class="reference internal" href="network_architectures.html#spiking-soma-dynamics">Spiking Soma Dynamics</a></li>
-<li class="toctree-l2"><a class="reference internal" href="network_architectures.html#baseline-rnn-cores">Baseline RNN Cores</a></li>
-<li class="toctree-l2"><a class="reference internal" href="network_architectures.html#mlp-baseline">MLP Baseline</a></li>
-<li class="toctree-l2"><a class="reference internal" href="network_architectures.html#configuration-reference">Configuration Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="network_architectures.html">Model architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dendritic_neurons.html">Dendritic neurons</a></li>
+<li class="toctree-l1"><a class="reference internal" href="synapses.html">Synapses and connectivity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="population_networks.html">Population networks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="temporal_dynamics.html">Temporal dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="structured_ei_cores.html">Structured E/I cores</a></li>
+<li class="toctree-l1"><a class="reference internal" href="conductance_options.html">Conductance options</a></li>
+<li class="toctree-l1"><a class="reference internal" href="comparison_models.html">Baselines and comparison models</a></li>
 </ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="training_strategies.html">Training Strategies</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="training_strategies.html#available-strategies">Available Strategies</a></li>
-<li class="toctree-l2"><a class="reference internal" href="training_strategies.html#transformer-replacement-distillation">Transformer Replacement Distillation</a></li>
-<li class="toctree-l2"><a class="reference internal" href="training_strategies.html#standard-training">Standard Training</a></li>
-<li class="toctree-l2"><a class="reference internal" href="training_strategies.html#feedback-alignment">Feedback Alignment</a></li>
-<li class="toctree-l2"><a class="reference internal" href="training_strategies.html#local-credit-assignment">Local Credit Assignment</a></li>
-<li class="toctree-l2"><a class="reference internal" href="training_strategies.html#recurrent-training">Recurrent Training</a></li>
-<li class="toctree-l2"><a class="reference internal" href="training_strategies.html#multi-stage-training">Multi-Stage Training</a></li>
-<li class="toctree-l2"><a class="reference internal" href="training_strategies.html#fsdp-distributed-training">FSDP Distributed Training</a></li>
-<li class="toctree-l2"><a class="reference internal" href="training_strategies.html#parameter-groups">Parameter Groups</a></li>
-<li class="toctree-l2"><a class="reference internal" href="training_strategies.html#optimizer">Optimizer</a></li>
-<li class="toctree-l2"><a class="reference internal" href="training_strategies.html#loss-functions">Loss Functions</a></li>
-<li class="toctree-l2"><a class="reference internal" href="training_strategies.html#regularization-and-pruning">Regularization and Pruning</a></li>
+</div>
+<div class="toctree-wrapper compound">
+<p class="caption" role="heading"><span class="caption-text">Configuration</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="configuration_guide.html">Configuration guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config_reference.html">Annotated reference configurations</a></li>
 </ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="datasets.html">Datasets</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="datasets.html#standard-datasets">Standard Datasets</a></li>
-<li class="toctree-l2"><a class="reference internal" href="datasets.html#synthetic-datasets">Synthetic Datasets</a></li>
-<li class="toctree-l2"><a class="reference internal" href="datasets.html#sequence-datasets">Sequence Datasets</a></li>
-<li class="toctree-l2"><a class="reference internal" href="datasets.html#poisson-generator">Poisson Generator</a></li>
-<li class="toctree-l2"><a class="reference internal" href="datasets.html#data-processing">Data Processing</a></li>
-<li class="toctree-l2"><a class="reference internal" href="datasets.html#imagenet-pretrained-backbones">ImageNet / Pretrained Backbones</a></li>
+</div>
+<div class="toctree-wrapper compound">
+<p class="caption" role="heading"><span class="caption-text">Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="training_strategies.html">Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="distributed_training.html">Distributed training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="performance_kernels.html">Sparse execution and performance</a></li>
 </ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="analysis.html">Analysis</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="analysis.html#performance-analysis">Performance Analysis</a></li>
-<li class="toctree-l2"><a class="reference internal" href="analysis.html#information-analysis">Information Analysis</a></li>
-<li class="toctree-l2"><a class="reference internal" href="analysis.html#representation-accessibility">Representation Accessibility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="analysis.html#ablation-analysis">Ablation Analysis</a></li>
-<li class="toctree-l2"><a class="reference internal" href="analysis.html#correlation-analysis">Correlation Analysis</a></li>
-<li class="toctree-l2"><a class="reference internal" href="analysis.html#other-analysis-modules">Other Analysis Modules</a></li>
-<li class="toctree-l2"><a class="reference internal" href="analysis.html#compatibility-notes">Compatibility Notes</a></li>
+</div>
+<div class="toctree-wrapper compound">
+<p class="caption" role="heading"><span class="caption-text">Data and analysis</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="datasets.html">Datasets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="analysis.html">Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="analyzers.html">Analyzer reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="checkpoint_analysis.html">Analyzing saved checkpoints</a></li>
 </ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="engineering_architecture.html">Engineering Architecture</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="engineering_architecture.html#system-overview">System Overview</a></li>
-<li class="toctree-l2"><a class="reference internal" href="engineering_architecture.html#repository-layout">Repository Layout</a></li>
-<li class="toctree-l2"><a class="reference internal" href="engineering_architecture.html#build-path-from-yaml-to-model">Build Path: From YAML to Model</a></li>
-<li class="toctree-l2"><a class="reference internal" href="engineering_architecture.html#feedforward-and-recurrent-e-i-consistency">Feedforward and Recurrent E/I Consistency</a></li>
-<li class="toctree-l2"><a class="reference internal" href="engineering_architecture.html#recurrent-dynamics-boundaries">Recurrent Dynamics Boundaries</a></li>
-<li class="toctree-l2"><a class="reference internal" href="engineering_architecture.html#key-runtime-objects">Key Runtime Objects</a></li>
-<li class="toctree-l2"><a class="reference internal" href="engineering_architecture.html#artifacts-and-outputs">Artifacts and Outputs</a></li>
-<li class="toctree-l2"><a class="reference internal" href="engineering_architecture.html#how-to-extend-safely">How To Extend Safely</a></li>
-<li class="toctree-l2"><a class="reference internal" href="engineering_architecture.html#current-safe-extension-apis">Current Safe Extension APIs</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="configuration_guide.html">Configuration Guide</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#quick-start">Quick Start</a></li>
-<li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#top-level-structure">Top-Level Structure</a></li>
-<li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#core-network-types">Core Network Types</a></li>
-<li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#population-network-config-choices">Population-Network Config Choices</a></li>
-<li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#training-strategies">Training Strategies</a></li>
-<li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#loss-functions">Loss Functions</a></li>
-<li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#datasets">Datasets</a></li>
-<li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#analysis-modules">Analysis Modules</a></li>
-<li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#vision-backbone-replacement">Vision Backbone Replacement</a></li>
-<li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#transformer-mlp-ffn-replacement">Transformer MLP / FFN Replacement</a></li>
-<li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#recurrent-networks">Recurrent Networks</a></li>
-<li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#named-cell-types">Named Cell Types</a></li>
-<li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#synapse-types">Synapse Types</a></li>
-<li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#spiking-soma-dynamics">Spiking Soma Dynamics</a></li>
-<li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#dendritic-spike-plateau-dynamics">Dendritic Spike / Plateau Dynamics</a></li>
-<li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#soma-to-dendrite-feedback">Soma-to-Dendrite Feedback</a></li>
-<li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#structured-connectivity">Structured Connectivity</a></li>
-<li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#multi-stage-training">Multi-Stage Training</a></li>
-<li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#distributed-training">Distributed Training</a></li>
-<li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#reference-config">Reference Config</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="transformer_llm_scaling.html">Dendritic LLM Scaling Workflow</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="transformer_llm_scaling.html#parameter-profiles">Parameter profiles</a></li>
-<li class="toctree-l2"><a class="reference internal" href="transformer_llm_scaling.html#replacement-scope-and-example-configs">Replacement scope and example configs</a></li>
-<li class="toctree-l2"><a class="reference internal" href="transformer_llm_scaling.html#attention-embedding-and-lm-head-strategy">Attention, embedding, and LM-head strategy</a></li>
-<li class="toctree-l2"><a class="reference internal" href="transformer_llm_scaling.html#olmo-all-layer-preparation">OLMo all-layer preparation</a></li>
-<li class="toctree-l2"><a class="reference internal" href="transformer_llm_scaling.html#joint-training-and-scratch-initialization">Joint training and scratch initialization</a></li>
-<li class="toctree-l2"><a class="reference internal" href="transformer_llm_scaling.html#gated-and-teacher-topk-replacements">Gated and teacher-TopK replacements</a></li>
-<li class="toctree-l2"><a class="reference internal" href="transformer_llm_scaling.html#streaming-text-and-ddp-distillation">Streaming text and DDP distillation</a></li>
-<li class="toctree-l2"><a class="reference internal" href="transformer_llm_scaling.html#current-scale-boundary">Current scale boundary</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="initialization_comparison_policy.html">Initialization Comparison Policy</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="initialization_comparison_policy.html#comparison-estimands">Comparison estimands</a></li>
-<li class="toctree-l2"><a class="reference internal" href="initialization_comparison_policy.html#initializer-definitions">Initializer definitions</a></li>
-<li class="toctree-l2"><a class="reference internal" href="initialization_comparison_policy.html#selection-and-confirmation-protocol">Selection and confirmation protocol</a></li>
-<li class="toctree-l2"><a class="reference internal" href="initialization_comparison_policy.html#current-project-decisions-2026-07-15">Current project decisions (2026-07-15)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="initialization_comparison_policy.html#reporting-language">Reporting language</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="sweeps.html">Parameter Sweeps</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="sweeps.html#quick-start">Quick Start</a></li>
-<li class="toctree-l2"><a class="reference internal" href="sweeps.html#configuration">Configuration</a></li>
-<li class="toctree-l2"><a class="reference internal" href="sweeps.html#sweep-types">Sweep Types</a></li>
-<li class="toctree-l2"><a class="reference internal" href="sweeps.html#analysis-output">Analysis Output</a></li>
-<li class="toctree-l2"><a class="reference internal" href="sweeps.html#examples">Examples</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="fsdp_troubleshooting.html">Distributed Training Guide</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="fsdp_troubleshooting.html#quick-start">Quick Start</a></li>
-<li class="toctree-l2"><a class="reference internal" href="fsdp_troubleshooting.html#when-to-use-what">When to Use What</a></li>
-<li class="toctree-l2"><a class="reference internal" href="fsdp_troubleshooting.html#configuration">Configuration</a></li>
-<li class="toctree-l2"><a class="reference internal" href="fsdp_troubleshooting.html#common-issues">Common Issues</a></li>
-<li class="toctree-l2"><a class="reference internal" href="fsdp_troubleshooting.html#monitoring">Monitoring</a></li>
-</ul>
-</li>
+</div>
+<div class="toctree-wrapper compound">
+<p class="caption" role="heading"><span class="caption-text">Running experiments</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="runs_and_outputs.html">Runs and outputs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sweeps.html">Parameter sweeps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="model_compression.html">Compact checkpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="project_provenance.html">Project provenance</a></li>
 </ul>
 </div>
 <div class="toctree-wrapper compound">
 <p class="caption" role="heading"><span class="caption-text">Reference</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="config_reference.html">Population-Network Reference Config</a></li>
-<li class="toctree-l1"><a class="reference internal" href="available_components.html">Available Components</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="available_components.html#extension-registries">Extension Registries</a></li>
-<li class="toctree-l2"><a class="reference internal" href="available_components.html#core-network-types">Core Network Types</a></li>
-<li class="toctree-l2"><a class="reference internal" href="available_components.html#encoder-decoder-types">Encoder / Decoder Types</a></li>
-<li class="toctree-l2"><a class="reference internal" href="available_components.html#topk-variants">TopK Variants</a></li>
-<li class="toctree-l2"><a class="reference internal" href="available_components.html#weight-transforms">Weight Transforms</a></li>
-<li class="toctree-l2"><a class="reference internal" href="available_components.html#recurrent-extensions">Recurrent Extensions</a></li>
-<li class="toctree-l2"><a class="reference internal" href="available_components.html#population-network-layers">Population Network Layers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="available_components.html#activation-types">Activation Types</a></li>
-<li class="toctree-l2"><a class="reference internal" href="available_components.html#training-strategies">Training Strategies</a></li>
-<li class="toctree-l2"><a class="reference internal" href="available_components.html#loss-functions">Loss Functions</a></li>
-<li class="toctree-l2"><a class="reference internal" href="available_components.html#datasets">Datasets</a></li>
-<li class="toctree-l2"><a class="reference internal" href="available_components.html#analysis-modules">Analysis Modules</a></li>
-<li class="toctree-l2"><a class="reference internal" href="available_components.html#information-analysis-components">Information Analysis Components</a></li>
-<li class="toctree-l2"><a class="reference internal" href="available_components.html#initialization-methods">Initialization Methods</a></li>
-<li class="toctree-l2"><a class="reference internal" href="available_components.html#blocklinear-initialization">BlockLinear Initialization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="available_components.html">Component catalogue</a></li>
+<li class="toctree-l1"><a class="reference internal" href="options_reference.html">Options reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cli_reference.html">Command-line reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api_reference.html">Python API</a></li>
 </ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="contributing.html#development-setup">Development Setup</a></li>
-<li class="toctree-l2"><a class="reference internal" href="contributing.html#code-style">Code Style</a></li>
-<li class="toctree-l2"><a class="reference internal" href="contributing.html#testing">Testing</a></li>
-<li class="toctree-l2"><a class="reference internal" href="contributing.html#building-documentation">Building Documentation</a></li>
-</ul>
-</li>
+</div>
+<div class="toctree-wrapper compound">
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="extending.html">Extending DendriNet</a></li>
+<li class="toctree-l1"><a class="reference internal" href="engineering_architecture.html">Engineering architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
 </ul>
 </div>
 </section>
-<section id="indices-and-tables">
-<h1>Indices and Tables<a class="headerlink" href="#indices-and-tables" title="Link to this heading"></a></h1>
-<ul class="simple">
-<li><p><a class="reference internal" href="genindex.html"><span class="std std-ref">Index</span></a></p></li>
-<li><p><a class="reference internal" href="search.html"><span class="std std-ref">Search Page</span></a></p></li>
-</ul>
 </section>
 
 
@@ -366,7 +284,7 @@ alias configs are supported for saved experiments and comparison runs.</p>
   <hr/>
 
   <div role="contentinfo">
-    <p>&#169; Copyright 2025, Kempner Institute.</p>
+    <p>&#169; Copyright 2024-2026, Kempner Institute.</p>
   </div>
 
   Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a

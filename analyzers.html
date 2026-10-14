@@ -1,0 +1,1508 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Analyzer reference &mdash; DendriNet v0.2.0</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=938c9ccc"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Analyzing saved checkpoints" href="checkpoint_analysis.html" />
+    <link rel="prev" title="Analysis" href="analysis.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            DendriNet
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Example configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Building models</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="network_architectures.html">Model architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dendritic_neurons.html">Dendritic neurons</a></li>
+<li class="toctree-l1"><a class="reference internal" href="synapses.html">Synapses and connectivity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="population_networks.html">Population networks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="temporal_dynamics.html">Temporal dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="structured_ei_cores.html">Structured E/I cores</a></li>
+<li class="toctree-l1"><a class="reference internal" href="conductance_options.html">Conductance options</a></li>
+<li class="toctree-l1"><a class="reference internal" href="comparison_models.html">Baselines and comparison models</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Configuration</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="configuration_guide.html">Configuration guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config_reference.html">Annotated reference configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="training_strategies.html">Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="distributed_training.html">Distributed training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="performance_kernels.html">Sparse execution and performance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Data and analysis</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="datasets.html">Datasets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="analysis.html">Analysis</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Analyzer reference</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#performance-and-robustness">Performance and robustness</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#performance"><code class="docutils literal notranslate"><span class="pre">performance</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#noise-perturbation"><code class="docutils literal notranslate"><span class="pre">noise_perturbation</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#multiplicative-gain"><code class="docutils literal notranslate"><span class="pre">multiplicative_gain</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#gain-load-perturbation"><code class="docutils literal notranslate"><span class="pre">gain_load_perturbation</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#adversarial-robustness"><code class="docutils literal notranslate"><span class="pre">adversarial_robustness</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#single-layer-contribution"><code class="docutils literal notranslate"><span class="pre">single_layer_contribution</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#information">Information</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#analyzer-information"><code class="docutils literal notranslate"><span class="pre">information</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#correlation"><code class="docutils literal notranslate"><span class="pre">correlation</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#compartment-snr"><code class="docutils literal notranslate"><span class="pre">compartment_snr</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#representation-accessibility"><code class="docutils literal notranslate"><span class="pre">representation_accessibility</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#path-matched-information"><code class="docutils literal notranslate"><span class="pre">path_matched_information</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#interventions">Interventions</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#ablation"><code class="docutils literal notranslate"><span class="pre">ablation</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#path-matched-intervention"><code class="docutils literal notranslate"><span class="pre">path_matched_intervention</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#local-inhibitory-population-intervention"><code class="docutils literal notranslate"><span class="pre">local_inhibitory_population_intervention</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#input-region-intervention"><code class="docutils literal notranslate"><span class="pre">input_region_intervention</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#branch-local-sensitivity"><code class="docutils literal notranslate"><span class="pre">branch_local_sensitivity</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#connectivity-and-weights">Connectivity and weights</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#weight"><code class="docutils literal notranslate"><span class="pre">weight</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#source-tuning-support"><code class="docutils literal notranslate"><span class="pre">source_tuning_support</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#synapse-turnover"><code class="docutils literal notranslate"><span class="pre">synapse_turnover</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#synapse-pruning"><code class="docutils literal notranslate"><span class="pre">synapse_pruning</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#receptive-field"><code class="docutils literal notranslate"><span class="pre">receptive_field</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#inhibitory-specialization"><code class="docutils literal notranslate"><span class="pre">inhibitory_specialization</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#activity">Activity</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#compartment-statistics"><code class="docutils literal notranslate"><span class="pre">compartment_statistics</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#synaptic-activation"><code class="docutils literal notranslate"><span class="pre">synaptic_activation</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#branch-activation"><code class="docutils literal notranslate"><span class="pre">branch_activation</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#dynamics-and-learning">Dynamics and learning</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#reactivation-dynamics"><code class="docutils literal notranslate"><span class="pre">reactivation_dynamics</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#routing"><code class="docutils literal notranslate"><span class="pre">routing</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#jacobian-spectrum"><code class="docutils literal notranslate"><span class="pre">jacobian_spectrum</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#dendritic-timetraces"><code class="docutils literal notranslate"><span class="pre">dendritic_timetraces</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#spike-train"><code class="docutils literal notranslate"><span class="pre">spike_train</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#local-rule-components"><code class="docutils literal notranslate"><span class="pre">local_rule_components</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="checkpoint_analysis.html">Analyzing saved checkpoints</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Running experiments</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="runs_and_outputs.html">Runs and outputs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sweeps.html">Parameter sweeps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="model_compression.html">Compact checkpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="project_provenance.html">Project provenance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="available_components.html">Component catalogue</a></li>
+<li class="toctree-l1"><a class="reference internal" href="options_reference.html">Options reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cli_reference.html">Command-line reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api_reference.html">Python API</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="extending.html">Extending DendriNet</a></li>
+<li class="toctree-l1"><a class="reference internal" href="engineering_architecture.html">Engineering architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">DendriNet</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Analyzer reference</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/analyzers.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="analyzer-reference">
+<h1>Analyzer reference<a class="headerlink" href="#analyzer-reference" title="Link to this heading"></a></h1>
+<p>One section per analyzer, grouped by what it measures. Every section is
+written under <code class="docutils literal notranslate"><span class="pre">analysis.&lt;analyzer&gt;</span></code> with <code class="docutils literal notranslate"><span class="pre">enabled</span></code>, <code class="docutils literal notranslate"><span class="pre">training</span></code> and
+<code class="docutils literal notranslate"><span class="pre">params</span></code>; <a class="reference internal" href="analysis.html"><span class="doc">Analysis</span></a> explains when analyzers run, how
+<code class="docutils literal notranslate"><span class="pre">analysis.runtime</span></code> controls their data iteration, and where they write. The
+<a class="reference internal" href="analysis.html#analyzer-catalogue"><span class="std std-ref">Analyzer catalogue</span></a> summarizes all of them. Each section below gives the
+model the analyzer needs, the split it reads, its main options with their
+defaults, an example, and its output files (<code class="docutils literal notranslate"><span class="pre">&lt;name&gt;</span></code> is <code class="docutils literal notranslate"><span class="pre">final</span></code>,
+<code class="docutils literal notranslate"><span class="pre">epoch&lt;N&gt;</span></code> or a stage name). The example configurations under
+<code class="docutils literal notranslate"><span class="pre">configs/examples/</span></code> named in a section are complete analysis profiles for
+<a class="reference internal" href="checkpoint_analysis.html"><span class="doc">Analyzing saved checkpoints</span></a>.</p>
+<nav class="contents local" id="on-this-page">
+<p class="topic-title">On this page</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#performance-and-robustness" id="id2">Performance and robustness</a></p>
+<ul>
+<li><p><a class="reference internal" href="#performance" id="id3"><code class="docutils literal notranslate"><span class="pre">performance</span></code></a></p></li>
+<li><p><a class="reference internal" href="#noise-perturbation" id="id4"><code class="docutils literal notranslate"><span class="pre">noise_perturbation</span></code></a></p></li>
+<li><p><a class="reference internal" href="#multiplicative-gain" id="id5"><code class="docutils literal notranslate"><span class="pre">multiplicative_gain</span></code></a></p></li>
+<li><p><a class="reference internal" href="#gain-load-perturbation" id="id6"><code class="docutils literal notranslate"><span class="pre">gain_load_perturbation</span></code></a></p></li>
+<li><p><a class="reference internal" href="#adversarial-robustness" id="id7"><code class="docutils literal notranslate"><span class="pre">adversarial_robustness</span></code></a></p></li>
+<li><p><a class="reference internal" href="#single-layer-contribution" id="id8"><code class="docutils literal notranslate"><span class="pre">single_layer_contribution</span></code></a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#information" id="id9">Information</a></p>
+<ul>
+<li><p><a class="reference internal" href="#analyzer-information" id="id10"><code class="docutils literal notranslate"><span class="pre">information</span></code></a></p></li>
+<li><p><a class="reference internal" href="#correlation" id="id11"><code class="docutils literal notranslate"><span class="pre">correlation</span></code></a></p></li>
+<li><p><a class="reference internal" href="#compartment-snr" id="id12"><code class="docutils literal notranslate"><span class="pre">compartment_snr</span></code></a></p></li>
+<li><p><a class="reference internal" href="#representation-accessibility" id="id13"><code class="docutils literal notranslate"><span class="pre">representation_accessibility</span></code></a></p></li>
+<li><p><a class="reference internal" href="#path-matched-information" id="id14"><code class="docutils literal notranslate"><span class="pre">path_matched_information</span></code></a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#interventions" id="id15">Interventions</a></p>
+<ul>
+<li><p><a class="reference internal" href="#ablation" id="id16"><code class="docutils literal notranslate"><span class="pre">ablation</span></code></a></p></li>
+<li><p><a class="reference internal" href="#path-matched-intervention" id="id17"><code class="docutils literal notranslate"><span class="pre">path_matched_intervention</span></code></a></p></li>
+<li><p><a class="reference internal" href="#local-inhibitory-population-intervention" id="id18"><code class="docutils literal notranslate"><span class="pre">local_inhibitory_population_intervention</span></code></a></p></li>
+<li><p><a class="reference internal" href="#input-region-intervention" id="id19"><code class="docutils literal notranslate"><span class="pre">input_region_intervention</span></code></a></p></li>
+<li><p><a class="reference internal" href="#branch-local-sensitivity" id="id20"><code class="docutils literal notranslate"><span class="pre">branch_local_sensitivity</span></code></a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#connectivity-and-weights" id="id21">Connectivity and weights</a></p>
+<ul>
+<li><p><a class="reference internal" href="#weight" id="id22"><code class="docutils literal notranslate"><span class="pre">weight</span></code></a></p></li>
+<li><p><a class="reference internal" href="#source-tuning-support" id="id23"><code class="docutils literal notranslate"><span class="pre">source_tuning_support</span></code></a></p></li>
+<li><p><a class="reference internal" href="#synapse-turnover" id="id24"><code class="docutils literal notranslate"><span class="pre">synapse_turnover</span></code></a></p></li>
+<li><p><a class="reference internal" href="#synapse-pruning" id="id25"><code class="docutils literal notranslate"><span class="pre">synapse_pruning</span></code></a></p></li>
+<li><p><a class="reference internal" href="#receptive-field" id="id26"><code class="docutils literal notranslate"><span class="pre">receptive_field</span></code></a></p></li>
+<li><p><a class="reference internal" href="#inhibitory-specialization" id="id27"><code class="docutils literal notranslate"><span class="pre">inhibitory_specialization</span></code></a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#activity" id="id28">Activity</a></p>
+<ul>
+<li><p><a class="reference internal" href="#compartment-statistics" id="id29"><code class="docutils literal notranslate"><span class="pre">compartment_statistics</span></code></a></p></li>
+<li><p><a class="reference internal" href="#synaptic-activation" id="id30"><code class="docutils literal notranslate"><span class="pre">synaptic_activation</span></code></a></p></li>
+<li><p><a class="reference internal" href="#branch-activation" id="id31"><code class="docutils literal notranslate"><span class="pre">branch_activation</span></code></a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#dynamics-and-learning" id="id32">Dynamics and learning</a></p>
+<ul>
+<li><p><a class="reference internal" href="#reactivation-dynamics" id="id33"><code class="docutils literal notranslate"><span class="pre">reactivation_dynamics</span></code></a></p></li>
+<li><p><a class="reference internal" href="#routing" id="id34"><code class="docutils literal notranslate"><span class="pre">routing</span></code></a></p></li>
+<li><p><a class="reference internal" href="#jacobian-spectrum" id="id35"><code class="docutils literal notranslate"><span class="pre">jacobian_spectrum</span></code></a></p></li>
+<li><p><a class="reference internal" href="#dendritic-timetraces" id="id36"><code class="docutils literal notranslate"><span class="pre">dendritic_timetraces</span></code></a></p></li>
+<li><p><a class="reference internal" href="#spike-train" id="id37"><code class="docutils literal notranslate"><span class="pre">spike_train</span></code></a></p></li>
+<li><p><a class="reference internal" href="#local-rule-components" id="id38"><code class="docutils literal notranslate"><span class="pre">local_rule_components</span></code></a></p></li>
+</ul>
+</li>
+</ul>
+</nav>
+<section id="performance-and-robustness">
+<h2><a class="toc-backref" href="#id2" role="doc-backlink">Performance and robustness</a><a class="headerlink" href="#performance-and-robustness" title="Link to this heading"></a></h2>
+<section id="performance">
+<span id="analyzer-performance"></span><h3><a class="toc-backref" href="#id3" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">performance</span></code></a><a class="headerlink" href="#performance" title="Link to this heading"></a></h3>
+<p>Scores the model on whole splits: <code class="docutils literal notranslate"><span class="pre">accuracy</span></code>, <code class="docutils literal notranslate"><span class="pre">auc</span></code> and
+<code class="docutils literal notranslate"><span class="pre">categorical_loglikelihood</span></code> (on by default) and <code class="docutils literal notranslate"><span class="pre">mse</span></code> and
+<code class="docutils literal notranslate"><span class="pre">cosine_similarity</span></code> (off by default). For a regression model the
+classification scores are replaced by <code class="docutils literal notranslate"><span class="pre">mse</span></code> and <code class="docutils literal notranslate"><span class="pre">cosine_similarity</span></code>.
+<code class="docutils literal notranslate"><span class="pre">training_splits</span></code> (per-epoch runs) and <code class="docutils literal notranslate"><span class="pre">final_splits</span></code> (after training)
+choose the splits, from <code class="docutils literal notranslate"><span class="pre">train</span></code>, <code class="docutils literal notranslate"><span class="pre">validation</span></code> and <code class="docutils literal notranslate"><span class="pre">test</span></code> (default: all
+three); the older spelling <code class="docutils literal notranslate"><span class="pre">valid</span></code> loads with a warning. <code class="docutils literal notranslate"><span class="pre">performance</span></code>
+ignores <code class="docutils literal notranslate"><span class="pre">analysis.runtime.&lt;phase&gt;.max_samples</span></code>.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">analysis</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">performance</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">training</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">training_splits</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">"validation"</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">final_splits</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">"train"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"validation"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"test"</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">accuracy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">auc</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">      </span><span class="nt">categorical_loglikelihood</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+<p>Output: <code class="docutils literal notranslate"><span class="pre">performance/&lt;name&gt;.json</span></code> after training (<code class="docutils literal notranslate"><span class="pre">{metric:</span> <span class="pre">{train,</span> <span class="pre">valid,</span>
+<span class="pre">test}}</span></code>) and <code class="docutils literal notranslate"><span class="pre">performance/epochs/epoch&lt;N&gt;.json</span></code> per epoch. When per-epoch
+results exist, training also draws <code class="docutils literal notranslate"><span class="pre">performance_evolution_&lt;metric&gt;.png</span></code>.</p>
+</section>
+<section id="noise-perturbation">
+<span id="analyzer-noise-perturbation"></span><h3><a class="toc-backref" href="#id4" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">noise_perturbation</span></code></a><a class="headerlink" href="#noise-perturbation" title="Link to this heading"></a></h3>
+<p>Scores the model on test inputs with added noise. For every magnitude <code class="docutils literal notranslate"><span class="pre">m</span></code> in
+<code class="docutils literal notranslate"><span class="pre">uniform_magnitudes</span></code> (noise uniform in <code class="docutils literal notranslate"><span class="pre">[-m,</span> <span class="pre">m]</span></code>) and every standard
+deviation in <code class="docutils literal notranslate"><span class="pre">gaussian_sdevs</span></code>, <code class="docutils literal notranslate"><span class="pre">n_samples</span></code> noisy copies of the test inputs
+are drawn (seeded by <code class="docutils literal notranslate"><span class="pre">seed</span></code>), clipped to <code class="docutils literal notranslate"><span class="pre">clamp_range</span></code> and scored together.</p>
+<p>Options (defaults): <code class="docutils literal notranslate"><span class="pre">uniform_noise:</span> <span class="pre">true</span></code>, <code class="docutils literal notranslate"><span class="pre">uniform_magnitudes:</span> <span class="pre">[0.1,</span>
+<span class="pre">0.2]</span></code>, <code class="docutils literal notranslate"><span class="pre">gaussian_noise:</span> <span class="pre">true</span></code>, <code class="docutils literal notranslate"><span class="pre">gaussian_sdevs:</span> <span class="pre">[0.1,</span> <span class="pre">0.2]</span></code>,
+<code class="docutils literal notranslate"><span class="pre">n_samples:</span> <span class="pre">10</span></code>, <code class="docutils literal notranslate"><span class="pre">clamp_range:</span> <span class="pre">[0.0,</span> <span class="pre">1.0]</span></code> (<code class="docutils literal notranslate"><span class="pre">null</span></code> disables the clip, for
+inputs outside <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">1]</span></code>), and the score switches <code class="docutils literal notranslate"><span class="pre">accuracy</span></code>, <code class="docutils literal notranslate"><span class="pre">auc</span></code>,
+<code class="docutils literal notranslate"><span class="pre">categorical_loglikelihood</span></code>, <code class="docutils literal notranslate"><span class="pre">mse</span></code> and <code class="docutils literal notranslate"><span class="pre">cosine_similarity</span></code>, all
+<code class="docutils literal notranslate"><span class="pre">true</span></code>. The regression scores are NaN for classifiers; switch them off.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">analysis</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">noise_perturbation</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">uniform_magnitudes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0.1</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.2</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.4</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">gaussian_sdevs</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0.1</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.2</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.4</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">n_samples</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<span class="w">      </span><span class="nt">mse</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">      </span><span class="nt">cosine_similarity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+</pre></div>
+</div>
+<p>Output: <code class="docutils literal notranslate"><span class="pre">noise_perturbation_analysis/&lt;name&gt;</span></code> (JSON: <code class="docutils literal notranslate"><span class="pre">uniform</span></code> and
+<code class="docutils literal notranslate"><span class="pre">gaussian</span></code>, then the level, then the score; the log-likelihood key is
+<code class="docutils literal notranslate"><span class="pre">categorical_ll</span></code>). <code class="docutils literal notranslate"><span class="pre">dendritic-collect-perturbation-response</span></code> combines it
+with <code class="docutils literal notranslate"><span class="pre">performance</span></code> and <code class="docutils literal notranslate"><span class="pre">multiplicative_gain</span></code> (see
+<a class="reference internal" href="checkpoint_analysis.html"><span class="doc">Analyzing saved checkpoints</span></a>).</p>
+</section>
+<section id="multiplicative-gain">
+<span id="analyzer-multiplicative-gain"></span><h3><a class="toc-backref" href="#id5" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">multiplicative_gain</span></code></a><a class="headerlink" href="#multiplicative-gain" title="Link to this heading"></a></h3>
+<p>Scores the model on test inputs multiplied by a sweep of gains: <code class="docutils literal notranslate"><span class="pre">n_steps</span></code>
+values from <code class="docutils literal notranslate"><span class="pre">gain_min</span></code> to <code class="docutils literal notranslate"><span class="pre">gain_max</span></code>, spaced linearly or, with
+<code class="docutils literal notranslate"><span class="pre">logspace:</span> <span class="pre">true</span></code>, logarithmically (a log sweep with <code class="docutils literal notranslate"><span class="pre">gain_min:</span> <span class="pre">0</span></code> runs from
+<code class="docutils literal notranslate"><span class="pre">1/gain_max</span></code> to <code class="docutils literal notranslate"><span class="pre">gain_max</span></code>). With <code class="docutils literal notranslate"><span class="pre">uniform_gain:</span> <span class="pre">true</span></code> every input is
+multiplied by the gain; with <code class="docutils literal notranslate"><span class="pre">false</span></code> every input element gets its own gain,
+uniform in <code class="docutils literal notranslate"><span class="pre">[1,</span> <span class="pre">gain]</span></code>. <code class="docutils literal notranslate"><span class="pre">input_preprocess</span></code> (<code class="docutils literal notranslate"><span class="pre">none</span></code>, <code class="docutils literal notranslate"><span class="pre">relu</span></code>,
+<code class="docutils literal notranslate"><span class="pre">softplus</span></code>, <code class="docutils literal notranslate"><span class="pre">shift_min</span></code>, <code class="docutils literal notranslate"><span class="pre">global_shift_min</span></code>) is applied before the gain,
+and <code class="docutils literal notranslate"><span class="pre">noise_model:</span> <span class="pre">poisson</span></code> replaces each scaled input by a Poisson count with
+that mean (floored at <code class="docutils literal notranslate"><span class="pre">poisson_eps</span></code>). All gain levels draw their random gains
+and noise from <code class="docutils literal notranslate"><span class="pre">noise_seed</span></code>, so levels differ only in the gain. Poisson
+generator datasets apply the gain to their rates and keep their own noise; the
+preprocessing and noise options must then keep their defaults.</p>
+<p>At least one score must be selected (all are <code class="docutils literal notranslate"><span class="pre">false</span></code> by default):
+<code class="docutils literal notranslate"><span class="pre">accuracy</span></code>, <code class="docutils literal notranslate"><span class="pre">auc</span></code> and <code class="docutils literal notranslate"><span class="pre">categorical_loglikelihood</span></code> for classifiers,
+<code class="docutils literal notranslate"><span class="pre">mse</span></code> and <code class="docutils literal notranslate"><span class="pre">cosine_similarity</span></code> for regression models. Scores that do not
+fit the model are dropped with a warning.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">analysis</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">multiplicative_gain</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">gain_min</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.0</span>
+<span class="w">      </span><span class="nt">gain_max</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10.0</span>
+<span class="w">      </span><span class="nt">n_steps</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">11</span>
+<span class="w">      </span><span class="nt">accuracy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">categorical_loglikelihood</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+<p>Output: <code class="docutils literal notranslate"><span class="pre">multiplicative_gain_analysis/&lt;name&gt;.json</span></code> with <code class="docutils literal notranslate"><span class="pre">gain_factors</span></code>,
+<code class="docutils literal notranslate"><span class="pre">raw_scores</span></code> per gain and the mean scores inside (<code class="docutils literal notranslate"><span class="pre">ID</span></code>), below
+(<code class="docutils literal notranslate"><span class="pre">OOD_lower</span></code>) and above (<code class="docutils literal notranslate"><span class="pre">OOD_upper</span></code>) <code class="docutils literal notranslate"><span class="pre">in_distribution_gain_range</span></code>, the
+gain range of the evaluated dataset (<code class="docutils literal notranslate"><span class="pre">[1,</span> <span class="pre">1]</span></code> unless it is a Poisson
+generator with a gain). Per-epoch runs write <code class="docutils literal notranslate"><span class="pre">epochs/epoch&lt;N&gt;.json</span></code>; after
+training the analyzer draws <code class="docutils literal notranslate"><span class="pre">&lt;score&gt;_vs_gain_final.png</span></code> and, with per-epoch
+results, an animation over epochs.</p>
+</section>
+<section id="gain-load-perturbation">
+<span id="analyzer-gain-load-perturbation"></span><h3><a class="toc-backref" href="#id6" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">gain_load_perturbation</span></code></a><a class="headerlink" href="#gain-load-perturbation" title="Link to this heading"></a></h3>
+<p>Final-only. Scores a classifier on test inputs under a factorial of two
+perturbations: a mean-one log-normal gain shared by all input coordinates of a
+trial (log standard deviations <code class="docutils literal notranslate"><span class="pre">gain_log_sds</span></code>) and an input load
+(<code class="docutils literal notranslate"><span class="pre">load_levels</span></code>). <code class="docutils literal notranslate"><span class="pre">load_mode:</span> <span class="pre">gaussian_input</span></code> adds independent zero-mean
+Gaussian noise with standard deviation <code class="docutils literal notranslate"><span class="pre">load_level</span></code> to every coordinate;
+<code class="docutils literal notranslate"><span class="pre">load_mode:</span> <span class="pre">positive_inhibitory</span></code> adds a positive log-normal background with
+mean <code class="docutils literal notranslate"><span class="pre">load_level</span></code> (log standard deviation <code class="docutils literal notranslate"><span class="pre">load_log_sd</span></code>) to the
+coordinates from <code class="docutils literal notranslate"><span class="pre">inhibitory_start</span></code> on, for inputs ordered <code class="docutils literal notranslate"><span class="pre">[E</span> <span class="pre">|</span> <span class="pre">I]</span></code>. Every
+cell has <code class="docutils literal notranslate"><span class="pre">draws_per_condition</span></code> technical draws seeded by <code class="docutils literal notranslate"><span class="pre">base_draw_seed</span></code>;
+write it explicitly so that checkpoints from runs with different seeds share
+the same random numbers (an unset seed is derived from each run’s
+<code class="docutils literal notranslate"><span class="pre">experiment.probe_seed</span></code>). <code class="docutils literal notranslate"><span class="pre">clamp_min</span></code> (default
+<code class="docutils literal notranslate"><span class="pre">0</span></code>) and <code class="docutils literal notranslate"><span class="pre">clamp_max</span></code> clip every cell, the unperturbed one included;
+clipping rectifies Gaussian load into a positive-mean perturbation, so each
+record reports the fractions of values the clamp moved, and a warning is
+logged when clean inputs already fall outside the clamp. Set
+<code class="docutils literal notranslate"><span class="pre">clamp_min:</span> <span class="pre">null</span></code> for zero-mean Gaussian load.</p>
+<p>Further options: <code class="docutils literal notranslate"><span class="pre">max_samples</span></code>, the scores <code class="docutils literal notranslate"><span class="pre">accuracy</span></code> and
+<code class="docutils literal notranslate"><span class="pre">categorical_loglikelihood</span></code> (both <code class="docutils literal notranslate"><span class="pre">true</span></code>), <code class="docutils literal notranslate"><span class="pre">record_input_statistics</span></code>
+(mean, standard deviation, zero fraction, coefficient of variation and range
+of every cell) and <code class="docutils literal notranslate"><span class="pre">record_branch_local_sensitivity</span></code> with its
+<code class="docutils literal notranslate"><span class="pre">branch_sensitivity_*</span></code> options, which evaluates the
+<a class="reference internal" href="#analyzer-branch-local-sensitivity"><span class="std std-ref">branch_local_sensitivity</span></a> estimator
+on the draws listed in <code class="docutils literal notranslate"><span class="pre">branch_sensitivity_draws</span></code>.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">analysis</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">gain_load_perturbation</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">gain_log_sds</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0.0</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.2</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.5</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.8</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">load_levels</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0.0</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.1</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.3</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.5</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">load_mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gaussian_input</span>
+<span class="w">      </span><span class="nt">draws_per_condition</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<span class="w">      </span><span class="nt">clamp_min</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span>
+</pre></div>
+</div>
+<p>Output: <code class="docutils literal notranslate"><span class="pre">gain_load_perturbation/&lt;name&gt;.json</span></code>. Collect checkpoint runs with
+<code class="docutils literal notranslate"><span class="pre">dendritic-collect-gain-load-response</span></code>.</p>
+</section>
+<section id="adversarial-robustness">
+<span id="analyzer-adversarial-robustness"></span><h3><a class="toc-backref" href="#id7" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">adversarial_robustness</span></code></a><a class="headerlink" href="#adversarial-robustness" title="Link to this heading"></a></h3>
+<p>Accuracy on test inputs perturbed by the fast gradient sign method (FGSM) for
+every <code class="docutils literal notranslate"><span class="pre">epsilon</span></code> in <code class="docutils literal notranslate"><span class="pre">epsilons</span></code> (default <code class="docutils literal notranslate"><span class="pre">[0.0,</span> <span class="pre">0.05,</span> <span class="pre">0.1,</span> <span class="pre">0.15,</span> <span class="pre">0.2,</span>
+<span class="pre">0.3]</span></code>); perturbed inputs are clipped to <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">1]</span></code>. The batch size is the
+phase’s <code class="docutils literal notranslate"><span class="pre">analysis.runtime</span></code> batch size; <code class="docutils literal notranslate"><span class="pre">params.batch_size</span></code> has no effect
+in training or checkpoint runs.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">analysis</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">adversarial_robustness</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">epsilons</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0.0</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.05</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.1</span><span class="p p-Indicator">]</span>
+</pre></div>
+</div>
+<p>Output: <code class="docutils literal notranslate"><span class="pre">adversarial_robustness_analysis/adversarial_robustness_&lt;name&gt;.json</span></code>
+(<code class="docutils literal notranslate"><span class="pre">eps_&lt;epsilon&gt;</span></code> to scores).</p>
+</section>
+<section id="single-layer-contribution">
+<span id="analyzer-single-layer-contribution"></span><h3><a class="toc-backref" href="#id8" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">single_layer_contribution</span></code></a><a class="headerlink" href="#single-layer-contribution" title="Link to this heading"></a></h3>
+<p>Requires a structured E/I core (an <code class="docutils literal notranslate"><span class="pre">ExcitationInhibitionNetwork</span></code>; other
+cores are skipped with a warning). For each dendritic layer, scores the test
+split with the excitatory and inhibitory synapses of all other layers
+lesioned: with both of the layer’s banks (<code class="docutils literal notranslate"><span class="pre">both_contribution</span></code>), only its
+excitatory bank (<code class="docutils literal notranslate"><span class="pre">excitation_contribution</span></code>) or only its inhibitory bank
+(<code class="docutils literal notranslate"><span class="pre">inhibition_contribution</span></code>). The model is restored afterwards. The score
+switches are those of <code class="docutils literal notranslate"><span class="pre">noise_perturbation</span></code>, all <code class="docutils literal notranslate"><span class="pre">true</span></code>; switch off <code class="docutils literal notranslate"><span class="pre">mse</span></code>
+and <code class="docutils literal notranslate"><span class="pre">cosine_similarity</span></code> for classifiers.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">analysis</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">single_layer_contribution</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">mse</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">      </span><span class="nt">cosine_similarity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+</pre></div>
+</div>
+<p>Output: <code class="docutils literal notranslate"><span class="pre">single_layer_contribution/&lt;name&gt;</span></code> (JSON) and one figure per score.</p>
+</section>
+</section>
+<section id="information">
+<h2><a class="toc-backref" href="#id9" role="doc-backlink">Information</a><a class="headerlink" href="#information" title="Link to this heading"></a></h2>
+<section id="analyzer-information">
+<span id="id1"></span><h3><a class="toc-backref" href="#id10" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">information</span></code></a><a class="headerlink" href="#analyzer-information" title="Link to this heading"></a></h3>
+<p>Information-theoretic measures of the signals of every dendritic branch: the
+excitatory current <code class="docutils literal notranslate"><span class="pre">E</span></code>, the inhibitory current <code class="docutils literal notranslate"><span class="pre">I</span></code>, the input from child
+branches <code class="docutils literal notranslate"><span class="pre">Vb</span></code>, the branch output <code class="docutils literal notranslate"><span class="pre">Vout</span></code> and, with
+<code class="docutils literal notranslate"><span class="pre">compute.include_vinf</span></code> (default <code class="docutils literal notranslate"><span class="pre">true</span></code>), the soma activation <code class="docutils literal notranslate"><span class="pre">Vinf</span></code>,
+about the class <code class="docutils literal notranslate"><span class="pre">C</span></code> and about each other. It requires E/I dendritic branch
+layers (a structured E/I core or a <code class="docutils literal notranslate"><span class="pre">population_network</span></code>); other models are
+skipped with a warning. It reads the test split, or the validation split with
+<code class="docutils literal notranslate"><span class="pre">compute.analysis_split:</span> <span class="pre">validation</span></code>, and processes the selected examples
+in one forward pass.</p>
+<p><code class="docutils literal notranslate"><span class="pre">params.selection.components</span></code> chooses the families of terms. When it is
+empty, <code class="docutils literal notranslate"><span class="pre">basic</span></code>, <code class="docutils literal notranslate"><span class="pre">pairwise</span></code>, <code class="docutils literal notranslate"><span class="pre">conditional</span></code>, <code class="docutils literal notranslate"><span class="pre">ablation_aligned</span></code> and
+<code class="docutils literal notranslate"><span class="pre">layer_proxies</span></code> are computed.</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 24.0%" />
+<col style="width: 76.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Component</p></th>
+<th class="head"><p>Terms</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">basic</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">I(E;</span> <span class="pre">C)</span></code>, <code class="docutils literal notranslate"><span class="pre">I(I;</span> <span class="pre">C)</span></code>, <code class="docutils literal notranslate"><span class="pre">I(Vb;</span> <span class="pre">C)</span></code>, <code class="docutils literal notranslate"><span class="pre">I(Vout;</span> <span class="pre">C)</span></code>, <code class="docutils literal notranslate"><span class="pre">I(E,</span> <span class="pre">I;</span> <span class="pre">C)</span></code>,
+and <code class="docutils literal notranslate"><span class="pre">I(Vinf;</span> <span class="pre">C)</span></code> when <code class="docutils literal notranslate"><span class="pre">Vinf</span></code> is included.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">pairwise</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">I(E;</span> <span class="pre">I)</span></code>, <code class="docutils literal notranslate"><span class="pre">I(E;</span> <span class="pre">Vout)</span></code>, <code class="docutils literal notranslate"><span class="pre">I(I;</span> <span class="pre">Vout)</span></code>, <code class="docutils literal notranslate"><span class="pre">I(E;</span> <span class="pre">Vb)</span></code>,
+<code class="docutils literal notranslate"><span class="pre">I(I;</span> <span class="pre">Vb)</span></code>, <code class="docutils literal notranslate"><span class="pre">I(Vb;</span> <span class="pre">Vout)</span></code>, and the <code class="docutils literal notranslate"><span class="pre">Vinf</span></code> terms.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">conditional</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">I(E;</span> <span class="pre">I</span> <span class="pre">|</span> <span class="pre">C)</span></code>, <code class="docutils literal notranslate"><span class="pre">I(E;</span> <span class="pre">Vout</span> <span class="pre">|</span> <span class="pre">C)</span></code>, <code class="docutils literal notranslate"><span class="pre">I(I;</span> <span class="pre">Vout</span> <span class="pre">|</span> <span class="pre">C)</span></code>,
+<code class="docutils literal notranslate"><span class="pre">I(E;</span> <span class="pre">Vb</span> <span class="pre">|</span> <span class="pre">C)</span></code>, <code class="docutils literal notranslate"><span class="pre">I(I;</span> <span class="pre">Vb</span> <span class="pre">|</span> <span class="pre">C)</span></code>, <code class="docutils literal notranslate"><span class="pre">I(Vb;</span> <span class="pre">Vout</span> <span class="pre">|</span> <span class="pre">C)</span></code>, and the
+<code class="docutils literal notranslate"><span class="pre">Vinf</span></code> terms.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ablation_aligned</span></code></p></td>
+<td><p>Conditional terms that mirror ablations: <code class="docutils literal notranslate"><span class="pre">I(Vout;</span> <span class="pre">C</span> <span class="pre">|</span> <span class="pre">E)</span></code> and
+<code class="docutils literal notranslate"><span class="pre">I(Vout;</span> <span class="pre">C</span> <span class="pre">|</span> <span class="pre">I)</span></code>; with <code class="docutils literal notranslate"><span class="pre">Vb</span></code> also <code class="docutils literal notranslate"><span class="pre">I(Vout;</span> <span class="pre">C</span> <span class="pre">|</span> <span class="pre">Vb)</span></code>,
+<code class="docutils literal notranslate"><span class="pre">I(Vb;</span> <span class="pre">C</span> <span class="pre">|</span> <span class="pre">Vout)</span></code>, <code class="docutils literal notranslate"><span class="pre">I(Vout;</span> <span class="pre">C</span> <span class="pre">|</span> <span class="pre">E,</span> <span class="pre">I)</span></code>, <code class="docutils literal notranslate"><span class="pre">I(E;</span> <span class="pre">C</span> <span class="pre">|</span> <span class="pre">Vb)</span></code>,
+<code class="docutils literal notranslate"><span class="pre">I(I;</span> <span class="pre">C</span> <span class="pre">|</span> <span class="pre">Vb)</span></code>, <code class="docutils literal notranslate"><span class="pre">I(E,</span> <span class="pre">I;</span> <span class="pre">C</span> <span class="pre">|</span> <span class="pre">Vb)</span></code>, <code class="docutils literal notranslate"><span class="pre">I(E;</span> <span class="pre">C</span> <span class="pre">|</span> <span class="pre">I,</span> <span class="pre">Vb)</span></code>,
+<code class="docutils literal notranslate"><span class="pre">I(I;</span> <span class="pre">C</span> <span class="pre">|</span> <span class="pre">E,</span> <span class="pre">Vb)</span></code> and the <code class="docutils literal notranslate"><span class="pre">Vout</span></code> terms given two signals; without
+<code class="docutils literal notranslate"><span class="pre">Vb</span></code> <code class="docutils literal notranslate"><span class="pre">I(E;</span> <span class="pre">C</span> <span class="pre">|</span> <span class="pre">I)</span></code>, <code class="docutils literal notranslate"><span class="pre">I(I;</span> <span class="pre">C</span> <span class="pre">|</span> <span class="pre">E)</span></code>, <code class="docutils literal notranslate"><span class="pre">I(E;</span> <span class="pre">Vout</span> <span class="pre">|</span> <span class="pre">I)</span></code>,
+<code class="docutils literal notranslate"><span class="pre">I(I;</span> <span class="pre">Vout</span> <span class="pre">|</span> <span class="pre">E)</span></code> and <code class="docutils literal notranslate"><span class="pre">I(Vout;</span> <span class="pre">C</span> <span class="pre">|</span> <span class="pre">E,</span> <span class="pre">I)</span></code>; with <code class="docutils literal notranslate"><span class="pre">Vinf</span></code>
+<code class="docutils literal notranslate"><span class="pre">I(Vinf;</span> <span class="pre">C</span> <span class="pre">|</span> <span class="pre">Vout)</span></code> and <code class="docutils literal notranslate"><span class="pre">I(Vout;</span> <span class="pre">C</span> <span class="pre">|</span> <span class="pre">Vinf)</span></code>. Computed only
+together with <code class="docutils literal notranslate"><span class="pre">conditional</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">upstream_unique_cmi</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">I(Vb;</span> <span class="pre">C</span> <span class="pre">|</span> <span class="pre">E,</span> <span class="pre">I)</span></code> when <code class="docutils literal notranslate"><span class="pre">Vb</span></code> exists; expensive for wide <code class="docutils literal notranslate"><span class="pre">E</span></code> and
+<code class="docutils literal notranslate"><span class="pre">I</span></code>. Computed only together with <code class="docutils literal notranslate"><span class="pre">conditional</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">layer_proxies</span></code></p></td>
+<td><p>Layer-level summaries of the single-branch terms (<code class="docutils literal notranslate"><span class="pre">_sum</span></code>,
+<code class="docutils literal notranslate"><span class="pre">_union</span></code>, <code class="docutils literal notranslate"><span class="pre">_topK_sum</span></code> with <code class="docutils literal notranslate"><span class="pre">K</span> <span class="pre">=</span> <span class="pre">compute.layer_total_topk</span></code>,
+default 10). Computed only at <code class="docutils literal notranslate"><span class="pre">computation_level:</span> <span class="pre">single_branch</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">gaussian_fisher</span></code></p></td>
+<td><p>A Gaussian proxy from class-conditional means and variances
+(<code class="docutils literal notranslate"><span class="pre">I(E;</span> <span class="pre">C)_fisher</span></code> and similar, and <code class="docutils literal notranslate"><span class="pre">I(Vb;</span> <span class="pre">C</span> <span class="pre">|</span> <span class="pre">E,</span> <span class="pre">I)_fisher</span></code>),
+configured under <code class="docutils literal notranslate"><span class="pre">compute.gaussian_fisher</span></code>: <code class="docutils literal notranslate"><span class="pre">aggregation</span></code>
+(<code class="docutils literal notranslate"><span class="pre">sum</span></code>, <code class="docutils literal notranslate"><span class="pre">mean</span></code>, <code class="docutils literal notranslate"><span class="pre">max</span></code>), <code class="docutils literal notranslate"><span class="pre">mi_transform</span></code> (<code class="docutils literal notranslate"><span class="pre">half_log1p</span></code>,
+<code class="docutils literal notranslate"><span class="pre">log1p</span></code>, <code class="docutils literal notranslate"><span class="pre">none</span></code>) and <code class="docutils literal notranslate"><span class="pre">eps</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">pid</span></code></p></td>
+<td><p>Partial information decomposition of <code class="docutils literal notranslate"><span class="pre">(E,</span> <span class="pre">I)</span></code>, <code class="docutils literal notranslate"><span class="pre">(E,</span> <span class="pre">Vout)</span></code> and
+<code class="docutils literal notranslate"><span class="pre">(I,</span> <span class="pre">Vout)</span></code> about <code class="docutils literal notranslate"><span class="pre">C</span></code> and of <code class="docutils literal notranslate"><span class="pre">(E,</span> <span class="pre">I)</span></code> about <code class="docutils literal notranslate"><span class="pre">Vout</span></code>, with the
+minimum-mutual-information measure: redundancy
+<code class="docutils literal notranslate"><span class="pre">min(I(S1;</span> <span class="pre">T),</span> <span class="pre">I(S2;</span> <span class="pre">T))</span></code>, unique terms <code class="docutils literal notranslate"><span class="pre">I(Si;</span> <span class="pre">T)</span></code> minus the
+redundancy, and synergy <code class="docutils literal notranslate"><span class="pre">I(S1,</span> <span class="pre">S2;</span> <span class="pre">T)</span> <span class="pre">-</span> <span class="pre">I(S1;</span> <span class="pre">T)</span> <span class="pre">-</span> <span class="pre">I(S2;</span> <span class="pre">T)</span> <span class="pre">+</span>
+<span class="pre">redundancy</span></code>. With estimated informations the synergy can be slightly
+negative. <code class="docutils literal notranslate"><span class="pre">pid.binarize</span></code> thresholds <code class="docutils literal notranslate"><span class="pre">E</span></code>, <code class="docutils literal notranslate"><span class="pre">I</span></code> and <code class="docutils literal notranslate"><span class="pre">Vout</span></code> first
+(<code class="docutils literal notranslate"><span class="pre">binarize_method</span></code>: <code class="docutils literal notranslate"><span class="pre">median</span></code>, <code class="docutils literal notranslate"><span class="pre">mean</span></code> or <code class="docutils literal notranslate"><span class="pre">quantile</span></code> with
+<code class="docutils literal notranslate"><span class="pre">binarize_threshold</span></code>); class labels are never thresholded.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">soma_coupling</span></code></p></td>
+<td><p>Information of branch currents and outputs about the output of the
+branch’s soma.</p></td>
+</tr>
+</tbody>
+</table>
+<p>Other selectors under <code class="docutils literal notranslate"><span class="pre">params.selection</span></code>:</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">scopes</span></code></dt><dd><p>Extra breakdowns: <code class="docutils literal notranslate"><span class="pre">layer</span></code> (per dendritic layer), <code class="docutils literal notranslate"><span class="pre">einet</span></code> (excitatory
+and inhibitory pathways separately) and <code class="docutils literal notranslate"><span class="pre">neuron</span></code> (per captured branch
+coordinate; expensive). <code class="docutils literal notranslate"><span class="pre">neuron</span></code> does not mean the soma population of a
+layer; use <a class="reference internal" href="#analyzer-representation-accessibility"><span class="std std-ref">representation_accessibility</span></a> for soma populations.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">signal_variants</span></code></dt><dd><p><code class="docutils literal notranslate"><span class="pre">network</span></code> (the model’s signals, always included), <code class="docutils literal notranslate"><span class="pre">lda</span></code> (signals
+projected on LDA weights, <code class="docutils literal notranslate"><span class="pre">*_lin</span></code>), and <code class="docutils literal notranslate"><span class="pre">random</span></code> (a random-weight
+baseline for <code class="docutils literal notranslate"><span class="pre">lda</span></code>, <code class="docutils literal notranslate"><span class="pre">*_sh</span></code>; needs
+<code class="docutils literal notranslate"><span class="pre">baselines.random_weights.n_shuffles</span></code> above 0).</p>
+</dd>
+</dl>
+<p><code class="docutils literal notranslate"><span class="pre">params.compute</span></code> sets how branches are combined:</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">computation_level</span></code> (default <code class="docutils literal notranslate"><span class="pre">single_branch</span></code>)</dt><dd><p><code class="docutils literal notranslate"><span class="pre">single_branch</span></code> (each branch), <code class="docutils literal notranslate"><span class="pre">layer_branch</span></code> (the branches of a layer
+together) or <code class="docutils literal notranslate"><span class="pre">all_branch</span></code> (all branches together).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">branch_aggregation</span></code> (default <code class="docutils literal notranslate"><span class="pre">mean</span></code>)</dt><dd><p>For <code class="docutils literal notranslate"><span class="pre">layer_branch</span></code> and <code class="docutils literal notranslate"><span class="pre">all_branch</span></code>: <code class="docutils literal notranslate"><span class="pre">mean</span></code> (average the branches),
+<code class="docutils literal notranslate"><span class="pre">multivariate</span></code> (joint vectors) or <code class="docutils literal notranslate"><span class="pre">sample</span></code> (branches as separate
+observations).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">branch_sample_count_per_layer</span></code>, <code class="docutils literal notranslate"><span class="pre">branch_sample_strategy</span></code>, <code class="docutils literal notranslate"><span class="pre">branch_sample_seed</span></code></dt><dd><p>Analyze a label-independent sample of branches per layer at
+<code class="docutils literal notranslate"><span class="pre">single_branch</span></code>; <code class="docutils literal notranslate"><span class="pre">branch_sample_strategy</span></code> is <code class="docutils literal notranslate"><span class="pre">uniform</span></code> or
+<code class="docutils literal notranslate"><span class="pre">parent_soma_balanced</span></code> (cycle through the parent somas).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">max_samples</span></code>, <code class="docutils literal notranslate"><span class="pre">output_units</span></code>, <code class="docutils literal notranslate"><span class="pre">normalize_mi</span></code>, <code class="docutils literal notranslate"><span class="pre">network_population_information</span></code></dt><dd><p>A cap on the examples; <code class="docutils literal notranslate"><span class="pre">bits</span></code> (default) or <code class="docutils literal notranslate"><span class="pre">nats</span></code>; division by
+<code class="docutils literal notranslate"><span class="pre">H(C)</span></code>; and the raw information of the whole soma population (off by
+default).</p>
+</dd>
+</dl>
+<p><code class="docutils literal notranslate"><span class="pre">params.estimator.method</span></code> chooses the estimator:</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">kraskov</span></code> (default; also <code class="docutils literal notranslate"><span class="pre">auto</span></code>)</dt><dd><p>The k-nearest-neighbour estimator, with <code class="docutils literal notranslate"><span class="pre">estimator.kraskov.n_neighbors</span></code>
+(default 10).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">decoder</span></code></dt><dd><p>A cross-validated classifier bound for terms with <code class="docutils literal notranslate"><span class="pre">C</span></code>, configured by
+<code class="docutils literal notranslate"><span class="pre">estimator.decoder</span></code> (<code class="docutils literal notranslate"><span class="pre">cv_folds</span></code>, <code class="docutils literal notranslate"><span class="pre">C</span></code>, <code class="docutils literal notranslate"><span class="pre">standardize</span></code>, <code class="docutils literal notranslate"><span class="pre">seed</span></code>, and
+<code class="docutils literal notranslate"><span class="pre">continuous</span></code> for terms between continuous signals).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">binned</span></code></dt><dd><p>A plug-in estimator on binned signals: <code class="docutils literal notranslate"><span class="pre">estimator.binned.n_bins</span></code> (20),
+<code class="docutils literal notranslate"><span class="pre">binning_strategy</span></code> (<code class="docutils literal notranslate"><span class="pre">quantile</span></code> or <code class="docutils literal notranslate"><span class="pre">uniform</span></code>), <code class="docutils literal notranslate"><span class="pre">bias_correction</span></code>
+(<code class="docutils literal notranslate"><span class="pre">none</span></code> or <code class="docutils literal notranslate"><span class="pre">miller_madow</span></code>).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">sklearn</span></code></dt><dd><p>The scikit-learn estimators. It has no options of its own: the
+<code class="docutils literal notranslate"><span class="pre">estimator.sklearn</span></code> keys are not read.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">copula</span></code></dt><dd><p>With <code class="docutils literal notranslate"><span class="pre">estimator.copula.type:</span> <span class="pre">gaussian</span></code> (default), the Gaussian-copula
+estimator of Ince et al. (2017): every column becomes the standard normal
+score of its rank, and the information is that of a Gaussian with the
+scores’ covariance, with the analytic bias correction. It is exact for
+Gaussian dependence and a lower bound otherwise, needs more samples than
+dimensions (per class for class-conditional terms), and handles class
+labels through class-conditional entropies, so label order does not
+matter. <code class="docutils literal notranslate"><span class="pre">type:</span> <span class="pre">kernel</span></code> estimates the copula density of two continuous
+scalars with Gaussian kernels.</p>
+</dd>
+</dl>
+<p><code class="docutils literal notranslate"><span class="pre">params.baselines</span></code> adds surrogate estimates with the same estimator:
+<code class="docutils literal notranslate"><span class="pre">random_weights</span></code> (<code class="docutils literal notranslate"><span class="pre">n_shuffles</span></code>, <code class="docutils literal notranslate"><span class="pre">seed</span></code>) for the <code class="docutils literal notranslate"><span class="pre">random</span></code> variant, and
+<code class="docutils literal notranslate"><span class="pre">label_shuffle_null</span></code> (<code class="docutils literal notranslate"><span class="pre">n_shuffles</span></code>, <code class="docutils literal notranslate"><span class="pre">seed</span></code>, and <code class="docutils literal notranslate"><span class="pre">components</span></code>: the
+families that get a <code class="docutils literal notranslate"><span class="pre">*_null</span></code> counterpart, from <code class="docutils literal notranslate"><span class="pre">basic</span></code> (default),
+<code class="docutils literal notranslate"><span class="pre">pairwise</span></code>, <code class="docutils literal notranslate"><span class="pre">conditional</span></code>, <code class="docutils literal notranslate"><span class="pre">ablation_aligned</span></code>, <code class="docutils literal notranslate"><span class="pre">upstream_unique_cmi</span></code>,
+<code class="docutils literal notranslate"><span class="pre">soma_coupling</span></code> or <code class="docutils literal notranslate"><span class="pre">all</span></code>), which recomputes the terms with permuted labels
+as a finite-sample bias estimate.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">analysis</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">information</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">selection</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">components</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">"basic"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"pairwise"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"conditional"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"gaussian_fisher"</span><span class="p p-Indicator">]</span>
+<span class="w">        </span><span class="nt">scopes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">"layer"</span><span class="p p-Indicator">]</span>
+<span class="w">        </span><span class="nt">signal_variants</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">"network"</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">compute</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">max_samples</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1000</span>
+<span class="w">        </span><span class="nt">computation_level</span><span class="p">:</span><span class="w"> </span><span class="s">"single_branch"</span>
+<span class="w">        </span><span class="nt">analysis_split</span><span class="p">:</span><span class="w"> </span><span class="s">"validation"</span>
+<span class="w">      </span><span class="nt">estimator</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">method</span><span class="p">:</span><span class="w"> </span><span class="s">"kraskov"</span>
+<span class="w">        </span><span class="nt">kraskov</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">n_neighbors</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<span class="w">      </span><span class="nt">baselines</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">label_shuffle_null</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">n_shuffles</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
+</pre></div>
+</div>
+<p>Flat spellings such as <code class="docutils literal notranslate"><span class="pre">params.method</span></code>, <code class="docutils literal notranslate"><span class="pre">params.components</span></code> or
+<code class="docutils literal notranslate"><span class="pre">params.lda_n_shuffles</span></code> load with a deprecation warning and are moved to the
+grouped keys.</p>
+<p>Output: <code class="docutils literal notranslate"><span class="pre">information_analysis/&lt;name&gt;</span></code> (JSON) and <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;_summary.txt</span></code>;
+with the <code class="docutils literal notranslate"><span class="pre">layer</span></code> and <code class="docutils literal notranslate"><span class="pre">einet</span></code> scopes, per-layer summaries in
+<code class="docutils literal notranslate"><span class="pre">per_layer_results/</span></code>; and figures with fixed names, replaced at every pass.
+<code class="docutils literal notranslate"><span class="pre">dendritic_modeling.utils.information</span></code> provides the estimators as functions.</p>
+</section>
+<section id="correlation">
+<span id="analyzer-correlation"></span><h3><a class="toc-backref" href="#id11" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">correlation</span></code></a><a class="headerlink" href="#correlation" title="Link to this heading"></a></h3>
+<p>Requires a structured E/I core (an <code class="docutils literal notranslate"><span class="pre">ExcitationInhibitionNetwork</span></code>; other
+cores are skipped with a warning). Pearson correlations between excitatory,
+inhibitory and output signals on the test split (at most
+<code class="docutils literal notranslate"><span class="pre">compute.max_samples</span></code> examples, default 5000). Selectors under
+<code class="docutils literal notranslate"><span class="pre">params.selection</span></code>, all of them by default:</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">components</span></code></dt><dd><p><code class="docutils literal notranslate"><span class="pre">total</span></code> (all examples), <code class="docutils literal notranslate"><span class="pre">noise</span></code> (within class), <code class="docutils literal notranslate"><span class="pre">signal</span></code> (between
+class means; computed only for two-class tasks) and <code class="docutils literal notranslate"><span class="pre">tuning</span></code> (class
+selectivity).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">pairs</span></code></dt><dd><p><code class="docutils literal notranslate"><span class="pre">EE</span></code>, <code class="docutils literal notranslate"><span class="pre">II</span></code>, <code class="docutils literal notranslate"><span class="pre">EI</span></code>, <code class="docutils literal notranslate"><span class="pre">E_output</span></code>, <code class="docutils literal notranslate"><span class="pre">I_output</span></code>, <code class="docutils literal notranslate"><span class="pre">output_output</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">scopes</span></code></dt><dd><p><code class="docutils literal notranslate"><span class="pre">layer</span></code> and <code class="docutils literal notranslate"><span class="pre">einet</span></code> (by default), <code class="docutils literal notranslate"><span class="pre">neuron</span></code>.</p>
+</dd>
+</dl>
+<p><code class="docutils literal notranslate"><span class="pre">compute.computation_level</span></code> is <code class="docutils literal notranslate"><span class="pre">synaptic</span></code> (individual synapses, sampled
+with <code class="docutils literal notranslate"><span class="pre">params.sampling</span></code>: <code class="docutils literal notranslate"><span class="pre">sampling_strategy</span></code> <code class="docutils literal notranslate"><span class="pre">stratified</span></code> (default) or
+<code class="docutils literal notranslate"><span class="pre">random</span></code>, <code class="docutils literal notranslate"><span class="pre">n_synapse_pairs</span></code>, <code class="docutils literal notranslate"><span class="pre">max_pairs_per_category</span></code> and
+<code class="docutils literal notranslate"><span class="pre">stratified_categories</span></code>, default <code class="docutils literal notranslate"><span class="pre">[&quot;within_branch&quot;,</span> <span class="pre">&quot;within_layer&quot;]</span></code>),
+<code class="docutils literal notranslate"><span class="pre">single_branch</span></code>, <code class="docutils literal notranslate"><span class="pre">layer_branch</span></code> (default) or <code class="docutils literal notranslate"><span class="pre">all_branch</span></code>. The category
+<code class="docutils literal notranslate"><span class="pre">across_layer</span></code>, listed by earlier versions but never implemented, loads
+with a warning and is dropped (<code class="docutils literal notranslate"><span class="pre">dendritic-upgrade-config</span></code> removes it); any
+other unknown category raises. Selector entries are compared in lower case with <code class="docutils literal notranslate"><span class="pre">-</span></code> and
+spaces read as <code class="docutils literal notranslate"><span class="pre">_</span></code>, and also accept <code class="docutils literal notranslate"><span class="pre">all</span></code> (<code class="docutils literal notranslate"><span class="pre">total</span></code>), <code class="docutils literal notranslate"><span class="pre">tuning_curves</span></code>
+(<code class="docutils literal notranslate"><span class="pre">tuning</span></code>), <code class="docutils literal notranslate"><span class="pre">e_vout</span></code>/<code class="docutils literal notranslate"><span class="pre">exc_output</span></code>/<code class="docutils literal notranslate"><span class="pre">exc_vout</span></code> (<code class="docutils literal notranslate"><span class="pre">E_output</span></code>), the
+matching <code class="docutils literal notranslate"><span class="pre">I_output</span></code> spellings, <code class="docutils literal notranslate"><span class="pre">vout_vout</span></code>/<code class="docutils literal notranslate"><span class="pre">out_out</span></code>
+(<code class="docutils literal notranslate"><span class="pre">output_output</span></code>) and <code class="docutils literal notranslate"><span class="pre">per_layer</span></code>/<code class="docutils literal notranslate"><span class="pre">per_einet</span></code>/<code class="docutils literal notranslate"><span class="pre">per_neuron</span></code>. An unknown
+selector entry, computation level or sampling strategy raises when the
+configuration loads, with the valid names. Flat spellings such as
+<code class="docutils literal notranslate"><span class="pre">params.components</span></code> or <code class="docutils literal notranslate"><span class="pre">params.computation_level</span></code> load with a
+deprecation warning and are moved to the grouped keys.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">analysis</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">correlation</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">selection</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">components</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">"total"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"noise"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"signal"</span><span class="p p-Indicator">]</span>
+<span class="w">        </span><span class="nt">pairs</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">"EE"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"II"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"EI"</span><span class="p p-Indicator">]</span>
+<span class="w">        </span><span class="nt">scopes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">"layer"</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">compute</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">computation_level</span><span class="p">:</span><span class="w"> </span><span class="s">"layer_branch"</span>
+</pre></div>
+</div>
+<p>Output: <code class="docutils literal notranslate"><span class="pre">correlation_analysis/&lt;name&gt;</span></code> (JSON), <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;_summary.csv</span></code> and
+figures with fixed names.</p>
+</section>
+<section id="compartment-snr">
+<span id="analyzer-compartment-snr"></span><h3><a class="toc-backref" href="#id12" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">compartment_snr</span></code></a><a class="headerlink" href="#compartment-snr" title="Link to this heading"></a></h3>
+<p>Requires dendritic branch layers and a classifier; other models are skipped
+with a warning. Discriminability-style signal-to-noise ratios on the test
+split. This is not a simple signal/noise power ratio: branch-level scalar
+signals report <code class="docutils literal notranslate"><span class="pre">d'^2</span></code> as between-class variance divided by total variance,
+while multivariate input and layer signals report <code class="docutils literal notranslate"><span class="pre">d_max</span></code>, <code class="docutils literal notranslate"><span class="pre">d_total</span></code>,
+<code class="docutils literal notranslate"><span class="pre">n_sig_dirs</span></code> and <code class="docutils literal notranslate"><span class="pre">ratio_sig_dirs</span></code> from between-class versus total
+covariance (the squared canonical correlations with the class labels,
+computed in float64). They are in-sample, so even label-free activity gives
+<code class="docutils literal notranslate"><span class="pre">d_total</span></code> of about <code class="docutils literal notranslate"><span class="pre">(C</span> <span class="pre">-</span> <span class="pre">1)</span> <span class="pre">D</span> <span class="pre">/</span> <span class="pre">(n</span> <span class="pre">-</span> <span class="pre">1)</span></code>; compare layers of different
+widths through <code class="docutils literal notranslate"><span class="pre">d_total_null_mean</span></code> (the mean over label shuffles) and
+<code class="docutils literal notranslate"><span class="pre">dim_over_n</span></code>. A leading direction counts in <code class="docutils literal notranslate"><span class="pre">n_sig_dirs</span></code> when its
+eigenvalue exceeds the <code class="docutils literal notranslate"><span class="pre">null_quantile</span></code> (0.95) of the same-rank eigenvalue
+over <code class="docutils literal notranslate"><span class="pre">null_permutations</span></code> (100) label shuffles, seeded by <code class="docutils literal notranslate"><span class="pre">null_seed</span></code>.</p>
+<p><code class="docutils literal notranslate"><span class="pre">input_capture_mode</span></code> chooses the input view: <code class="docutils literal notranslate"><span class="pre">branch</span></code> (default) measures
+the tensors entering the dendritic branch layers; <code class="docutils literal notranslate"><span class="pre">network</span></code> measures the
+model-level excitatory input and inhibitory output of an
+<code class="docutils literal notranslate"><span class="pre">ExcitationInhibitionNetwork</span></code>. Further switches: <code class="docutils literal notranslate"><span class="pre">input_analysis</span></code>,
+<code class="docutils literal notranslate"><span class="pre">layer_analysis</span></code>, <code class="docutils literal notranslate"><span class="pre">branch_analysis</span></code> and the <code class="docutils literal notranslate"><span class="pre">*_aggregation</span></code> options,
+all <code class="docutils literal notranslate"><span class="pre">true</span></code>. Per-epoch runs skip the input analysis.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">analysis</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">compartment_snr</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">training</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">input_capture_mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">branch</span>
+<span class="w">      </span><span class="nt">null_permutations</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
+</pre></div>
+</div>
+<p>Output: <code class="docutils literal notranslate"><span class="pre">compartment_snr_analysis/&lt;name&gt;.json</span></code> (per epoch
+<code class="docutils literal notranslate"><span class="pre">epochs/epoch&lt;N&gt;.json</span></code>), and after training figures in <code class="docutils literal notranslate"><span class="pre">layer_analysis/</span></code>
+and <code class="docutils literal notranslate"><span class="pre">branch_analysis/</span></code>, with animations over epochs when per-epoch results
+exist.</p>
+</section>
+<section id="representation-accessibility">
+<span id="analyzer-representation-accessibility"></span><h3><a class="toc-backref" href="#id13" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">representation_accessibility</span></code></a><a class="headerlink" href="#representation-accessibility" title="Link to this heading"></a></h3>
+<p>Final-only. Requires a feedforward <code class="docutils literal notranslate"><span class="pre">population_network</span></code> whose populations are
+excitatory or inhibitory; it analyzes the post-gate soma outputs of every
+layer. It reports five separate estimands:</p>
+<ul class="simple">
+<li><p>class accessibility: Ridge or MLP probes fit on the validation split and
+evaluated on the test split, with label-shuffle nulls;</p></li>
+<li><p>joint <code class="docutils literal notranslate"><span class="pre">I(X;</span> <span class="pre">C)</span></code> of a label-independent population projection, on the
+validation split;</p></li>
+<li><p>scalar <code class="docutils literal notranslate"><span class="pre">I(x_i;</span> <span class="pre">C)</span></code> of individual somas, on the validation split;</p></li>
+<li><p>held-out decoding from label-independent nested subsets of population
+coordinates (individual somas of E-only or I-only representations);</p></li>
+<li><p>covariance and correlation effective dimension, on the validation split.</p></li>
+</ul>
+<p>The MLP result is nonlinear class accessibility, not mutual information. The
+mean of per-soma scalar information is redundancy-sensitive and is not the
+joint information of the layer. Every probe is fit on the validation split,
+and the test split is used only for the final probe evaluation.</p>
+<p>Representations may be <code class="docutils literal notranslate"><span class="pre">excitatory</span></code>, <code class="docutils literal notranslate"><span class="pre">inhibitory</span></code>, <code class="docutils literal notranslate"><span class="pre">joint</span></code>,
+<code class="docutils literal notranslate"><span class="pre">readout</span></code> or an exact name such as <code class="docutils literal notranslate"><span class="pre">population:e0</span></code>. A network without an
+inhibitory soma population records that representation as missing.
+<code class="docutils literal notranslate"><span class="pre">balanced_countsketch</span></code> projections give a label-independent matched width:
+use the native width to compare mechanisms with identical architectures, and a
+common projected width to compare E, I and joint populations of different
+sizes. Projection draws, MLP initializations and random-subset draws are
+technical repeats; average them within a trained checkpoint before inference
+across training seeds. Within each draw, subset sizes are nested prefixes of
+one random coordinate permutation, so the capacity curve is paired. Subset
+decoding uses one deterministic ridge probe per coordinate set. Population
+geometry reports participation-ratio and entropy effective ranks of the
+covariance spectrum (native soma scales) and the correlation spectrum
+(standardized somas); these describe dimensional concentration, not class
+information.</p>
+<p>The defaults are one identity projection <code class="docutils literal notranslate"><span class="pre">native</span></code> and one ridge probe
+<code class="docutils literal notranslate"><span class="pre">linear</span></code> with 20 label shuffles; <code class="docutils literal notranslate"><span class="pre">information</span></code>, <code class="docutils literal notranslate"><span class="pre">subset_decoding</span></code> and
+<code class="docutils literal notranslate"><span class="pre">geometry</span></code> are off. <code class="docutils literal notranslate"><span class="pre">information.projection_names</span></code> (default
+<code class="docutils literal notranslate"><span class="pre">[matched16]</span></code>) must name declared projections.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">analysis</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">runtime</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">final</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">mode</span><span class="p">:</span><span class="w"> </span><span class="s">"stream"</span>
+<span class="w">      </span><span class="nt">batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">256</span>
+<span class="w">  </span><span class="nt">representation_accessibility</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">representations</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">"excitatory"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"inhibitory"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"joint"</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">projections</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">"matched16"</span>
+<span class="w">          </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">"balanced_countsketch"</span>
+<span class="w">          </span><span class="nt">output_dim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">16</span>
+<span class="w">          </span><span class="nt">draws</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<span class="w">      </span><span class="nt">probes</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">"linear"</span>
+<span class="w">          </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">"ridge"</span>
+<span class="w">          </span><span class="nt">ridge_alpha</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span>
+<span class="w">          </span><span class="nt">n_label_shuffles</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">"nonlinear"</span>
+<span class="w">          </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">"mlp"</span>
+<span class="w">          </span><span class="nt">max_projection_draws</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="w">          </span><span class="nt">hidden_dims</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">32</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">16</span><span class="p p-Indicator">]</span>
+<span class="w">          </span><span class="nt">activation</span><span class="p">:</span><span class="w"> </span><span class="s">"relu"</span>
+<span class="w">          </span><span class="nt">alpha</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.0001</span>
+<span class="w">          </span><span class="nt">learning_rate_init</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.001</span>
+<span class="w">          </span><span class="nt">batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">256</span>
+<span class="w">          </span><span class="nt">max_iter</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">300</span>
+<span class="w">          </span><span class="nt">early_stopping</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">          </span><span class="nt">validation_fraction</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.1</span>
+<span class="w">          </span><span class="nt">n_iter_no_change</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
+<span class="w">          </span><span class="nt">draws</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
+<span class="w">          </span><span class="nt">n_label_shuffles</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<span class="w">      </span><span class="nt">information</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">        </span><span class="nt">compute_joint</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">        </span><span class="nt">compute_per_soma</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">        </span><span class="nt">projection_names</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">"matched16"</span><span class="p p-Indicator">]</span>
+<span class="w">        </span><span class="nt">per_soma_representations</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">"excitatory"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"inhibitory"</span><span class="p p-Indicator">]</span>
+<span class="w">        </span><span class="nt">n_neighbors</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<span class="w">        </span><span class="nt">n_label_shuffles</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
+<span class="w">        </span><span class="nt">standardize</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">subset_decoding</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">        </span><span class="nt">representations</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">"excitatory"</span><span class="p p-Indicator">]</span>
+<span class="w">        </span><span class="nt">subset_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">1</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">2</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">4</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">8</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">16</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">32</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">64</span><span class="p p-Indicator">]</span>
+<span class="w">        </span><span class="nt">draws</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<span class="w">        </span><span class="nt">probe</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">"subset_linear"</span>
+<span class="w">          </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">"ridge"</span>
+<span class="w">          </span><span class="nt">ridge_alpha</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span>
+<span class="w">          </span><span class="nt">n_label_shuffles</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<span class="w">      </span><span class="nt">geometry</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">        </span><span class="nt">representations</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">"excitatory"</span><span class="p p-Indicator">]</span>
+<span class="w">        </span><span class="nt">variance_epsilon</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0e-12</span>
+<span class="w">      </span><span class="nt">seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">42</span>
+</pre></div>
+</div>
+<p>Output: <code class="docutils literal notranslate"><span class="pre">representation_accessibility/&lt;name&gt;.json</span></code>. Example profile:
+<code class="docutils literal notranslate"><span class="pre">configs/examples/representation_accessibility_analysis.yaml</span></code>. Collect
+checkpoint runs with <code class="docutils literal notranslate"><span class="pre">dendritic-collect-representations</span></code>.</p>
+</section>
+<section id="path-matched-information">
+<span id="analyzer-path-matched-information"></span><h3><a class="toc-backref" href="#id14" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">path_matched_information</span></code></a><a class="headerlink" href="#path-matched-information" title="Link to this heading"></a></h3>
+<p>Final-only. Joint-vector class information on the same nested anatomical
+supports as <a class="reference internal" href="#analyzer-path-matched-intervention"><span class="std std-ref">path_matched_intervention</span></a>: complete soma-to-distal paths are
+selected without data, and their prefixes give the same number of compartment
+coordinates at every depth. The signals are the pre-gate excitatory and
+inhibitory currents, their joint vector, the child current, the pre-gate
+voltage and the post-gate output (<code class="docutils literal notranslate"><span class="pre">signals</span></code>, all six by default). Every
+coordinate is standardized on the validation examples without labels, and
+the Ross continuous-discrete k-nearest-neighbour estimator gives the
+information in bits, with a label-permutation distribution
+(<code class="docutils literal notranslate"><span class="pre">n_label_shuffles</span></code>).</p>
+<p>The analyzer reads only the validation split. Depth 0 (the soma) uses the
+whole soma population once; every other depth uses <code class="docutils literal notranslate"><span class="pre">support_draws</span></code> path
+draws, which are technical repeats: average them within a checkpoint before
+treating independently trained checkpoints as units. <code class="docutils literal notranslate"><span class="pre">depths</span></code> defaults to
+every depth, soma included. Set <code class="docutils literal notranslate"><span class="pre">module_name_prefix</span></code> to select one dendritic
+tree when the model has more than one; <code class="docutils literal notranslate"><span class="pre">expected_n_somas</span></code> and
+<code class="docutils literal notranslate"><span class="pre">expected_branch_factors</span></code> make the analysis fail on a checkpoint with a
+different architecture. An unset <code class="docutils literal notranslate"><span class="pre">information_seed</span></code> or <code class="docutils literal notranslate"><span class="pre">support_seed</span></code> is
+derived from <code class="docutils literal notranslate"><span class="pre">experiment.probe_seed</span></code> (see <a class="reference internal" href="analysis.html#analysis-seeds"><span class="std std-ref">Seeds</span></a>).</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">analysis</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">path_matched_information</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">signals</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">excitation_current</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">inhibition_current</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">joint_EI_currents</span><span class="p p-Indicator">,</span>
+<span class="w">                </span><span class="nv">upstream_child_current</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">pre_gate_voltage</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">post_gate_output</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">depths</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">1</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">2</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">3</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">4</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">support_draws</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<span class="w">      </span><span class="nt">support_seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">271828</span>
+<span class="w">      </span><span class="nt">information_seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">314159</span>
+<span class="w">      </span><span class="nt">n_neighbors</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<span class="w">      </span><span class="nt">n_label_shuffles</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
+<span class="w">      </span><span class="nt">expected_n_somas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
+<span class="w">      </span><span class="nt">expected_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">3</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">3</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">3</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">3</span><span class="p p-Indicator">]</span>
+</pre></div>
+</div>
+<p>Output: <code class="docutils literal notranslate"><span class="pre">path_matched_information/&lt;name&gt;.json</span></code>. Example profile:
+<code class="docutils literal notranslate"><span class="pre">configs/examples/path_matched_information_analysis.yaml</span></code>. Collect checkpoint
+runs with <code class="docutils literal notranslate"><span class="pre">dendritic-collect-path-information</span></code>.</p>
+</section>
+</section>
+<section id="interventions">
+<h2><a class="toc-backref" href="#id15" role="doc-backlink">Interventions</a><a class="headerlink" href="#interventions" title="Link to this heading"></a></h2>
+<section id="ablation">
+<span id="analyzer-ablation"></span><h3><a class="toc-backref" href="#id16" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">ablation</span></code></a><a class="headerlink" href="#ablation" title="Link to this heading"></a></h3>
+<p>Requires E/I dendritic branch layers (a structured E/I core or a
+<code class="docutils literal notranslate"><span class="pre">population_network</span></code>); other models are skipped without a message. Scores
+the test split after disrupting one part of the network at a time. Methods
+(<code class="docutils literal notranslate"><span class="pre">params.methods.ablation_methods</span></code>, default <code class="docutils literal notranslate"><span class="pre">[lesion]</span></code>):</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">lesion</span></code></dt><dd><p>Set the effective weights (after the weight transform) of the selected
+synapses to zero.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">shuffle</span></code></dt><dd><p>Permute the selected signal across the examples of a batch
+(<code class="docutils literal notranslate"><span class="pre">methods.shuffle_seed</span></code>). Keeps its distribution but breaks its alignment
+with the labels.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">mean_clamp</span></code></dt><dd><p>Replace the selected signal by its mean over the training split, computed
+once before the evaluation and recorded under <code class="docutils literal notranslate"><span class="pre">mean_clamp_reference</span></code>.
+Keeps the operating point but removes trial-to-trial variability.
+<code class="docutils literal notranslate"><span class="pre">methods.clamp_statistic</span></code> accepts only <code class="docutils literal notranslate"><span class="pre">mean</span></code>.</p>
+</dd>
+</dl>
+<p>Another method name or clamp statistic raises when the configuration loads.
+Selectors under <code class="docutils literal notranslate"><span class="pre">params.selection</span></code> must be set: with the default empty
+lists nothing is ablated and only an empty baseline is written. Their entries
+are compared in lower case with <code class="docutils literal notranslate"><span class="pre">-</span></code> and spaces read as <code class="docutils literal notranslate"><span class="pre">_</span></code>; an entry that
+names no level, target or score raises when the configuration loads, with the
+valid names, instead of selecting nothing.</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">levels</span></code></dt><dd><p><code class="docutils literal notranslate"><span class="pre">layer</span></code> (whole dendritic layers) and <code class="docutils literal notranslate"><span class="pre">compartment</span></code> (each branch row in
+turn; lesion only, other methods are skipped).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">targets</span></code></dt><dd><p><code class="docutils literal notranslate"><span class="pre">all_synapses</span></code> (or <code class="docutils literal notranslate"><span class="pre">all</span></code>), <code class="docutils literal notranslate"><span class="pre">excitation</span></code> (<code class="docutils literal notranslate"><span class="pre">exc</span></code>), <code class="docutils literal notranslate"><span class="pre">inhibition</span></code>
+(<code class="docutils literal notranslate"><span class="pre">inh</span></code>) and <code class="docutils literal notranslate"><span class="pre">upstream</span></code> (<code class="docutils literal notranslate"><span class="pre">vb</span></code>, <code class="docutils literal notranslate"><span class="pre">branch_input</span></code>; the coupling from
+child branches).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">metrics</span></code></dt><dd><p><code class="docutils literal notranslate"><span class="pre">accuracy</span></code>, <code class="docutils literal notranslate"><span class="pre">auc</span></code>, <code class="docutils literal notranslate"><span class="pre">categorical_loglikelihood</span></code> (<code class="docutils literal notranslate"><span class="pre">categorical_ll</span></code>,
+<code class="docutils literal notranslate"><span class="pre">loglikelihood</span></code>, <code class="docutils literal notranslate"><span class="pre">log_likelihood</span></code>), <code class="docutils literal notranslate"><span class="pre">mse</span></code>, <code class="docutils literal notranslate"><span class="pre">cosine_similarity</span></code>
+(<code class="docutils literal notranslate"><span class="pre">cosine</span></code>) and <code class="docutils literal notranslate"><span class="pre">pred_label_mi_bits</span></code> (<code class="docutils literal notranslate"><span class="pre">pred_label_mi</span></code>, <code class="docutils literal notranslate"><span class="pre">pred_mi</span></code>;
+the information between predicted and true labels, in bits). Scores that do
+not fit the model are dropped.</p>
+</dd>
+</dl>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">analysis</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">ablation</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">selection</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">levels</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">"layer"</span><span class="p p-Indicator">]</span>
+<span class="w">        </span><span class="nt">targets</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">"excitation"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"inhibition"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"upstream"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"all_synapses"</span><span class="p p-Indicator">]</span>
+<span class="w">        </span><span class="nt">metrics</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">"accuracy"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"pred_label_mi_bits"</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">methods</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">ablation_methods</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">"lesion"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"shuffle"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"mean_clamp"</span><span class="p p-Indicator">]</span>
+</pre></div>
+</div>
+<p>Output: <code class="docutils literal notranslate"><span class="pre">ablation_analysis/&lt;name&gt;.json</span></code> (per epoch <code class="docutils literal notranslate"><span class="pre">epochs/epoch&lt;N&gt;.json</span></code>)
+and figures per method and score, with an animation over epochs when per-epoch
+results exist.</p>
+</section>
+<section id="path-matched-intervention">
+<span id="analyzer-path-matched-intervention"></span><h3><a class="toc-backref" href="#id17" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">path_matched_intervention</span></code></a><a class="headerlink" href="#path-matched-intervention" title="Link to this heading"></a></h3>
+<p>Final-only. A fixed-count control for comparing causal sensitivity across
+dendritic depth. One complete soma-to-distal path is selected per soma and
+technical draw without inspecting data, labels, activations or the
+checkpoint, and its prefixes give the same number of compartment coordinates
+at every depth. Only those coordinates are changed; every other coordinate of
+the targeted signal stays as the model produces it.</p>
+<p><code class="docutils literal notranslate"><span class="pre">targets</span></code> (default: the first three) are <code class="docutils literal notranslate"><span class="pre">excitation_current</span></code>,
+<code class="docutils literal notranslate"><span class="pre">inhibition_current</span></code> and <code class="docutils literal notranslate"><span class="pre">joint_EI_currents</span></code>, which act on currents before
+the compartment’s transfer and gate, and <code class="docutils literal notranslate"><span class="pre">post_gate_output</span></code>, which acts on
+the branch-layer output before the next, more proximal layer consumes it.
+<code class="docutils literal notranslate"><span class="pre">methods</span></code> (default: all three) are <code class="docutils literal notranslate"><span class="pre">zero</span></code>, <code class="docutils literal notranslate"><span class="pre">fixed_train_mean</span></code> (the mean
+over the training split, computed once) and <code class="docutils literal notranslate"><span class="pre">global_test_shuffle</span></code> (one
+test-donor permutation over the whole split, shared across depths and, for
+joint targets, across E and I, so a joint shuffle keeps the donor’s
+sample-wise E/I covariance). <code class="docutils literal notranslate"><span class="pre">depths</span></code> are soma-relative and dendritic:
+<code class="docutils literal notranslate"><span class="pre">1</span></code> is proximal, larger values are more distal, <code class="docutils literal notranslate"><span class="pre">0</span></code> is rejected; the
+default is every dendritic depth. <code class="docutils literal notranslate"><span class="pre">paths_per_soma</span></code> (for example
+<code class="docutils literal notranslate"><span class="pre">[1,</span> <span class="pre">2,</span> <span class="pre">3]</span></code>) gives a nested dose-response in which each dose contains the
+smaller ones; it may not exceed the proximal branch factor, and empty means
+one path per soma. Each record reports the accuracy drop, the increase of the
+mean cross entropy, and the accuracy drop normalized by the baseline accuracy
+above <code class="docutils literal notranslate"><span class="pre">chance_accuracy</span></code> (default <code class="docutils literal notranslate"><span class="pre">1</span> <span class="pre">/</span> <span class="pre">n_classes</span></code>); the analysis raises
+when the model is not above chance. <code class="docutils literal notranslate"><span class="pre">max_samples</span></code> caps the test examples.</p>
+<p>Supports depend on <code class="docutils literal notranslate"><span class="pre">support_namespace</span></code>, <code class="docutils literal notranslate"><span class="pre">support_seed</span></code> and
+<code class="docutils literal notranslate"><span class="pre">support_draws</span></code>. Set <code class="docutils literal notranslate"><span class="pre">module_name_prefix</span></code> when the model has more than one
+dendritic tree (any multi-layer stack, or an E/I network whose E and I cells
+both have trees), and <code class="docutils literal notranslate"><span class="pre">expected_n_somas</span></code> and <code class="docutils literal notranslate"><span class="pre">expected_branch_factors</span></code> to
+make the analysis fail on a checkpoint with a different architecture.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">analysis</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">path_matched_intervention</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">targets</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">"excitation_current"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"inhibition_current"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"joint_EI_currents"</span><span class="p p-Indicator">,</span>
+<span class="w">                </span><span class="s">"post_gate_output"</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">methods</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">"zero"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"fixed_train_mean"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"global_test_shuffle"</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">paths_per_soma</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">1</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">2</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">3</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">support_draws</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<span class="w">      </span><span class="nt">support_seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">271828</span>
+<span class="w">      </span><span class="nt">shuffle_seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">314159</span>
+<span class="w">      </span><span class="nt">expected_n_somas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
+<span class="w">      </span><span class="nt">expected_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">3</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">3</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">3</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">3</span><span class="p p-Indicator">]</span>
+</pre></div>
+</div>
+<p>The two path-matched analyzers select identical supports only when they use
+the same <code class="docutils literal notranslate"><span class="pre">support_namespace</span></code>, <code class="docutils literal notranslate"><span class="pre">support_seed</span></code> and <code class="docutils literal notranslate"><span class="pre">support_draws</span></code>. An
+unset <code class="docutils literal notranslate"><span class="pre">support_seed</span></code> is derived from <code class="docutils literal notranslate"><span class="pre">experiment.probe_seed</span></code> and the
+analyzer’s own configuration path, so the two analyzers then draw different
+supports: write the same <code class="docutils literal notranslate"><span class="pre">support_seed</span></code> in both sections, and check the
+support hash when collecting.</p>
+<p>Output: <code class="docutils literal notranslate"><span class="pre">path_matched_intervention/&lt;name&gt;.json</span></code> with accuracy, cross
+entropy, exact available and replaced coordinate counts and hashed supports.
+Example profile: <code class="docutils literal notranslate"><span class="pre">configs/examples/path_matched_intervention_analysis.yaml</span></code>.
+Collect checkpoint runs with <code class="docutils literal notranslate"><span class="pre">dendritic-collect-path-interventions</span></code>.</p>
+</section>
+<section id="local-inhibitory-population-intervention">
+<span id="analyzer-local-inhibitory-population-intervention"></span><h3><a class="toc-backref" href="#id18" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">local_inhibitory_population_intervention</span></code></a><a class="headerlink" href="#local-inhibitory-population-intervention" title="Link to this heading"></a></h3>
+<p>Final-only. Replaces the complete post-gate output of the inhibitory
+population of one network layer of a feedforward <code class="docutils literal notranslate"><span class="pre">population_network</span></code> and
+re-evaluates the test split. Every layer must have exactly one inhibitory
+population, other than the readout, with exactly one outgoing same-step
+<code class="docutils literal notranslate"><span class="pre">ff_inhibitory</span></code> route to a local excitatory population; other graphs raise.
+The analysis therefore measures the complete local I-to-E signal of that
+layer, not a compartment current or recurrent inhibition.</p>
+<p><code class="docutils literal notranslate"><span class="pre">methods</span></code> (default: all three) are <code class="docutils literal notranslate"><span class="pre">global_test_shuffle</span></code> (donors from the
+whole test split), <code class="docutils literal notranslate"><span class="pre">within_class_test_shuffle</span></code> (donors of the same class)
+and <code class="docutils literal notranslate"><span class="pre">zero</span></code>; the results report the accuracy drop and the increase of the
+mean cross entropy. The global-minus-within-class contrast measures
+class-aligned dependence. <code class="docutils literal notranslate"><span class="pre">permutation_draws</span></code> (default 3) donor permutations
+are technical repeats within a checkpoint (<code class="docutils literal notranslate"><span class="pre">shuffle_seed</span></code>).
+<code class="docutils literal notranslate"><span class="pre">expected_network_layers</span></code> and <code class="docutils literal notranslate"><span class="pre">expected_inhibitory_width</span></code> make the
+analysis fail on a different architecture; <code class="docutils literal notranslate"><span class="pre">max_samples</span></code> caps the test
+examples.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">analysis</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">local_inhibitory_population_intervention</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">methods</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">global_test_shuffle</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">within_class_test_shuffle</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">zero</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">permutation_draws</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<span class="w">      </span><span class="nt">shuffle_seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1234</span>
+<span class="w">      </span><span class="nt">expected_network_layers</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<span class="w">      </span><span class="nt">expected_inhibitory_width</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">16</span>
+</pre></div>
+</div>
+<p>Output: <code class="docutils literal notranslate"><span class="pre">local_inhibitory_population_intervention/&lt;name&gt;.json</span></code>. Example
+profile:
+<code class="docutils literal notranslate"><span class="pre">configs/examples/local_inhibitory_population_intervention_analysis.yaml</span></code>.
+Collect checkpoint runs with <code class="docutils literal notranslate"><span class="pre">dendritic-collect-local-i-interventions</span></code>.</p>
+</section>
+<section id="input-region-intervention">
+<span id="analyzer-input-region-intervention"></span><h3><a class="toc-backref" href="#id19" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">input_region_intervention</span></code></a><a class="headerlink" href="#input-region-intervention" title="Link to this heading"></a></h3>
+<p>Final-only. Paired interventions on image regions of a feedforward image
+classifier (recurrent cores and models with typed synapses, spiking somas,
+dendritic spikes or soma feedback raise). <code class="docutils literal notranslate"><span class="pre">image_shape</span></code> and at least one
+region are required. Each region has a <code class="docutils literal notranslate"><span class="pre">name</span></code> and a <code class="docutils literal notranslate"><span class="pre">kind</span></code>:
+<code class="docutils literal notranslate"><span class="pre">central_square</span></code> (the central <code class="docutils literal notranslate"><span class="pre">center_fraction</span></code> of the height and width,
+default 0.5) or <code class="docutils literal notranslate"><span class="pre">surround</span></code> (the rest of the image), the same for every
+example; or <code class="docutils literal notranslate"><span class="pre">foreground</span></code> (locations whose channel-mean intensity exceeds
+<code class="docutils literal notranslate"><span class="pre">foreground_threshold</span></code>, default 0.5) or <code class="docutils literal notranslate"><span class="pre">background</span></code> (the other
+locations), computed from each unmodified input. <code class="docutils literal notranslate"><span class="pre">operations</span></code>
+(<code class="docutils literal notranslate"><span class="pre">remove_only</span></code>, <code class="docutils literal notranslate"><span class="pre">retain_only</span></code>) replace the region or everything except
+it with zero or with the featurewise mean of the reference split
+(<code class="docutils literal notranslate"><span class="pre">replacement_methods</span></code>: <code class="docutils literal notranslate"><span class="pre">zero</span></code>, <code class="docutils literal notranslate"><span class="pre">reference_mean</span></code>). The interventions
+are evaluated on
+<code class="docutils literal notranslate"><span class="pre">evaluation_split</span></code> (default <code class="docutils literal notranslate"><span class="pre">test</span></code>) with the reference mean from
+<code class="docutils literal notranslate"><span class="pre">reference_split</span></code> (default <code class="docutils literal notranslate"><span class="pre">train</span></code>).</p>
+<p>Outputs include accuracy and NLL changes, changes of the E and I soma
+population responses, and, within matched target trees
+(<code class="docutils literal notranslate"><span class="pre">target_population_polarities</span></code>, default <code class="docutils literal notranslate"><span class="pre">[excitatory]</span></code>), changes of the
+excitatory and inhibitory pre-gate drive, pre-gate voltage, post-gate branch
+output and soma output. <code class="docutils literal notranslate"><span class="pre">identity_soma_class_mapping</span></code> with
+<code class="docutils literal notranslate"><span class="pre">identity_soma_population_name</span></code> and <code class="docutils literal notranslate"><span class="pre">identity_soma_network_layer_index</span></code>
+adds summaries for somas assigned to classes. Results are aggregate
+statistics; no per-example values are saved.</p>
+<p>Masking the raw image of directly copied E/I image banks perturbs both
+routes, so the result is differential E/I response propagation, not a
+pathway-specific intervention, and later-layer records are propagated
+responses, not pixel receptive fields. Records from excitatory- and
+inhibitory-target trees are separate estimands and must not be pooled. The
+positive inhibitory drive is not a signed downstream effect: additive units
+subtract it, whereas shunting units place it in the divisor.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">analysis</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">input_region_intervention</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">image_shape</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">1</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">28</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">28</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">regions</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">center</span>
+<span class="w">          </span><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">central_square</span>
+<span class="w">          </span><span class="nt">center_fraction</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.5</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">foreground</span>
+<span class="w">          </span><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">foreground</span>
+<span class="w">          </span><span class="nt">foreground_threshold</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.5</span>
+<span class="w">      </span><span class="nt">operations</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">remove_only</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">retain_only</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">replacement_methods</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">zero</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">reference_mean</span><span class="p p-Indicator">]</span>
+</pre></div>
+</div>
+<p>Output: <code class="docutils literal notranslate"><span class="pre">input_region_intervention/&lt;name&gt;.json</span></code>. Example profile:
+<code class="docutils literal notranslate"><span class="pre">configs/examples/input_region_intervention_analysis.yaml</span></code>. Collect
+checkpoint runs with <code class="docutils literal notranslate"><span class="pre">dendritic-collect-input-region-interventions</span></code>.</p>
+</section>
+<section id="branch-local-sensitivity">
+<span id="analyzer-branch-local-sensitivity"></span><h3><a class="toc-backref" href="#id20" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">branch_local_sensitivity</span></code></a><a class="headerlink" href="#branch-local-sensitivity" title="Link to this heading"></a></h3>
+<p>Final-only. Local diagonal derivatives of each branch’s post-gate output with
+respect to its excitatory current <code class="docutils literal notranslate"><span class="pre">E</span></code>, inhibitory current <code class="docutils literal notranslate"><span class="pre">I</span></code>, inherited
+child current <code class="docutils literal notranslate"><span class="pre">C</span></code> and inherited conductance <code class="docutils literal notranslate"><span class="pre">G</span></code>, at the operating points of
+the test split. The analyzer differentiates the fitted gate at the observed
+voltage, so learned gate gain is included. It supports shunting, raw
+additive, tangent-matched additive and conductance-normalized additive
+branches; across-feature additive normalization is rejected because it is
+not a local diagonal operation.</p>
+<p>The output reports mean signed and absolute derivatives, RMS derivatives, and
+mean absolute first-order contributions by soma-relative depth. These are
+descriptive operating-point sensitivities, not class information or evidence
+that a signal is necessary; use <a class="reference internal" href="#analyzer-path-matched-intervention"><span class="std std-ref">path_matched_intervention</span></a> for the latter. <code class="docutils literal notranslate"><span class="pre">depths</span></code> defaults to
+every dendritic depth; <code class="docutils literal notranslate"><span class="pre">include_soma:</span> <span class="pre">true</span></code> adds depth 0. The tree
+selection and architecture checks are those of <code class="docutils literal notranslate"><span class="pre">path_matched_intervention</span></code>.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">analysis</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">branch_local_sensitivity</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">depths</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">1</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">2</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">3</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">4</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">module_name_prefix</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">core_network.layers.0.populations.e0.branch_layers</span>
+<span class="w">      </span><span class="nt">expected_n_somas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64</span>
+<span class="w">      </span><span class="nt">expected_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">3</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">3</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">3</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">3</span><span class="p p-Indicator">]</span>
+</pre></div>
+</div>
+<p>Output: <code class="docutils literal notranslate"><span class="pre">branch_local_sensitivity/&lt;name&gt;.json</span></code>. Example profile:
+<code class="docutils literal notranslate"><span class="pre">configs/examples/branch_local_sensitivity_analysis.yaml</span></code>. Collect checkpoint
+runs with <code class="docutils literal notranslate"><span class="pre">dendritic-collect-branch-sensitivities</span></code>.</p>
+</section>
+</section>
+<section id="connectivity-and-weights">
+<h2><a class="toc-backref" href="#id21" role="doc-backlink">Connectivity and weights</a><a class="headerlink" href="#connectivity-and-weights" title="Link to this heading"></a></h2>
+<section id="weight">
+<span id="analyzer-weight"></span><h3><a class="toc-backref" href="#id22" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">weight</span></code></a><a class="headerlink" href="#weight" title="Link to this heading"></a></h3>
+<p>Requires E/I dendritic branch layers; other models are skipped without a
+message. Statistics of the synaptic weights (<code class="docutils literal notranslate"><span class="pre">synapse_weights</span></code>) and of the
+branch coupling weights (<code class="docutils literal notranslate"><span class="pre">branch_weights</span></code>): means, variances, percentiles,
+minimum and maximum (<code class="docutils literal notranslate"><span class="pre">compute_*</span></code> switches), total dendritic strength, and
+counts of active synapses above <code class="docutils literal notranslate"><span class="pre">weight_threshold</span></code> (1e-6), globally, per
+layer and per branch. <code class="docutils literal notranslate"><span class="pre">computation_level</span></code>, <code class="docutils literal notranslate"><span class="pre">branch_aggregation</span></code>,
+<code class="docutils literal notranslate"><span class="pre">per_einet_analysis</span></code> and <code class="docutils literal notranslate"><span class="pre">per_neuron_analysis</span></code> are accepted but do not
+change the result.</p>
+<dl>
+<dt>Source support</dt><dd><p><code class="docutils literal notranslate"><span class="pre">compute_source_support:</span> <span class="pre">true</span></code> adds exact source-contact frequency and
+mean effective-conductance profiles by network layer, target population,
+soma, dendritic depth and pathway (<code class="docutils literal notranslate"><span class="pre">source_support_target_polarities</span></code>,
+default <code class="docutils literal notranslate"><span class="pre">[excitatory]</span></code>; <code class="docutils literal notranslate"><span class="pre">source_support_pathways</span></code>, default
+<code class="docutils literal notranslate"><span class="pre">[ff_excitatory,</span> <span class="pre">ff_inhibitory]</span></code>), saved as
+<code class="docutils literal notranslate"><span class="pre">&lt;name&gt;_source_support_profiles.npz</span></code> and
+<code class="docutils literal notranslate"><span class="pre">&lt;name&gt;_source_support_records.csv</span></code>. It reads the populations of a
+<code class="docutils literal notranslate"><span class="pre">population_network</span></code> or a recurrent structured E/I core; a feedforward
+<code class="docutils literal notranslate"><span class="pre">einet</span></code> core yields no profiles. With
+<code class="docutils literal notranslate"><span class="pre">source_support_image_shape</span></code> the profiles of image inputs are also drawn
+(<code class="docutils literal notranslate"><span class="pre">source_support_plot_soma_indices</span></code>, <code class="docutils literal notranslate"><span class="pre">source_support_fig_save_format</span></code>,
+default <code class="docutils literal notranslate"><span class="pre">pdf</span></code>).</p>
+</dd>
+<dt>Source-region alignment</dt><dd><p><code class="docutils literal notranslate"><span class="pre">compute_source_region_alignment:</span> <span class="pre">true</span></code> aligns the image-space profile
+with class-conditional source occupancy estimated on
+<code class="docutils literal notranslate"><span class="pre">source_region_reference_split</span></code> (default <code class="docutils literal notranslate"><span class="pre">validation</span></code>). It requires
+<code class="docutils literal notranslate"><span class="pre">compute_source_support</span></code>, <code class="docutils literal notranslate"><span class="pre">source_support_image_shape</span></code> and an explicit
+class for every target soma (<code class="docutils literal notranslate"><span class="pre">source_region_soma_to_class</span></code>). For a source
+profile <span class="math notranslate nohighlight">\(w_p\)</span> normalized to sum to one, it reports</p>
+<div class="math notranslate nohighlight">
+\[A_{\mathrm{pref}}=\sum_p w_p P(x_p&gt;\tau\mid Y=c_s),\qquad
+T=A_{\mathrm{pref}}-A_{\mathrm{rest}}.\]</div>
+<p>Contact and conductance weighting are separate quantities, as are
+center/surround support mass and within-region preferred/rest alignment.
+These are structural and activity-alignment statistics, not information or
+causal attribution. Only the network layers in
+<code class="docutils literal notranslate"><span class="pre">source_region_image_network_layers</span></code> (default <code class="docutils literal notranslate"><span class="pre">[0]</span></code>) count as image
+pixels; <code class="docutils literal notranslate"><span class="pre">source_region_foreground_thresholds</span></code> (default <code class="docutils literal notranslate"><span class="pre">[0.0,</span> <span class="pre">0.5]</span></code>),
+<code class="docutils literal notranslate"><span class="pre">source_region_center_bounds</span></code> and
+<code class="docutils literal notranslate"><span class="pre">source_region_max_reference_samples</span></code> complete the options.</p>
+</dd>
+</dl>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">analysis</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">weight</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">compute_source_support</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">source_support_image_shape</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">28</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">28</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">compute_source_region_alignment</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">source_region_soma_to_class</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">1</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">2</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">3</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">4</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">5</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">6</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">7</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">8</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">9</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">source_region_reference_split</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">validation</span>
+</pre></div>
+</div>
+<p>Output: <code class="docutils literal notranslate"><span class="pre">weight_analysis/&lt;name&gt;</span></code> (JSON), figures with fixed names after
+training, and the source-support and alignment files above. Example profiles:
+<code class="docutils literal notranslate"><span class="pre">configs/examples/synaptic_source_support_analysis.yaml</span></code> and
+<code class="docutils literal notranslate"><span class="pre">configs/examples/synaptic_source_region_alignment_analysis.yaml</span></code>. Collect
+checkpoint runs with <code class="docutils literal notranslate"><span class="pre">dendritic-collect-synaptic-support</span></code>.</p>
+</section>
+<section id="source-tuning-support">
+<span id="analyzer-source-tuning-support"></span><h3><a class="toc-backref" href="#id23" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">source_tuning_support</span></code></a><a class="headerlink" href="#source-tuning-support" title="Link to this heading"></a></h3>
+<p>Final-only. Requires a feedforward <code class="docutils literal notranslate"><span class="pre">population_network</span></code>. Asks whether the
+exact source coordinates a synaptic pathway selects are tuned to the
+preferred class of their target soma. The preferred class is chosen on
+<code class="docutils literal notranslate"><span class="pre">reference_split</span></code> (default <code class="docutils literal notranslate"><span class="pre">train</span></code>) and the source moments are estimated
+on <code class="docutils literal notranslate"><span class="pre">evaluation_split</span></code> (default <code class="docutils literal notranslate"><span class="pre">validation</span></code>); with
+<code class="docutils literal notranslate"><span class="pre">require_independent_splits</span></code> (default <code class="docutils literal notranslate"><span class="pre">true</span></code>) the two must differ. It
+reports uniform-, contact- and conductance-weighted preferred/rest means,
+threshold exceedance probabilities, standardized mean differences and the
+excess over the uniform eligible-source baseline, and, for every target soma,
+the centered class-profile correlation between that soma on the reference
+split and every source coordinate on the evaluation split.</p>
+<p>Only declared first-layer sources (<code class="docutils literal notranslate"><span class="pre">image_source_layers</span></code>,
+<code class="docutils literal notranslate"><span class="pre">image_source_names</span></code>) with a matching <code class="docutils literal notranslate"><span class="pre">image_shape</span></code> are treated as pixels;
+deeper sources use native neuron coordinates. The analysis keeps per-class
+sufficient statistics and never stores example-by-source matrices. It works
+with fixed indexed, indexed-release, standard Top-K and variance Top-K
+contacts; release models use the mean transmission <code class="docutils literal notranslate"><span class="pre">w</span> <span class="pre">*</span> <span class="pre">p(w)</span></code> while keeping
+the structural contact counts, and variance Top-K uses its saved training
+statistics. See <a class="reference internal" href="conductance_options.html"><span class="doc">Conductance options</span></a> for a contextual-input example.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">analysis</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">source_tuning_support</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">reference_split</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">train</span>
+<span class="w">      </span><span class="nt">evaluation_split</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">validation</span>
+<span class="w">      </span><span class="nt">pathways</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">ff_excitatory</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">ff_inhibitory</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">target_polarities</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">excitatory</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">inhibitory</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">image_shape</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">28</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">28</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">image_source_layers</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0</span><span class="p p-Indicator">]</span>
+</pre></div>
+</div>
+<p>Output: <code class="docutils literal notranslate"><span class="pre">source_tuning_support_analysis/&lt;name&gt;.json</span></code>. Example profiles:
+<code class="docutils literal notranslate"><span class="pre">configs/examples/source_tuning_support_analysis.yaml</span></code> and
+<code class="docutils literal notranslate"><span class="pre">configs/examples/conductance_source_tuning_analysis.yaml</span></code>. Collect
+checkpoint runs with <code class="docutils literal notranslate"><span class="pre">dendritic-collect-source-tuning</span></code>; its checkpoint
+summaries average target somas with equal weight and never pool trained
+seeds.</p>
+</section>
+<section id="synapse-turnover">
+<span id="analyzer-synapse-turnover"></span><h3><a class="toc-backref" href="#id24" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">synapse_turnover</span></code></a><a class="headerlink" href="#synapse-turnover" title="Link to this heading"></a></h3>
+<p>Requires <code class="docutils literal notranslate"><span class="pre">training:</span> <span class="pre">true</span></code> (the default). Counts the contacts of every
+synapse bank (<code class="docutils literal notranslate"><span class="pre">exc</span></code>, <code class="docutils literal notranslate"><span class="pre">inh</span></code>, <code class="docutils literal notranslate"><span class="pre">rec_exc</span></code>, <code class="docutils literal notranslate"><span class="pre">rec_inh</span></code>) of every dendritic
+branch layer that stay active, form and disappear. The first snapshot is the
+model before training, and later ones are taken every <code class="docutils literal notranslate"><span class="pre">snapshot_interval</span></code>
+epochs (default 1). <code class="docutils literal notranslate"><span class="pre">incremental</span></code> compares each snapshot with the previous
+one and <code class="docutils literal notranslate"><span class="pre">cumulative</span></code> with the first, per module and summed per pathway. It
+raises when the model has no masked synapse banks.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">analysis</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">synapse_turnover</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">snapshot_interval</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+</pre></div>
+</div>
+<p>Output, after training only: <code class="docutils literal notranslate"><span class="pre">synapse_turnover_analysis/&lt;name&gt;</span></code> (JSON),
+<code class="docutils literal notranslate"><span class="pre">&lt;name&gt;_turnover.png</span></code> and <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;_turnover_by_layer.png</span></code>.</p>
+</section>
+<section id="synapse-pruning">
+<span id="analyzer-synapse-pruning"></span><h3><a class="toc-backref" href="#id25" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">synapse_pruning</span></code></a><a class="headerlink" href="#synapse-pruning" title="Link to this heading"></a></h3>
+<p>Final-only. A census of the realized contacts of every synapse bank of every
+dendritic branch layer: a contact is realized when the bank’s mask selects it
+and its effective weight is nonzero, so contacts that pruning set to zero do
+not count even when a Top-K mask still selects them. When the run prunes
+(<code class="docutils literal notranslate"><span class="pre">training.main.pruning</span></code>), the census before and after every pruning step is
+recorded with the pruning statistics, the losses before and after it, and the
+contacts removed per layer and pathway.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">analysis</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">synapse_pruning</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">save_figures</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+<p>Output: <code class="docutils literal notranslate"><span class="pre">synapse_pruning_analysis/&lt;name&gt;</span></code> (JSON), <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;_summary.txt</span></code> and,
+with <code class="docutils literal notranslate"><span class="pre">save_figures</span></code>, the realized contacts per branch and their mean and
+standard deviation against depth.</p>
+</section>
+<section id="receptive-field">
+<span id="analyzer-receptive-field"></span><h3><a class="toc-backref" href="#id26" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">receptive_field</span></code></a><a class="headerlink" href="#receptive-field" title="Link to this heading"></a></h3>
+<p>Requires dendritic branch layers. Gathers the input-level receptive-field
+maps of all branch layers from the weights and plots sampled maps
+(<code class="docutils literal notranslate"><span class="pre">n_rows</span></code> by <code class="docutils literal notranslate"><span class="pre">n_cols</span></code>). Set <code class="docutils literal notranslate"><span class="pre">rf_shape</span></code> when excitatory and inhibitory
+maps share one image shape, or <code class="docutils literal notranslate"><span class="pre">exc_rf_shape</span></code> and <code class="docutils literal notranslate"><span class="pre">inh_rf_shape</span></code>.
+<code class="docutils literal notranslate"><span class="pre">save_raw_data</span></code> (default <code class="docutils literal notranslate"><span class="pre">true</span></code>) saves the raw maps, and
+<code class="docutils literal notranslate"><span class="pre">load_raw_data:</span> <span class="pre">true</span></code> reuses a saved file (<code class="docutils literal notranslate"><span class="pre">raw_filename</span></code>) instead of
+reading the weights. Optional extensions, which read the test split:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">compute_activation_tuning</span></code>: class-preferred branch excitation,
+inhibition, E/I ratio and output summaries, and with
+<code class="docutils literal notranslate"><span class="pre">activation_samples_per_class</span></code> a class-balanced sample of scalar branch
+signals (<code class="docutils literal notranslate"><span class="pre">activation_sample_signals</span></code>: <code class="docutils literal notranslate"><span class="pre">exc</span></code>, <code class="docutils literal notranslate"><span class="pre">inh</span></code>, <code class="docutils literal notranslate"><span class="pre">upstream</span></code>,
+<code class="docutils literal notranslate"><span class="pre">depolarizing_drive</span></code>, <code class="docutils literal notranslate"><span class="pre">vout</span></code>, <code class="docutils literal notranslate"><span class="pre">ei_ratio</span></code>), restricted by depth and
+branch with the <code class="docutils literal notranslate"><span class="pre">activation_sample_*</span></code> options;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">compute_component_rfs</span></code>: E/I mean and conditioned component maps per soma;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">compute_rf_tuning</span></code>: aggregate tuning, confusion and entropy summaries,
+discriminability heatmaps, preferred and non-preferred compartment
+summaries for the E/I layer <code class="docutils literal notranslate"><span class="pre">rf_tuning_layer_index</span></code>, drawn when
+<code class="docutils literal notranslate"><span class="pre">plot_rf_tuning</span></code> is true.</p></li>
+</ul>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">analysis</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">receptive_field</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">rf_shape</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">28</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">28</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">compute_activation_tuning</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+<p>Output: <code class="docutils literal notranslate"><span class="pre">receptive_field_analysis/&lt;name&gt;_raw_receptive_fields.pt</span></code>,
+<code class="docutils literal notranslate"><span class="pre">&lt;name&gt;_summary.json</span></code> (in <code class="docutils literal notranslate"><span class="pre">epochs/</span></code> during training), optional tuning
+files, and after training <code class="docutils literal notranslate"><span class="pre">exc_receptive_fields</span></code> and
+<code class="docutils literal notranslate"><span class="pre">inh_receptive_fields</span></code> figures in <code class="docutils literal notranslate"><span class="pre">fig_save_format</span></code> (default <code class="docutils literal notranslate"><span class="pre">png</span></code>).
+<code class="docutils literal notranslate"><span class="pre">configs/templates/analysis_full_template.yaml</span></code> lists every receptive-field
+option.</p>
+</section>
+<section id="inhibitory-specialization">
+<span id="analyzer-inhibitory-specialization"></span><h3><a class="toc-backref" href="#id27" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">inhibitory_specialization</span></code></a><a class="headerlink" href="#inhibitory-specialization" title="Link to this heading"></a></h3>
+<p>Requires recurrent inhibition onto excitatory dendrites (a recurrent core with
+<code class="docutils literal notranslate"><span class="pre">branch_rec_inhibition</span></code> weights); other models are skipped with a warning.
+For each local recurrent I-to-E route it computes the gate index
+<code class="docutils literal notranslate"><span class="pre">G</span> <span class="pre">=</span> <span class="pre">f_soma</span> <span class="pre">-</span> <span class="pre">f_distal</span></code> for every <code class="docutils literal notranslate"><span class="pre">(I,</span> <span class="pre">E)</span></code> pair, where <code class="docutils literal notranslate"><span class="pre">f_level</span></code> is the
+fraction of the realized inhibitory weight mass that the I cell delivers to
+the E cell’s compartments at that level; pairs without a realized synapse are
+excluded. Each I cell is classified from the mean and standard deviation of
+its <code class="docutils literal notranslate"><span class="pre">G</span></code> values as gate-specialist (mean above <code class="docutils literal notranslate"><span class="pre">gate_threshold</span></code>, default
+0.1, and standard deviation below <code class="docutils literal notranslate"><span class="pre">std_threshold</span></code>, default 0.15),
+context-specialist (mean below <code class="docutils literal notranslate"><span class="pre">-gate_threshold</span></code>), mixed-conditional
+(standard deviation above <code class="docutils literal notranslate"><span class="pre">std_threshold</span></code>) or diffuse. The level fractions
+divided by the compartment count are reported as
+<code class="docutils literal notranslate"><span class="pre">per_compartment_control</span></code>. For named <code class="docutils literal notranslate"><span class="pre">population_network</span></code> cores the
+results are keyed by the excitatory target population (for example
+<code class="docutils literal notranslate"><span class="pre">population_network/microcircuit.pyr</span></code>) and list the inhibitory source
+populations.
+<code class="docutils literal notranslate"><span class="pre">summarize_inhibitory_specialization_from_compartment_weights</span></code> and
+<code class="docutils literal notranslate"><span class="pre">ei_connectivity_motifs</span></code> use the same computation.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">analysis</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">inhibitory_specialization</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">gate_threshold</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.1</span>
+<span class="w">      </span><span class="nt">std_threshold</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.15</span>
+</pre></div>
+</div>
+<p>Output: <code class="docutils literal notranslate"><span class="pre">inhibitory_specialization/&lt;name&gt;.json</span></code> and, with <code class="docutils literal notranslate"><span class="pre">save_figures</span></code>
+(default <code class="docutils literal notranslate"><span class="pre">true</span></code>), <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;.pdf</span></code>.</p>
+</section>
+</section>
+<section id="activity">
+<h2><a class="toc-backref" href="#id28" role="doc-backlink">Activity</a><a class="headerlink" href="#activity" title="Link to this heading"></a></h2>
+<section id="compartment-statistics">
+<span id="analyzer-compartment-statistics"></span><h3><a class="toc-backref" href="#id29" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">compartment_statistics</span></code></a><a class="headerlink" href="#compartment-statistics" title="Link to this heading"></a></h3>
+<p>Requires dendritic branch layers; other models are skipped (recorded as
+<code class="docutils literal notranslate"><span class="pre">skipped</span></code> in <code class="docutils literal notranslate"><span class="pre">analysis_status.json</span></code>, see <a class="reference internal" href="analysis.html#analysis-status"><span class="std std-ref">Completion status</span></a>).
+Statistics (mean, variance, percentiles, minimum and maximum, entropy) of the
+weights, inputs and activations of the compartments, globally, per layer and
+per branch, on the test split. It also runs on named recurrent population
+graphs whose branch layers use <code class="docutils literal notranslate"><span class="pre">TopKLinear</span></code> synapses. Options: the content
+switches <code class="docutils literal notranslate"><span class="pre">synapse_weights</span></code>, <code class="docutils literal notranslate"><span class="pre">branch_weights</span></code>, <code class="docutils literal notranslate"><span class="pre">inputs</span></code>,
+<code class="docutils literal notranslate"><span class="pre">activations</span></code>; the level switches <code class="docutils literal notranslate"><span class="pre">global_analysis</span></code>, <code class="docutils literal notranslate"><span class="pre">layer_analysis</span></code>,
+<code class="docutils literal notranslate"><span class="pre">branch_analysis</span></code>; the statistic switches <code class="docutils literal notranslate"><span class="pre">compute_*</span></code>;
+<code class="docutils literal notranslate"><span class="pre">per_class_analysis</span></code> (default <code class="docutils literal notranslate"><span class="pre">false</span></code>); and <code class="docutils literal notranslate"><span class="pre">n_samples</span></code> (a cap on the
+examples) with <code class="docutils literal notranslate"><span class="pre">seed</span></code>, which only orders the capped examples.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">analysis</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">compartment_statistics</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">n_samples</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2000</span>
+<span class="w">      </span><span class="nt">per_class_analysis</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+<p>Output: <code class="docutils literal notranslate"><span class="pre">compartment_statistics_analysis/&lt;name&gt;</span></code> (JSON) and figures with
+fixed names. The E/I ratio figure <code class="docutils literal notranslate"><span class="pre">ratio_pairwise_comparison.png</span></code> uses only
+the branches that have both excitatory and inhibitory statistics: branches
+without inhibitory synapses are left out, and an excitatory-only tree gets no
+ratio figure. What was left out is logged and listed under
+<code class="docutils literal notranslate"><span class="pre">missing_outputs</span></code> in <code class="docutils literal notranslate"><span class="pre">analysis_status.json</span></code>.</p>
+</section>
+<section id="synaptic-activation">
+<span id="analyzer-synaptic-activation"></span><h3><a class="toc-backref" href="#id30" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">synaptic_activation</span></code></a><a class="headerlink" href="#synaptic-activation" title="Link to this heading"></a></h3>
+<p>Requires dendritic branch layers; other models are skipped without a message.
+Records the activation of every synapse (input times effective weight) of the
+excitatory, inhibitory and recurrent Top-K synapse banks on the test split,
+and summarizes it for the whole network (<code class="docutils literal notranslate"><span class="pre">network_summary</span></code>), per layer
+(<code class="docutils literal notranslate"><span class="pre">layer_summary</span></code>) and per branch (<code class="docutils literal notranslate"><span class="pre">branch_summary</span></code>), and as raw values
+(<code class="docutils literal notranslate"><span class="pre">raw_summary</span></code>); all four are on. With <code class="docutils literal notranslate"><span class="pre">downsample</span></code> (default <code class="docutils literal notranslate"><span class="pre">true</span></code>)
+only <code class="docutils literal notranslate"><span class="pre">samples</span></code> examples (default 5) are used; <code class="docutils literal notranslate"><span class="pre">logspace</span></code> reports
+logarithms. It also runs on named recurrent population graphs whose branch
+layers use <code class="docutils literal notranslate"><span class="pre">TopKLinear</span></code> synapses.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">analysis</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">synaptic_activation</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">downsample</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">samples</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">32</span>
+</pre></div>
+</div>
+<p>Output: <code class="docutils literal notranslate"><span class="pre">synaptic_activation_analysis/&lt;name&gt;</span></code> (JSON).</p>
+</section>
+<section id="branch-activation">
+<span id="analyzer-branch-activation"></span><h3><a class="toc-backref" href="#id31" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">branch_activation</span></code></a><a class="headerlink" href="#branch-activation" title="Link to this heading"></a></h3>
+<p>Requires dendritic branch layers; other models are skipped without a message.
+Records, per branch layer, the excitatory current, the inhibitory current
+(when the layer has inhibitory input) and the branch output on the test split,
+with the summary, <code class="docutils literal notranslate"><span class="pre">logspace</span></code>, <code class="docutils literal notranslate"><span class="pre">downsample</span></code> and <code class="docutils literal notranslate"><span class="pre">samples</span></code> options of
+<code class="docutils literal notranslate"><span class="pre">synaptic_activation</span></code>. <code class="docutils literal notranslate"><span class="pre">synapse_activations</span></code> and <code class="docutils literal notranslate"><span class="pre">branch_activations</span></code>
+(both <code class="docutils literal notranslate"><span class="pre">true</span></code>) choose the recorded signals.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">analysis</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">branch_activation</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">raw_summary</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">      </span><span class="nt">samples</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">32</span>
+</pre></div>
+</div>
+<p>Output: <code class="docutils literal notranslate"><span class="pre">branch_activation_analysis/&lt;name&gt;</span></code> (JSON).</p>
+</section>
+</section>
+<section id="dynamics-and-learning">
+<h2><a class="toc-backref" href="#id32" role="doc-backlink">Dynamics and learning</a><a class="headerlink" href="#dynamics-and-learning" title="Link to this heading"></a></h2>
+<section id="reactivation-dynamics">
+<span id="analyzer-reactivation-dynamics"></span><h3><a class="toc-backref" href="#id33" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">reactivation_dynamics</span></code></a><a class="headerlink" href="#reactivation-dynamics" title="Link to this heading"></a></h3>
+<p>Runs after every epoch by default (<code class="docutils literal notranslate"><span class="pre">training:</span> <span class="pre">true</span></code>). Tracks every gate
+(reactivation) module built from a <code class="docutils literal notranslate"><span class="pre">param_*</span></code> or <code class="docutils literal notranslate"><span class="pre">linear_*</span></code> activation
+type, <code class="docutils literal notranslate"><span class="pre">residual_silu</span></code> or <code class="docutils literal notranslate"><span class="pre">endpoint_tanh</span></code>; a model without such gates
+writes nothing. For each it records the gate
+parameters, the distribution of the pre-gate voltage (mean, standard
+deviation, median, MAD, quantiles) and output statistics; for the unit-range
+gates <code class="docutils literal notranslate"><span class="pre">ParametricTanh</span></code> and <code class="docutils literal notranslate"><span class="pre">ParametricTanhOnlyM</span></code> also the saturation
+fractions <code class="docutils literal notranslate"><span class="pre">sat_lo</span> <span class="pre">=</span> <span class="pre">P(output</span> <span class="pre">&lt;</span> <span class="pre">0.05)</span></code> and <code class="docutils literal notranslate"><span class="pre">sat_hi</span> <span class="pre">=</span> <span class="pre">P(output</span> <span class="pre">&gt;</span> <span class="pre">0.95)</span></code>. It
+uses one batch of at most <code class="docutils literal notranslate"><span class="pre">max_samples</span></code> examples (default 1024) from the
+training split during training and from the test split after training,
+independently of <code class="docutils literal notranslate"><span class="pre">analysis.runtime</span></code>. Useful for diagnosing gate-slope drift,
+the quality of the gate calibration and the stationarity of the voltage
+distribution.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">analysis</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">reactivation_dynamics</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">training</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">max_samples</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1024</span>
+</pre></div>
+</div>
+<p>Output: <code class="docutils literal notranslate"><span class="pre">reactivation_dynamics/epochs/&lt;name&gt;.json</span></code> for every pass,
+<code class="docutils literal notranslate"><span class="pre">final</span></code> included. Collect checkpoint runs with
+<code class="docutils literal notranslate"><span class="pre">dendritic-collect-reactivation</span></code>, which adds the network layer, population
+and soma-relative depth of each gate as columns.</p>
+</section>
+<section id="routing">
+<span id="analyzer-routing"></span><h3><a class="toc-backref" href="#id34" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">routing</span></code></a><a class="headerlink" href="#routing" title="Link to this heading"></a></h3>
+<p>Recurrent dendritic cores only (a recurrent structured E/I core or a recurrent
+<code class="docutils literal notranslate"><span class="pre">population_network</span></code>); others are skipped. For each population it reports
+the share of activity in each dendritic level, as raw L2 norms and as
+width-normalized RMS values, and the fraction of each level’s signal that
+comes from feedforward rather than recurrent input, as means and standard
+deviations over all time steps and examples of the test split (processed in
+batches of 128). <code class="docutils literal notranslate"><span class="pre">routing</span></code> has no <code class="docutils literal notranslate"><span class="pre">params</span></code>.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">analysis</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">routing</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+<p>Output: <code class="docutils literal notranslate"><span class="pre">routing_analysis/&lt;name&gt;</span></code> (JSON).</p>
+</section>
+<section id="jacobian-spectrum">
+<span id="analyzer-jacobian-spectrum"></span><h3><a class="toc-backref" href="#id35" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">jacobian_spectrum</span></code></a><a class="headerlink" href="#jacobian-spectrum" title="Link to this heading"></a></h3>
+<p>Requires recurrent excitation or inhibition onto dendrites; other models are
+skipped. The <code class="docutils literal notranslate"><span class="pre">top_k</span></code> (default 16) singular values and the spectral radii of
+the effective recurrent excitatory and inhibitory weights at each dendritic
+level, with the level’s time constant when available. This summarizes weight
+matrices; <code class="docutils literal notranslate"><span class="pre">StateTransitionJacobianAnalyzer</span></code> (see <a class="reference internal" href="analysis.html"><span class="doc">Analysis</span></a>)
+differentiates the complete state update instead.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">analysis</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">jacobian_spectrum</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">top_k</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<span class="w">      </span><span class="nt">save_figures</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+<p>Output: <code class="docutils literal notranslate"><span class="pre">jacobian_spectrum/&lt;name&gt;.json</span></code> and, with <code class="docutils literal notranslate"><span class="pre">save_figures</span></code>,
+<code class="docutils literal notranslate"><span class="pre">&lt;name&gt;.pdf</span></code>.</p>
+</section>
+<section id="dendritic-timetraces">
+<span id="analyzer-dendritic-timetraces"></span><h3><a class="toc-backref" href="#id36" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">dendritic_timetraces</span></code></a><a class="headerlink" href="#dendritic-timetraces" title="Link to this heading"></a></h3>
+<p>Simulates how the learned dendritic cascade responds to a synthetic two-pulse
+input, using the trained per-level time constants and <code class="docutils literal notranslate"><span class="pre">ParametricTanh</span></code> gate
+parameters; populations without per-level time constants or with other gates
+are skipped. The protocol has <code class="docutils literal notranslate"><span class="pre">n_timesteps</span></code> steps (default 90), stimulus
+windows <code class="docutils literal notranslate"><span class="pre">stim1_window</span></code> and <code class="docutils literal notranslate"><span class="pre">stim2_window</span></code> with amplitudes <code class="docutils literal notranslate"><span class="pre">stim1_amp</span></code> and
+<code class="docutils literal notranslate"><span class="pre">stim2_amp</span></code>, a <code class="docutils literal notranslate"><span class="pre">response_window</span></code>, and noise <code class="docutils literal notranslate"><span class="pre">noise_std</span></code> (seeded by
+<code class="docutils literal notranslate"><span class="pre">seed</span></code>). Structured recurrent E/I layers report <code class="docutils literal notranslate"><span class="pre">layer_N</span></code> keys; named
+population networks report keys such as
+<code class="docutils literal notranslate"><span class="pre">population_network/microcircuit.pyr</span></code>.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">analysis</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">dendritic_timetraces</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">n_timesteps</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">80</span>
+<span class="w">      </span><span class="nt">save_figures</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+<p>Output: <code class="docutils literal notranslate"><span class="pre">dendritic_timetraces/&lt;name&gt;.json</span></code> and one PDF per layer.</p>
+</section>
+<section id="spike-train">
+<span id="analyzer-spike-train"></span><h3><a class="toc-backref" href="#id37" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">spike_train</span></code></a><a class="headerlink" href="#spike-train" title="Link to this heading"></a></h3>
+<p>For models with spiking somas (<code class="docutils literal notranslate"><span class="pre">LIFSoma</span></code> modules; see
+<a class="reference internal" href="temporal_dynamics.html#spiking-soma"><span class="std std-ref">Spiking soma</span></a>); others are skipped. The analyzer hooks the soma
+directly, so it works with <code class="docutils literal notranslate"><span class="pre">spike_readout</span></code> set to <code class="docutils literal notranslate"><span class="pre">spikes</span></code>, <code class="docutils literal notranslate"><span class="pre">rate</span></code> or
+<code class="docutils literal notranslate"><span class="pre">membrane</span></code>. On at most <code class="docutils literal notranslate"><span class="pre">max_samples</span></code> test examples (default 512) it
+reports compact raster events, mean firing rate, silent-unit and silent-trial
+fractions, spike-count Fano factors and ISI mean and coefficient of variation.
+Options: <code class="docutils literal notranslate"><span class="pre">dt</span></code> (1.0), <code class="docutils literal notranslate"><span class="pre">threshold</span></code> (0.5), <code class="docutils literal notranslate"><span class="pre">include_raster</span></code>,
+<code class="docutils literal notranslate"><span class="pre">max_raster_samples</span></code> (8), <code class="docutils literal notranslate"><span class="pre">include_per_timestep_rate</span></code>.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">analysis</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">spike_train</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">max_samples</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">512</span>
+<span class="w">      </span><span class="nt">include_raster</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">max_raster_samples</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8</span>
+<span class="w">      </span><span class="nt">include_per_timestep_rate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+<p>Output: <code class="docutils literal notranslate"><span class="pre">spike_train_analysis/&lt;name&gt;.json</span></code>.</p>
+</section>
+<section id="local-rule-components">
+<span id="analyzer-local-rule-components"></span><h3><a class="toc-backref" href="#id38" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">local_rule_components</span></code></a><a class="headerlink" href="#local-rule-components" title="Link to this heading"></a></h3>
+<p>The factors of the local learning rule of <code class="docutils literal notranslate"><span class="pre">local_ca</span></code> (see
+<a class="reference internal" href="training_strategies.html#local-credit-assignment"><span class="std std-ref">Local credit assignment</span></a>) by dendritic depth and synapse type: branch
+voltage, input resistance, excitatory and inhibitory driving forces,
+presynaptic drive, eligibilities and, with <code class="docutils literal notranslate"><span class="pre">include_broadcast</span></code>, the
+broadcast error (<code class="docutils literal notranslate"><span class="pre">broadcast_mode</span></code>: <code class="docutils literal notranslate"><span class="pre">scalar</span></code> or <code class="docutils literal notranslate"><span class="pre">per_soma</span></code>;
+<code class="docutils literal notranslate"><span class="pre">error_mode</span></code>: <code class="docutils literal notranslate"><span class="pre">auto</span></code>, <code class="docutils literal notranslate"><span class="pre">ce</span></code>, <code class="docutils literal notranslate"><span class="pre">bce</span></code>, <code class="docutils literal notranslate"><span class="pre">mse</span></code> or <code class="docutils literal notranslate"><span class="pre">none</span></code>).
+<code class="docutils literal notranslate"><span class="pre">include_dendritic</span></code> adds the dendritic factors. It reads at most
+<code class="docutils literal notranslate"><span class="pre">max_samples</span></code> examples (default 1024) of the training split during training
+and of the test split after it. <code class="docutils literal notranslate"><span class="pre">e_rev_exc</span></code> and <code class="docutils literal notranslate"><span class="pre">e_rev_inh</span></code> must keep
+their values 1.0 and 0.0. Models with indexed-release banks, learnable or
+non-unit leak, <code class="docutils literal notranslate"><span class="pre">endpoint_tanh</span></code> gates, or additive layers other than raw
+additive raise.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">analysis</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">local_rule_components</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">training</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">max_samples</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1024</span>
+<span class="w">      </span><span class="nt">broadcast_mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">per_soma</span>
+<span class="w">      </span><span class="nt">error_mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">auto</span>
+</pre></div>
+</div>
+<p>Output: <code class="docutils literal notranslate"><span class="pre">local_rule_components/epochs/epoch&lt;N&gt;.json</span></code> and <code class="docutils literal notranslate"><span class="pre">.csv</span></code> per epoch,
+rows appended to <code class="docutils literal notranslate"><span class="pre">trajectory.csv</span></code> (<code class="docutils literal notranslate"><span class="pre">append_training_csv</span></code>), and
+<code class="docutils literal notranslate"><span class="pre">final/&lt;name&gt;.json</span></code> and <code class="docutils literal notranslate"><span class="pre">.csv</span></code> after training (<code class="docutils literal notranslate"><span class="pre">save_json</span></code>,
+<code class="docutils literal notranslate"><span class="pre">save_csv</span></code>).</p>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="analysis.html" class="btn btn-neutral float-left" title="Analysis" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="checkpoint_analysis.html" class="btn btn-neutral float-right" title="Analyzing saved checkpoints" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024-2026, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

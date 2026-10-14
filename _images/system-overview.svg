@@ -49,11 +49,11 @@
   </defs>
 
   <rect width="1400" height="860" fill="url(#bg)"/>
-  <text class="title" x="56" y="58">Dendritic Modeling Framework</text>
-  <text class="subtitle" x="56" y="86">One YAML control plane for feedforward E/I, recurrent population networks, typed synapses, spiking dynamics, sweeps, and analysis.</text>
+  <text class="title" x="56" y="58">DendriNet</text>
+  <text class="subtitle" x="56" y="86">YAML configuration for feedforward and recurrent E/I networks, typed synapses, spiking dynamics, training, sweeps and analysis.</text>
 
   <rect class="lane" x="44" y="120" width="1312" height="160"/>
-  <text class="label" x="68" y="150">CONFIGURATION AND COMPATIBILITY</text>
+  <text class="label" x="68" y="150">CONFIGURATION</text>
   <rect class="stage" x="72" y="174" width="208" height="74" fill="url(#blue)" stroke="#77a3c4"/>
   <text class="stageTitle" x="92" y="202">Example YAML</text>
   <text class="body" x="92" y="225">configs/examples/*.yaml</text>
@@ -63,9 +63,9 @@
   <text class="body" x="350" y="225">ModelConfig dataclasses</text>
   <text class="body" x="350" y="244">validated defaults</text>
   <rect class="stage" x="610" y="174" width="250" height="74" fill="url(#blue)" stroke="#77a3c4"/>
-  <text class="stageTitle" x="630" y="202">Canonicalization</text>
-  <text class="body" x="630" y="225">aliases -> one contract</text>
-  <text class="body" x="630" y="244">occupancy init defaults</text>
+  <text class="stageTitle" x="630" y="202">Alias resolution</text>
+  <text class="body" x="630" y="225">type aliases resolved</text>
+  <text class="body" x="630" y="244">renamed keys mapped</text>
   <rect class="stage" x="910" y="174" width="218" height="74" fill="url(#blue)" stroke="#77a3c4"/>
   <text class="stageTitle" x="930" y="202">Registries</text>
   <text class="body" x="930" y="225">architecture, dataset,</text>
@@ -84,8 +84,8 @@
   <text class="label" x="68" y="348">MODEL MODULES</text>
   <rect class="stage" x="76" y="380" width="210" height="112" fill="url(#green)" stroke="#66a980"/>
   <text class="stageTitle" x="96" y="410">Encoder</text>
-  <text class="body" x="96" y="434">Identity, MLP, CNN</text>
-  <text class="body" x="96" y="454">pretrained prefix</text>
+  <text class="body" x="96" y="434">identity, pathway router</text>
+  <text class="body" x="96" y="454">MLP/CNN autoencoders</text>
   <rect class="stage" x="334" y="360" width="272" height="150" fill="url(#green)" stroke="#66a980"/>
   <text class="stageTitle" x="354" y="390">Population Core</text>
   <text class="body" x="354" y="414">population_network layers</text>
@@ -95,12 +95,12 @@
   <rect class="stage" x="654" y="360" width="268" height="150" fill="url(#green)" stroke="#66a980"/>
   <text class="stageTitle" x="674" y="390">Biophysical Add-ons</text>
   <text class="body" x="674" y="414">AMPA/NMDA/GABA traces</text>
-  <text class="body" x="674" y="434">dense-to-sparse TopK</text>
+  <text class="body" x="674" y="434">sparse Top-K synapses</text>
   <text class="body" x="674" y="454">LIF soma, dendritic spikes</text>
   <text class="body" x="674" y="474">soma-to-dendrite feedback</text>
   <rect class="stage" x="970" y="380" width="194" height="112" fill="url(#green)" stroke="#66a980"/>
   <text class="stageTitle" x="990" y="410">Decoder</text>
-  <text class="body" x="990" y="434">Identity, MLP</text>
+  <text class="body" x="990" y="434">MLP, identity</text>
   <text class="body" x="990" y="454">classifier/readout</text>
   <rect class="stage" x="1206" y="380" width="112" height="112" fill="url(#green)" stroke="#66a980"/>
   <text class="stageTitle" x="1224" y="410">Output</text>
@@ -144,13 +144,13 @@
   <text class="small" x="676" y="575">analysis can run during or after training</text>
 
   <rect class="tag" x="92" y="804" width="184" height="28"/>
-  <text class="tagText" x="110" y="823">canonical configs</text>
+  <text class="tagText" x="110" y="823">strict loading</text>
   <rect class="tag" x="296" y="804" width="196" height="28"/>
-  <text class="tagText" x="314" y="823">compatibility aliases</text>
+  <text class="tagText" x="314" y="823">type aliases</text>
   <rect class="tag" x="512" y="804" width="232" height="28"/>
   <text class="tagText" x="530" y="823">typed defaults + validation</text>
   <rect class="tag" x="764" y="804" width="230" height="28"/>
-  <text class="tagText" x="782" y="823">reproducible masks/seeds</text>
+  <text class="tagText" x="782" y="823">seeded masks and topology</text>
   <rect class="tag" x="1014" y="804" width="250" height="28"/>
   <text class="tagText" x="1032" y="823">resolved config saved per run</text>
 </svg>

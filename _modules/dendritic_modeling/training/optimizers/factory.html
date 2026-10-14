@@ -1,0 +1,431 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>dendritic_modeling.training.optimizers.factory &mdash; DendriNet v0.2.0</title>
+      <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../../_static/documentation_options.js?v=938c9ccc"></script>
+      <script src="../../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../../index.html" class="icon icon-home">
+            DendriNet
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../examples.html">Example configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Building models</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../network_architectures.html">Model architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../dendritic_neurons.html">Dendritic neurons</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../synapses.html">Synapses and connectivity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../population_networks.html">Population networks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../temporal_dynamics.html">Temporal dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../structured_ei_cores.html">Structured E/I cores</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../conductance_options.html">Conductance options</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../comparison_models.html">Baselines and comparison models</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Configuration</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../configuration_guide.html">Configuration guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../config_reference.html">Annotated reference configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../training_strategies.html">Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../distributed_training.html">Distributed training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../performance_kernels.html">Sparse execution and performance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Data and analysis</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../datasets.html">Datasets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../analysis.html">Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../analyzers.html">Analyzer reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../checkpoint_analysis.html">Analyzing saved checkpoints</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Running experiments</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../runs_and_outputs.html">Runs and outputs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../sweeps.html">Parameter sweeps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../model_compression.html">Compact checkpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../project_provenance.html">Project provenance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../available_components.html">Component catalogue</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../options_reference.html">Options reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../cli_reference.html">Command-line reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../api_reference.html">Python API</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../extending.html">Extending DendriNet</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../engineering_architecture.html">Engineering architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../contributing.html">Contributing</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">DendriNet</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">dendritic_modeling.training.optimizers.factory</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for dendritic_modeling.training.optimizers.factory</h1><div class="highlight"><pre>
+<span></span><span class="sd">"""</span>
+<span class="sd">Optimizer Factory</span>
+<span class="sd">================</span>
+
+<span class="sd">Factory functions for creating optimizers with flexible configuration.</span>
+<span class="sd">"""</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Iterator</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Optional</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch.optim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">optim</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config.training</span><span class="w"> </span><span class="kn">import</span> <span class="n">OptimizerConfig</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.plugins</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_plugins</span>
+
+<span class="n">OptimizerBuilder</span> <span class="o">=</span> <span class="n">Callable</span><span class="p">[</span>
+    <span class="p">[</span><span class="n">Iterator</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">],</span> <span class="n">OptimizerConfig</span><span class="p">],</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Optimizer</span>
+<span class="p">]</span>
+
+<span class="n">OPTIMIZER_REGISTRY</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">OptimizerBuilder</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+<span class="n">_PARAMETER_GROUP_ORDER</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"default"</span><span class="p">,</span> <span class="s2">"topk"</span><span class="p">,</span> <span class="s2">"blocklinear"</span><span class="p">,</span> <span class="s2">"reactivation"</span><span class="p">,</span> <span class="s2">"decoder"</span><span class="p">)</span>
+<span class="n">_SPECIAL_PARAMETER_GROUP_PATTERNS</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="p">(</span><span class="s2">"topk"</span><span class="p">,</span> <span class="s2">"topk"</span><span class="p">),</span>
+    <span class="p">(</span><span class="s2">"blocklinear"</span><span class="p">,</span> <span class="s2">"blocklinear"</span><span class="p">),</span>
+    <span class="p">(</span><span class="s2">"reactivation"</span><span class="p">,</span> <span class="s2">"reactivation"</span><span class="p">),</span>
+    <span class="p">(</span><span class="s2">"decoder"</span><span class="p">,</span> <span class="s2">"decoder"</span><span class="p">),</span>
+<span class="p">)</span>
+<span class="n">_PARAMETER_GROUP_LR_KEYS</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">"topk"</span><span class="p">:</span> <span class="s2">"topk_lr"</span><span class="p">,</span>
+    <span class="s2">"blocklinear"</span><span class="p">:</span> <span class="s2">"blocklinear_lr"</span><span class="p">,</span>
+    <span class="s2">"reactivation"</span><span class="p">:</span> <span class="s2">"reactivation_lr"</span><span class="p">,</span>
+    <span class="s2">"decoder"</span><span class="p">:</span> <span class="s2">"decoder_lr"</span><span class="p">,</span>
+<span class="p">}</span>
+
+
+<div class="viewcode-block" id="register_optimizer">
+<a class="viewcode-back" href="../../../../api_reference.html#dendritic_modeling.training.optimizers.factory.register_optimizer">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">register_optimizer</span><span class="p">(</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">builder</span><span class="p">:</span> <span class="n">OptimizerBuilder</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">aliases</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="n">allow_override</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Register an optimizer builder.</span>
+
+<span class="sd">    Builders are called as ``builder(model_parameters, config)``.</span>
+<span class="sd">    """</span>
+    <span class="n">names</span> <span class="o">=</span> <span class="p">[</span><span class="n">name</span><span class="p">,</span> <span class="o">*</span><span class="n">aliases</span><span class="p">]</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">names</span> <span class="ow">or</span> <span class="nb">any</span><span class="p">(</span><span class="ow">not</span> <span class="nb">str</span><span class="p">(</span><span class="n">item</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">names</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"optimizer name and aliases must be non-empty"</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">raw_name</span> <span class="ow">in</span> <span class="n">names</span><span class="p">:</span>
+        <span class="n">key</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">raw_name</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">OPTIMIZER_REGISTRY</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">allow_override</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Optimizer '</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">' is already registered"</span><span class="p">)</span>
+        <span class="n">OPTIMIZER_REGISTRY</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">builder</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">unregister_optimizer</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Remove an optimizer builder if present."""</span>
+    <span class="n">OPTIMIZER_REGISTRY</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">name</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">(),</span> <span class="kc">None</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">get_available_optimizers</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Return registered optimizer names, including those of plugins."""</span>
+    <span class="n">load_plugins</span><span class="p">()</span>
+    <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">OPTIMIZER_REGISTRY</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_base_optimizer_params</span><span class="p">(</span><span class="n">config</span><span class="p">:</span> <span class="n">OptimizerConfig</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"lr"</span><span class="p">:</span> <span class="n">config</span><span class="o">.</span><span class="n">lr</span><span class="p">,</span> <span class="s2">"weight_decay"</span><span class="p">:</span> <span class="n">config</span><span class="o">.</span><span class="n">weight_decay</span><span class="p">}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_parameter_group_name</span><span class="p">(</span><span class="n">parameter_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="n">normalized_name</span> <span class="o">=</span> <span class="n">parameter_name</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">group_name</span><span class="p">,</span> <span class="n">pattern</span> <span class="ow">in</span> <span class="n">_SPECIAL_PARAMETER_GROUP_PATTERNS</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">pattern</span> <span class="ow">in</span> <span class="n">normalized_name</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">group_name</span>
+    <span class="k">return</span> <span class="s2">"default"</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_split_named_parameters</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">]]:</span>
+    <span class="n">grouped_params</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="n">group_name</span><span class="p">:</span> <span class="p">[]</span> <span class="k">for</span> <span class="n">group_name</span> <span class="ow">in</span> <span class="n">_PARAMETER_GROUP_ORDER</span>
+    <span class="p">}</span>
+    <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">param</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">named_parameters</span><span class="p">():</span>
+        <span class="n">grouped_params</span><span class="p">[</span><span class="n">_parameter_group_name</span><span class="p">(</span><span class="n">name</span><span class="p">)]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">param</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">grouped_params</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_parameter_group_lr</span><span class="p">(</span>
+    <span class="n">group_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">config</span><span class="p">:</span> <span class="n">OptimizerConfig</span><span class="p">,</span>
+    <span class="n">param_groups_config</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">group_name</span> <span class="o">==</span> <span class="s2">"default"</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">config</span><span class="o">.</span><span class="n">lr</span>
+    <span class="n">lr_key</span> <span class="o">=</span> <span class="n">_PARAMETER_GROUP_LR_KEYS</span><span class="p">[</span><span class="n">group_name</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">param_groups_config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">lr_key</span><span class="p">,</span> <span class="n">config</span><span class="o">.</span><span class="n">lr</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_build_adam</span><span class="p">(</span><span class="n">model_parameters</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="n">OptimizerConfig</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Optimizer</span><span class="p">:</span>
+    <span class="n">params</span> <span class="o">=</span> <span class="n">_base_optimizer_params</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
+    <span class="n">params</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s2">"betas"</span><span class="p">:</span> <span class="n">config</span><span class="o">.</span><span class="n">betas</span><span class="p">,</span> <span class="s2">"eps"</span><span class="p">:</span> <span class="n">config</span><span class="o">.</span><span class="n">eps</span><span class="p">})</span>
+    <span class="k">if</span> <span class="n">config</span><span class="o">.</span><span class="n">foreach</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">params</span><span class="p">[</span><span class="s2">"foreach"</span><span class="p">]</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">foreach</span>
+    <span class="k">return</span> <span class="n">optim</span><span class="o">.</span><span class="n">Adam</span><span class="p">(</span><span class="n">model_parameters</span><span class="p">,</span> <span class="o">**</span><span class="n">params</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_build_adamw</span><span class="p">(</span><span class="n">model_parameters</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="n">OptimizerConfig</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Optimizer</span><span class="p">:</span>
+    <span class="n">params</span> <span class="o">=</span> <span class="n">_base_optimizer_params</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
+    <span class="n">params</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s2">"betas"</span><span class="p">:</span> <span class="n">config</span><span class="o">.</span><span class="n">betas</span><span class="p">,</span> <span class="s2">"eps"</span><span class="p">:</span> <span class="n">config</span><span class="o">.</span><span class="n">eps</span><span class="p">})</span>
+    <span class="k">if</span> <span class="n">config</span><span class="o">.</span><span class="n">foreach</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">params</span><span class="p">[</span><span class="s2">"foreach"</span><span class="p">]</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">foreach</span>
+    <span class="k">return</span> <span class="n">optim</span><span class="o">.</span><span class="n">AdamW</span><span class="p">(</span><span class="n">model_parameters</span><span class="p">,</span> <span class="o">**</span><span class="n">params</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_build_sgd</span><span class="p">(</span><span class="n">model_parameters</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="n">OptimizerConfig</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Optimizer</span><span class="p">:</span>
+    <span class="n">params</span> <span class="o">=</span> <span class="n">_base_optimizer_params</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
+    <span class="n">params</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s2">"momentum"</span><span class="p">:</span> <span class="n">config</span><span class="o">.</span><span class="n">momentum</span><span class="p">})</span>
+    <span class="k">return</span> <span class="n">optim</span><span class="o">.</span><span class="n">SGD</span><span class="p">(</span><span class="n">model_parameters</span><span class="p">,</span> <span class="o">**</span><span class="n">params</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_build_rmsprop</span><span class="p">(</span><span class="n">model_parameters</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="n">OptimizerConfig</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Optimizer</span><span class="p">:</span>
+    <span class="n">params</span> <span class="o">=</span> <span class="n">_base_optimizer_params</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
+    <span class="n">params</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s2">"eps"</span><span class="p">:</span> <span class="n">config</span><span class="o">.</span><span class="n">eps</span><span class="p">,</span> <span class="s2">"momentum"</span><span class="p">:</span> <span class="n">config</span><span class="o">.</span><span class="n">momentum</span><span class="p">})</span>
+    <span class="k">return</span> <span class="n">optim</span><span class="o">.</span><span class="n">RMSprop</span><span class="p">(</span><span class="n">model_parameters</span><span class="p">,</span> <span class="o">**</span><span class="n">params</span><span class="p">)</span>
+
+
+<span class="n">register_optimizer</span><span class="p">(</span><span class="s2">"adam"</span><span class="p">,</span> <span class="n">_build_adam</span><span class="p">)</span>
+<span class="n">register_optimizer</span><span class="p">(</span><span class="s2">"adamw"</span><span class="p">,</span> <span class="n">_build_adamw</span><span class="p">)</span>
+<span class="n">register_optimizer</span><span class="p">(</span><span class="s2">"sgd"</span><span class="p">,</span> <span class="n">_build_sgd</span><span class="p">)</span>
+<span class="n">register_optimizer</span><span class="p">(</span><span class="s2">"rmsprop"</span><span class="p">,</span> <span class="n">_build_rmsprop</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">create_optimizer</span><span class="p">(</span>
+    <span class="n">model_parameters</span><span class="p">:</span> <span class="n">Iterator</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">],</span> <span class="n">config</span><span class="p">:</span> <span class="n">OptimizerConfig</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Optimizer</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Create an optimizer based on configuration.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        model_parameters: Iterator over model parameters to optimize</span>
+<span class="sd">        config: Optimizer configuration</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Configured optimizer instance</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        ValueError: If optimizer name is not supported</span>
+<span class="sd">    """</span>
+    <span class="n">optimizer_name</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+    <span class="n">builder</span> <span class="o">=</span> <span class="n">OPTIMIZER_REGISTRY</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">optimizer_name</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">builder</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">load_plugins</span><span class="p">()</span>
+        <span class="n">builder</span> <span class="o">=</span> <span class="n">OPTIMIZER_REGISTRY</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">optimizer_name</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">builder</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">valid_optimizers</span> <span class="o">=</span> <span class="n">get_available_optimizers</span><span class="p">()</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"Unsupported optimizer: </span><span class="si">{</span><span class="n">optimizer_name</span><span class="si">}</span><span class="s2">. "</span>
+            <span class="sa">f</span><span class="s2">"Choose from </span><span class="si">{</span><span class="n">valid_optimizers</span><span class="si">}</span><span class="s2">"</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="n">builder</span><span class="p">(</span><span class="n">model_parameters</span><span class="p">,</span> <span class="n">config</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">validate_param_group_learning_rates</span><span class="p">(</span>
+    <span class="n">config</span><span class="p">:</span> <span class="n">OptimizerConfig</span><span class="p">,</span> <span class="n">param_groups_config</span><span class="p">:</span> <span class="n">Any</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Reject an ``optimizer.lr`` that the param-group optimizer would not apply.</span>
+
+<span class="sd">    Training builds the optimizer from ``model.get_param_groups(...)``</span>
+<span class="sd">    (``training.main.common.param_groups``), and every group carries its own</span>
+<span class="sd">    learning rate, so ``OptimizerConfig.lr`` is only the unused optimizer</span>
+<span class="sd">    default. The rate it is meant to set is the base rate ``param_groups.lr``</span>
+<span class="sd">    (the single group without ``split_params``; the catch-all groups with it,</span>
+<span class="sd">    while ``topk_lr``/``blocklinear_lr``/``reactivation_lr``/``decoder_lr`` set</span>
+<span class="sd">    their components). A non-default ``optimizer.lr`` must therefore equal</span>
+<span class="sd">    ``param_groups.lr``; equal values pass silently. MuonH also takes each</span>
+<span class="sd">    group's rate (scaled by ``muon_lr_multiplier`` for matrices), so the same</span>
+<span class="sd">    check applies to it.</span>
+<span class="sd">    """</span>
+    <span class="n">default_lr</span> <span class="o">=</span> <span class="n">OptimizerConfig</span><span class="o">.</span><span class="n">__dataclass_fields__</span><span class="p">[</span><span class="s2">"lr"</span><span class="p">]</span><span class="o">.</span><span class="n">default</span>
+    <span class="n">optimizer_lr</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">lr</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">optimizer_lr</span> <span class="o">==</span> <span class="nb">float</span><span class="p">(</span><span class="n">default_lr</span><span class="p">):</span>
+        <span class="k">return</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">param_groups_config</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="n">base_lr</span> <span class="o">=</span> <span class="n">param_groups_config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"lr"</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">base_lr</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">param_groups_config</span><span class="p">,</span> <span class="s2">"lr"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">base_lr</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="nb">float</span><span class="p">(</span><span class="n">base_lr</span><span class="p">)</span> <span class="o">==</span> <span class="n">optimizer_lr</span><span class="p">:</span>
+        <span class="k">return</span>
+    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">"training.main.optimizer.lr=</span><span class="si">{</span><span class="n">optimizer_lr</span><span class="si">}</span><span class="s2"> is not applied: the optimizer "</span>
+        <span class="s2">"is built from training.main.common.param_groups, whose base rate "</span>
+        <span class="sa">f</span><span class="s2">"param_groups.lr=</span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">base_lr</span><span class="p">)</span><span class="si">}</span><span class="s2"> is used instead (and topk_lr, "</span>
+        <span class="s2">"blocklinear_lr, reactivation_lr, decoder_lr for their components with "</span>
+        <span class="s2">"split_params). Set training.main.common.param_groups.lr, and remove "</span>
+        <span class="s2">"optimizer.lr or set it equal to that value."</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">create_parameter_groups</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span>
+    <span class="n">config</span><span class="p">:</span> <span class="n">OptimizerConfig</span><span class="p">,</span>
+    <span class="n">param_groups_config</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Create parameter groups for differential learning rates.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        model: The model to create parameter groups for</span>
+<span class="sd">        config: Optimizer configuration</span>
+<span class="sd">        param_groups_config: Optional configuration for parameter groups</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        List of parameter groups</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="n">param_groups_config</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">param_groups_config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+        <span class="s2">"split_params"</span><span class="p">,</span> <span class="kc">False</span>
+    <span class="p">):</span>
+        <span class="c1"># Return all parameters with default config</span>
+        <span class="k">return</span> <span class="p">[{</span><span class="s2">"params"</span><span class="p">:</span> <span class="n">model</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="s2">"lr"</span><span class="p">:</span> <span class="n">config</span><span class="o">.</span><span class="n">lr</span><span class="p">}]</span>
+
+    <span class="n">grouped_params</span> <span class="o">=</span> <span class="n">_split_named_parameters</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>
+    <span class="n">param_groups</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">group_name</span> <span class="ow">in</span> <span class="n">_PARAMETER_GROUP_ORDER</span><span class="p">:</span>
+        <span class="n">params</span> <span class="o">=</span> <span class="n">grouped_params</span><span class="p">[</span><span class="n">group_name</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">params</span><span class="p">:</span>
+            <span class="n">param_groups</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="p">{</span>
+                    <span class="s2">"params"</span><span class="p">:</span> <span class="n">params</span><span class="p">,</span>
+                    <span class="s2">"lr"</span><span class="p">:</span> <span class="n">_parameter_group_lr</span><span class="p">(</span><span class="n">group_name</span><span class="p">,</span> <span class="n">config</span><span class="p">,</span> <span class="n">param_groups_config</span><span class="p">),</span>
+                <span class="p">}</span>
+            <span class="p">)</span>
+    <span class="k">return</span> <span class="n">param_groups</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">validate_optimizer_config</span><span class="p">(</span><span class="n">config</span><span class="p">:</span> <span class="n">OptimizerConfig</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Validate optimizer configuration.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        config: Optimizer configuration to validate</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        ValueError: If configuration is invalid</span>
+<span class="sd">    """</span>
+    <span class="n">valid_optimizers</span> <span class="o">=</span> <span class="n">get_available_optimizers</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">config</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">valid_optimizers</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"Invalid optimizer: </span><span class="si">{</span><span class="n">config</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">. "</span> <span class="sa">f</span><span class="s2">"Choose from </span><span class="si">{</span><span class="n">valid_optimizers</span><span class="si">}</span><span class="s2">"</span>
+        <span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">config</span><span class="o">.</span><span class="n">lr</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Learning rate must be positive, got </span><span class="si">{</span><span class="n">config</span><span class="o">.</span><span class="n">lr</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">config</span><span class="o">.</span><span class="n">weight_decay</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"Weight decay must be non-negative, got </span><span class="si">{</span><span class="n">config</span><span class="o">.</span><span class="n">weight_decay</span><span class="si">}</span><span class="s2">"</span>
+        <span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">config</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">"adam"</span><span class="p">,</span> <span class="s2">"adamw"</span><span class="p">]:</span>
+        <span class="k">if</span> <span class="n">config</span><span class="o">.</span><span class="n">foreach</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">foreach</span><span class="p">,</span> <span class="nb">bool</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">"Adam/AdamW foreach must be boolean or None, "</span> <span class="sa">f</span><span class="s2">"got </span><span class="si">{</span><span class="n">config</span><span class="o">.</span><span class="n">foreach</span><span class="si">!r}</span><span class="s2">"</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">betas</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">2</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">(</span><span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">b</span> <span class="o">&lt;</span> <span class="mi">1</span> <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">config</span><span class="o">.</span><span class="n">betas</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Invalid betas for </span><span class="si">{</span><span class="n">config</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">config</span><span class="o">.</span><span class="n">betas</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">config</span><span class="o">.</span><span class="n">eps</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Epsilon must be positive, got </span><span class="si">{</span><span class="n">config</span><span class="o">.</span><span class="n">eps</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">config</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">"sgd"</span><span class="p">,</span> <span class="s2">"rmsprop"</span><span class="p">]:</span>
+        <span class="k">if</span> <span class="n">config</span><span class="o">.</span><span class="n">momentum</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Momentum must be non-negative, got </span><span class="si">{</span><span class="n">config</span><span class="o">.</span><span class="n">momentum</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024-2026, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

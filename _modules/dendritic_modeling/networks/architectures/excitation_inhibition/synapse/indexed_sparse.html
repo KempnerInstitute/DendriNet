@@ -1,0 +1,1154 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>dendritic_modeling.networks.architectures.excitation_inhibition.synapse.indexed_sparse &mdash; DendriNet v0.2.0</title>
+      <link rel="stylesheet" type="text/css" href="../../../../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../../../../_static/documentation_options.js?v=938c9ccc"></script>
+      <script src="../../../../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../../../../index.html" class="icon icon-home">
+            DendriNet
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../examples.html">Example configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Building models</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../network_architectures.html">Model architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../dendritic_neurons.html">Dendritic neurons</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../synapses.html">Synapses and connectivity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../population_networks.html">Population networks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../temporal_dynamics.html">Temporal dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../structured_ei_cores.html">Structured E/I cores</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../conductance_options.html">Conductance options</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../comparison_models.html">Baselines and comparison models</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Configuration</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../configuration_guide.html">Configuration guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../config_reference.html">Annotated reference configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../training_strategies.html">Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../distributed_training.html">Distributed training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../performance_kernels.html">Sparse execution and performance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Data and analysis</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../datasets.html">Datasets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../analysis.html">Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../analyzers.html">Analyzer reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../checkpoint_analysis.html">Analyzing saved checkpoints</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Running experiments</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../runs_and_outputs.html">Runs and outputs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../sweeps.html">Parameter sweeps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../model_compression.html">Compact checkpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../project_provenance.html">Project provenance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../available_components.html">Component catalogue</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../options_reference.html">Options reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../cli_reference.html">Command-line reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../api_reference.html">Python API</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../extending.html">Extending DendriNet</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../engineering_architecture.html">Engineering architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../contributing.html">Contributing</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../../../index.html">DendriNet</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../../../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">dendritic_modeling.networks.architectures.excitation_inhibition.synapse.indexed_sparse</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for dendritic_modeling.networks.architectures.excitation_inhibition.synapse.indexed_sparse</h1><div class="highlight"><pre>
+<span></span><span class="sd">"""Fixed-index sparse linear synapses."""</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">math</span><span class="w"> </span><span class="kn">import</span> <span class="n">log</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">numbers</span><span class="w"> </span><span class="kn">import</span> <span class="n">Integral</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">ClassVar</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch.nn</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">nn</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config.sparse_backends</span><span class="w"> </span><span class="kn">import</span> <span class="n">ACCELERATOR_INDEXED_BACKENDS</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.excitation_inhibition.synapse.indexed_common</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">_connection_generator</span><span class="p">,</span>
+    <span class="n">_dispatch_indexed_sparse_projection</span><span class="p">,</span>
+    <span class="n">_resolve_index_dtype</span><span class="p">,</span>
+    <span class="n">_sample_indices_from_mask</span><span class="p">,</span>
+    <span class="n">_scale_for_sparse_target</span><span class="p">,</span>
+    <span class="n">_validate_forbidden_indices</span><span class="p">,</span>
+    <span class="n">_workspace_limited_chunk_size</span><span class="p">,</span>
+    <span class="n">check_topology_fingerprint</span><span class="p">,</span>
+    <span class="n">contiguous_block_layout</span><span class="p">,</span>
+    <span class="n">register_topology_fingerprint</span><span class="p">,</span>
+    <span class="n">sample_structured_indices</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.excitation_inhibition.synapse.kernels</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">normalize_indexed_projection_options</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.excitation_inhibition.synapse.structured_mask</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">validate_connection_mask</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">TOPK_INIT_METHODS</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.state_versions</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">file_predates</span><span class="p">,</span>
+    <span class="n">record_legacy_state</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.utils.sparse_maintenance</span><span class="w"> </span><span class="kn">import</span> <span class="n">maintenance_applies</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.utils.weight_transforms</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">WeightTransformType</span><span class="p">,</span>
+    <span class="n">apply_weight_transform</span><span class="p">,</span>
+    <span class="n">inverse_softplus</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+<span class="c1"># Frozen wide layers can otherwise gather tens of GiB in one projection. This</span>
+<span class="c1"># is a per-tile budget, not a bound on total device memory: selected</span>
+<span class="c1"># activations, their product, and transformed weights can coexist.</span>
+<span class="n">_DEFAULT_FROZEN_WORKSPACE_MB</span> <span class="o">=</span> <span class="mf">256.0</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_workspace_limited_row_chunk_size</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">flattened_batch_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">output_chunk_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">workspace_mb</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">synapses_per_output</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">element_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Cap gathered batch rows so the workspace fits the same byte budget.</span>
+
+<span class="sd">    ``_workspace_limited_chunk_size`` shrinks the output chunk assuming the</span>
+<span class="sd">    full flattened batch is gathered per chunk, but its ``max(1, ...)`` floor</span>
+<span class="sd">    means that once a single output column exceeds the budget the workspace is</span>
+<span class="sd">    still ``flat_rows * K * element_size`` bytes — unbounded in the batch.</span>
+<span class="sd">    This companion cap bounds the other axis: with the output chunk fixed, it</span>
+<span class="sd">    limits how many batch rows are gathered per tile so that</span>
+<span class="sd">    ``row_chunk * output_chunk * K * element_size`` respects the budget.</span>
+<span class="sd">    When no budget is set, or the whole flattened batch already fits it, this</span>
+<span class="sd">    returns the full batch (a single row chunk).</span>
+<span class="sd">    """</span>
+    <span class="n">rows</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">flattened_batch_size</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">workspace_mb</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">flattened_batch_size</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">rows</span>
+    <span class="n">bytes_per_row</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="nb">int</span><span class="p">(</span><span class="n">output_chunk_size</span><span class="p">)</span> <span class="o">*</span> <span class="nb">int</span><span class="p">(</span><span class="n">synapses_per_output</span><span class="p">)</span> <span class="o">*</span> <span class="nb">int</span><span class="p">(</span><span class="n">element_size</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="n">budget_bytes</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">workspace_mb</span><span class="p">)</span> <span class="o">*</span> <span class="mi">1024</span> <span class="o">*</span> <span class="mi">1024</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nb">min</span><span class="p">(</span><span class="n">rows</span><span class="p">,</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">budget_bytes</span> <span class="o">//</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">bytes_per_row</span><span class="p">)))</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">IndexedSparseLinear</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Sparse linear layer with fixed presynaptic indices and trainable weights.</span>
+
+<span class="sd">    The forward pass computes</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">       y_j = \\sum_{k=1}^{K} w_{j,k} x_{i_{j,k}},</span>
+
+<span class="sd">    where ``i[j, k]`` is a fixed integer index.  Unlike dynamic TopK, there is</span>
+<span class="sd">    no dense trainable matrix.  The morphology/topology is fixed at</span>
+<span class="sd">    construction time; only the synaptic weights are learned.</span>
+<span class="sd">    """</span>
+
+    <span class="c1"># Contact semantics read by the compact bitmask encoding</span>
+    <span class="c1"># (deployment.compression.bitmask_slot_order_keys). CONTACT_SLOT_STATE</span>
+    <span class="c1"># names the state tensors with one entry per stored contact, aligned with</span>
+    <span class="c1"># the slots of ``connection_indices``. SLOT_ORDER_MATTERS states whether a</span>
+    <span class="c1"># training update depends on the slot order (tie-breaks or random draws by</span>
+    <span class="c1"># slot position). Only a class that sets SLOT_ORDER_MATTERS = False in its</span>
+    <span class="c1"># own body, with ``pre_w`` as its only per-contact tensor, may have its</span>
+    <span class="c1"># contacts reordered; subclasses keep their slot order unless they declare</span>
+    <span class="c1"># otherwise.</span>
+    <span class="n">CONTACT_SLOT_STATE</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"pre_w"</span><span class="p">,)</span>
+    <span class="n">SLOT_ORDER_MATTERS</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="nb">bool</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="c1"># Subclasses whose topology changes during training resample contacts</span>
+    <span class="c1"># from the allowed-connection mask, so they checkpoint it; a fixed layer</span>
+    <span class="c1"># only needs its (checkpointed) indices.</span>
+    <span class="n">_persist_allowed_connection_mask</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="c1"># Version 2 (2026-10-09) marks files whose rewiring subclasses persist the</span>
+    <span class="c1"># allowed-connection mask; older files keep the constructed mask.</span>
+    <span class="n">_version</span> <span class="o">=</span> <span class="mi">2</span>
+    <span class="n">_STATE_KEYS_ADDED</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]]]</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="mi">2</span><span class="p">:</span> <span class="p">(</span><span class="s2">"_allowed_connection_mask"</span><span class="p">,)</span>
+    <span class="p">}</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">in_features</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">out_features</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">K</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">param_space</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"log"</span><span class="p">,</span>
+        <span class="n">init_method</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"xavier_normal"</span><span class="p">,</span>
+        <span class="n">init_gain</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span>
+        <span class="n">weight_transform</span><span class="p">:</span> <span class="n">WeightTransformType</span> <span class="o">=</span> <span class="s2">"exp"</span><span class="p">,</span>
+        <span class="n">weight_norm_order</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">gamma</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span>
+        <span class="n">connection_indices</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">connection_mask</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">forbidden_input_index_per_output</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">seed</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">output_chunk_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2048</span><span class="p">,</span>
+        <span class="n">index_dtype</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="s2">"int64"</span><span class="p">,</span>
+        <span class="n">workspace_mb</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">cache_transformed_weights</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">recompute_backward</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">projection_backend</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"eager"</span><span class="p">,</span>
+        <span class="n">persistent_indices</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="n">init_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"per_rank"</span><span class="p">,</span>
+        <span class="n">support_group_rows</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="n">support_col_block</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="o">**</span><span class="n">_</span><span class="p">:</span> <span class="nb">object</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="c1"># Hardware-structured support (row-group sharing / column blocks).</span>
+        <span class="c1"># Defaults of 1/1 preserve the historical unstructured sampler and</span>
+        <span class="c1"># its exact generator stream.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">support_group_rows</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">support_group_rows</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">support_col_block</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">support_col_block</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">K</span><span class="p">,</span> <span class="nb">bool</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">K</span><span class="p">,</span> <span class="n">Integral</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">"K must be an integer"</span><span class="p">)</span>
+        <span class="n">K</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">K</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">K</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"K must be &gt;= 1"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">K</span> <span class="o">&gt;</span> <span class="n">in_features</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"K must be &lt;= number of input features. "</span>
+                <span class="sa">f</span><span class="s2">"(K=</span><span class="si">{</span><span class="n">K</span><span class="si">}</span><span class="s2">, in_features=</span><span class="si">{</span><span class="n">in_features</span><span class="si">}</span><span class="s2">)"</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">output_chunk_size</span><span class="p">,</span> <span class="nb">bool</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span>
+            <span class="n">output_chunk_size</span><span class="p">,</span> <span class="n">Integral</span>
+        <span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">"output_chunk_size must be an integer"</span><span class="p">)</span>
+        <span class="n">output_chunk_size</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">output_chunk_size</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">output_chunk_size</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"output_chunk_size must be &gt;= 1"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">workspace_mb</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">float</span><span class="p">(</span><span class="n">workspace_mb</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"workspace_mb must be &gt; 0 when provided"</span><span class="p">)</span>
+        <span class="n">init_mode</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">init_mode</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">init_mode</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">"per_rank"</span><span class="p">,</span> <span class="s2">"rank0_broadcast"</span><span class="p">}:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"init_mode must be 'per_rank' or 'rank0_broadcast'"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">persistent_indices</span> <span class="ow">and</span> <span class="n">connection_indices</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">seed</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">"persistent_indices=False requires an explicit seed so the "</span>
+                <span class="s2">"topology can be regenerated when loading a checkpoint"</span>
+            <span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">in_features</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">in_features</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">out_features</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">out_features</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">K</span> <span class="o">=</span> <span class="n">K</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">param_space</span> <span class="o">=</span> <span class="n">param_space</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">init_method</span> <span class="o">=</span> <span class="n">init_method</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">init_gain</span> <span class="o">=</span> <span class="n">init_gain</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">weight_transform</span> <span class="o">=</span> <span class="n">weight_transform</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">weight_norm_order</span> <span class="o">=</span> <span class="n">weight_norm_order</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gamma</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">gamma</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">output_chunk_size</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">output_chunk_size</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">workspace_mb</span> <span class="o">=</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">workspace_mb</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="nb">float</span><span class="p">(</span><span class="n">workspace_mb</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">index_dtype</span> <span class="o">=</span> <span class="n">_resolve_index_dtype</span><span class="p">(</span>
+            <span class="n">index_dtype</span><span class="p">,</span>
+            <span class="n">in_features</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">in_features</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cache_transformed_weights</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">cache_transformed_weights</span><span class="p">)</span>
+        <span class="n">normalized_backend</span> <span class="o">=</span> <span class="n">normalize_indexed_projection_options</span><span class="p">(</span>
+            <span class="n">projection_backend</span><span class="p">,</span>
+            <span class="n">recompute_backward</span><span class="o">=</span><span class="nb">bool</span><span class="p">(</span><span class="n">recompute_backward</span><span class="p">),</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">projection_backend</span> <span class="o">=</span> <span class="n">normalized_backend</span>
+        <span class="c1"># Retained as a compatibility attribute for code that predates the</span>
+        <span class="c1"># single backend selector.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">recompute_backward</span> <span class="o">=</span> <span class="n">normalized_backend</span> <span class="o">==</span> <span class="s2">"recompute"</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_last_resolved_projection_backend</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_last_projection_device</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">device</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="c1"># the request that produced the cached resolution; changing projection_backend</span>
+        <span class="c1"># after a forward must re-resolve instead of reusing the old kernel</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_last_requested_projection_backend</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="c1"># (device, data_ptr, version) of the indices -&gt; ContiguousBlockLayout,</span>
+        <span class="c1"># for projection_backend="contiguous_blocks"; never serialized.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_contiguous_block_layout_cache</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">persistent_indices</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">persistent_indices</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">init_mode</span> <span class="o">=</span> <span class="n">init_mode</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">input_scale_vec</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">param_scale_vec</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_use_forward_dynamic_grad_scaling</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cache_mask</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_last_forward_weight_mask</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_last_forward_param_tensor</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_recurrent_weight_cache_enabled</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_recurrent_cached_weight</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="c1"># Inference-frozen fold of the transformed weights. Non-persistent so</span>
+        <span class="c1"># checkpoints keep only the raw ``pre_w`` parameterization; rebuilt on</span>
+        <span class="c1"># demand by ``freeze_for_inference`` and dropped whenever the module</span>
+        <span class="c1"># returns to training or loads new weights.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">register_buffer</span><span class="p">(</span><span class="s2">"_inference_folded_weight"</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">persistent</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="c1"># ``pre_w.requires_grad`` before ``freeze_for_inference``; restored by</span>
+        <span class="c1"># ``train(True)``.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_requires_grad_before_inference_fold</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="n">allowed_connection_mask</span> <span class="o">=</span> <span class="n">validate_connection_mask</span><span class="p">(</span>
+            <span class="n">connection_mask</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">out_features</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">in_features</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">forbidden</span> <span class="o">=</span> <span class="n">_validate_forbidden_indices</span><span class="p">(</span>
+            <span class="n">forbidden_input_index_per_output</span><span class="p">,</span>
+            <span class="n">out_features</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">out_features</span><span class="p">,</span>
+            <span class="n">in_features</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">in_features</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="n">topology_initialized</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">if</span> <span class="n">connection_indices</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">rank0_initializes</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">init_mode</span> <span class="o">==</span> <span class="s2">"rank0_broadcast"</span>
+                <span class="ow">and</span> <span class="n">torch</span><span class="o">.</span><span class="n">distributed</span><span class="o">.</span><span class="n">is_available</span><span class="p">()</span>
+                <span class="ow">and</span> <span class="n">torch</span><span class="o">.</span><span class="n">distributed</span><span class="o">.</span><span class="n">is_initialized</span><span class="p">()</span>
+            <span class="p">)</span>
+            <span class="n">topology_initialized</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="ow">not</span> <span class="n">rank0_initializes</span> <span class="ow">or</span> <span class="n">torch</span><span class="o">.</span><span class="n">distributed</span><span class="o">.</span><span class="n">get_rank</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="n">topology_initialized</span><span class="p">:</span>
+                <span class="n">generator</span> <span class="o">=</span> <span class="n">_connection_generator</span><span class="p">(</span><span class="n">seed</span><span class="p">)</span>
+                <span class="n">structured</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">support_group_rows</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">support_col_block</span> <span class="o">&gt;</span> <span class="mi">1</span>
+                <span class="k">if</span> <span class="n">structured</span> <span class="ow">and</span> <span class="p">(</span>
+                    <span class="n">allowed_connection_mask</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">forbidden</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+                <span class="p">):</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="s2">"Structured support (support_group_rows/"</span>
+                        <span class="s2">"support_col_block &gt; 1) does not compose with "</span>
+                        <span class="s2">"connection_mask or forbidden indices yet."</span>
+                    <span class="p">)</span>
+                <span class="k">if</span> <span class="n">structured</span><span class="p">:</span>
+                    <span class="n">connection_indices</span> <span class="o">=</span> <span class="n">sample_structured_indices</span><span class="p">(</span>
+                        <span class="n">out_features</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">out_features</span><span class="p">,</span>
+                        <span class="n">in_features</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">in_features</span><span class="p">,</span>
+                        <span class="n">K</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">K</span><span class="p">,</span>
+                        <span class="n">generator</span><span class="o">=</span><span class="n">generator</span><span class="p">,</span>
+                        <span class="n">index_dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">index_dtype</span><span class="p">,</span>
+                        <span class="n">support_group_rows</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">support_group_rows</span><span class="p">,</span>
+                        <span class="n">support_col_block</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">support_col_block</span><span class="p">,</span>
+                    <span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">connection_indices</span> <span class="o">=</span> <span class="n">_sample_indices_from_mask</span><span class="p">(</span>
+                        <span class="n">out_features</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">out_features</span><span class="p">,</span>
+                        <span class="n">in_features</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">in_features</span><span class="p">,</span>
+                        <span class="n">K</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">K</span><span class="p">,</span>
+                        <span class="n">connection_mask</span><span class="o">=</span><span class="n">allowed_connection_mask</span><span class="p">,</span>
+                        <span class="n">forbidden_input_index_per_output</span><span class="o">=</span><span class="n">forbidden</span><span class="p">,</span>
+                        <span class="n">generator</span><span class="o">=</span><span class="n">generator</span><span class="p">,</span>
+                        <span class="n">index_dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">index_dtype</span><span class="p">,</span>
+                    <span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># FSDP ``sync_module_states=True`` broadcasts this buffer and</span>
+                <span class="c1"># the initialization marker from rank 0 before first use.</span>
+                <span class="n">connection_indices</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">out_features</span><span class="p">,</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">K</span><span class="p">,</span>
+                    <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">index_dtype</span><span class="p">,</span>
+                <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">connection_indices</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">as_tensor</span><span class="p">(</span>
+                <span class="n">connection_indices</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">index_dtype</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">connection_indices</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">!=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">out_features</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">K</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s2">"connection_indices must have shape "</span>
+                    <span class="sa">f</span><span class="s2">"(</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">out_features</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">K</span><span class="si">}</span><span class="s2">), got "</span>
+                    <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">tuple</span><span class="p">(</span><span class="n">connection_indices</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
+                <span class="p">)</span>
+            <span class="k">if</span> <span class="nb">bool</span><span class="p">((</span><span class="n">connection_indices</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">())</span> <span class="ow">or</span> <span class="nb">bool</span><span class="p">(</span>
+                <span class="p">(</span><span class="n">connection_indices</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">in_features</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">()</span>
+            <span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">"connection_indices entries must be in [0, </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">in_features</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2">]"</span>
+                <span class="p">)</span>
+            <span class="n">sorted_indices</span> <span class="o">=</span> <span class="n">connection_indices</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">values</span>
+            <span class="k">if</span> <span class="nb">bool</span><span class="p">((</span><span class="n">sorted_indices</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">:]</span> <span class="o">==</span> <span class="n">sorted_indices</span><span class="p">[:,</span> <span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span><span class="o">.</span><span class="n">any</span><span class="p">()):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"connection_indices must be unique within each row"</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">allowed_connection_mask</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">row</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">out_features</span><span class="p">)[:,</span> <span class="kc">None</span><span class="p">]</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="nb">bool</span><span class="p">(</span>
+                    <span class="n">allowed_connection_mask</span><span class="p">[</span>
+                        <span class="n">row</span><span class="p">,</span> <span class="n">connection_indices</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">)</span>
+                    <span class="p">]</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+                <span class="p">):</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="s2">"connection_indices contains entries disallowed by "</span>
+                        <span class="s2">"connection_mask"</span>
+                    <span class="p">)</span>
+            <span class="k">if</span> <span class="n">forbidden</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">violates_forbidden</span> <span class="o">=</span> <span class="p">(</span><span class="n">forbidden</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span>
+                    <span class="n">connection_indices</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">)</span> <span class="o">==</span> <span class="n">forbidden</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
+                <span class="p">)</span>
+                <span class="k">if</span> <span class="nb">bool</span><span class="p">(</span><span class="n">violates_forbidden</span><span class="o">.</span><span class="n">any</span><span class="p">()):</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="s2">"connection_indices contains entries disallowed by "</span>
+                        <span class="s2">"forbidden_input_index_per_output"</span>
+                    <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">allowed_connection_mask</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">register_buffer</span><span class="p">(</span>
+                <span class="s2">"_allowed_connection_mask"</span><span class="p">,</span>
+                <span class="n">torch</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">bool</span><span class="p">),</span>
+                <span class="n">persistent</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Rewiring subclasses checkpoint a provided mask: an unseeded</span>
+            <span class="c1"># structured mask differs between runs, and resumed rewiring must</span>
+            <span class="c1"># keep sampling from the original one.</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">register_buffer</span><span class="p">(</span>
+                <span class="s2">"_allowed_connection_mask"</span><span class="p">,</span>
+                <span class="n">allowed_connection_mask</span><span class="o">.</span><span class="n">contiguous</span><span class="p">(),</span>
+                <span class="n">persistent</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_persist_allowed_connection_mask</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="n">forbidden</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">forbidden</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">register_buffer</span><span class="p">(</span>
+            <span class="s2">"_forbidden_input_index_per_output"</span><span class="p">,</span>
+            <span class="n">forbidden</span><span class="o">.</span><span class="n">contiguous</span><span class="p">(),</span>
+            <span class="n">persistent</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">register_buffer</span><span class="p">(</span>
+            <span class="s2">"connection_indices"</span><span class="p">,</span>
+            <span class="n">connection_indices</span><span class="o">.</span><span class="n">contiguous</span><span class="p">(),</span>
+            <span class="n">persistent</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">persistent_indices</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">persistent_indices</span><span class="p">:</span>
+            <span class="n">register_topology_fingerprint</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">register_buffer</span><span class="p">(</span>
+            <span class="s2">"_topology_initialized"</span><span class="p">,</span>
+            <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">topology_initialized</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">uint8</span><span class="p">),</span>
+            <span class="n">persistent</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_topology_ready</span> <span class="o">=</span> <span class="n">topology_initialized</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">out_features</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">K</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">initialize</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">initialize</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Initialize the sparse synaptic weights."""</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">init_method</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">TOPK_INIT_METHODS</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"Invalid initialization method: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">init_method</span><span class="si">}</span><span class="s2">. "</span>
+                <span class="sa">f</span><span class="s2">"Choose from </span><span class="si">{</span><span class="nb">list</span><span class="p">(</span><span class="n">TOPK_INIT_METHODS</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">)</span>
+        <span class="n">TOPK_INIT_METHODS</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">init_method</span><span class="p">](</span><span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">mul_</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">init_gain</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">sparse_weight</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Return the trainable sparse weights with shape ``[out_features, K]``."""</span>
+        <span class="k">return</span> <span class="n">apply_weight_transform</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight_transform</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">connectivity_resource_counts</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">|</span> <span class="nb">str</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">"""Return exact connectivity counts without materializing a dense matrix.</span>
+
+<span class="sd">        Resource accounting is called after training, including for layers whose</span>
+<span class="sd">        dense compatibility view can be hundreds of GiB.  Fixed indexed layers</span>
+<span class="sd">        already store every realized contact explicitly, so their counts should</span>
+<span class="sd">        be obtained from the compact indices.</span>
+<span class="sd">        """</span>
+
+        <span class="n">allowed</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_allowed_connection_mask</span>
+        <span class="n">forbidden</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_forbidden_input_index_per_output</span>
+        <span class="k">if</span> <span class="n">allowed</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">candidate_slots</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">allowed</span><span class="o">.</span><span class="n">count_nonzero</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
+            <span class="k">if</span> <span class="n">forbidden</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">valid</span> <span class="o">=</span> <span class="n">forbidden</span> <span class="o">&gt;=</span> <span class="mi">0</span>
+                <span class="k">if</span> <span class="nb">bool</span><span class="p">(</span><span class="n">valid</span><span class="o">.</span><span class="n">any</span><span class="p">()):</span>
+                    <span class="n">rows</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">out_features</span><span class="p">,</span>
+                        <span class="n">device</span><span class="o">=</span><span class="n">forbidden</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+                    <span class="p">)</span>
+                    <span class="n">candidate_slots</span> <span class="o">-=</span> <span class="nb">int</span><span class="p">(</span>
+                        <span class="n">allowed</span><span class="p">[</span>
+                            <span class="n">rows</span><span class="p">[</span><span class="n">valid</span><span class="p">],</span>
+                            <span class="n">forbidden</span><span class="p">[</span><span class="n">valid</span><span class="p">]</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">),</span>
+                        <span class="p">]</span>
+                        <span class="o">.</span><span class="n">count_nonzero</span><span class="p">()</span>
+                        <span class="o">.</span><span class="n">item</span><span class="p">()</span>
+                    <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">candidate_slots</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">out_features</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">in_features</span>
+            <span class="k">if</span> <span class="n">forbidden</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">candidate_slots</span> <span class="o">-=</span> <span class="nb">int</span><span class="p">((</span><span class="n">forbidden</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">count_nonzero</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
+
+        <span class="n">active_synapses</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">connection_indices</span><span class="o">.</span><span class="n">numel</span><span class="p">())</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">"out_features"</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">out_features</span><span class="p">,</span>
+            <span class="s2">"in_features"</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">in_features</span><span class="p">,</span>
+            <span class="s2">"candidate_slots"</span><span class="p">:</span> <span class="n">candidate_slots</span><span class="p">,</span>
+            <span class="s2">"active_synapses"</span><span class="p">:</span> <span class="n">active_synapses</span><span class="p">,</span>
+            <span class="s2">"realized_k_min"</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">K</span><span class="p">,</span>
+            <span class="s2">"realized_k_max"</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">K</span><span class="p">,</span>
+            <span class="s2">"realized_k_mean"</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">K</span><span class="p">),</span>
+            <span class="s2">"selection_policy"</span><span class="p">:</span> <span class="s2">"indexed_fixed"</span><span class="p">,</span>
+            <span class="s2">"mask_source"</span><span class="p">:</span> <span class="s2">"fixed_indices"</span><span class="p">,</span>
+        <span class="p">}</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">local_weight_gradient</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">factor</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="n">x_pre</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">normalize_by_batch</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Compute a compact local conductance gradient on the fixed support.</span>
+
+<span class="sd">        A dense local rule forms ``factor.T @ x_pre``, whose shape is</span>
+<span class="sd">        ``[out_features, in_features]``.  For fixed indexed connectivity only</span>
+<span class="sd">        the ``K`` stored contacts per output can be updated.  This method</span>
+<span class="sd">        evaluates exactly those entries in bounded output chunks and returns a</span>
+<span class="sd">        tensor matching ``pre_w``.</span>
+<span class="sd">        """</span>
+
+        <span class="k">if</span> <span class="n">factor</span><span class="o">.</span><span class="n">ndim</span> <span class="o">!=</span> <span class="mi">2</span> <span class="ow">or</span> <span class="n">x_pre</span><span class="o">.</span><span class="n">ndim</span> <span class="o">!=</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">"Indexed local gradients require two-dimensional factor and "</span>
+                <span class="sa">f</span><span class="s2">"input tensors, got </span><span class="si">{</span><span class="nb">tuple</span><span class="p">(</span><span class="n">factor</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span><span class="si">}</span><span class="s2"> and </span><span class="si">{</span><span class="nb">tuple</span><span class="p">(</span><span class="n">x_pre</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="n">factor</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="n">x_pre</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">"Indexed local-gradient batch dimensions differ: "</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">factor</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2"> vs </span><span class="si">{</span><span class="n">x_pre</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="n">factor</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">out_features</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">"Indexed local-gradient factor width does not match out_features: "</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">factor</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2"> vs </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">out_features</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="n">x_pre</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">in_features</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">"Indexed local-gradient input width does not match in_features: "</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">x_pre</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2"> vs </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">in_features</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="n">factor</span><span class="o">.</span><span class="n">device</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">device</span> <span class="ow">or</span> <span class="n">x_pre</span><span class="o">.</span><span class="n">device</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">device</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">"Indexed local-gradient tensors must share the layer device"</span>
+            <span class="p">)</span>
+
+        <span class="n">factor</span> <span class="o">=</span> <span class="n">factor</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span>
+        <span class="n">x_pre</span> <span class="o">=</span> <span class="n">x_pre</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span>
+        <span class="n">gradient</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">empty_like</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="p">)</span>
+        <span class="n">output_chunk_size</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_forward_output_chunk_size</span><span class="p">(</span><span class="n">x_pre</span><span class="p">)</span>
+        <span class="n">batch_scale</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="n">factor</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="n">normalize_by_batch</span> <span class="k">else</span> <span class="mf">1.0</span>
+
+        <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
+            <span class="k">for</span> <span class="n">start</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">out_features</span><span class="p">,</span> <span class="n">output_chunk_size</span><span class="p">):</span>
+                <span class="n">end</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">start</span> <span class="o">+</span> <span class="n">output_chunk_size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">out_features</span><span class="p">)</span>
+                <span class="n">indices</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">connection_indices</span><span class="p">[</span><span class="n">start</span><span class="p">:</span><span class="n">end</span><span class="p">]</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">)</span>
+                <span class="n">selected</span> <span class="o">=</span> <span class="n">x_pre</span><span class="o">.</span><span class="n">index_select</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">indices</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">))</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span>
+                    <span class="n">x_pre</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+                    <span class="n">end</span> <span class="o">-</span> <span class="n">start</span><span class="p">,</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">K</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="n">factor_chunk</span> <span class="o">=</span> <span class="n">factor</span><span class="p">[:,</span> <span class="n">start</span><span class="p">:</span><span class="n">end</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">selected</span><span class="o">.</span><span class="n">dtype</span> <span class="o">!=</span> <span class="n">factor_chunk</span><span class="o">.</span><span class="n">dtype</span><span class="p">:</span>
+                    <span class="n">selected</span> <span class="o">=</span> <span class="n">selected</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">factor_chunk</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+                <span class="n">chunk_gradient</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span>
+                    <span class="s2">"bo,bok-&gt;ok"</span><span class="p">,</span>
+                    <span class="n">factor_chunk</span><span class="p">,</span>
+                    <span class="n">selected</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="k">if</span> <span class="n">normalize_by_batch</span><span class="p">:</span>
+                    <span class="n">chunk_gradient</span><span class="o">.</span><span class="n">mul_</span><span class="p">(</span><span class="n">batch_scale</span><span class="p">)</span>
+                <span class="n">gradient</span><span class="p">[</span><span class="n">start</span><span class="p">:</span><span class="n">end</span><span class="p">]</span><span class="o">.</span><span class="n">copy_</span><span class="p">(</span>
+                    <span class="n">chunk_gradient</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="o">=</span><span class="n">gradient</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">gradient</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+                <span class="p">)</span>
+        <span class="k">return</span> <span class="n">gradient</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_normalized_sparse_weight</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+        <span class="n">weight</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sparse_weight</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight_norm_order</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">weight</span>
+        <span class="n">norm</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">weight</span><span class="p">,</span> <span class="n">p</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">weight_norm_order</span><span class="p">,</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdim</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">safe_norm</span> <span class="o">=</span> <span class="n">norm</span><span class="o">.</span><span class="n">clamp_min</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="n">weight</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span><span class="o">.</span><span class="n">eps</span><span class="p">)</span>
+        <span class="n">normalized</span> <span class="o">=</span> <span class="p">(</span><span class="n">weight</span> <span class="o">/</span> <span class="n">safe_norm</span><span class="p">)</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">gamma</span>
+        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">norm</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">,</span> <span class="n">normalized</span><span class="p">,</span> <span class="n">weight</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_recurrent_weight_cache</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">enabled</span><span class="p">:</span> <span class="nb">bool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Cache the transformed fixed weights once per recurrent unroll."""</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_recurrent_weight_cache_enabled</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="nb">bool</span><span class="p">(</span><span class="n">enabled</span><span class="p">)</span>
+            <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">cache_transformed_weights</span>
+            <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_use_forward_dynamic_grad_scaling</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_recurrent_cached_weight</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_forward_sparse_weight</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_recurrent_weight_cache_enabled</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_normalized_sparse_weight</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_recurrent_cached_weight</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_recurrent_cached_weight</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_normalized_sparse_weight</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_recurrent_cached_weight</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">freeze_for_inference</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Fold the transformed weights into a reusable inference buffer.</span>
+
+<span class="sd">        The softplus/exp weight transform (plus any weight normalization and</span>
+<span class="sd">        gamma scaling) is otherwise recomputed on every forward even though the</span>
+<span class="sd">        weights are constant at inference. Folding computes it once; forward</span>
+<span class="sd">        then feeds the folded tensor straight into the standard projection</span>
+<span class="sd">        dispatch, so the tuned CUDA/Triton kernels remain in use. The fold is</span>
+<span class="sd">        dropped automatically by ``train(True)`` or by loading new weights, and</span>
+<span class="sd">        it is never serialized (the checkpoint representation stays raw).</span>
+<span class="sd">        ``train(True)`` also restores ``pre_w.requires_grad`` to its value</span>
+<span class="sd">        before the first freeze.</span>
+<span class="sd">        """</span>
+        <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">"_requires_grad_before_inference_fold"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_requires_grad_before_inference_fold</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">requires_grad</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">requires_grad_</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+        <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_inference_folded_weight</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_normalized_sparse_weight</span><span class="p">()</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">contiguous</span><span class="p">()</span>
+            <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">eval</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">unfreeze_inference_fold</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Drop the folded inference weights (weights may change again)."""</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_inference_folded_weight</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">train</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mode</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">mode</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">unfreeze_inference_fold</span><span class="p">()</span>
+            <span class="n">restored</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">"_requires_grad_before_inference_fold"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">restored</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">requires_grad_</span><span class="p">(</span><span class="n">restored</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_requires_grad_before_inference_fold</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">mode</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_load_from_state_dict</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">state_dict</span><span class="p">,</span>
+        <span class="n">prefix</span><span class="p">,</span>
+        <span class="n">local_metadata</span><span class="p">,</span>
+        <span class="n">strict</span><span class="p">,</span>
+        <span class="n">missing_keys</span><span class="p">,</span>
+        <span class="n">unexpected_keys</span><span class="p">,</span>
+        <span class="n">error_msgs</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">unfreeze_inference_fold</span><span class="p">()</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_load_from_state_dict</span><span class="p">(</span>
+            <span class="n">state_dict</span><span class="p">,</span>
+            <span class="n">prefix</span><span class="p">,</span>
+            <span class="n">local_metadata</span><span class="p">,</span>
+            <span class="n">strict</span><span class="p">,</span>
+            <span class="n">missing_keys</span><span class="p">,</span>
+            <span class="n">unexpected_keys</span><span class="p">,</span>
+            <span class="n">error_msgs</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="c1"># Checkpoints written before rewiring layers saved their allowed-</span>
+        <span class="c1"># connection mask keep the constructor's mask.</span>
+        <span class="n">mask_key</span> <span class="o">=</span> <span class="n">prefix</span> <span class="o">+</span> <span class="s2">"_allowed_connection_mask"</span>
+        <span class="k">if</span> <span class="n">mask_key</span> <span class="ow">in</span> <span class="n">missing_keys</span> <span class="ow">and</span> <span class="n">file_predates</span><span class="p">(</span><span class="n">local_metadata</span><span class="p">,</span> <span class="mi">2</span><span class="p">):</span>
+            <span class="n">missing_keys</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">mask_key</span><span class="p">)</span>
+            <span class="n">record_legacy_state</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mask_key</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_kept_mask_note</span><span class="p">())</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">persistent_indices</span><span class="p">:</span>
+            <span class="n">check_topology_fingerprint</span><span class="p">(</span>
+                <span class="bp">self</span><span class="p">,</span> <span class="n">state_dict</span><span class="p">,</span> <span class="n">prefix</span><span class="p">,</span> <span class="n">missing_keys</span><span class="p">,</span> <span class="n">error_msgs</span>
+            <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_kept_mask_note</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Describe a constructed mask kept for a legacy checkpoint."""</span>
+        <span class="n">note</span> <span class="o">=</span> <span class="s2">"the file predates the saved mask; the constructed mask is kept"</span>
+        <span class="n">mask</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_allowed_connection_mask</span>
+        <span class="k">if</span> <span class="n">mask</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">note</span>
+        <span class="n">indices</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">connection_indices</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="o">=</span><span class="n">mask</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">)</span>
+        <span class="n">outside</span> <span class="o">=</span> <span class="nb">int</span><span class="p">((</span><span class="o">~</span><span class="n">torch</span><span class="o">.</span><span class="n">gather</span><span class="p">(</span><span class="n">mask</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">bool</span><span class="p">),</span> <span class="mi">1</span><span class="p">,</span> <span class="n">indices</span><span class="p">))</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span>
+        <span class="k">if</span> <span class="n">outside</span><span class="p">:</span>
+            <span class="n">note</span> <span class="o">+=</span> <span class="p">(</span>
+                <span class="sa">f</span><span class="s2">", and </span><span class="si">{</span><span class="n">outside</span><span class="si">}</span><span class="s2"> of </span><span class="si">{</span><span class="n">indices</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span><span class="si">}</span><span class="s2"> loaded contacts lie outside "</span>
+                <span class="s2">"it (rewiring will treat them as disallowed)"</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="n">note</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_forward_output_chunk_size</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">flat_x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">_workspace_limited_chunk_size</span><span class="p">(</span>
+            <span class="n">output_chunk_size</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">output_chunk_size</span><span class="p">,</span>
+            <span class="n">workspace_mb</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">workspace_mb</span><span class="p">,</span>
+            <span class="n">out_features</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">out_features</span><span class="p">,</span>
+            <span class="n">flattened_batch_size</span><span class="o">=</span><span class="n">flat_x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+            <span class="n">synapses_per_output</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">K</span><span class="p">,</span>
+            <span class="n">element_size</span><span class="o">=</span><span class="n">flat_x</span><span class="o">.</span><span class="n">element_size</span><span class="p">(),</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_block_layout</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">indices</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Cached ``contiguous_blocks`` layout of ``indices`` (``None`` for other backends).</span>
+
+<span class="sd">        The cache holds the index tensor itself and its version counter: a</span>
+<span class="sd">        device move or ``load_state_dict(assign=True)`` replaces the tensor and</span>
+<span class="sd">        an in-place write (rewiring, ordinary ``load_state_dict``) bumps the</span>
+<span class="sd">        version. Holding the tensor keeps its storage from being recycled</span>
+<span class="sd">        under a stale ``data_ptr`` key.</span>
+<span class="sd">        """</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">projection_backend</span> <span class="o">!=</span> <span class="s2">"contiguous_blocks"</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="n">cached</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_contiguous_block_layout_cache</span>
+        <span class="k">if</span> <span class="n">cached</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">cached</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">indices</span> <span class="ow">or</span> <span class="n">cached</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="n">indices</span><span class="o">.</span><span class="n">_version</span><span class="p">:</span>
+            <span class="n">cached</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="n">indices</span><span class="p">,</span>
+                <span class="n">indices</span><span class="o">.</span><span class="n">_version</span><span class="p">,</span>
+                <span class="n">contiguous_block_layout</span><span class="p">(</span><span class="n">indices</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">in_features</span><span class="p">),</span>
+            <span class="p">)</span>
+            <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">"_contiguous_block_layout_cache"</span><span class="p">,</span> <span class="n">cached</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">cached</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+
+    <span class="c1"># Per-forward tensors that may hold autograd graph nodes (needed only</span>
+    <span class="c1"># until the gradient-scaling hooks of that forward are registered) and</span>
+    <span class="c1"># derived caches. They are not module state: dropping them keeps</span>
+    <span class="c1"># ``copy.deepcopy``/pickling working after a training forward.</span>
+    <span class="n">_TRANSIENT_FORWARD_STATE</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="s2">"_last_forward_param_tensor"</span><span class="p">,</span>
+        <span class="s2">"_recurrent_cached_weight"</span><span class="p">,</span>
+        <span class="s2">"_contiguous_block_layout_cache"</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">__getstate__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">state</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__getstate__</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_TRANSIENT_FORWARD_STATE</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">state</span><span class="p">:</span>
+                <span class="n">state</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">return</span> <span class="n">state</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_can_use_frozen_chunked_transform</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">flat_x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Return whether forward can transform each projection chunk in place.</span>
+
+<span class="sd">        Frozen projections are tiled to bound the ``[batch, out, K]`` gather</span>
+<span class="sd">        workspace of the eager and recompute backends. GEMM layouts and the</span>
+<span class="sd">        fused accelerator kernels have no such workspace, so a frozen layer</span>
+<span class="sd">        configured with one of them runs that backend.</span>
+<span class="sd">        """</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">projection_backend</span> <span class="ow">in</span> <span class="p">(</span>
+            <span class="p">{</span><span class="s2">"contiguous_blocks"</span><span class="p">,</span> <span class="s2">"scatter_dense"</span><span class="p">}</span> <span class="o">|</span> <span class="n">ACCELERATOR_INDEXED_BACKENDS</span>
+        <span class="p">):</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="p">(</span>
+                <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">requires_grad</span>
+                <span class="ow">or</span> <span class="nb">bool</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">"_fsdp_frozen_core"</span><span class="p">,</span> <span class="kc">False</span><span class="p">))</span>
+            <span class="p">)</span>
+            <span class="ow">and</span> <span class="ow">not</span> <span class="n">flat_x</span><span class="o">.</span><span class="n">requires_grad</span>
+            <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight_norm_order</span> <span class="ow">is</span> <span class="kc">None</span>
+            <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_recurrent_weight_cache_enabled</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_forward_frozen_chunked_transform</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">flat_x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="n">connection_indices</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="n">output_chunk_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Project frozen weights without materializing one full transformed copy.</span>
+
+<span class="sd">        Both axes of the gather workspace are bounded. Frozen inference uses</span>
+<span class="sd">        a conservative default when ``workspace_mb`` is unset. The output and</span>
+<span class="sd">        row chunks use the same budget, so each gathered tile is at most</span>
+<span class="sd">        ``row_chunk x output_chunk x K`` elements even when a single output</span>
+<span class="sd">        column over the full batch would exceed the budget (the regime where</span>
+<span class="sd">        the output cap alone bottoms out at one column but still gathers</span>
+<span class="sd">        every row). Tiling is bitwise inert: every ``out[i, j]`` is produced</span>
+<span class="sd">        by exactly one tile as the same K-length reduction over the same</span>
+<span class="sd">        operand values in the same order, and when the whole flattened batch</span>
+<span class="sd">        fits the budget the row loop degenerates to a</span>
+<span class="sd">        single full-batch chunk — the previous behavior, kernel for kernel.</span>
+<span class="sd">        """</span>
+        <span class="n">rows</span> <span class="o">=</span> <span class="n">flat_x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="n">flat_x</span><span class="o">.</span><span class="n">new_empty</span><span class="p">(</span><span class="n">rows</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">out_features</span><span class="p">)</span>
+        <span class="n">workspace_mb</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">workspace_mb</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">workspace_mb</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="k">else</span> <span class="n">_DEFAULT_FROZEN_WORKSPACE_MB</span>
+        <span class="p">)</span>
+        <span class="c1"># Multiplication may promote a lower-precision activation to the</span>
+        <span class="c1"># weight dtype, so bound the larger of the gather and product tiles.</span>
+        <span class="n">element_size</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">flat_x</span><span class="o">.</span><span class="n">element_size</span><span class="p">(),</span> <span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">element_size</span><span class="p">())</span>
+        <span class="n">output_chunk_size</span> <span class="o">=</span> <span class="n">_workspace_limited_chunk_size</span><span class="p">(</span>
+            <span class="n">output_chunk_size</span><span class="o">=</span><span class="n">output_chunk_size</span><span class="p">,</span>
+            <span class="n">workspace_mb</span><span class="o">=</span><span class="n">workspace_mb</span><span class="p">,</span>
+            <span class="n">out_features</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">out_features</span><span class="p">,</span>
+            <span class="n">flattened_batch_size</span><span class="o">=</span><span class="n">rows</span><span class="p">,</span>
+            <span class="n">synapses_per_output</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">K</span><span class="p">,</span>
+            <span class="n">element_size</span><span class="o">=</span><span class="n">element_size</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">row_chunk_size</span> <span class="o">=</span> <span class="n">_workspace_limited_row_chunk_size</span><span class="p">(</span>
+            <span class="n">flattened_batch_size</span><span class="o">=</span><span class="n">rows</span><span class="p">,</span>
+            <span class="n">output_chunk_size</span><span class="o">=</span><span class="nb">min</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">output_chunk_size</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">out_features</span><span class="p">),</span>
+            <span class="n">workspace_mb</span><span class="o">=</span><span class="n">workspace_mb</span><span class="p">,</span>
+            <span class="n">synapses_per_output</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">K</span><span class="p">,</span>
+            <span class="n">element_size</span><span class="o">=</span><span class="n">element_size</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">for</span> <span class="n">row_start</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">rows</span><span class="p">,</span> <span class="n">row_chunk_size</span><span class="p">):</span>
+            <span class="n">row_end</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">row_start</span> <span class="o">+</span> <span class="n">row_chunk_size</span><span class="p">,</span> <span class="n">rows</span><span class="p">)</span>
+            <span class="n">x_rows</span> <span class="o">=</span> <span class="n">flat_x</span><span class="p">[</span><span class="n">row_start</span><span class="p">:</span><span class="n">row_end</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">start</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">out_features</span><span class="p">,</span> <span class="n">output_chunk_size</span><span class="p">):</span>
+                <span class="n">end</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">start</span> <span class="o">+</span> <span class="n">output_chunk_size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">out_features</span><span class="p">)</span>
+                <span class="n">idx_chunk</span> <span class="o">=</span> <span class="n">connection_indices</span><span class="p">[</span><span class="n">start</span><span class="p">:</span><span class="n">end</span><span class="p">]</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">)</span>
+                <span class="n">selected</span> <span class="o">=</span> <span class="n">x_rows</span><span class="p">[:,</span> <span class="n">idx_chunk</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)]</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span>
+                    <span class="n">row_end</span> <span class="o">-</span> <span class="n">row_start</span><span class="p">,</span>
+                    <span class="n">end</span> <span class="o">-</span> <span class="n">start</span><span class="p">,</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">K</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="n">weight_chunk</span> <span class="o">=</span> <span class="n">apply_weight_transform</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="p">[</span><span class="n">start</span><span class="p">:</span><span class="n">end</span><span class="p">],</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">weight_transform</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="n">out</span><span class="p">[</span><span class="n">row_start</span><span class="p">:</span><span class="n">row_end</span><span class="p">,</span> <span class="n">start</span><span class="p">:</span><span class="n">end</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+                    <span class="n">selected</span> <span class="o">*</span> <span class="n">weight_chunk</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+                <span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">out</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">weight</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Return a dense compatibility view of the effective weights."""</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">dense_weight</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">dense_weight</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Materialize a dense ``[out_features, in_features]`` weight matrix."""</span>
+        <span class="n">dense</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">out_features</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">in_features</span><span class="p">,</span>
+            <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+            <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">dense</span><span class="o">.</span><span class="n">scatter_add_</span><span class="p">(</span>
+            <span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">connection_indices</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">dense</span><span class="o">.</span><span class="n">device</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">sparse_weight</span><span class="p">()</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight_norm_order</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">dense_norm</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span>
+                <span class="n">dense</span><span class="p">,</span> <span class="n">p</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">weight_norm_order</span><span class="p">,</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdim</span><span class="o">=</span><span class="kc">True</span>
+            <span class="p">)</span>
+            <span class="n">safe_norm</span> <span class="o">=</span> <span class="n">dense_norm</span><span class="o">.</span><span class="n">clamp_min</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="n">dense</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span><span class="o">.</span><span class="n">eps</span><span class="p">)</span>
+            <span class="n">dense</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">dense_norm</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">,</span> <span class="p">(</span><span class="n">dense</span> <span class="o">/</span> <span class="n">safe_norm</span><span class="p">)</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">gamma</span><span class="p">,</span> <span class="n">dense</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">dense</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">log_weight</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Return a dense log-weight matrix for compatibility with analyzers."""</span>
+        <span class="n">dense</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dense_weight</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight_transform</span> <span class="o">==</span> <span class="s2">"identity"</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">(</span><span class="n">dense</span><span class="o">.</span><span class="n">abs</span><span class="p">()</span> <span class="o">+</span> <span class="mf">1e-8</span><span class="p">)</span><span class="o">.</span><span class="n">log</span><span class="p">()</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">dense</span> <span class="o">+</span> <span class="mf">1e-8</span><span class="p">)</span><span class="o">.</span><span class="n">log</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">weight_mask</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Return a dense binary mask of active fixed synapses."""</span>
+        <span class="n">mask</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">out_features</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">in_features</span><span class="p">,</span>
+            <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+            <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">values</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">mask</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+        <span class="n">mask</span><span class="o">.</span><span class="n">scatter_add_</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">connection_indices</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">mask</span><span class="o">.</span><span class="n">device</span><span class="p">),</span> <span class="n">values</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">mask</span><span class="o">.</span><span class="n">clamp_max</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">pruned_weight</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Return the dense effective sparse matrix."""</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">dense_weight</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">log_pruned_weight</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Return log effective weights with inactive entries shifted down."""</span>
+        <span class="k">return</span> <span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">weight_mask</span><span class="p">()</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="mi">10</span><span class="p">)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_weight</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">decay_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">weight_decay</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.1</span><span class="p">,</span> <span class="n">weight_boosting</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Decay every stored contact in-place by ``1 - weight_decay``.</span>
+
+<span class="sd">        All ``K`` stored contacts of a fixed-index layer are active, so there</span>
+<span class="sd">        are no unselected candidates and ``weight_boosting`` (which acts only</span>
+<span class="sd">        on unselected candidates) has nothing to boost; it is accepted for API</span>
+<span class="sd">        compatibility and ignored. Frozen layers</span>
+<span class="sd">        (``pre_w.requires_grad`` is ``False``) are not changed.</span>
+<span class="sd">        """</span>
+        <span class="k">del</span> <span class="n">weight_boosting</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">maintenance_applies</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="p">):</span>
+            <span class="k">return</span>
+        <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight_transform</span> <span class="o">==</span> <span class="s2">"exp"</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">data</span> <span class="o">+=</span> <span class="n">log</span><span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">weight_decay</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight_transform</span> <span class="o">==</span> <span class="s2">"softplus"</span><span class="p">:</span>
+                <span class="n">weight</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">functional</span><span class="o">.</span><span class="n">softplus</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+                <span class="n">updated</span> <span class="o">=</span> <span class="n">weight</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">weight_decay</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">inverse_softplus</span><span class="p">(</span><span class="n">updated</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight_transform</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">"identity"</span><span class="p">,</span> <span class="s2">"relu"</span><span class="p">}:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">data</span> <span class="o">*=</span> <span class="mi">1</span> <span class="o">-</span> <span class="n">weight_decay</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_resolution_is_current</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">device</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">device</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Whether the cached backend resolution still answers the current request."""</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_last_resolved_projection_backend</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_last_projection_device</span> <span class="o">==</span> <span class="n">device</span>
+            <span class="ow">and</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">"_last_requested_projection_backend"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+            <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">projection_backend</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_require_topology</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Raise while a rank0_broadcast topology still awaits its broadcast."""</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_topology_ready</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">bool</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_topology_initialized</span><span class="o">.</span><span class="n">item</span><span class="p">()):</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                    <span class="s2">"Indexed topology is awaiting rank-0 broadcast. Construct "</span>
+                    <span class="s2">"this module under FSDP with sync_module_states=True before "</span>
+                    <span class="s2">"forward."</span>
+                <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_topology_ready</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Apply the fixed sparse projection along the last input dimension."""</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_require_topology</span><span class="p">()</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Expected input to be a tensor, got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="n">squeezed</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">x</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+            <span class="n">squeezed</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">in_features</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"Input feature dimension mismatch: got </span><span class="si">{</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2">, "</span>
+                <span class="sa">f</span><span class="s2">"expected </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">in_features</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">)</span>
+
+        <span class="n">original_shape</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span>
+        <span class="n">flat_x</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">in_features</span><span class="p">)</span>
+        <span class="n">indices</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">connection_indices</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">flat_x</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+        <span class="n">output_chunk_size</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_forward_output_chunk_size</span><span class="p">(</span><span class="n">flat_x</span><span class="p">)</span>
+
+        <span class="n">folded_weight</span> <span class="o">=</span> <span class="kc">None</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">training</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">_inference_folded_weight</span>
+        <span class="k">if</span> <span class="n">folded_weight</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_can_use_frozen_chunked_transform</span><span class="p">(</span><span class="n">flat_x</span><span class="p">):</span>
+            <span class="n">out</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_forward_frozen_chunked_transform</span><span class="p">(</span>
+                <span class="n">flat_x</span><span class="p">,</span>
+                <span class="n">indices</span><span class="p">,</span>
+                <span class="n">output_chunk_size</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">"_last_forward_param_tensor"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+            <span class="n">out</span> <span class="o">=</span> <span class="n">out</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">*</span><span class="n">original_shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">out_features</span><span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cache_mask</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_last_forward_weight_mask</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight_mask</span><span class="p">()</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">squeezed</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">out</span><span class="o">.</span><span class="n">squeeze</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">out</span>
+
+        <span class="k">if</span> <span class="n">folded_weight</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># Inference fold: transform already applied once by</span>
+            <span class="c1"># freeze_for_inference; reuse the tensor and keep the fast</span>
+            <span class="c1"># projection dispatch below.</span>
+            <span class="n">weight</span> <span class="o">=</span> <span class="n">folded_weight</span>
+            <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">"_last_forward_param_tensor"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">weight</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_forward_sparse_weight</span><span class="p">()</span>
+            <span class="c1"># ``weight`` can be the Parameter itself for the identity transform.</span>
+            <span class="c1"># Bypass ``nn.Module.__setattr__`` so this diagnostic cache is not</span>
+            <span class="c1"># registered as a duplicate parameter/state-dict key. Frozen weights</span>
+            <span class="c1"># cannot receive the optional gradient hook, so do not retain their</span>
+            <span class="c1"># potentially multi-gigabyte transformed tensors after this forward.</span>
+            <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span>
+                <span class="bp">self</span><span class="p">,</span>
+                <span class="s2">"_last_forward_param_tensor"</span><span class="p">,</span>
+                <span class="n">weight</span> <span class="k">if</span> <span class="n">weight</span><span class="o">.</span><span class="n">requires_grad</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="n">requested_backend</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">projection_backend</span>
+        <span class="n">backend_is_resolved</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolution_is_current</span><span class="p">(</span><span class="n">flat_x</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">backend_is_resolved</span><span class="p">:</span>
+            <span class="n">requested_backend</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_last_resolved_projection_backend</span>
+        <span class="n">out</span><span class="p">,</span> <span class="n">resolved_backend</span> <span class="o">=</span> <span class="n">_dispatch_indexed_sparse_projection</span><span class="p">(</span>
+            <span class="n">flat_x</span><span class="o">=</span><span class="n">flat_x</span><span class="p">,</span>
+            <span class="n">weight</span><span class="o">=</span><span class="n">weight</span><span class="p">,</span>
+            <span class="n">connection_indices</span><span class="o">=</span><span class="n">indices</span><span class="p">,</span>
+            <span class="n">output_chunk_size</span><span class="o">=</span><span class="n">output_chunk_size</span><span class="p">,</span>
+            <span class="n">projection_backend</span><span class="o">=</span><span class="n">requested_backend</span><span class="p">,</span>
+            <span class="n">backend_is_resolved</span><span class="o">=</span><span class="n">backend_is_resolved</span><span class="p">,</span>
+            <span class="n">block_layout</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_block_layout</span><span class="p">(</span><span class="n">indices</span><span class="p">),</span>
+            <span class="n">auto_requested</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">projection_backend</span> <span class="o">==</span> <span class="s2">"auto"</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">resolved_backend</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_last_resolved_projection_backend</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                <span class="s2">"IndexedSparseLinear projection backend resolved: requested=</span><span class="si">%s</span><span class="s2">, "</span>
+                <span class="s2">"resolved=</span><span class="si">%s</span><span class="s2">, device=</span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">projection_backend</span><span class="p">,</span>
+                <span class="n">resolved_backend</span><span class="p">,</span>
+                <span class="n">flat_x</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_last_resolved_projection_backend</span> <span class="o">=</span> <span class="n">resolved_backend</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_last_projection_device</span> <span class="o">=</span> <span class="n">flat_x</span><span class="o">.</span><span class="n">device</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_last_requested_projection_backend</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">projection_backend</span>
+
+        <span class="n">out</span> <span class="o">=</span> <span class="n">out</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">*</span><span class="n">original_shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">out_features</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cache_mask</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_last_forward_weight_mask</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight_mask</span><span class="p">()</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">squeezed</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">out</span><span class="o">.</span><span class="n">squeeze</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">out</span>
+
+<div class="viewcode-block" id="IndexedSparseLinear.effective_sparse_weight">
+<a class="viewcode-back" href="../../../../../../api_reference.html#dendritic_modeling.networks.architectures.excitation_inhibition.synapse.indexed_sparse.IndexedSparseLinear.effective_sparse_weight">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">effective_sparse_weight</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Return the ``[out_features, K]`` weights of the sparse projection.</span>
+
+<span class="sd">        These are the transformed weights after the optional row normalization,</span>
+<span class="sd">        the values :meth:`forward` multiplies the gathered inputs by</span>
+<span class="sd">        (subclasses whose forward adds release noise or rounding apply those</span>
+<span class="sd">        on top).</span>
+<span class="sd">        """</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_forward_sparse_weight</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="IndexedSparseLinear.project_with_weights">
+<a class="viewcode-back" href="../../../../../../api_reference.html#dendritic_modeling.networks.architectures.excitation_inhibition.synapse.indexed_sparse.IndexedSparseLinear.project_with_weights">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">project_with_weights</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">weight</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Project ``x`` through this layer's contacts with other weights.</span>
+
+<span class="sd">        ``weight`` has the shape ``[out_features, K]`` of</span>
+<span class="sd">        :meth:`sparse_weight`; the result is</span>
+<span class="sd">        ``out[..., i] = sum_j weight[i, j] * x[..., connection_indices[i, j]]``,</span>
+<span class="sd">        computed with the layer's projection backend. For example</span>
+<span class="sd">        ``project_with_weights(x.abs(), effective_sparse_weight().abs())`` sums</span>
+<span class="sd">        the magnitudes of the synaptic drives. The layer's state, including</span>
+<span class="sd">        its resolved backend, is unchanged.</span>
+<span class="sd">        """</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_require_topology</span><span class="p">()</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">weight</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">"x and weight must be tensors"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">in_features</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"Input feature dimension mismatch: got </span><span class="si">{</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2">, "</span>
+                <span class="sa">f</span><span class="s2">"expected </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">in_features</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">weight</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">tuple</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">connection_indices</span><span class="o">.</span><span class="n">shape</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"weight must have shape </span><span class="si">{</span><span class="nb">tuple</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">connection_indices</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span><span class="si">}</span><span class="s2">, "</span>
+                <span class="sa">f</span><span class="s2">"got </span><span class="si">{</span><span class="nb">tuple</span><span class="p">(</span><span class="n">weight</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">)</span>
+        <span class="n">original_shape</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span>
+        <span class="n">flat_x</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">in_features</span><span class="p">)</span>
+        <span class="n">indices</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">connection_indices</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">flat_x</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+        <span class="n">backend_is_resolved</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolution_is_current</span><span class="p">(</span><span class="n">flat_x</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+        <span class="n">out</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">_dispatch_indexed_sparse_projection</span><span class="p">(</span>
+            <span class="n">flat_x</span><span class="o">=</span><span class="n">flat_x</span><span class="p">,</span>
+            <span class="n">weight</span><span class="o">=</span><span class="n">weight</span><span class="p">,</span>
+            <span class="n">connection_indices</span><span class="o">=</span><span class="n">indices</span><span class="p">,</span>
+            <span class="n">output_chunk_size</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_forward_output_chunk_size</span><span class="p">(</span><span class="n">flat_x</span><span class="p">),</span>
+            <span class="n">projection_backend</span><span class="o">=</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_last_resolved_projection_backend</span>
+                <span class="k">if</span> <span class="n">backend_is_resolved</span>
+                <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">projection_backend</span>
+            <span class="p">),</span>
+            <span class="n">backend_is_resolved</span><span class="o">=</span><span class="n">backend_is_resolved</span><span class="p">,</span>
+            <span class="n">block_layout</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_block_layout</span><span class="p">(</span><span class="n">indices</span><span class="p">),</span>
+            <span class="n">auto_requested</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">projection_backend</span> <span class="o">==</span> <span class="s2">"auto"</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">out</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">*</span><span class="n">original_shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">out_features</span><span class="p">)</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">register_forward_param_gradient_scale</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">param_scale</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Scale sparse parameter gradients for the most recent forward call."""</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_use_forward_dynamic_grad_scaling</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="n">target</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_last_forward_param_tensor</span>
+        <span class="k">if</span> <span class="n">target</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">target</span><span class="o">.</span><span class="n">requires_grad</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="n">scale</span> <span class="o">=</span> <span class="n">_scale_for_sparse_target</span><span class="p">(</span>
+            <span class="n">param_scale</span><span class="p">,</span>
+            <span class="n">target</span><span class="o">=</span><span class="n">target</span><span class="p">,</span>
+            <span class="n">connection_indices</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">connection_indices</span><span class="p">,</span>
+            <span class="n">in_features</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">in_features</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">target</span><span class="o">.</span><span class="n">register_hook</span><span class="p">(</span><span class="k">lambda</span> <span class="n">grad</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="n">scale</span><span class="p">:</span> <span class="n">grad</span> <span class="o">*</span> <span class="n">scale</span><span class="p">)</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"IndexedSparseLinear"</span><span class="p">]</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024-2026, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

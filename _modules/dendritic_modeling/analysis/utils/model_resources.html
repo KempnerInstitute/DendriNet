@@ -1,0 +1,628 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>dendritic_modeling.analysis.utils.model_resources &mdash; DendriNet v0.2.0</title>
+      <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../../_static/documentation_options.js?v=938c9ccc"></script>
+      <script src="../../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../../index.html" class="icon icon-home">
+            DendriNet
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../examples.html">Example configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Building models</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../network_architectures.html">Model architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../dendritic_neurons.html">Dendritic neurons</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../synapses.html">Synapses and connectivity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../population_networks.html">Population networks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../temporal_dynamics.html">Temporal dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../structured_ei_cores.html">Structured E/I cores</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../conductance_options.html">Conductance options</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../comparison_models.html">Baselines and comparison models</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Configuration</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../configuration_guide.html">Configuration guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../config_reference.html">Annotated reference configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../training_strategies.html">Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../distributed_training.html">Distributed training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../performance_kernels.html">Sparse execution and performance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Data and analysis</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../datasets.html">Datasets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../analysis.html">Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../analyzers.html">Analyzer reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../checkpoint_analysis.html">Analyzing saved checkpoints</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Running experiments</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../runs_and_outputs.html">Runs and outputs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../sweeps.html">Parameter sweeps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../model_compression.html">Compact checkpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../project_provenance.html">Project provenance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../available_components.html">Component catalogue</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../options_reference.html">Options reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../cli_reference.html">Command-line reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../api_reference.html">Python API</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../extending.html">Extending DendriNet</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../engineering_architecture.html">Engineering architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../contributing.html">Contributing</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">DendriNet</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">dendritic_modeling.analysis.utils.model_resources</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for dendritic_modeling.analysis.utils.model_resources</h1><div class="highlight"><pre>
+<span></span><span class="sd">"""Exact model-resource accounting for confirmatory experiments."""</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Mapping</span><span class="p">,</span> <span class="n">Sequence</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">asdict</span><span class="p">,</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">fields</span><span class="p">,</span> <span class="n">is_dataclass</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.analysis.utils.dendritic_depth</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">soma_relative_dendritic_depth</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.analysis.utils.effective_synapses</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">effective_synapse_snapshot</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">DendriticBranchLayer</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.excitation_inhibition.synapse</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">DenseToSparseLinear</span><span class="p">,</span>
+    <span class="n">TopKLinear</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">_SYNAPSE_PATHWAYS</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">"branch_excitation"</span><span class="p">:</span> <span class="s2">"ff_excitatory"</span><span class="p">,</span>
+    <span class="s2">"branch_inhibition"</span><span class="p">:</span> <span class="s2">"ff_inhibitory"</span><span class="p">,</span>
+    <span class="s2">"branch_recurrent"</span><span class="p">:</span> <span class="s2">"rec_excitatory"</span><span class="p">,</span>
+    <span class="s2">"branch_rec_inhibition"</span><span class="p">:</span> <span class="s2">"rec_inhibitory"</span><span class="p">,</span>
+<span class="p">}</span>
+
+
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">SynapseResourceRecord</span><span class="p">:</span>
+    <span class="n">module</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">pathway</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">soma_relative_depth</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">out_features</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">in_features</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">candidate_parameters</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">candidate_slots</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">active_synapses</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">realized_k_min</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">realized_k_max</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">realized_k_mean</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="n">selection_policy</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">mask_source</span><span class="p">:</span> <span class="nb">str</span>
+
+
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">StaticDendriticResourceSummary</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Config-derived resources for a regular dendritic population.</span>
+
+<span class="sd">    This summary is intentionally limited to quantities that are determined</span>
+<span class="sd">    exactly by morphology, pathway input widths, and retained contacts.  It</span>
+<span class="sd">    does not infer trainable parameter counts for a particular sparse-layer</span>
+<span class="sd">    implementation; checkpoint-backed analyses should use</span>
+<span class="sd">    :func:`model_resource_summary` for those quantities.</span>
+<span class="sd">    """</span>
+
+    <span class="n">level_compartments_per_soma</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+    <span class="n">nonsomatic_compartments_per_soma</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">nonsomatic_compartments_total</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">synaptic_compartments_total</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">active_synapses_by_pathway</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span>
+    <span class="n">active_synapses_total</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">candidate_slots_by_pathway</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span>
+    <span class="n">candidate_synapse_slots_total</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">child_couplings_total</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">reactivation_parameters_total</span><span class="p">:</span> <span class="nb">int</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_resource_integer</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">allow_zero</span><span class="p">:</span> <span class="nb">bool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">bool</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> must be an integer, not bool"</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">parsed</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> must be an integer, got </span><span class="si">{</span><span class="n">value</span><span class="si">!r}</span><span class="s2">"</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="kc">None</span>
+    <span class="k">if</span> <span class="n">parsed</span> <span class="o">!=</span> <span class="n">value</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> must be an exact integer, got </span><span class="si">{</span><span class="n">value</span><span class="si">!r}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="n">minimum</span> <span class="o">=</span> <span class="mi">0</span> <span class="k">if</span> <span class="n">allow_zero</span> <span class="k">else</span> <span class="mi">1</span>
+    <span class="k">if</span> <span class="n">parsed</span> <span class="o">&lt;</span> <span class="n">minimum</span><span class="p">:</span>
+        <span class="n">qualifier</span> <span class="o">=</span> <span class="s2">"non-negative"</span> <span class="k">if</span> <span class="n">allow_zero</span> <span class="k">else</span> <span class="s2">"positive"</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> must be </span><span class="si">{</span><span class="n">qualifier</span><span class="si">}</span><span class="s2">, got </span><span class="si">{</span><span class="n">parsed</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">parsed</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">dendritic_level_widths</span><span class="p">(</span><span class="n">branch_factors</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Return nonsomatic compartment counts per soma from proximal to distal."""</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">branch_factors</span><span class="p">,</span> <span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="nb">bytes</span><span class="p">)):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">"branch_factors must be a sequence of positive integers"</span><span class="p">)</span>
+    <span class="n">factors</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span>
+        <span class="n">_resource_integer</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="sa">f</span><span class="s2">"branch_factors[</span><span class="si">{</span><span class="n">index</span><span class="si">}</span><span class="s2">]"</span><span class="p">,</span> <span class="n">allow_zero</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">branch_factors</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">factors</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"branch_factors must contain at least one dendritic level"</span><span class="p">)</span>
+    <span class="n">level_widths</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">width</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="k">for</span> <span class="n">factor</span> <span class="ow">in</span> <span class="n">factors</span><span class="p">:</span>
+        <span class="n">width</span> <span class="o">*=</span> <span class="n">factor</span>
+        <span class="n">level_widths</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">width</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">level_widths</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">static_dendritic_resource_summary</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">branch_factors</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span>
+    <span class="n">n_somas</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">pathway_input_dims</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span>
+    <span class="n">synapses_per_compartment</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span>
+    <span class="n">somatic_synapses</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">reactivation_scalars_per_compartment</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2</span><span class="p">,</span>
+    <span class="n">reactivation_includes_soma</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">StaticDendriticResourceSummary</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Compute exact config-level resources for one regular population.</span>
+
+<span class="sd">    ``candidate_slots`` counts structurally available input/output pairs, not</span>
+<span class="sd">    necessarily trainable parameters.  For standard dense-candidate Top-K the</span>
+<span class="sd">    two counts coincide; indexed and structured implementations can differ.</span>
+<span class="sd">    """</span>
+
+    <span class="n">level_widths</span> <span class="o">=</span> <span class="n">dendritic_level_widths</span><span class="p">(</span><span class="n">branch_factors</span><span class="p">)</span>
+    <span class="n">soma_count</span> <span class="o">=</span> <span class="n">_resource_integer</span><span class="p">(</span><span class="n">n_somas</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">"n_somas"</span><span class="p">,</span> <span class="n">allow_zero</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">reactivation_width</span> <span class="o">=</span> <span class="n">_resource_integer</span><span class="p">(</span>
+        <span class="n">reactivation_scalars_per_compartment</span><span class="p">,</span>
+        <span class="n">name</span><span class="o">=</span><span class="s2">"reactivation_scalars_per_compartment"</span><span class="p">,</span>
+        <span class="n">allow_zero</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="n">input_dims</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="nb">str</span><span class="p">(</span><span class="n">pathway</span><span class="p">):</span> <span class="n">_resource_integer</span><span class="p">(</span>
+            <span class="n">value</span><span class="p">,</span>
+            <span class="n">name</span><span class="o">=</span><span class="sa">f</span><span class="s2">"pathway_input_dims[</span><span class="si">{</span><span class="n">pathway</span><span class="si">!r}</span><span class="s2">]"</span><span class="p">,</span>
+            <span class="n">allow_zero</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">for</span> <span class="n">pathway</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">pathway_input_dims</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+    <span class="p">}</span>
+    <span class="n">retained</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="nb">str</span><span class="p">(</span><span class="n">pathway</span><span class="p">):</span> <span class="n">_resource_integer</span><span class="p">(</span>
+            <span class="n">value</span><span class="p">,</span>
+            <span class="n">name</span><span class="o">=</span><span class="sa">f</span><span class="s2">"synapses_per_compartment[</span><span class="si">{</span><span class="n">pathway</span><span class="si">!r}</span><span class="s2">]"</span><span class="p">,</span>
+            <span class="n">allow_zero</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">for</span> <span class="n">pathway</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">synapses_per_compartment</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+    <span class="p">}</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">input_dims</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"At least one synaptic pathway must be specified"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">set</span><span class="p">(</span><span class="n">input_dims</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">set</span><span class="p">(</span><span class="n">retained</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">"pathway_input_dims and synapses_per_compartment must have identical keys"</span>
+        <span class="p">)</span>
+    <span class="k">for</span> <span class="n">pathway</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">input_dims</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">retained</span><span class="p">[</span><span class="n">pathway</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">input_dims</span><span class="p">[</span><span class="n">pathway</span><span class="p">]:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"Retained contacts for </span><span class="si">{</span><span class="n">pathway</span><span class="si">!r}</span><span class="s2"> exceed its input width: "</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">retained</span><span class="p">[</span><span class="n">pathway</span><span class="p">]</span><span class="si">}</span><span class="s2"> &gt; </span><span class="si">{</span><span class="n">input_dims</span><span class="p">[</span><span class="n">pathway</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">)</span>
+
+    <span class="n">nonsomatic_per_soma</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">level_widths</span><span class="p">)</span>
+    <span class="n">nonsomatic_total</span> <span class="o">=</span> <span class="n">nonsomatic_per_soma</span> <span class="o">*</span> <span class="n">soma_count</span>
+    <span class="n">synaptic_compartments</span> <span class="o">=</span> <span class="n">nonsomatic_total</span> <span class="o">+</span> <span class="p">(</span>
+        <span class="n">soma_count</span> <span class="k">if</span> <span class="nb">bool</span><span class="p">(</span><span class="n">somatic_synapses</span><span class="p">)</span> <span class="k">else</span> <span class="mi">0</span>
+    <span class="p">)</span>
+    <span class="n">active_by_pathway</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="n">pathway</span><span class="p">:</span> <span class="n">synaptic_compartments</span> <span class="o">*</span> <span class="n">count</span> <span class="k">for</span> <span class="n">pathway</span><span class="p">,</span> <span class="n">count</span> <span class="ow">in</span> <span class="n">retained</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+    <span class="p">}</span>
+    <span class="n">candidate_by_pathway</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="n">pathway</span><span class="p">:</span> <span class="n">synaptic_compartments</span> <span class="o">*</span> <span class="n">input_dims</span><span class="p">[</span><span class="n">pathway</span><span class="p">]</span> <span class="k">for</span> <span class="n">pathway</span> <span class="ow">in</span> <span class="n">input_dims</span>
+    <span class="p">}</span>
+    <span class="n">reactivation_compartments</span> <span class="o">=</span> <span class="n">nonsomatic_total</span> <span class="o">+</span> <span class="p">(</span>
+        <span class="n">soma_count</span> <span class="k">if</span> <span class="nb">bool</span><span class="p">(</span><span class="n">reactivation_includes_soma</span><span class="p">)</span> <span class="k">else</span> <span class="mi">0</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">StaticDendriticResourceSummary</span><span class="p">(</span>
+        <span class="n">level_compartments_per_soma</span><span class="o">=</span><span class="n">level_widths</span><span class="p">,</span>
+        <span class="n">nonsomatic_compartments_per_soma</span><span class="o">=</span><span class="n">nonsomatic_per_soma</span><span class="p">,</span>
+        <span class="n">nonsomatic_compartments_total</span><span class="o">=</span><span class="n">nonsomatic_total</span><span class="p">,</span>
+        <span class="n">synaptic_compartments_total</span><span class="o">=</span><span class="n">synaptic_compartments</span><span class="p">,</span>
+        <span class="n">active_synapses_by_pathway</span><span class="o">=</span><span class="n">active_by_pathway</span><span class="p">,</span>
+        <span class="n">active_synapses_total</span><span class="o">=</span><span class="nb">sum</span><span class="p">(</span><span class="n">active_by_pathway</span><span class="o">.</span><span class="n">values</span><span class="p">()),</span>
+        <span class="n">candidate_slots_by_pathway</span><span class="o">=</span><span class="n">candidate_by_pathway</span><span class="p">,</span>
+        <span class="n">candidate_synapse_slots_total</span><span class="o">=</span><span class="nb">sum</span><span class="p">(</span><span class="n">candidate_by_pathway</span><span class="o">.</span><span class="n">values</span><span class="p">()),</span>
+        <span class="n">child_couplings_total</span><span class="o">=</span><span class="n">nonsomatic_total</span><span class="p">,</span>
+        <span class="n">reactivation_parameters_total</span><span class="o">=</span><span class="p">(</span><span class="n">reactivation_compartments</span> <span class="o">*</span> <span class="n">reactivation_width</span><span class="p">),</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">synapse_resource_records</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">SynapseResourceRecord</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Return one realized-connectivity record per dendritic pathway."""</span>
+
+    <span class="n">records</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">SynapseResourceRecord</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">seen</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">branch_name</span><span class="p">,</span> <span class="n">branch_layer</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">named_modules</span><span class="p">():</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">branch_layer</span><span class="p">,</span> <span class="n">DendriticBranchLayer</span><span class="p">):</span>
+            <span class="k">continue</span>
+        <span class="n">depth</span> <span class="o">=</span> <span class="n">soma_relative_dendritic_depth</span><span class="p">(</span><span class="n">branch_layer</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">attr</span><span class="p">,</span> <span class="n">pathway</span> <span class="ow">in</span> <span class="n">_SYNAPSE_PATHWAYS</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">synapse</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">branch_layer</span><span class="p">,</span> <span class="n">attr</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">synapse</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="nb">id</span><span class="p">(</span><span class="n">synapse</span><span class="p">)</span> <span class="ow">in</span> <span class="n">seen</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">seen</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="nb">id</span><span class="p">(</span><span class="n">synapse</span><span class="p">))</span>
+            <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">synapse</span><span class="p">)</span> <span class="ow">in</span> <span class="p">{</span><span class="n">TopKLinear</span><span class="p">,</span> <span class="n">DenseToSparseLinear</span><span class="p">}:</span>
+                <span class="n">counts</span> <span class="o">=</span> <span class="n">_dense_candidate_topk_resource_counts</span><span class="p">(</span><span class="n">synapse</span><span class="p">)</span>
+                <span class="n">out_features</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">counts</span><span class="p">[</span><span class="s2">"out_features"</span><span class="p">])</span>
+                <span class="n">in_features</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">counts</span><span class="p">[</span><span class="s2">"in_features"</span><span class="p">])</span>
+                <span class="n">candidate_slots</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">counts</span><span class="p">[</span><span class="s2">"candidate_slots"</span><span class="p">])</span>
+                <span class="n">active_synapses</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">counts</span><span class="p">[</span><span class="s2">"active_synapses"</span><span class="p">])</span>
+                <span class="n">realized_k_min</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">counts</span><span class="p">[</span><span class="s2">"realized_k_min"</span><span class="p">])</span>
+                <span class="n">realized_k_max</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">counts</span><span class="p">[</span><span class="s2">"realized_k_max"</span><span class="p">])</span>
+                <span class="n">realized_k_mean</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">counts</span><span class="p">[</span><span class="s2">"realized_k_mean"</span><span class="p">])</span>
+                <span class="n">selection_policy</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">counts</span><span class="p">[</span><span class="s2">"selection_policy"</span><span class="p">])</span>
+                <span class="n">mask_source</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">counts</span><span class="p">[</span><span class="s2">"mask_source"</span><span class="p">])</span>
+            <span class="k">elif</span> <span class="nb">callable</span><span class="p">(</span>
+                <span class="n">compact_counts_fn</span> <span class="o">:=</span> <span class="nb">getattr</span><span class="p">(</span>
+                    <span class="n">synapse</span><span class="p">,</span>
+                    <span class="s2">"connectivity_resource_counts"</span><span class="p">,</span>
+                    <span class="kc">None</span><span class="p">,</span>
+                <span class="p">)</span>
+            <span class="p">):</span>
+                <span class="n">counts</span> <span class="o">=</span> <span class="n">compact_counts_fn</span><span class="p">()</span>
+                <span class="n">out_features</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">counts</span><span class="p">[</span><span class="s2">"out_features"</span><span class="p">])</span>
+                <span class="n">in_features</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">counts</span><span class="p">[</span><span class="s2">"in_features"</span><span class="p">])</span>
+                <span class="n">candidate_slots</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">counts</span><span class="p">[</span><span class="s2">"candidate_slots"</span><span class="p">])</span>
+                <span class="n">active_synapses</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">counts</span><span class="p">[</span><span class="s2">"active_synapses"</span><span class="p">])</span>
+                <span class="n">realized_k_min</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">counts</span><span class="p">[</span><span class="s2">"realized_k_min"</span><span class="p">])</span>
+                <span class="n">realized_k_max</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">counts</span><span class="p">[</span><span class="s2">"realized_k_max"</span><span class="p">])</span>
+                <span class="n">realized_k_mean</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">counts</span><span class="p">[</span><span class="s2">"realized_k_mean"</span><span class="p">])</span>
+                <span class="n">selection_policy</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">counts</span><span class="p">[</span><span class="s2">"selection_policy"</span><span class="p">])</span>
+                <span class="n">mask_source</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">counts</span><span class="p">[</span><span class="s2">"mask_source"</span><span class="p">])</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">snapshot</span> <span class="o">=</span> <span class="n">effective_synapse_snapshot</span><span class="p">(</span><span class="n">synapse</span><span class="p">)</span>
+                <span class="n">realized_k</span> <span class="o">=</span> <span class="n">snapshot</span><span class="o">.</span><span class="n">realized_k</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+                <span class="n">out_features</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">snapshot</span><span class="o">.</span><span class="n">active_mask</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+                <span class="n">in_features</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">snapshot</span><span class="o">.</span><span class="n">active_mask</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+                <span class="n">candidate_slots</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">snapshot</span><span class="o">.</span><span class="n">candidate_mask</span><span class="o">.</span><span class="n">ne</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
+                <span class="n">active_synapses</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">snapshot</span><span class="o">.</span><span class="n">active_mask</span><span class="o">.</span><span class="n">ne</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
+                <span class="n">realized_k_min</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">realized_k</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
+                <span class="n">realized_k_max</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">realized_k</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
+                <span class="n">realized_k_mean</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">realized_k</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
+                <span class="n">selection_policy</span> <span class="o">=</span> <span class="n">snapshot</span><span class="o">.</span><span class="n">selection_policy</span>
+                <span class="n">mask_source</span> <span class="o">=</span> <span class="n">snapshot</span><span class="o">.</span><span class="n">mask_source</span>
+            <span class="n">records</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="n">SynapseResourceRecord</span><span class="p">(</span>
+                    <span class="n">module</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">branch_name</span><span class="si">}</span><span class="s2">.</span><span class="si">{</span><span class="n">attr</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
+                    <span class="n">pathway</span><span class="o">=</span><span class="n">pathway</span><span class="p">,</span>
+                    <span class="n">soma_relative_depth</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">depth</span><span class="p">),</span>
+                    <span class="n">out_features</span><span class="o">=</span><span class="n">out_features</span><span class="p">,</span>
+                    <span class="n">in_features</span><span class="o">=</span><span class="n">in_features</span><span class="p">,</span>
+                    <span class="n">candidate_parameters</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span>
+                        <span class="nb">sum</span><span class="p">(</span><span class="n">parameter</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span> <span class="k">for</span> <span class="n">parameter</span> <span class="ow">in</span> <span class="n">synapse</span><span class="o">.</span><span class="n">parameters</span><span class="p">())</span>
+                    <span class="p">),</span>
+                    <span class="n">candidate_slots</span><span class="o">=</span><span class="n">candidate_slots</span><span class="p">,</span>
+                    <span class="n">active_synapses</span><span class="o">=</span><span class="n">active_synapses</span><span class="p">,</span>
+                    <span class="n">realized_k_min</span><span class="o">=</span><span class="n">realized_k_min</span><span class="p">,</span>
+                    <span class="n">realized_k_max</span><span class="o">=</span><span class="n">realized_k_max</span><span class="p">,</span>
+                    <span class="n">realized_k_mean</span><span class="o">=</span><span class="n">realized_k_mean</span><span class="p">,</span>
+                    <span class="n">selection_policy</span><span class="o">=</span><span class="n">selection_policy</span><span class="p">,</span>
+                    <span class="n">mask_source</span><span class="o">=</span><span class="n">mask_source</span><span class="p">,</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+    <span class="k">return</span> <span class="n">records</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_dense_candidate_topk_resource_counts</span><span class="p">(</span>
+    <span class="n">synapse</span><span class="p">:</span> <span class="n">TopKLinear</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">|</span> <span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Count deterministic dense-candidate Top-K support without a dense mask."""</span>
+
+    <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">synapse</span><span class="p">)</span> <span class="ow">is</span> <span class="n">DenseToSparseLinear</span><span class="p">:</span>
+        <span class="n">selected_k</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">synapse</span><span class="o">.</span><span class="n">current_k</span><span class="p">)</span>
+        <span class="n">selection_policy</span> <span class="o">=</span> <span class="s2">"dense_to_sparse"</span>
+    <span class="k">elif</span> <span class="nb">type</span><span class="p">(</span><span class="n">synapse</span><span class="p">)</span> <span class="ow">is</span> <span class="n">TopKLinear</span><span class="p">:</span>
+        <span class="n">selected_k</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">synapse</span><span class="o">.</span><span class="n">K</span><span class="p">)</span>
+        <span class="n">selection_policy</span> <span class="o">=</span> <span class="s2">"topk"</span>
+    <span class="k">else</span><span class="p">:</span>  <span class="c1"># pragma: no cover - guarded by the caller</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">synapse</span><span class="p">))</span>
+
+    <span class="n">allowed_mask</span> <span class="o">=</span> <span class="n">synapse</span><span class="o">.</span><span class="n">connection_mask</span>
+    <span class="n">forbidden</span> <span class="o">=</span> <span class="n">synapse</span><span class="o">.</span><span class="n">_forbidden_input_index_per_output</span>
+    <span class="k">if</span> <span class="n">allowed_mask</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">allowed_per_output</span> <span class="o">=</span> <span class="n">allowed_mask</span><span class="o">.</span><span class="n">count_nonzero</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">forbidden</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">valid</span> <span class="o">=</span> <span class="n">forbidden</span> <span class="o">&gt;=</span> <span class="mi">0</span>
+            <span class="k">if</span> <span class="nb">bool</span><span class="p">(</span><span class="n">valid</span><span class="o">.</span><span class="n">any</span><span class="p">()):</span>
+                <span class="n">rows</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">synapse</span><span class="o">.</span><span class="n">out_features</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">forbidden</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+                <span class="n">forbidden_allowed</span> <span class="o">=</span> <span class="n">allowed_mask</span><span class="p">[</span>
+                    <span class="n">rows</span><span class="p">[</span><span class="n">valid</span><span class="p">],</span>
+                    <span class="n">forbidden</span><span class="p">[</span><span class="n">valid</span><span class="p">]</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">),</span>
+                <span class="p">]</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">)</span>
+                <span class="n">allowed_per_output</span><span class="p">[</span><span class="n">valid</span><span class="p">]</span> <span class="o">-=</span> <span class="n">forbidden_allowed</span>
+        <span class="n">mask_source</span> <span class="o">=</span> <span class="s2">"structured_candidate_mask"</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">allowed_per_output</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">full</span><span class="p">(</span>
+            <span class="p">(</span><span class="n">synapse</span><span class="o">.</span><span class="n">out_features</span><span class="p">,),</span>
+            <span class="n">synapse</span><span class="o">.</span><span class="n">in_features</span><span class="p">,</span>
+            <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">,</span>
+            <span class="n">device</span><span class="o">=</span><span class="n">synapse</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">forbidden</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">allowed_per_output</span> <span class="o">-=</span> <span class="p">(</span><span class="n">forbidden</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span>
+                <span class="n">device</span><span class="o">=</span><span class="n">allowed_per_output</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+                <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="n">mask_source</span> <span class="o">=</span> <span class="s2">"dense_candidates"</span>
+    <span class="n">realized</span> <span class="o">=</span> <span class="n">allowed_per_output</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="nb">max</span><span class="o">=</span><span class="n">selected_k</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s2">"out_features"</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">synapse</span><span class="o">.</span><span class="n">out_features</span><span class="p">),</span>
+        <span class="s2">"in_features"</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">synapse</span><span class="o">.</span><span class="n">in_features</span><span class="p">),</span>
+        <span class="s2">"candidate_slots"</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">allowed_per_output</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">()),</span>
+        <span class="s2">"active_synapses"</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">realized</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">()),</span>
+        <span class="s2">"realized_k_min"</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">realized</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">()),</span>
+        <span class="s2">"realized_k_max"</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">realized</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">()),</span>
+        <span class="s2">"realized_k_mean"</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">realized</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">()),</span>
+        <span class="s2">"selection_policy"</span><span class="p">:</span> <span class="n">selection_policy</span><span class="p">,</span>
+        <span class="s2">"mask_source"</span><span class="p">:</span> <span class="n">mask_source</span><span class="p">,</span>
+    <span class="p">}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_tensor_tree_numel</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">seen</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">int</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">id</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="ow">in</span> <span class="n">seen</span><span class="p">:</span>
+            <span class="k">return</span> <span class="mi">0</span>
+        <span class="n">seen</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="nb">id</span><span class="p">(</span><span class="n">value</span><span class="p">))</span>
+        <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">numel</span><span class="p">())</span>
+    <span class="k">if</span> <span class="n">is_dataclass</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">type</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">sum</span><span class="p">(</span>
+            <span class="n">_tensor_tree_numel</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">field</span><span class="o">.</span><span class="n">name</span><span class="p">),</span> <span class="n">seen</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">field</span> <span class="ow">in</span> <span class="n">fields</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">sum</span><span class="p">(</span><span class="n">_tensor_tree_numel</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="n">seen</span><span class="p">)</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">value</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)):</span>
+        <span class="k">return</span> <span class="nb">sum</span><span class="p">(</span><span class="n">_tensor_tree_numel</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="n">seen</span><span class="p">)</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">value</span><span class="p">)</span>
+    <span class="k">return</span> <span class="mi">0</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">persistent_state_scalars</span><span class="p">(</span><span class="n">core</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Count recurrent state scalars retained per sample between timesteps."""</span>
+
+    <span class="n">init_state</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">core</span><span class="p">,</span> <span class="s2">"init_state"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">callable</span><span class="p">(</span><span class="n">init_state</span><span class="p">):</span>
+        <span class="n">state</span> <span class="o">=</span> <span class="n">init_state</span><span class="p">(</span>
+            <span class="n">batch_size</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+            <span class="n">device</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">device</span><span class="p">(</span><span class="s2">"cpu"</span><span class="p">),</span>
+            <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">_tensor_tree_numel</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="nb">set</span><span class="p">())</span>
+
+    <span class="n">config</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">core</span><span class="p">,</span> <span class="s2">"config"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">cell_type</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="s2">"cell_type"</span><span class="p">,</span> <span class="s2">""</span><span class="p">))</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+    <span class="n">hidden_dim</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="s2">"hidden_dim"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="ow">or</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="n">num_layers</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="s2">"num_layers"</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="ow">or</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">cell_type</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">"vanilla"</span><span class="p">,</span> <span class="s2">"gru"</span><span class="p">}:</span>
+        <span class="k">return</span> <span class="n">hidden_dim</span> <span class="o">*</span> <span class="n">num_layers</span>
+    <span class="k">if</span> <span class="n">cell_type</span> <span class="o">==</span> <span class="s2">"lstm"</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">hidden_dim</span> <span class="o">*</span> <span class="n">num_layers</span>
+    <span class="k">return</span> <span class="mi">0</span>
+
+
+<div class="viewcode-block" id="topk_parameter_inventory">
+<a class="viewcode-back" href="../../../../api_reference.html#dendritic_modeling.analysis.utils.model_resources.topk_parameter_inventory">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">topk_parameter_inventory</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Count trainable storage versus retained dense-candidate Top-K weights.</span>
+
+<span class="sd">    Works for conventional affine controls as well as dendritic models. Other</span>
+<span class="sd">    parameter families are counted at their stored size; dynamic indexed or</span>
+<span class="sd">    scheduled sparse policies require their own resource records. This is a</span>
+<span class="sd">    parameter count, not a claim about executable bytes or runtime.</span>
+<span class="sd">    """</span>
+
+    <span class="n">stored</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">parameters</span><span class="p">()</span> <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">requires_grad</span><span class="p">)</span>
+    <span class="n">candidate</span> <span class="o">=</span> <span class="n">retained</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">seen</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">module</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">modules</span><span class="p">():</span>
+        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">module</span><span class="p">)</span> <span class="ow">is</span> <span class="n">TopKLinear</span> <span class="ow">and</span> <span class="n">module</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">requires_grad</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">id</span><span class="p">(</span><span class="n">module</span><span class="o">.</span><span class="n">pre_w</span><span class="p">)</span> <span class="ow">in</span> <span class="n">seen</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s2">"Shared Top-K weights require an explicit support accounting policy"</span>
+                <span class="p">)</span>
+            <span class="n">seen</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="nb">id</span><span class="p">(</span><span class="n">module</span><span class="o">.</span><span class="n">pre_w</span><span class="p">))</span>
+            <span class="n">candidate</span> <span class="o">+=</span> <span class="n">module</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span>
+            <span class="n">retained</span> <span class="o">+=</span> <span class="nb">int</span><span class="p">(</span>
+                <span class="n">_dense_candidate_topk_resource_counts</span><span class="p">(</span><span class="n">module</span><span class="p">)[</span><span class="s2">"active_synapses"</span><span class="p">]</span>
+            <span class="p">)</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s2">"training_parameters"</span><span class="p">:</span> <span class="n">stored</span><span class="p">,</span>
+        <span class="s2">"candidate_weights"</span><span class="p">:</span> <span class="n">candidate</span><span class="p">,</span>
+        <span class="s2">"retained_parameters"</span><span class="p">:</span> <span class="n">stored</span> <span class="o">-</span> <span class="n">candidate</span> <span class="o">+</span> <span class="n">retained</span><span class="p">,</span>
+        <span class="s2">"buffer_bytes"</span><span class="p">:</span> <span class="nb">sum</span><span class="p">(</span>
+            <span class="n">value</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span> <span class="o">*</span> <span class="n">value</span><span class="o">.</span><span class="n">element_size</span><span class="p">()</span> <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">buffers</span><span class="p">()</span>
+        <span class="p">),</span>
+    <span class="p">}</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">model_resource_summary</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Return auditable parameter, connectivity, and state accounting.</span>
+
+<span class="sd">    Connectivity is counted for the evaluation-mode model, whose stochastic</span>
+<span class="sd">    selectors use their deterministic top-K masks.</span>
+<span class="sd">    """</span>
+
+    <span class="n">core</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="s2">"core_network"</span><span class="p">,</span> <span class="n">model</span><span class="p">)</span>
+    <span class="n">modes</span> <span class="o">=</span> <span class="p">{</span><span class="n">module</span><span class="p">:</span> <span class="n">module</span><span class="o">.</span><span class="n">training</span> <span class="k">for</span> <span class="n">module</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">modules</span><span class="p">()}</span>
+    <span class="n">model</span><span class="o">.</span><span class="n">eval</span><span class="p">()</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">records</span> <span class="o">=</span> <span class="n">synapse_resource_records</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">module</span><span class="p">,</span> <span class="n">training</span> <span class="ow">in</span> <span class="n">modes</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">module</span><span class="o">.</span><span class="n">training</span> <span class="o">=</span> <span class="n">training</span>
+    <span class="n">record_provider</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">core</span><span class="p">,</span> <span class="s2">"connectivity_resource_records"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">callable</span><span class="p">(</span><span class="n">record_provider</span><span class="p">):</span>
+        <span class="n">provided</span> <span class="o">=</span> <span class="n">record_provider</span><span class="p">()</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">provided</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">"connectivity_resource_records() must return a list"</span><span class="p">)</span>
+        <span class="n">records</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span>
+            <span class="p">(</span>
+                <span class="n">record</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">record</span><span class="p">,</span> <span class="n">SynapseResourceRecord</span><span class="p">)</span>
+                <span class="k">else</span> <span class="n">SynapseResourceRecord</span><span class="p">(</span><span class="o">**</span><span class="n">record</span><span class="p">)</span>
+            <span class="p">)</span>
+            <span class="k">for</span> <span class="n">record</span> <span class="ow">in</span> <span class="n">provided</span>
+        <span class="p">)</span>
+    <span class="n">total_parameters</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">sum</span><span class="p">(</span><span class="n">parameter</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span> <span class="k">for</span> <span class="n">parameter</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">parameters</span><span class="p">()))</span>
+    <span class="n">trainable_parameters</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span>
+        <span class="nb">sum</span><span class="p">(</span>
+            <span class="n">parameter</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span>
+            <span class="k">for</span> <span class="n">parameter</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">parameters</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">parameter</span><span class="o">.</span><span class="n">requires_grad</span>
+        <span class="p">)</span>
+    <span class="p">)</span>
+    <span class="n">core_total_parameters</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span>
+        <span class="nb">sum</span><span class="p">(</span><span class="n">parameter</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span> <span class="k">for</span> <span class="n">parameter</span> <span class="ow">in</span> <span class="n">core</span><span class="o">.</span><span class="n">parameters</span><span class="p">())</span>
+    <span class="p">)</span>
+    <span class="n">core_trainable_parameters</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span>
+        <span class="nb">sum</span><span class="p">(</span>
+            <span class="n">parameter</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span>
+            <span class="k">for</span> <span class="n">parameter</span> <span class="ow">in</span> <span class="n">core</span><span class="o">.</span><span class="n">parameters</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">parameter</span><span class="o">.</span><span class="n">requires_grad</span>
+        <span class="p">)</span>
+    <span class="p">)</span>
+    <span class="n">synapse_candidate_parameters</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span>
+        <span class="nb">sum</span><span class="p">(</span><span class="n">record</span><span class="o">.</span><span class="n">candidate_parameters</span> <span class="k">for</span> <span class="n">record</span> <span class="ow">in</span> <span class="n">records</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="n">summary</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">"total_parameters"</span><span class="p">:</span> <span class="n">total_parameters</span><span class="p">,</span>
+        <span class="s2">"trainable_parameters"</span><span class="p">:</span> <span class="n">trainable_parameters</span><span class="p">,</span>
+        <span class="s2">"core_total_parameters"</span><span class="p">:</span> <span class="n">core_total_parameters</span><span class="p">,</span>
+        <span class="s2">"core_trainable_parameters"</span><span class="p">:</span> <span class="n">core_trainable_parameters</span><span class="p">,</span>
+        <span class="s2">"synapse_candidate_parameters"</span><span class="p">:</span> <span class="n">synapse_candidate_parameters</span><span class="p">,</span>
+        <span class="s2">"non_synaptic_parameters"</span><span class="p">:</span> <span class="n">total_parameters</span> <span class="o">-</span> <span class="n">synapse_candidate_parameters</span><span class="p">,</span>
+        <span class="s2">"candidate_synapse_slots"</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span>
+            <span class="nb">sum</span><span class="p">(</span><span class="n">record</span><span class="o">.</span><span class="n">candidate_slots</span> <span class="k">for</span> <span class="n">record</span> <span class="ow">in</span> <span class="n">records</span><span class="p">)</span>
+        <span class="p">),</span>
+        <span class="s2">"active_synapses"</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="nb">sum</span><span class="p">(</span><span class="n">record</span><span class="o">.</span><span class="n">active_synapses</span> <span class="k">for</span> <span class="n">record</span> <span class="ow">in</span> <span class="n">records</span><span class="p">)),</span>
+        <span class="s2">"persistent_state_scalars_per_sample"</span><span class="p">:</span> <span class="n">persistent_state_scalars</span><span class="p">(</span><span class="n">core</span><span class="p">),</span>
+        <span class="s2">"synapses"</span><span class="p">:</span> <span class="p">[</span><span class="n">asdict</span><span class="p">(</span><span class="n">record</span><span class="p">)</span> <span class="k">for</span> <span class="n">record</span> <span class="ow">in</span> <span class="n">records</span><span class="p">],</span>
+    <span class="p">}</span>
+    <span class="n">ledger_provider</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">core</span><span class="p">,</span> <span class="s2">"resource_ledger"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">callable</span><span class="p">(</span><span class="n">ledger_provider</span><span class="p">):</span>
+        <span class="n">summary</span><span class="p">[</span><span class="s2">"mechanism_ledger"</span><span class="p">]</span> <span class="o">=</span> <span class="n">ledger_provider</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">summary</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s2">"StaticDendriticResourceSummary"</span><span class="p">,</span>
+    <span class="s2">"SynapseResourceRecord"</span><span class="p">,</span>
+    <span class="s2">"dendritic_level_widths"</span><span class="p">,</span>
+    <span class="s2">"model_resource_summary"</span><span class="p">,</span>
+    <span class="s2">"persistent_state_scalars"</span><span class="p">,</span>
+    <span class="s2">"static_dendritic_resource_summary"</span><span class="p">,</span>
+    <span class="s2">"synapse_resource_records"</span><span class="p">,</span>
+    <span class="s2">"topk_parameter_inventory"</span><span class="p">,</span>
+<span class="p">]</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024-2026, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

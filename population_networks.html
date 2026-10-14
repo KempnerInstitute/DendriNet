@@ -1,0 +1,2218 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Population networks &mdash; DendriNet v0.2.0</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=938c9ccc"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Temporal dynamics" href="temporal_dynamics.html" />
+    <link rel="prev" title="Synapses and connectivity" href="synapses.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            DendriNet
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Example configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Building models</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="network_architectures.html">Model architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dendritic_neurons.html">Dendritic neurons</a></li>
+<li class="toctree-l1"><a class="reference internal" href="synapses.html">Synapses and connectivity</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Population networks</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#layers-populations-and-connections">Layers, populations and connections</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#how-a-layer-computes">How a layer computes</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#connections">Connections</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#external-input-streams">External input streams</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#cross-layer-sources">Cross-layer sources</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#timing">Timing</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#pathways-and-synapse-counts">Pathways and synapse counts</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#probability-masks-and-seeds">Probability masks and seeds</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#dendritic-target-levels">Dendritic target levels</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#connection-masks-and-structured-connectivity">Connection masks and structured connectivity</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#named-populations">Named populations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#temporal-constants-and-delays">Temporal constants and delays</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#options-reference">Options reference</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#network-fields">Network fields</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#layer-fields">Layer fields</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id2">Population options</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#configuration-choices">Configuration choices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#components-and-code-map">Components and code map</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#examples">Examples</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="temporal_dynamics.html">Temporal dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="structured_ei_cores.html">Structured E/I cores</a></li>
+<li class="toctree-l1"><a class="reference internal" href="conductance_options.html">Conductance options</a></li>
+<li class="toctree-l1"><a class="reference internal" href="comparison_models.html">Baselines and comparison models</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Configuration</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="configuration_guide.html">Configuration guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config_reference.html">Annotated reference configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="training_strategies.html">Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="distributed_training.html">Distributed training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="performance_kernels.html">Sparse execution and performance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Data and analysis</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="datasets.html">Datasets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="analysis.html">Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="analyzers.html">Analyzer reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="checkpoint_analysis.html">Analyzing saved checkpoints</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Running experiments</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="runs_and_outputs.html">Runs and outputs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sweeps.html">Parameter sweeps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="model_compression.html">Compact checkpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="project_provenance.html">Project provenance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="available_components.html">Component catalogue</a></li>
+<li class="toctree-l1"><a class="reference internal" href="options_reference.html">Options reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cli_reference.html">Command-line reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api_reference.html">Python API</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="extending.html">Extending DendriNet</a></li>
+<li class="toctree-l1"><a class="reference internal" href="engineering_architecture.html">Engineering architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">DendriNet</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Population networks</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/population_networks.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="population-networks">
+<span id="id1"></span><h1>Population networks<a class="headerlink" href="#population-networks" title="Link to this heading"></a></h1>
+<p>A population network (<code class="docutils literal notranslate"><span class="pre">model.core.type:</span> <span class="pre">population_network</span></code>) builds the
+model core from ordered layers of named dendritic populations that are joined
+by explicit, directed connections. The same notation describes a single
+feedforward E/I layer, several cell classes with their own morphologies,
+multilayer routing and recurrent microcircuits. This page covers the schema,
+the connection rules, every population option and the timing controls.
+Receptor kinetics, spiking somata, dendritic spikes and soma-to-dendrite
+feedback are described in <a class="reference internal" href="temporal_dynamics.html"><span class="doc">Temporal dynamics</span></a>.</p>
+<section id="layers-populations-and-connections">
+<h2>Layers, populations and connections<a class="headerlink" href="#layers-populations-and-connections" title="Link to this heading"></a></h2>
+<p>A population-network core reads only <code class="docutils literal notranslate"><span class="pre">model.core.population_network</span></code>, apart
+from <code class="docutils literal notranslate"><span class="pre">model.core.type</span></code>, <code class="docutils literal notranslate"><span class="pre">model.core.initialization_seed</span></code> and
+<code class="docutils literal notranslate"><span class="pre">model.core.biological_neuron</span></code> (see <a class="reference internal" href="network_architectures.html#biological-constraints"><span class="std std-ref">Biological constraints</span></a>). Any other
+<code class="docutils literal notranslate"><span class="pre">model.core</span></code> section written with a non-default value, for example
+<code class="docutils literal notranslate"><span class="pre">model.core.morphology</span></code> or <code class="docutils literal notranslate"><span class="pre">model.core.sparsity</span></code>, raises when the
+configuration loads; the corresponding settings are population options (see
+<a class="reference internal" href="#population-options"><span class="std std-ref">Options reference</span></a>). The network has four kinds of parts:</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">layers[]</span></code></dt><dd><p>Layers run in order. Each layer contains populations and the connections
+into them, and outputs the activity of its readout population.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">layers[].populations[]</span></code></dt><dd><p>Named groups of dendritic neurons. Each population has a polarity
+(<code class="docutils literal notranslate"><span class="pre">excitatory</span></code> or <code class="docutils literal notranslate"><span class="pre">inhibitory</span></code>), a number of neurons and a dendritic
+morphology (<code class="docutils literal notranslate"><span class="pre">branch_factors</span></code>, see <a class="reference internal" href="dendritic_neurons.html#dendritic-tree"><span class="std std-ref">The dendritic tree</span></a>).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">layers[].connections[]</span></code></dt><dd><p>Directed records from a source (the network input, a population of the same
+layer or a population of another layer) to a population of the layer, read
+either in the same timestep or from the previous timestep.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">layers[].population_defaults</span></code> and <code class="docutils literal notranslate"><span class="pre">layers[].populations[].population</span></code></dt><dd><p>Population options: synapse counts, integration rule, reactivation gates,
+sparse synapse type, time constants and temporal dynamics.</p>
+</dd>
+</dl>
+<p>The feedforward E/I layer consists of one inhibitory and one excitatory
+population. The input drives both, and the inhibitory population inhibits the
+excitatory one:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">core</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">population_network</span>
+<span class="w">    </span><span class="nt">population_network</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">layers</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">layer0</span>
+<span class="w">          </span><span class="nt">readout_population</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">e</span>
+<span class="w">          </span><span class="nt">population_defaults</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">ff_excitatory_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8</span>
+<span class="w">            </span><span class="nt">ff_inhibitory_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
+<span class="w">          </span><span class="nt">populations</span><span class="p">:</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">i</span><span class="p p-Indicator">,</span><span class="nt"> polarity</span><span class="p">:</span><span class="w"> </span><span class="nv">inhibitory</span><span class="p p-Indicator">,</span><span class="nt"> n_neurons</span><span class="p">:</span><span class="w"> </span><span class="nv">32</span><span class="p p-Indicator">,</span><span class="nt"> branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">1</span><span class="p p-Indicator">]}</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">e</span><span class="p p-Indicator">,</span><span class="nt"> polarity</span><span class="p">:</span><span class="w"> </span><span class="nv">excitatory</span><span class="p p-Indicator">,</span><span class="nt"> n_neurons</span><span class="p">:</span><span class="w"> </span><span class="nv">128</span><span class="p p-Indicator">,</span><span class="nt"> branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">4</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">4</span><span class="p p-Indicator">]}</span>
+<span class="w">          </span><span class="nt">connections</span><span class="p">:</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">input</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">i</span><span class="p p-Indicator">}</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">input</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">e</span><span class="p p-Indicator">}</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">i</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">e</span><span class="p p-Indicator">}</span>
+</pre></div>
+</div>
+<figure class="align-default" id="id3">
+<a class="reference internal image-reference" href="_images/population-network.svg"><img alt="Two-layer population network with named excitatory and inhibitory populations, same-step connections, cross-layer sources and a delayed feedback connection" src="_images/population-network.svg" style="width: 100%;" />
+</a>
+<figcaption>
+<p><span class="caption-text">A two-layer population network. <code class="docutils literal notranslate"><span class="pre">layer0</span></code> holds two excitatory populations
+(<code class="docutils literal notranslate"><span class="pre">e0</span></code> with <code class="docutils literal notranslate"><span class="pre">branch_factors:</span> <span class="pre">[3,</span> <span class="pre">3]</span></code> and <code class="docutils literal notranslate"><span class="pre">e_flat</span></code> with <code class="docutils literal notranslate"><span class="pre">[1]</span></code>) and two
+inhibitory populations (<code class="docutils literal notranslate"><span class="pre">pv0</span></code> and <code class="docutils literal notranslate"><span class="pre">sst0</span></code>); the network input, or the
+transfer streams <code class="docutils literal notranslate"><span class="pre">input_e</span></code> and <code class="docutils literal notranslate"><span class="pre">input_i</span></code>, drives it. <code class="docutils literal notranslate"><span class="pre">layer1</span></code> reads
+<code class="docutils literal notranslate"><span class="pre">layer0</span></code> populations through qualified sources. Lines ending in an
+arrowhead are excitatory connections, lines ending in a bar are inhibitory
+connections, and the dashed line is a delayed connection from <code class="docutils literal notranslate"><span class="pre">e1</span></code> back to
+<code class="docutils literal notranslate"><span class="pre">e0</span></code>, which requires <code class="docutils literal notranslate"><span class="pre">recurrent:</span> <span class="pre">true</span></code> on <code class="docutils literal notranslate"><span class="pre">layer0</span></code>. The readout
+population of the last layer feeds the decoder. The panels below the
+diagram summarize the connection fields, the population fields and how
+synapse counts and masks combine; the last panel lists settings that several
+examples use, not the defaults.</span><a class="headerlink" href="#id3" title="Link to this image"></a></p>
+</figcaption>
+</figure>
+<section id="how-a-layer-computes">
+<h3>How a layer computes<a class="headerlink" href="#how-a-layer-computes" title="Link to this heading"></a></h3>
+<p>Each population has up to four input streams: the same-step streams
+<code class="docutils literal notranslate"><span class="pre">ff_excitatory</span></code> and <code class="docutils literal notranslate"><span class="pre">ff_inhibitory</span></code>, and the delayed (previous-timestep)
+streams <code class="docutils literal notranslate"><span class="pre">rec_excitatory</span></code> and <code class="docutils literal notranslate"><span class="pre">rec_inhibitory</span></code>. A connection adds its source
+to one stream of its target: the network input and excitatory populations
+enter an excitatory stream, inhibitory populations an inhibitory stream. The
+sources of a stream are concatenated, and every dendritic compartment of the
+target selects a fixed number of synapses from them, set by
+<code class="docutils literal notranslate"><span class="pre">ff_excitatory_synapses</span></code>, <code class="docutils literal notranslate"><span class="pre">ff_inhibitory_synapses</span></code>,
+<code class="docutils literal notranslate"><span class="pre">rec_excitatory_synapses</span></code> and <code class="docutils literal notranslate"><span class="pre">rec_inhibitory_synapses</span></code>. The sparse synapse
+type (<code class="docutils literal notranslate"><span class="pre">topk_type</span></code>, see <a class="reference internal" href="synapses.html#synapse-variants"><span class="std std-ref">Sparse synapse types</span></a>) decides how the synapses are
+chosen; connection masks decide which source units are eligible.</p>
+<p>The populations of a layer run in the order of their same-step connections,
+sources before targets. The output of a layer is the output of its readout
+population (<code class="docutils literal notranslate"><span class="pre">readout_population</span></code>, by default the first excitatory
+population), and the next layer receives it as <code class="docutils literal notranslate"><span class="pre">input</span></code>. The network output
+is the readout population of the readout layer (<code class="docutils literal notranslate"><span class="pre">readout_layer</span></code>, by default
+the last layer), which feeds the decoder.</p>
+<p>When the configuration loads, the structure of the network is checked: every
+layer needs an excitatory population, every population needs at least one
+enabled same-step connection into its <code class="docutils literal notranslate"><span class="pre">ff_excitatory</span></code> stream, names must be
+unique (population names within their layer) and must not contain a dot, and
+connection sources, targets, timing, pathways and probabilities must be valid.
+The keys and values of layers, populations, connections and population options
+are checked when the model is built, so a misspelled key there fails only at
+build time. <code class="docutils literal notranslate"><span class="pre">dendritic-train</span> <span class="pre">config.yaml</span> <span class="pre">--validate-only</span></code> builds the model,
+datasets and trainer without training and reports these errors early (see
+<a class="reference internal" href="configuration_guide.html#strict-loader"><span class="std std-ref">How configs are checked</span></a>).</p>
+<p>Several mechanisms restrict or shape the input of a population. They act at
+different levels and combine:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 22.0%" />
+<col style="width: 30.0%" />
+<col style="width: 48.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Mechanism</p></th>
+<th class="head"><p>Where it is set</p></th>
+<th class="head"><p>What it decides</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Population</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">layers[].populations[]</span></code></p></td>
+<td><p>Who the neurons are: polarity, number, morphology and options.</p></td>
+</tr>
+<tr class="row-odd"><td><p>Connection</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">layers[].connections[]</span></code></p></td>
+<td><p>Which source may drive which population, in which timestep, and an
+optional probability mask over source-target pairs.</p></td>
+</tr>
+<tr class="row-even"><td><p>Structured connectivity</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">structured_connectivity</span></code> population option</p></td>
+<td><p>Masks over individual presynaptic units of a pathway, independent of
+population names (see <a class="reference internal" href="synapses.html#structured-connectivity"><span class="std std-ref">Structured connectivity</span></a>).</p></td>
+</tr>
+<tr class="row-odd"><td><p>Receptor (synapse) type</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">synapse_types</span></code> population option</p></td>
+<td><p>How the selected excitatory or inhibitory input is filtered in time
+(see <a class="reference internal" href="temporal_dynamics.html#synapse-types"><span class="std std-ref">Receptor synapse types</span></a>). It does not create a population.</p></td>
+</tr>
+<tr class="row-even"><td><p>Soma dynamics</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">dynamics_mode</span></code> population option</p></td>
+<td><p>Whether a population emits a rate or spikes (see <a class="reference internal" href="temporal_dynamics.html#spiking-soma"><span class="std std-ref">Spiking soma</span></a>).</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="connections">
+<span id="population-connections"></span><h2>Connections<a class="headerlink" href="#connections" title="Link to this heading"></a></h2>
+<p>Each entry of <code class="docutils literal notranslate"><span class="pre">model.core.population_network.layers[].connections</span></code> is one
+directed connection into a population of that layer:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 18.0%" />
+<col style="width: 20.0%" />
+<col style="width: 62.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Field</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">source</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">input</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">input</span></code>, <code class="docutils literal notranslate"><span class="pre">input_e</span></code>, <code class="docutils literal notranslate"><span class="pre">input_i</span></code>, the name of a population of the
+same layer, or <code class="docutils literal notranslate"><span class="pre">layer_name.population_name</span></code> for a population of
+another layer.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">target</span></code></p></td>
+<td><p>required</p></td>
+<td><p>Name of a population of this layer.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">timing</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">same_step</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">same_step</span></code> reads the source in the current timestep; <code class="docutils literal notranslate"><span class="pre">delayed</span></code>
+reads its output from the previous timestep.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">pathway</span></code></p></td>
+<td><p>from the source</p></td>
+<td><p>Input stream of the target: <code class="docutils literal notranslate"><span class="pre">ff_excitatory</span></code> or <code class="docutils literal notranslate"><span class="pre">ff_inhibitory</span></code> for
+same-step connections, <code class="docutils literal notranslate"><span class="pre">rec_excitatory</span></code> or <code class="docutils literal notranslate"><span class="pre">rec_inhibitory</span></code> for
+delayed ones. When omitted, the polarity of the source decides.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">enabled</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code> removes the connection; it is still checked.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">probability</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">null</span></code> (all pairs)</p></td>
+<td><p>Probability of each compartment-source pair in a fixed random mask.
+<code class="docutils literal notranslate"><span class="pre">p_connect</span></code> is accepted as another name.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">seed</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">null</span></code></p></td>
+<td><p>Seed of this connection’s mask; overrides the layer’s
+<code class="docutils literal notranslate"><span class="pre">connection_seed</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">target_levels</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">null</span></code> (all levels)</p></td>
+<td><p>Dendritic levels of the target that the connection may contact:
+<code class="docutils literal notranslate"><span class="pre">soma</span></code>, <code class="docutils literal notranslate"><span class="pre">primary</span></code>, <code class="docutils literal notranslate"><span class="pre">distal</span></code>, or depths counted from the soma
+(<code class="docutils literal notranslate"><span class="pre">0</span></code> is the soma).</p></td>
+</tr>
+</tbody>
+</table>
+<p>A connection whose <code class="docutils literal notranslate"><span class="pre">source</span></code>, <code class="docutils literal notranslate"><span class="pre">target</span></code>, <code class="docutils literal notranslate"><span class="pre">timing</span></code> and <code class="docutils literal notranslate"><span class="pre">pathway</span></code> repeat an
+earlier connection of the layer raises.</p>
+<section id="external-input-streams">
+<h3>External input streams<a class="headerlink" href="#external-input-streams" title="Link to this heading"></a></h3>
+<p>The first layer reads the network input through three source names:</p>
+<ul class="simple">
+<li><p>Without a transfer layer (<code class="docutils literal notranslate"><span class="pre">use_transfer:</span> <span class="pre">false</span></code>, the default) <code class="docutils literal notranslate"><span class="pre">input</span></code>,
+<code class="docutils literal notranslate"><span class="pre">input_e</span></code> and <code class="docutils literal notranslate"><span class="pre">input_i</span></code> are the same tensor. <code class="docutils literal notranslate"><span class="pre">input</span></code> and <code class="docutils literal notranslate"><span class="pre">input_e</span></code>
+enter the target’s excitatory stream and <code class="docutils literal notranslate"><span class="pre">input_i</span></code> its inhibitory stream,
+so a population that reads <code class="docutils literal notranslate"><span class="pre">input</span></code> and <code class="docutils literal notranslate"><span class="pre">input_i</span></code> receives every input
+channel as both excitation and inhibition.</p></li>
+<li><p>With <code class="docutils literal notranslate"><span class="pre">use_transfer:</span> <span class="pre">true</span></code> the transfer layer turns the input into an
+excitatory and an inhibitory stream (see <a class="reference internal" href="structured_ei_cores.html#transfer-layer"><span class="std std-ref">TransferLayer</span></a>).
+<code class="docutils literal notranslate"><span class="pre">input_e</span></code> is the excitatory stream and <code class="docutils literal notranslate"><span class="pre">input_i</span></code> the inhibitory stream;
+<code class="docutils literal notranslate"><span class="pre">input</span></code> is the same as <code class="docutils literal notranslate"><span class="pre">input_e</span></code>.</p></li>
+</ul>
+<p><code class="docutils literal notranslate"><span class="pre">input_exc</span></code> and <code class="docutils literal notranslate"><span class="pre">input_excitatory</span></code> are accepted for <code class="docutils literal notranslate"><span class="pre">input_e</span></code>, and
+<code class="docutils literal notranslate"><span class="pre">input_inh</span></code> and <code class="docutils literal notranslate"><span class="pre">input_inhibitory</span></code> for <code class="docutils literal notranslate"><span class="pre">input_i</span></code>. <code class="docutils literal notranslate"><span class="pre">input_e</span></code> and
+<code class="docutils literal notranslate"><span class="pre">input_i</span></code> reach only the first layer, and naming them in a later layer
+raises. In a later layer, <code class="docutils literal notranslate"><span class="pre">input</span></code> is the readout population of the previous
+layer, and its synapses take that population’s polarity: an inhibitory readout
+population drives <code class="docutils literal notranslate"><span class="pre">ff_inhibitory</span></code> synapses. External sources cannot use
+<code class="docutils literal notranslate"><span class="pre">timing:</span> <span class="pre">delayed</span></code>.</p>
+<p>This first layer reads independent excitatory and inhibitory halves of a
+784-dimensional input:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">core</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">population_network</span>
+<span class="w">    </span><span class="nt">population_network</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">use_transfer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">transfer_params</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">independent_pathways</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">        </span><span class="nt">excitatory_dim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">392</span>
+<span class="w">        </span><span class="nt">inhibitory_dim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">392</span>
+<span class="w">      </span><span class="nt">layers</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">layer0</span>
+<span class="w">          </span><span class="nt">readout_population</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">e</span>
+<span class="w">          </span><span class="nt">populations</span><span class="p">:</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">i</span><span class="p p-Indicator">,</span><span class="nt"> polarity</span><span class="p">:</span><span class="w"> </span><span class="nv">inhibitory</span><span class="p p-Indicator">,</span><span class="nt"> n_neurons</span><span class="p">:</span><span class="w"> </span><span class="nv">32</span><span class="p p-Indicator">,</span><span class="nt"> branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">1</span><span class="p p-Indicator">]}</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">e</span><span class="p p-Indicator">,</span><span class="nt"> polarity</span><span class="p">:</span><span class="w"> </span><span class="nv">excitatory</span><span class="p p-Indicator">,</span><span class="nt"> n_neurons</span><span class="p">:</span><span class="w"> </span><span class="nv">128</span><span class="p p-Indicator">,</span><span class="nt"> branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">4</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">4</span><span class="p p-Indicator">]}</span>
+<span class="w">          </span><span class="nt">connections</span><span class="p">:</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">input_e</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">i</span><span class="p p-Indicator">}</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">input_e</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">e</span><span class="p p-Indicator">}</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">input_i</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">e</span><span class="p p-Indicator">}</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">i</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">e</span><span class="p p-Indicator">}</span>
+</pre></div>
+</div>
+<p>The input passes through three optional stages before it reaches the first
+layer, in this order:</p>
+<ol class="arabic simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">input_transform</span></code> adapts the encoder output: <code class="docutils literal notranslate"><span class="pre">identity</span></code> (default),
+<code class="docutils literal notranslate"><span class="pre">relu</span></code>, or <code class="docutils literal notranslate"><span class="pre">signed_split</span></code>, which writes the positive and negative parts
+of each feature as separate non-negative channels and doubles the input
+width.</p></li>
+<li><p>The transfer layer (<code class="docutils literal notranslate"><span class="pre">use_transfer</span></code> and <code class="docutils literal notranslate"><span class="pre">transfer_params</span></code>).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">input_projection_dims</span></code> adds linear layers, each followed by a ReLU. With
+a transfer layer they project <code class="docutils literal notranslate"><span class="pre">input</span></code> and <code class="docutils literal notranslate"><span class="pre">input_e</span></code> only; <code class="docutils literal notranslate"><span class="pre">input_i</span></code>
+keeps the width produced by the transfer layer.</p></li>
+</ol>
+<p>Shunting populations with a positive weight transform treat their input as
+non-negative rates. When the first batch shows signed input reaching such a
+first-layer population (for example images normalized with
+<code class="docutils literal notranslate"><span class="pre">data.processing.normalize:</span> <span class="pre">true</span></code>), the network logs a warning once. Use
+<code class="docutils literal notranslate"><span class="pre">input_transform:</span> <span class="pre">relu</span></code> or <code class="docutils literal notranslate"><span class="pre">signed_split</span></code>, a transfer layer with a
+non-negative <code class="docutils literal notranslate"><span class="pre">output_activation</span></code>, <code class="docutils literal notranslate"><span class="pre">input_projection_dims</span></code>, or
+non-normalized data.</p>
+</section>
+<section id="cross-layer-sources">
+<h3>Cross-layer sources<a class="headerlink" href="#cross-layer-sources" title="Link to this heading"></a></h3>
+<p>A source of the form <code class="docutils literal notranslate"><span class="pre">layer_name.population_name</span></code> (a qualified source) reads
+a population of another layer. Same-step qualified sources must come from
+earlier layers. Delayed qualified sources may come from any other layer,
+including later layers, and read that population’s previous-timestep output;
+the target layer must set <code class="docutils literal notranslate"><span class="pre">recurrent:</span> <span class="pre">true</span></code>. A qualified source that names
+its own layer raises; use the plain population name instead.</p>
+<p>In this excerpt of <code class="docutils literal notranslate"><span class="pre">model.core.population_network</span></code>, the second layer reads
+both populations of the first layer instead of only its readout population:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">layers</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">layer0</span>
+<span class="w">    </span><span class="nt">readout_population</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">e0</span>
+<span class="w">    </span><span class="nt">populations</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">i0</span><span class="p p-Indicator">,</span><span class="nt"> polarity</span><span class="p">:</span><span class="w"> </span><span class="nv">inhibitory</span><span class="p p-Indicator">,</span><span class="nt"> n_neurons</span><span class="p">:</span><span class="w"> </span><span class="nv">32</span><span class="p p-Indicator">,</span><span class="nt"> branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">1</span><span class="p p-Indicator">]}</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">e0</span><span class="p p-Indicator">,</span><span class="nt"> polarity</span><span class="p">:</span><span class="w"> </span><span class="nv">excitatory</span><span class="p p-Indicator">,</span><span class="nt"> n_neurons</span><span class="p">:</span><span class="w"> </span><span class="nv">128</span><span class="p p-Indicator">,</span><span class="nt"> branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">3</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">3</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">3</span><span class="p p-Indicator">]}</span>
+<span class="w">    </span><span class="nt">connections</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">input</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">i0</span><span class="p p-Indicator">}</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">input</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">e0</span><span class="p p-Indicator">}</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">layer1</span>
+<span class="w">    </span><span class="nt">readout_population</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">e1</span>
+<span class="w">    </span><span class="nt">populations</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">i1</span><span class="p p-Indicator">,</span><span class="nt"> polarity</span><span class="p">:</span><span class="w"> </span><span class="nv">inhibitory</span><span class="p p-Indicator">,</span><span class="nt"> n_neurons</span><span class="p">:</span><span class="w"> </span><span class="nv">16</span><span class="p p-Indicator">,</span><span class="nt"> branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">1</span><span class="p p-Indicator">]}</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">e1</span><span class="p p-Indicator">,</span><span class="nt"> polarity</span><span class="p">:</span><span class="w"> </span><span class="nv">excitatory</span><span class="p p-Indicator">,</span><span class="nt"> n_neurons</span><span class="p">:</span><span class="w"> </span><span class="nv">64</span><span class="p p-Indicator">,</span><span class="nt"> branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">3</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">3</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">3</span><span class="p p-Indicator">]}</span>
+<span class="w">    </span><span class="nt">connections</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">layer0.e0</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">i1</span><span class="p p-Indicator">}</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">layer0.e0</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">e1</span><span class="p p-Indicator">}</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">layer0.i0</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">e1</span><span class="p p-Indicator">}</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">i1</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">e1</span><span class="p p-Indicator">}</span>
+</pre></div>
+</div>
+</section>
+<section id="timing">
+<h3>Timing<a class="headerlink" href="#timing" title="Link to this heading"></a></h3>
+<p>Same-step connections between populations of a layer must form a directed
+acyclic graph; a cycle such as <code class="docutils literal notranslate"><span class="pre">i</span> <span class="pre">-&gt;</span> <span class="pre">e</span></code> together with <code class="docutils literal notranslate"><span class="pre">e</span> <span class="pre">-&gt;</span> <span class="pre">i</span></code> raises when
+the configuration loads. Delayed connections (<code class="docutils literal notranslate"><span class="pre">timing:</span> <span class="pre">delayed</span></code>) read the
+source’s output from the previous timestep, so they may form cycles, including
+a population connected to itself. They require <code class="docutils literal notranslate"><span class="pre">recurrent:</span> <span class="pre">true</span></code> on the
+layer, and at the first timestep they read zeros. Mutual E/I interaction is
+therefore written as one same-step direction and one delayed direction, or as
+two delayed connections.</p>
+</section>
+<section id="pathways-and-synapse-counts">
+<h3>Pathways and synapse counts<a class="headerlink" href="#pathways-and-synapse-counts" title="Link to this heading"></a></h3>
+<p>The <code class="docutils literal notranslate"><span class="pre">pathway</span></code> of a connection is the input stream it feeds. It follows the
+polarity of the source unless written explicitly, and it must match the
+timing. Each compartment of the target selects <code class="docutils literal notranslate"><span class="pre">&lt;pathway&gt;_synapses</span></code> contacts
+(or the per-level <code class="docutils literal notranslate"><span class="pre">&lt;pathway&gt;_synapses_by_level</span></code>) from the eligible units of
+all sources of that stream. When a mask leaves a compartment fewer eligible
+units than this count, the Top-K selection types (<code class="docutils literal notranslate"><span class="pre">standard</span></code>,
+<code class="docutils literal notranslate"><span class="pre">stochastic</span></code>, <code class="docutils literal notranslate"><span class="pre">variance</span></code>, <code class="docutils literal notranslate"><span class="pre">dense_to_sparse</span></code>) use only the eligible ones,
+and the indexed types raise.</p>
+<p>Every enabled connection must be able to reach a synapse: its pathway needs a
+positive count at a depth the connection targets, where the soma counts only
+with <code class="docutils literal notranslate"><span class="pre">somatic_synapses:</span> <span class="pre">true</span></code>. The <code class="docutils literal notranslate"><span class="pre">rec_*</span></code> counts default to 0, so a
+delayed connection raises, naming the field, until
+<code class="docutils literal notranslate"><span class="pre">rec_excitatory_synapses</span></code> or <code class="docutils literal notranslate"><span class="pre">rec_inhibitory_synapses</span></code> is written. A count
+written as 0 keeps the connection as a lesion and logs a message. A synapse
+count for a stream that no connection feeds is unused.</p>
+</section>
+<section id="probability-masks-and-seeds">
+<h3>Probability masks and seeds<a class="headerlink" href="#probability-masks-and-seeds" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">probability:</span> <span class="pre">p</span></code> samples, at each dendritic level, a fixed Boolean mask over
+the target’s compartments and the source’s units, keeping each pair with
+probability <code class="docutils literal notranslate"><span class="pre">p</span></code>. A compartment left without any eligible unit of a source
+receives one unit drawn from that source, so a mask never disconnects a
+compartment from a source completely. Synapses are then selected only among
+the eligible pairs. Masks are sampled once, when the model is built.</p>
+<p>The mask of a connection is seeded by its <code class="docutils literal notranslate"><span class="pre">seed</span></code>, otherwise by the layer’s
+<code class="docutils literal notranslate"><span class="pre">connection_seed</span></code>, otherwise by 0; <code class="docutils literal notranslate"><span class="pre">dendritic-train</span></code> fills an unset
+<code class="docutils literal notranslate"><span class="pre">connection_seed</span></code> from <code class="docutils literal notranslate"><span class="pre">experiment.topology_seed</span></code> (see
+<a class="reference internal" href="configuration_guide.html#random-seeds"><span class="std std-ref">Random seeds and reproducibility flags</span></a>). The seed is offset by the layer, source, target, timing,
+pathway, level and shapes, so different connections draw different masks, and
+sampling uses its own generator, so it does not change PyTorch’s global random
+stream.</p>
+<p>With <code class="docutils literal notranslate"><span class="pre">allow_self_recurrence:</span> <span class="pre">false</span></code>, a delayed connection from a population
+to itself excludes each neuron’s own output from its compartments.</p>
+</section>
+<section id="dendritic-target-levels">
+<h3>Dendritic target levels<a class="headerlink" href="#dendritic-target-levels" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">target_levels</span></code> restricts a connection to some depths of the target’s
+dendritic tree: <code class="docutils literal notranslate"><span class="pre">soma</span></code> (depth 0), <code class="docutils literal notranslate"><span class="pre">primary</span></code> (the children of the soma,
+depth 1), <code class="docutils literal notranslate"><span class="pre">distal</span></code> (the outermost level) or explicit depths from the soma.
+Synapses at other depths are drawn only from the stream’s other sources. Each
+depth that has synapses of a stream must be allowed by at least one of that
+stream’s connections; otherwise the build raises. To leave a depth without
+synapses, set its count to 0 with <code class="docutils literal notranslate"><span class="pre">*_synapses_by_level</span></code>. Contacts that
+rewiring replaces are drawn within the same restriction. The microcircuit in
+<a class="reference internal" href="#population-network-populations"><span class="std std-ref">Named populations</span></a> uses <code class="docutils literal notranslate"><span class="pre">target_levels</span></code> to separate
+soma-targeting from dendrite-targeting inhibition.</p>
+</section>
+<section id="connection-masks-and-structured-connectivity">
+<h3>Connection masks and structured connectivity<a class="headerlink" href="#connection-masks-and-structured-connectivity" title="Link to this heading"></a></h3>
+<p>The population option <code class="docutils literal notranslate"><span class="pre">structured_connectivity</span></code> applies a structured mask to
+a pathway (see <a class="reference internal" href="synapses.html#structured-connectivity"><span class="std std-ref">Structured connectivity</span></a>). A stream can also have a
+connection mask, because one of its connections sets <code class="docutils literal notranslate"><span class="pre">probability</span></code> below 1
+or <code class="docutils literal notranslate"><span class="pre">target_levels</span></code>, or because <code class="docutils literal notranslate"><span class="pre">allow_self_recurrence:</span> <span class="pre">false</span></code> applies to
+it. Both masks then restrict the stream: a compartment receives only contacts
+that both allow, and a combination that leaves a compartment without any
+allowed input raises. Structured rules that place exact contacts
+(<code class="docutils literal notranslate"><span class="pre">spatial_morphology</span></code> and index manifests) cannot also follow a connection
+mask, so combining them with one raises.</p>
+<p>List-valued <code class="docutils literal notranslate"><span class="pre">probability</span></code> and <code class="docutils literal notranslate"><span class="pre">indegree</span></code> of a structured rule are indexed
+by the network layer (<code class="docutils literal notranslate"><span class="pre">layers[i]</span></code>), and each layer draws its own seeded
+masks. Layer <code class="docutils literal notranslate"><span class="pre">0</span></code> draws the masks of earlier versions; before 2026-10-11
+every layer used the population’s position in its layer for both, so a
+population at the same position in each layer read the same list entry and
+drew the same mask. Training fills an unset seed of a structured rule from
+<code class="docutils literal notranslate"><span class="pre">experiment.topology_seed</span></code> (since config_version 3; earlier, unseeded masks
+drew from the global random stream, which <code class="docutils literal notranslate"><span class="pre">seed:</span> <span class="pre">global_rng</span></code> keeps; see
+<a class="reference internal" href="synapses.html#structured-connectivity"><span class="std std-ref">Structured connectivity</span></a>).</p>
+</section>
+</section>
+<section id="named-populations">
+<span id="population-network-populations"></span><h2>Named populations<a class="headerlink" href="#named-populations" title="Link to this heading"></a></h2>
+<p>Each entry of <code class="docutils literal notranslate"><span class="pre">model.core.population_network.layers[].populations</span></code> defines
+one named population:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 18.0%" />
+<col style="width: 20.0%" />
+<col style="width: 62.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Field</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">name</span></code></p></td>
+<td><p>required</p></td>
+<td><p>Name used by <code class="docutils literal notranslate"><span class="pre">readout_population</span></code>, connections, qualified sources,
+recurrent state and analysis output, for example <code class="docutils literal notranslate"><span class="pre">pyr</span></code>, <code class="docutils literal notranslate"><span class="pre">pv</span></code> or
+<code class="docutils literal notranslate"><span class="pre">sst</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">polarity</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">excitatory</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">excitatory</span></code> or <code class="docutils literal notranslate"><span class="pre">inhibitory</span></code>. It decides which stream of a target
+the population’s output enters; it is not a receptor type.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">n_neurons</span></code></p></td>
+<td><p>required</p></td>
+<td><p>Number of neurons (somata).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">branch_factors</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[1]</span></code></p></td>
+<td><p>Dendritic morphology, from the soma outward: <code class="docutils literal notranslate"><span class="pre">[3,</span> <span class="pre">3]</span></code> gives each
+neuron 3 primary branches with 3 children each (three levels including
+the soma); <code class="docutils literal notranslate"><span class="pre">[]</span></code> is a point neuron whose only level is the soma.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">population</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">{}</span></code></p></td>
+<td><p>Population options for this population only (see
+<a class="reference internal" href="#population-options"><span class="std std-ref">Options reference</span></a>).</p></td>
+</tr>
+</tbody>
+</table>
+<p><code class="docutils literal notranslate"><span class="pre">population_defaults</span></code> is merged into every population of the layer, and the
+population’s own <code class="docutils literal notranslate"><span class="pre">population</span></code> block is merged on top of it (nested mappings
+such as <code class="docutils literal notranslate"><span class="pre">synapse_types</span></code> are merged key by key). <code class="docutils literal notranslate"><span class="pre">n_neurons</span></code> and
+<code class="docutils literal notranslate"><span class="pre">branch_factors</span></code> are set only on the population definition: writing them in
+<code class="docutils literal notranslate"><span class="pre">population_defaults</span></code> or in a <code class="docutils literal notranslate"><span class="pre">population</span></code> block raises. When a population
+sets <code class="docutils literal notranslate"><span class="pre">use_shunting:</span> <span class="pre">false</span></code> and no <code class="docutils literal notranslate"><span class="pre">reactivation_init_policy</span></code>, it uses
+<code class="docutils literal notranslate"><span class="pre">occupancy_quantile</span></code> (see <a class="reference internal" href="dendritic_neurons.html#gate-initialization"><span class="std std-ref">Gate initialization and maintenance</span></a>).</p>
+<p>Distinct populations can differ in morphology, time constants, synapse counts
+and dynamics. A population is a group of neurons, not a receptor mechanism: to
+give a population AMPA and NMDA inputs, add receptor types to its options (see
+<a class="reference internal" href="temporal_dynamics.html#synapse-types"><span class="std std-ref">Receptor synapse types</span></a>) instead of defining a population per receptor.
+Populations that differ only in receptor kinetics share their other options
+and set different <code class="docutils literal notranslate"><span class="pre">synapse_types</span></code> blocks in their <code class="docutils literal notranslate"><span class="pre">population</span></code> overrides.</p>
+<figure class="align-default" id="id4">
+<a class="reference internal image-reference" href="_images/population-network-populations.svg"><img alt="Pyramidal, PV and SST populations with their own morphology, inhibition onto the pyramidal soma or dendrites, and a delayed recurrent pyramidal connection" src="_images/population-network-populations.svg" style="width: 100%;" />
+</a>
+<figcaption>
+<p><span class="caption-text">A layer with three populations. <code class="docutils literal notranslate"><span class="pre">pyr</span></code> is the excitatory readout
+population with a two-level dendritic tree; <code class="docutils literal notranslate"><span class="pre">pv</span></code> and <code class="docutils literal notranslate"><span class="pre">sst</span></code> are
+inhibitory populations with one dendritic compartment per neuron. <code class="docutils literal notranslate"><span class="pre">pv</span></code>
+inhibits the soma and proximal dendrites of <code class="docutils literal notranslate"><span class="pre">pyr</span></code>, <code class="docutils literal notranslate"><span class="pre">sst</span></code> its distal
+dendrites, and <code class="docutils literal notranslate"><span class="pre">pyr</span></code> excites itself through a delayed connection. Lines
+ending in an arrowhead are excitatory, lines ending in a bar inhibitory, and
+the dashed line is delayed. The excitation from <code class="docutils literal notranslate"><span class="pre">pyr</span></code> to <code class="docutils literal notranslate"><span class="pre">pv</span></code> and
+<code class="docutils literal notranslate"><span class="pre">sst</span></code> must be delayed, because same-step connections cannot form a cycle.</span><a class="headerlink" href="#id4" title="Link to this image"></a></p>
+</figcaption>
+</figure>
+<p>The configuration below builds this microcircuit. The <code class="docutils literal notranslate"><span class="pre">population</span></code> blocks
+give the three populations different dendritic time constants, and
+<code class="docutils literal notranslate"><span class="pre">target_levels</span></code> separates the two kinds of inhibition:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">core</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">population_network</span>
+<span class="w">    </span><span class="nt">population_network</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">layers</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">microcircuit</span>
+<span class="w">          </span><span class="nt">recurrent</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">          </span><span class="nt">readout_population</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pyr</span>
+<span class="w">          </span><span class="nt">connection_seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">123</span>
+<span class="w">          </span><span class="nt">population_defaults</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">ff_excitatory_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">12</span>
+<span class="w">            </span><span class="nt">ff_inhibitory_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
+<span class="w">            </span><span class="nt">rec_excitatory_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8</span>
+<span class="w">          </span><span class="nt">populations</span><span class="p">:</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pyr</span>
+<span class="w">              </span><span class="nt">polarity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">excitatory</span>
+<span class="w">              </span><span class="nt">n_neurons</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">32</span>
+<span class="w">              </span><span class="nt">branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">2</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">2</span><span class="p p-Indicator">]</span>
+<span class="w">              </span><span class="nt">population</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">tau_base</span><span class="p">:</span><span class="w"> </span><span class="nv">20.0</span><span class="p p-Indicator">}</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pv</span>
+<span class="w">              </span><span class="nt">polarity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">inhibitory</span>
+<span class="w">              </span><span class="nt">n_neurons</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8</span>
+<span class="w">              </span><span class="nt">branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">1</span><span class="p p-Indicator">]</span>
+<span class="w">              </span><span class="nt">population</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">tau_base</span><span class="p">:</span><span class="w"> </span><span class="nv">5.0</span><span class="p p-Indicator">}</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">sst</span>
+<span class="w">              </span><span class="nt">polarity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">inhibitory</span>
+<span class="w">              </span><span class="nt">n_neurons</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8</span>
+<span class="w">              </span><span class="nt">branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">1</span><span class="p p-Indicator">]</span>
+<span class="w">              </span><span class="nt">population</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">tau_base</span><span class="p">:</span><span class="w"> </span><span class="nv">12.0</span><span class="p p-Indicator">}</span>
+<span class="w">          </span><span class="nt">connections</span><span class="p">:</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">input</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">pyr</span><span class="p p-Indicator">}</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">input</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">pv</span><span class="p p-Indicator">}</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">input</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">sst</span><span class="p p-Indicator">}</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">pv</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">pyr</span><span class="p p-Indicator">,</span><span class="nt"> probability</span><span class="p">:</span><span class="w"> </span><span class="nv">0.45</span><span class="p p-Indicator">,</span><span class="nt"> target_levels</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">soma</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">primary</span><span class="p p-Indicator">]}</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">sst</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">pyr</span><span class="p p-Indicator">,</span><span class="nt"> probability</span><span class="p">:</span><span class="w"> </span><span class="nv">0.25</span><span class="p p-Indicator">,</span><span class="nt"> target_levels</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">distal</span><span class="p p-Indicator">]}</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">pyr</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">pyr</span><span class="p p-Indicator">,</span><span class="nt"> timing</span><span class="p">:</span><span class="w"> </span><span class="nv">delayed</span><span class="p p-Indicator">,</span><span class="nt"> probability</span><span class="p">:</span><span class="w"> </span><span class="nv">0.75</span><span class="p p-Indicator">}</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">pyr</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">pv</span><span class="p p-Indicator">,</span><span class="nt"> timing</span><span class="p">:</span><span class="w"> </span><span class="nv">delayed</span><span class="p p-Indicator">}</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">pyr</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">sst</span><span class="p p-Indicator">,</span><span class="nt"> timing</span><span class="p">:</span><span class="w"> </span><span class="nv">delayed</span><span class="p p-Indicator">}</span>
+<span class="nt">training</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">main</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">recurrent</span>
+</pre></div>
+</div>
+<p>The populations <code class="docutils literal notranslate"><span class="pre">pv</span></code> and <code class="docutils literal notranslate"><span class="pre">sst</span></code> receive no inhibitory input, so their
+<code class="docutils literal notranslate"><span class="pre">ff_inhibitory_synapses</span></code> count is unused.</p>
+</section>
+<section id="temporal-constants-and-delays">
+<span id="temporal-constants"></span><h2>Temporal constants and delays<a class="headerlink" href="#temporal-constants-and-delays" title="Link to this heading"></a></h2>
+<p>A layer steps through time when it sets <code class="docutils literal notranslate"><span class="pre">recurrent:</span> <span class="pre">true</span></code>, when it has a
+delayed connection (which requires <code class="docutils literal notranslate"><span class="pre">recurrent:</span> <span class="pre">true</span></code>), or when one of its
+populations uses a temporal feature: a spiking soma, receptor synapse types,
+dendritic spikes or soma feedback (see <a class="reference internal" href="temporal_dynamics.html"><span class="doc">Temporal dynamics</span></a>). The whole
+network then processes sequences <code class="docutils literal notranslate"><span class="pre">[batch,</span> <span class="pre">time,</span> <span class="pre">features]</span></code>; a
+two-dimensional input is treated as a single timestep. <code class="docutils literal notranslate"><span class="pre">output_mode:</span> <span class="pre">mean</span></code>
+or <code class="docutils literal notranslate"><span class="pre">all</span></code> also makes the network process sequences, with feedforward layers
+applied at every timestep.</p>
+<p>In a layer that steps through time, every dendritic level <code class="docutils literal notranslate"><span class="pre">l</span></code> of a population
+keeps leaky traces of its raw synaptic currents <code class="docutils literal notranslate"><span class="pre">u</span></code> (the four input streams
+and the input from child branches) and computes its voltage from the traces:</p>
+<div class="math notranslate nohighlight">
+\[x_l(t) = \alpha_l\, x_l(t - \Delta t) + (1 - \alpha_l)\, u_l(t),
+\qquad \alpha_l = e^{-\Delta t / \tau_l} .\]</div>
+<p>Layers that do not step through time compute the voltage from the currents
+directly, and the time constants have no effect. Timing has these independent
+controls:</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">model.core.population_network.layers[].dt</span></code></dt><dd><p>The integration step <span class="math notranslate nohighlight">\(\Delta t\)</span> of every population in the layer
+(default 1.0). A delayed connection always reads the previous step.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">tau_base</span></code> and <code class="docutils literal notranslate"><span class="pre">tau_ratio</span></code></dt><dd><p>Per-level time constants when <code class="docutils literal notranslate"><span class="pre">level_taus</span></code> is empty:
+<span class="math notranslate nohighlight">\(\tau_l = \tau_{\text{base}}\, r^{\,n - 1 - l}\)</span> for levels
+<code class="docutils literal notranslate"><span class="pre">l</span> <span class="pre">=</span> <span class="pre">0</span></code> (most distal) to <code class="docutils literal notranslate"><span class="pre">n</span> <span class="pre">-</span> <span class="pre">1</span></code> (soma). The soma level uses
+<code class="docutils literal notranslate"><span class="pre">tau_base</span></code> and each level further out is <code class="docutils literal notranslate"><span class="pre">tau_ratio</span></code> times slower. The
+defaults <code class="docutils literal notranslate"><span class="pre">tau_base:</span> <span class="pre">50</span></code> and <code class="docutils literal notranslate"><span class="pre">tau_ratio:</span> <span class="pre">3</span></code> give <code class="docutils literal notranslate"><span class="pre">[450,</span> <span class="pre">150,</span> <span class="pre">50]</span></code> for a
+three-level population; <code class="docutils literal notranslate"><span class="pre">tau_base:</span> <span class="pre">20</span></code> and <code class="docutils literal notranslate"><span class="pre">tau_ratio:</span> <span class="pre">2</span></code> give
+<code class="docutils literal notranslate"><span class="pre">[80,</span> <span class="pre">40,</span> <span class="pre">20]</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">level_taus</span></code></dt><dd><p>Explicit time constants, from the most distal level to the soma. The list
+length must equal the number of levels (<code class="docutils literal notranslate"><span class="pre">len(branch_factors)</span> <span class="pre">+</span> <span class="pre">1</span></code>).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">learnable_tau</span></code></dt><dd><p>Learns one time constant per level, stored as its logarithm.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">connections[].timing</span></code></dt><dd><p><code class="docutils literal notranslate"><span class="pre">delayed</span></code> connections read the source output of the previous step;
+<code class="docutils literal notranslate"><span class="pre">same_step</span></code> connections read the current step.</p>
+</dd>
+</dl>
+<p>Receptor traces (<code class="docutils literal notranslate"><span class="pre">synapse_types</span></code>), the spiking soma (<code class="docutils literal notranslate"><span class="pre">spike_tau</span></code>,
+<code class="docutils literal notranslate"><span class="pre">spike_readout_tau</span></code>) and dendritic plateaus (<code class="docutils literal notranslate"><span class="pre">dendritic_spike_plateau_tau</span></code>)
+have their own time constants, which use the same <code class="docutils literal notranslate"><span class="pre">dt</span></code>; see
+<a class="reference internal" href="temporal_dynamics.html"><span class="doc">Temporal dynamics</span></a>.</p>
+<p>In this excerpt of <code class="docutils literal notranslate"><span class="pre">model.core.population_network</span></code>, the layer integrates
+with a half step, <code class="docutils literal notranslate"><span class="pre">pyr</span></code> uses geometric time constants <code class="docutils literal notranslate"><span class="pre">[80,</span> <span class="pre">40,</span> <span class="pre">20]</span></code>, and
+<code class="docutils literal notranslate"><span class="pre">pv</span></code> sets and learns its own:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">layers</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">circuit</span>
+<span class="w">    </span><span class="nt">recurrent</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">dt</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.5</span>
+<span class="w">    </span><span class="nt">readout_population</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pyr</span>
+<span class="w">    </span><span class="nt">population_defaults</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">ff_excitatory_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8</span>
+<span class="w">      </span><span class="nt">ff_inhibitory_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<span class="w">      </span><span class="nt">rec_excitatory_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
+<span class="w">      </span><span class="nt">tau_base</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20.0</span>
+<span class="w">      </span><span class="nt">tau_ratio</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2.0</span>
+<span class="w">    </span><span class="nt">populations</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">pyr</span><span class="p p-Indicator">,</span><span class="nt"> polarity</span><span class="p">:</span><span class="w"> </span><span class="nv">excitatory</span><span class="p p-Indicator">,</span><span class="nt"> n_neurons</span><span class="p">:</span><span class="w"> </span><span class="nv">32</span><span class="p p-Indicator">,</span><span class="nt"> branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">2</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">2</span><span class="p p-Indicator">]}</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pv</span>
+<span class="w">        </span><span class="nt">polarity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">inhibitory</span>
+<span class="w">        </span><span class="nt">n_neurons</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8</span>
+<span class="w">        </span><span class="nt">branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">1</span><span class="p p-Indicator">]</span>
+<span class="w">        </span><span class="nt">population</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">level_taus</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">5.0</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">5.0</span><span class="p p-Indicator">],</span><span class="nt"> learnable_tau</span><span class="p">:</span><span class="w"> </span><span class="nv">true</span><span class="p p-Indicator">}</span>
+<span class="w">    </span><span class="nt">connections</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">input</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">pyr</span><span class="p p-Indicator">}</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">input</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">pv</span><span class="p p-Indicator">}</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">pv</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">pyr</span><span class="p p-Indicator">}</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">pyr</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">pyr</span><span class="p p-Indicator">,</span><span class="nt"> timing</span><span class="p">:</span><span class="w"> </span><span class="nv">delayed</span><span class="p p-Indicator">}</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">pyr</span><span class="p p-Indicator">,</span><span class="nt"> target</span><span class="p">:</span><span class="w"> </span><span class="nv">pv</span><span class="p p-Indicator">,</span><span class="nt"> timing</span><span class="p">:</span><span class="w"> </span><span class="nv">delayed</span><span class="p p-Indicator">}</span>
+</pre></div>
+</div>
+</section>
+<section id="options-reference">
+<span id="population-options"></span><h2>Options reference<a class="headerlink" href="#options-reference" title="Link to this heading"></a></h2>
+<p>This section lists every field of a population network: the network fields,
+the layer fields and the population options. The connection fields are listed
+under <a class="reference internal" href="#population-connections"><span class="std std-ref">Connections</span></a> and the population definition fields under
+<a class="reference internal" href="#population-network-populations"><span class="std std-ref">Named populations</span></a>.</p>
+<section id="network-fields">
+<h3>Network fields<a class="headerlink" href="#network-fields" title="Link to this heading"></a></h3>
+<p>Fields of <code class="docutils literal notranslate"><span class="pre">model.core.population_network</span></code>:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 24.0%" />
+<col style="width: 14.0%" />
+<col style="width: 16.0%" />
+<col style="width: 46.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Field</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">layers</span></code></p></td>
+<td><p>list</p></td>
+<td><p>required</p></td>
+<td><p>Layer definitions, in order (at least one).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">input_dim</span></code></p></td>
+<td><p>int</p></td>
+<td><p>encoder output</p></td>
+<td><p>Set from the encoder output dimension; a different written value raises.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">input_transform</span></code></p></td>
+<td><p>str</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">identity</span></code></p></td>
+<td><p>Input adapter: <code class="docutils literal notranslate"><span class="pre">identity</span></code>, <code class="docutils literal notranslate"><span class="pre">relu</span></code> or <code class="docutils literal notranslate"><span class="pre">signed_split</span></code> (doubles the
+input width).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">use_transfer</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>Split the input into the <code class="docutils literal notranslate"><span class="pre">input_e</span></code> and <code class="docutils literal notranslate"><span class="pre">input_i</span></code> streams with a
+transfer layer.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">transfer_params</span></code></p></td>
+<td><p>mapping</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">{}</span></code></p></td>
+<td><p>Transfer-layer options (see <a class="reference internal" href="structured_ei_cores.html#transfer-layer"><span class="std std-ref">TransferLayer</span></a>), including
+<code class="docutils literal notranslate"><span class="pre">input_normalization</span></code> (<code class="docutils literal notranslate"><span class="pre">mode:</span> <span class="pre">global_l1</span></code> or <code class="docutils literal notranslate"><span class="pre">group_l1</span></code> with
+<code class="docutils literal notranslate"><span class="pre">group_ranges</span></code>). Options other than seeds require
+<code class="docutils literal notranslate"><span class="pre">use_transfer:</span> <span class="pre">true</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">input_projection_dims</span></code></p></td>
+<td><p>list[int]</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[]</span></code></p></td>
+<td><p>Widths of linear-plus-ReLU layers applied to the input (to <code class="docutils literal notranslate"><span class="pre">input_e</span></code>
+when a transfer layer is used).</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">readout_layer</span></code></p></td>
+<td><p>str or null</p></td>
+<td><p>last layer</p></td>
+<td><p>Layer whose readout population is the network output.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">readout_population</span></code></p></td>
+<td><p>str or null</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">null</span></code></p></td>
+<td><p>Readout population of the readout layer; it must agree with that
+layer’s <code class="docutils literal notranslate"><span class="pre">readout_population</span></code> when both are written.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">output_mode</span></code></p></td>
+<td><p>str</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">last</span></code></p></td>
+<td><p>Output of a network that processes sequences: <code class="docutils literal notranslate"><span class="pre">last</span></code> (last step, or
+the last valid step of each sequence), <code class="docutils literal notranslate"><span class="pre">mean</span></code> (mean over valid steps)
+or <code class="docutils literal notranslate"><span class="pre">all</span></code> (every step). See <a class="reference internal" href="temporal_dynamics.html#temporal-output-mode"><span class="std std-ref">Sequence output</span></a>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">store_routing</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>Record per-level routing information at every timestep of layers that
+step through time. <code class="docutils literal notranslate"><span class="pre">analysis.routing</span></code> enables it by itself.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">compile_step</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>Compile each layer with <code class="docutils literal notranslate"><span class="pre">torch.compile</span></code>. A network that processes
+sequences runs every layer once per timestep, so this mainly speeds up
+recurrent networks; the first steps pay the compilation time. Compiled
+kernels can change results at floating-point rounding level, and random
+draws inside a compiled layer (stochastic synapse selection) differ from
+eager execution. Copies and pickles of the network run the uncompiled
+layers. Shunting populations with <code class="docutils literal notranslate"><span class="pre">conductance_dynamic</span></code>
+<code class="docutils literal notranslate"><span class="pre">topk_gradient_scaling</span></code> or <code class="docutils literal notranslate"><span class="pre">blocklinear_gradient_scaling</span></code> reject
+it, because the compiled steps do not apply those gradient scales.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="layer-fields">
+<h3>Layer fields<a class="headerlink" href="#layer-fields" title="Link to this heading"></a></h3>
+<p>Fields of <code class="docutils literal notranslate"><span class="pre">model.core.population_network.layers[]</span></code>:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 24.0%" />
+<col style="width: 14.0%" />
+<col style="width: 16.0%" />
+<col style="width: 46.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Field</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">name</span></code></p></td>
+<td><p>str</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">layer0</span></code></p></td>
+<td><p>Layer name, used by qualified sources and <code class="docutils literal notranslate"><span class="pre">readout_layer</span></code>; unique and
+without a dot. Every unnamed layer is called <code class="docutils literal notranslate"><span class="pre">layer0</span></code>, so name all
+layers of a multilayer network.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">populations</span></code></p></td>
+<td><p>list</p></td>
+<td><p>required</p></td>
+<td><p>Population definitions (see <a class="reference internal" href="#population-network-populations"><span class="std std-ref">Named populations</span></a>).</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">connections</span></code></p></td>
+<td><p>list</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[]</span></code></p></td>
+<td><p>Connections into this layer (see <a class="reference internal" href="#population-connections"><span class="std std-ref">Connections</span></a>).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">population_defaults</span></code></p></td>
+<td><p>mapping</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">{}</span></code></p></td>
+<td><p>Population options shared by every population of the layer.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">readout_population</span></code></p></td>
+<td><p>str or null</p></td>
+<td><p>first excitatory population</p></td>
+<td><p>Population whose output is the layer output.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">recurrent</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>Step the layer through time and allow delayed connections.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dt</span></code></p></td>
+<td><p>float</p></td>
+<td><p>1.0</p></td>
+<td><p>Integration step of the layer (see <a class="reference internal" href="#temporal-constants"><span class="std std-ref">Temporal constants and delays</span></a>).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">connection_seed</span></code></p></td>
+<td><p>int or null</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">null</span></code></p></td>
+<td><p>Seed of the layer’s connection masks; <code class="docutils literal notranslate"><span class="pre">dendritic-train</span></code> fills it
+from <code class="docutils literal notranslate"><span class="pre">experiment.topology_seed</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">store_routing</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>Record routing information for this layer only.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="id2">
+<h3>Population options<a class="headerlink" href="#id2" title="Link to this heading"></a></h3>
+<p>Population options are set in
+<code class="docutils literal notranslate"><span class="pre">model.core.population_network.layers[].population_defaults</span></code> for every
+population of a layer, or in <code class="docutils literal notranslate"><span class="pre">layers[].populations[].population</span></code> for one
+population. The tables group them by topic. Several defaults differ from the
+corresponding <code class="docutils literal notranslate"><span class="pre">model.core</span></code> sections of structured E/I cores
+(<a class="reference internal" href="structured_ei_cores.html"><span class="doc">Structured E/I cores</span></a>): <code class="docutils literal notranslate"><span class="pre">weight_transform</span></code> defaults to <code class="docutils literal notranslate"><span class="pre">exp</span></code> here and
+to <code class="docutils literal notranslate"><span class="pre">softplus</span></code> in <code class="docutils literal notranslate"><span class="pre">model.core.morphology</span></code>, <code class="docutils literal notranslate"><span class="pre">somatic_synapses</span></code> to <code class="docutils literal notranslate"><span class="pre">true</span></code>
+here and to <code class="docutils literal notranslate"><span class="pre">false</span></code> there, and <code class="docutils literal notranslate"><span class="pre">reactivation_init_m</span></code> to 1.0 here and
+<code class="docutils literal notranslate"><span class="pre">model.core.reactivation.init_m</span></code> to 1.5. Write these options explicitly when
+results are compared across the two core families.</p>
+<p><strong>Synapse counts.</strong> Counts are per dendritic compartment. The <code class="docutils literal notranslate"><span class="pre">*_by_level</span></code>
+lists give one count per level, from the most distal level to the soma, and
+replace the scalar count when they are not empty.</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 34.0%" />
+<col style="width: 12.0%" />
+<col style="width: 12.0%" />
+<col style="width: 42.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Field</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ff_excitatory_synapses</span></code></p></td>
+<td><p>int</p></td>
+<td><p>8</p></td>
+<td><p>Same-step excitatory synapses per compartment.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ff_inhibitory_synapses</span></code></p></td>
+<td><p>int</p></td>
+<td><p>4</p></td>
+<td><p>Same-step inhibitory synapses per compartment.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">rec_excitatory_synapses</span></code></p></td>
+<td><p>int</p></td>
+<td><p>0</p></td>
+<td><p>Delayed excitatory synapses per compartment.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">rec_inhibitory_synapses</span></code></p></td>
+<td><p>int</p></td>
+<td><p>0</p></td>
+<td><p>Delayed inhibitory synapses per compartment.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ff_excitatory_synapses_by_level</span></code></p></td>
+<td><p>list[int]</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[]</span></code></p></td>
+<td><p>Per-level same-step excitatory counts.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ff_inhibitory_synapses_by_level</span></code></p></td>
+<td><p>list[int]</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[]</span></code></p></td>
+<td><p>Per-level same-step inhibitory counts.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">rec_excitatory_synapses_by_level</span></code></p></td>
+<td><p>list[int]</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[]</span></code></p></td>
+<td><p>Per-level delayed excitatory counts.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">rec_inhibitory_synapses_by_level</span></code></p></td>
+<td><p>list[int]</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[]</span></code></p></td>
+<td><p>Per-level delayed inhibitory counts.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">somatic_synapses</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
+<td><p>The soma level receives synapses directly. With <code class="docutils literal notranslate"><span class="pre">false</span></code> the soma
+entries of the counts are ignored, and a point neuron
+(<code class="docutils literal notranslate"><span class="pre">branch_factors:</span> <span class="pre">[]</span></code>) has no synapses and raises.</p></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Integration.</strong> See <a class="reference internal" href="dendritic_neurons.html#integration-modes"><span class="std std-ref">Integration modes</span></a> for the equations.</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 34.0%" />
+<col style="width: 12.0%" />
+<col style="width: 12.0%" />
+<col style="width: 42.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Field</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">use_shunting</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
+<td><p>Shunting (conductance) integration; <code class="docutils literal notranslate"><span class="pre">false</span></code> selects additive
+integration.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">use_additive_normalization</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>Additive only: normalize the raw additive voltage across the outputs
+of each sample. Requires <code class="docutils literal notranslate"><span class="pre">additive_mode:</span> <span class="pre">raw</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">additive_mode</span></code></p></td>
+<td><p>str</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">raw</span></code></p></td>
+<td><p>Additive rule: <code class="docutils literal notranslate"><span class="pre">raw</span></code>, <code class="docutils literal notranslate"><span class="pre">conductance_normalized</span></code>,
+<code class="docutils literal notranslate"><span class="pre">tangent_matched</span></code> or a rule registered by a plugin.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">additive_options</span></code></p></td>
+<td><p>mapping</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">{}</span></code></p></td>
+<td><p>Options of a rule registered by a plugin
+(<a class="reference internal" href="extending.html#plugin-additive-rules"><span class="std std-ref">Additive integration rules</span></a>).</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">additive_tangent_n0</span></code></p></td>
+<td><p>float or null</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">null</span></code></p></td>
+<td><p>Operating-point numerator of <code class="docutils literal notranslate"><span class="pre">tangent_matched</span></code>; set together with
+<code class="docutils literal notranslate"><span class="pre">additive_tangent_t0</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">additive_tangent_t0</span></code></p></td>
+<td><p>float or null</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">null</span></code></p></td>
+<td><p>Operating-point total conductance of <code class="docutils literal notranslate"><span class="pre">tangent_matched</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">additive_tangent_n0_by_depth</span></code></p></td>
+<td><p>list[float]</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[]</span></code></p></td>
+<td><p>Per-depth <code class="docutils literal notranslate"><span class="pre">n0</span></code> values, from the soma (depth 0) outward; set together
+with <code class="docutils literal notranslate"><span class="pre">additive_tangent_t0_by_depth</span></code> and not with the scalar anchors.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">additive_tangent_t0_by_depth</span></code></p></td>
+<td><p>list[float]</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[]</span></code></p></td>
+<td><p>Per-depth <code class="docutils literal notranslate"><span class="pre">t0</span></code> values, from the soma outward.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">weight_transform</span></code></p></td>
+<td><p>str</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">exp</span></code></p></td>
+<td><p>Map from stored parameters to synaptic weights (see
+<a class="reference internal" href="synapses.html#weight-transforms"><span class="std std-ref">Weight transforms</span></a>).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">leak_conductance</span></code></p></td>
+<td><p>float</p></td>
+<td><p>1.0</p></td>
+<td><p>Leak conductance in the shunting denominator. Values other than 1
+require shunting, feedforward rate populations (see
+<a class="reference internal" href="conductance_options.html#conductance-options"><span class="std std-ref">Conductance options</span></a>).</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">learnable_leak</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>Learn the leak of every compartment; same restrictions as
+<code class="docutils literal notranslate"><span class="pre">leak_conductance</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">signal_rounding</span></code></p></td>
+<td><p>str</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">none</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">float16</span></code> or <code class="docutils literal notranslate"><span class="pre">bfloat16</span></code> rounds dendritic signals and conductances;
+requires shunting <code class="docutils literal notranslate"><span class="pre">indexed_release</span></code> synapses in feedforward rate
+populations.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">epsilon</span></code></p></td>
+<td><p>float</p></td>
+<td><p>1e-8</p></td>
+<td><p>Constant added to voltage denominators for numerical stability.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">cross_level_mode</span></code></p></td>
+<td><p>str</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">hierarchical</span></code></p></td>
+<td><p>How levels reach the soma: <code class="docutils literal notranslate"><span class="pre">hierarchical</span></code> (each level drives its
+parent), <code class="docutils literal notranslate"><span class="pre">parallel_readout</span></code> (every non-soma level projects directly
+to the soma) or <code class="docutils literal notranslate"><span class="pre">all_active_star</span></code> (child traces stay separate arms
+that are pooled at the soma). The last two require shunting rate
+populations without temporal features and a positive weight transform.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">autograd_credit_mode</span></code></p></td>
+<td><p>str</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">exact</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">soma_broadcast</span></code> keeps the forward pass and replaces each dendritic
+compartment’s output derivative by that of its soma; feedforward
+hierarchical rate populations only.</p></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reactivation gates.</strong> See <a class="reference internal" href="dendritic_neurons.html#activation-types"><span class="std std-ref">Activation functions</span></a> for the gate functions and
+<a class="reference internal" href="dendritic_neurons.html#gate-initialization"><span class="std std-ref">Gate initialization and maintenance</span></a> for the initialization policies.</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 34.0%" />
+<col style="width: 12.0%" />
+<col style="width: 12.0%" />
+<col style="width: 42.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Field</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">reactivate</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
+<td><p>Apply a reactivation gate to every compartment’s voltage.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">reactivation_type</span></code></p></td>
+<td><p>str</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">param_tanh</span></code></p></td>
+<td><p>Gate function.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">reactivation_init_policy</span></code></p></td>
+<td><p>str</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">analytical</span></code></p></td>
+<td><p>How the gate slope and midpoint start; <code class="docutils literal notranslate"><span class="pre">occupancy_quantile</span></code> when
+<code class="docutils literal notranslate"><span class="pre">use_shunting:</span> <span class="pre">false</span></code> and the field is not written.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">reactivation_init_m</span></code></p></td>
+<td><p>float</p></td>
+<td><p>1.0</p></td>
+<td><p>Start slope, read only by the <code class="docutils literal notranslate"><span class="pre">fixed</span></code> policy.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">reactivation_init_b</span></code></p></td>
+<td><p>float</p></td>
+<td><p>0.5</p></td>
+<td><p>Start midpoint, read only by the <code class="docutils literal notranslate"><span class="pre">fixed</span></code> policy.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">reactivation_occupancy_quantile_low</span></code></p></td>
+<td><p>float or null</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">null</span></code> (0.1)</p></td>
+<td><p>Lower voltage quantile used by occupancy calibration.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">reactivation_occupancy_quantile_high</span></code></p></td>
+<td><p>float or null</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">null</span></code> (0.9)</p></td>
+<td><p>Upper voltage quantile used by occupancy calibration.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">reactivation_occupancy_target_low</span></code></p></td>
+<td><p>float or null</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">null</span></code> (0.1)</p></td>
+<td><p>Gate output targeted at the lower quantile.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">reactivation_occupancy_target_high</span></code></p></td>
+<td><p>float or null</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">null</span></code> (0.9)</p></td>
+<td><p>Gate output targeted at the upper quantile.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">reactivation_calibration_min_quantile_width</span></code></p></td>
+<td><p>float</p></td>
+<td><p>0.001</p></td>
+<td><p>Smallest voltage spread between the two quantiles that calibration
+accepts.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">reactivation_calibration_max_m</span></code></p></td>
+<td><p>float</p></td>
+<td><p>50.0</p></td>
+<td><p>Largest calibrated slope.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">reactivation_calibration_revert_on_invalid</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
+<td><p>Keep the previous gate when a calibration is invalid, instead of
+clamping the fit.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">reactivation_sigma_aware_k</span></code></p></td>
+<td><p>float</p></td>
+<td><p>0.25</p></td>
+<td><p>Scale from the robust voltage spread to the slope in the
+<code class="docutils literal notranslate"><span class="pre">empirical</span></code> policy.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">reactivation_gradient_scaling</span></code></p></td>
+<td><p>str</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">none</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">straight_through</span></code> passes the gate’s output gradient to its input
+during training; shunting populations only.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">reactivation_memory_efficient</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>Compute <code class="docutils literal notranslate"><span class="pre">param_tanh</span></code> and <code class="docutils literal notranslate"><span class="pre">param_tanh_only_m</span></code> gates with a
+memory-saving backward pass (same values); other gate types ignore it.</p></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Initialization.</strong> See <a class="reference internal" href="synapses.html#synapse-initialization"><span class="std std-ref">Synapse initialization</span></a> for the initializers.</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 34.0%" />
+<col style="width: 12.0%" />
+<col style="width: 12.0%" />
+<col style="width: 42.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Field</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dbl_init_method</span></code></p></td>
+<td><p>str</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">analytical_expectation</span></code></p></td>
+<td><p>Initializer of the dendritic synaptic weights and child couplings.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">topk_init_method</span></code></p></td>
+<td><p>str</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">xavier_normal</span></code></p></td>
+<td><p>Constructor initializer of the sparse weights; <code class="docutils literal notranslate"><span class="pre">dbl_init_method</span></code>
+overwrites them, so it changes only the discarded draw (and, without
+<code class="docutils literal notranslate"><span class="pre">initialization_seed</span></code>, later draws of the global random stream).
+<code class="docutils literal notranslate"><span class="pre">indexed_rewire</span></code> regrows a contact with the weight of the contact it
+replaces.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">adaptive_initialization</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
+<td><p>In the <code class="docutils literal notranslate"><span class="pre">analytical_expectation</span></code> initializer, scale the expected
+conductances of large trees down toward
+<code class="docutils literal notranslate"><span class="pre">adaptive_target_conductance</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">adaptive_initialization_policy</span></code></p></td>
+<td><p>str</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">preserve_shunting_center</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">preserve_shunting_center</span></code> keeps the initial shunting voltage while
+scaling; <code class="docutils literal notranslate"><span class="pre">legacy_scale</span></code> scales the weight distribution.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">adaptive_target_conductance</span></code></p></td>
+<td><p>float</p></td>
+<td><p>5.0</p></td>
+<td><p>Total conductance targeted by the adaptive scaling.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">initial_child_conductance</span></code></p></td>
+<td><p>float</p></td>
+<td><p>1.0</p></td>
+<td><p>Mean child-to-parent coupling at initialization; other values require
+<code class="docutils literal notranslate"><span class="pre">mechanism_neutral</span></code> or <code class="docutils literal notranslate"><span class="pre">fan_in_lognormal</span></code> with a positive weight
+transform.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">initial_conductance_scale</span></code></p></td>
+<td><p>float</p></td>
+<td><p>1.0</p></td>
+<td><p>Multiplier of the initial conductances; other values require
+<code class="docutils literal notranslate"><span class="pre">fan_in_lognormal</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">initial_child_conductance_log_sd</span></code></p></td>
+<td><p>float</p></td>
+<td><p>0.0</p></td>
+<td><p>Log-normal spread of the child couplings; positive values require
+<code class="docutils literal notranslate"><span class="pre">fan_in_lognormal</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">initialization_seed</span></code></p></td>
+<td><p>int or null</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">null</span></code></p></td>
+<td><p>Seed of the population’s initialization streams; <code class="docutils literal notranslate"><span class="pre">dendritic-train</span></code>
+fills it from <code class="docutils literal notranslate"><span class="pre">model.core.initialization_seed</span></code>, which defaults to
+<code class="docutils literal notranslate"><span class="pre">experiment.model_seed</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">initialization_namespace</span></code></p></td>
+<td><p>str</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&quot;&quot;</span></code></p></td>
+<td><p>Name of the population’s initialization stream; filled as
+<code class="docutils literal notranslate"><span class="pre">population_network.&lt;layer&gt;.&lt;population&gt;</span></code> when a seed is set.</p></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Sparse synapse selection.</strong> <code class="docutils literal notranslate"><span class="pre">topk_type</span></code> selects the sparse synapse type of
+every synapse bank of the population; <a class="reference internal" href="synapses.html#synapse-variants"><span class="std std-ref">Sparse synapse types</span></a> lists the types
+and their options.</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 34.0%" />
+<col style="width: 12.0%" />
+<col style="width: 12.0%" />
+<col style="width: 42.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Field</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">topk_type</span></code></p></td>
+<td><p>str</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">standard</span></code></p></td>
+<td><p>Sparse synapse type.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">topk_noise_level</span></code></p></td>
+<td><p>float</p></td>
+<td><p>0.0</p></td>
+<td><p>Standard deviation of Gaussian noise added to the selection scores
+during training.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">topk_weight_norm_order</span></code></p></td>
+<td><p>int or null</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">null</span></code></p></td>
+<td><p>Divide each output’s selected weights by their norm of this order.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">topk_gamma</span></code></p></td>
+<td><p>float</p></td>
+<td><p>1.0</p></td>
+<td><p>Scale applied after that normalization.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">topk_temperature</span></code></p></td>
+<td><p>float</p></td>
+<td><p>0.5</p></td>
+<td><p>Noise or sampling temperature of stochastic selection
+(<code class="docutils literal notranslate"><span class="pre">topk_type:</span> <span class="pre">stochastic</span></code>, <code class="docutils literal notranslate"><span class="pre">indexed_selection:</span> <span class="pre">stochastic</span></code>).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">topk_ultrafast</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
+<td><p>Stochastic selection by noisy Top-K (<code class="docutils literal notranslate"><span class="pre">true</span></code>) or by rank-based
+sampling (<code class="docutils literal notranslate"><span class="pre">false</span></code>).</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">topk_variance_score</span></code></p></td>
+<td><p>str</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">absolute</span></code></p></td>
+<td><p>Input statistic of <code class="docutils literal notranslate"><span class="pre">variance</span></code> selection: <code class="docutils literal notranslate"><span class="pre">absolute</span></code> (variance) or
+<code class="docutils literal notranslate"><span class="pre">relative</span></code> (variance divided by the second moment).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">topk_gradient_scaling</span></code></p></td>
+<td><p>str</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">none</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">conductance_dynamic</span></code> multiplies synaptic weight gradients by the
+branch’s total conductance; shunting populations only.</p></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Indexed synapses.</strong> These fields apply to the indexed sparse types
+(<code class="docutils literal notranslate"><span class="pre">indexed</span></code>, <code class="docutils literal notranslate"><span class="pre">indexed_dynamic</span></code>, <code class="docutils literal notranslate"><span class="pre">indexed_rewire</span></code> and <code class="docutils literal notranslate"><span class="pre">indexed_release</span></code>).
+See <a class="reference internal" href="performance_kernels.html#indexed-backends"><span class="std std-ref">Projection backends</span></a> for the projection backends.</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 34.0%" />
+<col style="width: 12.0%" />
+<col style="width: 12.0%" />
+<col style="width: 42.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Field</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">indexed_seed</span></code></p></td>
+<td><p>int or null</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">null</span></code></p></td>
+<td><p>Seed of the sampled contacts; <code class="docutils literal notranslate"><span class="pre">dendritic-train</span></code> fills it from
+<code class="docutils literal notranslate"><span class="pre">experiment.topology_seed</span></code>, and each population receives its own
+offset.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">indexed_candidate_size</span></code></p></td>
+<td><p>int or null</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">null</span></code></p></td>
+<td><p>Candidate pool per output of <code class="docutils literal notranslate"><span class="pre">indexed_dynamic</span></code>; <code class="docutils literal notranslate"><span class="pre">null</span></code> uses
+<code class="docutils literal notranslate"><span class="pre">min(inputs,</span> <span class="pre">4</span> <span class="pre">K)</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">indexed_selection</span></code></p></td>
+<td><p>str</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">standard</span></code></p></td>
+<td><p>Selection within the <code class="docutils literal notranslate"><span class="pre">indexed_dynamic</span></code> pool: <code class="docutils literal notranslate"><span class="pre">standard</span></code> or
+<code class="docutils literal notranslate"><span class="pre">stochastic</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">indexed_output_chunk_size</span></code></p></td>
+<td><p>int</p></td>
+<td><p>2048</p></td>
+<td><p>Output rows per chunk of the portable gather; changes memory use only.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">indexed_rewire_frequency</span></code></p></td>
+<td><p>int</p></td>
+<td><p>100</p></td>
+<td><p>Optimizer steps between <code class="docutils literal notranslate"><span class="pre">indexed_rewire</span></code> rewiring events.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">indexed_rewire_quantile</span></code></p></td>
+<td><p>float</p></td>
+<td><p>0.05</p></td>
+<td><p>Fraction of each output’s weakest contacts replaced at a rewiring
+event.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">indexed_rewire_until_step</span></code></p></td>
+<td><p>int or null</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">null</span></code></p></td>
+<td><p>Last step at which <code class="docutils literal notranslate"><span class="pre">indexed_rewire</span></code> rewires; <code class="docutils literal notranslate"><span class="pre">null</span></code> sets no limit.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">indexed_index_dtype</span></code></p></td>
+<td><p>str</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">int64</span></code></p></td>
+<td><p>Storage of contact indices: <code class="docutils literal notranslate"><span class="pre">int64</span></code>, <code class="docutils literal notranslate"><span class="pre">int32</span></code> or <code class="docutils literal notranslate"><span class="pre">auto</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">indexed_workspace_mb</span></code></p></td>
+<td><p>float or null</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">null</span></code></p></td>
+<td><p>Memory budget of the portable gather workspace.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">indexed_cache_transformed_weights</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>Transform the weights once per recurrent unroll instead of every step.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">indexed_recompute_backward</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>Another spelling of <code class="docutils literal notranslate"><span class="pre">indexed_projection_backend:</span> <span class="pre">recompute</span></code>; cannot
+be combined with other backends.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">indexed_persistent_indices</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
+<td><p>Save contact indices in checkpoints; <code class="docutils literal notranslate"><span class="pre">false</span></code> regenerates them from
+the seed.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">indexed_init_mode</span></code></p></td>
+<td><p>str</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">per_rank</span></code></p></td>
+<td><p>Contact sampling with data parallelism: <code class="docutils literal notranslate"><span class="pre">per_rank</span></code> or
+<code class="docutils literal notranslate"><span class="pre">rank0_broadcast</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">indexed_projection_backend</span></code></p></td>
+<td><p>str</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">eager</span></code></p></td>
+<td><p>Projection kernel of indexed synapses.</p></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Indexed release.</strong> These fields apply to <code class="docutils literal notranslate"><span class="pre">topk_type:</span> <span class="pre">indexed_release</span></code>; see
+<a class="reference internal" href="conductance_options.html#conductance-options"><span class="std std-ref">Conductance options</span></a>.</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 34.0%" />
+<col style="width: 12.0%" />
+<col style="width: 12.0%" />
+<col style="width: 42.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Field</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">release_p_min</span></code></p></td>
+<td><p>float</p></td>
+<td><p>0.5</p></td>
+<td><p>Lowest release probability.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">release_p_max</span></code></p></td>
+<td><p>float</p></td>
+<td><p>1.0</p></td>
+<td><p>Highest release probability.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">release_weight_scale</span></code></p></td>
+<td><p>float or null</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">null</span></code></p></td>
+<td><p>Weight scale of the release curve
+<code class="docutils literal notranslate"><span class="pre">p(w)</span> <span class="pre">=</span> <span class="pre">p_min</span> <span class="pre">+</span> <span class="pre">(p_max</span> <span class="pre">-</span> <span class="pre">p_min)</span> <span class="pre">w</span> <span class="pre">/</span> <span class="pre">(w</span> <span class="pre">+</span> <span class="pre">0.25</span> <span class="pre">scale)</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">release_impact_decay</span></code></p></td>
+<td><p>float</p></td>
+<td><p>0.99</p></td>
+<td><p>Decay of the running average of contact impact.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">release_impact_metric</span></code></p></td>
+<td><p>str</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">drive</span></code></p></td>
+<td><p>Contact impact statistic: <code class="docutils literal notranslate"><span class="pre">drive</span></code>, <code class="docutils literal notranslate"><span class="pre">active_drive</span></code>, <code class="docutils literal notranslate"><span class="pre">weight</span></code> or
+<code class="docutils literal notranslate"><span class="pre">saliency</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">release_max_conductance</span></code></p></td>
+<td><p>float or null</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">null</span></code></p></td>
+<td><p>Optional cap on each effective conductance.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">release_track_source_activity</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>Track presynaptic activity for activity-aware regrowth.</p></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Dense-to-sparse schedule.</strong> These fields apply to
+<code class="docutils literal notranslate"><span class="pre">topk_type:</span> <span class="pre">dense_to_sparse</span></code>, which starts with more active synapses and
+reduces them to the configured count.</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 34.0%" />
+<col style="width: 12.0%" />
+<col style="width: 12.0%" />
+<col style="width: 42.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Field</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dense_to_sparse_initial_density</span></code></p></td>
+<td><p>float</p></td>
+<td><p>1.0</p></td>
+<td><p>Fraction of candidate inputs active at the start.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">dense_to_sparse_initial_k</span></code></p></td>
+<td><p>int or null</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">null</span></code></p></td>
+<td><p>Number of active inputs at the start; replaces the density.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dense_to_sparse_start_step</span></code></p></td>
+<td><p>int</p></td>
+<td><p>0</p></td>
+<td><p>Step at which the reduction starts.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">dense_to_sparse_end_step</span></code></p></td>
+<td><p>int</p></td>
+<td><p>1000</p></td>
+<td><p>Step at which the target count is reached.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dense_to_sparse_update_interval</span></code></p></td>
+<td><p>int</p></td>
+<td><p>1</p></td>
+<td><p>Steps between updates of the active count.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">dense_to_sparse_schedule</span></code></p></td>
+<td><p>str</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">cubic</span></code></p></td>
+<td><p>Shape of the reduction: <code class="docutils literal notranslate"><span class="pre">linear</span></code>, <code class="docutils literal notranslate"><span class="pre">cubic</span></code>, <code class="docutils literal notranslate"><span class="pre">cosine</span></code> or <code class="docutils literal notranslate"><span class="pre">step</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dense_to_sparse_freeze_on_end</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>Keep the active set fixed after the end step.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">dense_to_sparse_advance_on_forward</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
+<td><p>Advance the schedule once per training forward pass (once per unroll
+in recurrent networks); <code class="docutils literal notranslate"><span class="pre">false</span></code> advances it once per optimizer step.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dense_to_sparse_prune_metric</span></code></p></td>
+<td><p>str</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">weight</span></code></p></td>
+<td><p>Score that decides which inputs stay active: <code class="docutils literal notranslate"><span class="pre">weight</span></code>,
+<code class="docutils literal notranslate"><span class="pre">magnitude</span></code>, <code class="docutils literal notranslate"><span class="pre">transformed_weight</span></code>, <code class="docutils literal notranslate"><span class="pre">pre_w</span></code> or <code class="docutils literal notranslate"><span class="pre">raw</span></code>.</p></td>
+</tr>
+</tbody>
+</table>
+<p><strong>DeepST.</strong> These fields apply to <code class="docutils literal notranslate"><span class="pre">topk_type:</span> <span class="pre">deepst</span></code> and <code class="docutils literal notranslate"><span class="pre">credit_deepst</span></code>;
+the <code class="docutils literal notranslate"><span class="pre">credit_*</span></code> fields apply to <code class="docutils literal notranslate"><span class="pre">credit_deepst</span></code> only.</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 34.0%" />
+<col style="width: 12.0%" />
+<col style="width: 12.0%" />
+<col style="width: 42.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Field</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">excitatory_target_density</span></code></p></td>
+<td><p>float</p></td>
+<td><p>0.1</p></td>
+<td><p>Fraction of excitatory inputs connected to each output.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">inhibitory_target_density</span></code></p></td>
+<td><p>float</p></td>
+<td><p>0.1</p></td>
+<td><p>Fraction of inhibitory inputs connected to each output.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">use_noise</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
+<td><p>Add Gaussian noise to the pruning test.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">sigma</span></code></p></td>
+<td><p>float</p></td>
+<td><p>0.05</p></td>
+<td><p>Standard deviation of that noise.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">rewiring_mode</span></code></p></td>
+<td><p>str</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">global</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">global</span></code>, <code class="docutils literal notranslate"><span class="pre">local</span></code> or <code class="docutils literal notranslate"><span class="pre">constant_branch</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">rewire_frequency</span></code></p></td>
+<td><p>int</p></td>
+<td><p>1</p></td>
+<td><p>Optimizer steps between rewiring events.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">synapses_per_branch</span></code></p></td>
+<td><p>int or null</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">null</span></code></p></td>
+<td><p>Not read: <code class="docutils literal notranslate"><span class="pre">constant_branch</span></code> keeps each pathway’s synapse count
+(<code class="docutils literal notranslate"><span class="pre">ff_excitatory_synapses</span></code>, …) active per branch. A value other
+than the count of a <code class="docutils literal notranslate"><span class="pre">constant_branch</span></code> bank, or any value with
+another rewiring mode or synapse type, raises when the model is built.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">freeze_excitatory_connectivity</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>Keep the excitatory contacts fixed.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">freeze_inhibitory_connectivity</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>Keep the inhibitory contacts fixed.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">init_method</span></code></p></td>
+<td><p>str or null</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">xavier_normal</span></code></p></td>
+<td><p>Regrowth initializer; <code class="docutils literal notranslate"><span class="pre">null</span></code> regrows uniformly, every registered
+method regrows at <code class="docutils literal notranslate"><span class="pre">weight_threshold</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">weight_threshold</span></code></p></td>
+<td><p>float</p></td>
+<td><p>1e-6</p></td>
+<td><p>Weight at or below which a contact is pruned.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">credit_trace_decay</span></code></p></td>
+<td><p>float</p></td>
+<td><p>0.95</p></td>
+<td><p>Decay of the gradient trace that scores contacts.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">credit_candidate_pool_size</span></code></p></td>
+<td><p>int</p></td>
+<td><p>8</p></td>
+<td><p>Inactive candidate contacts observed per branch.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">credit_turnover_fraction</span></code></p></td>
+<td><p>float</p></td>
+<td><p>0.1</p></td>
+<td><p>Largest fraction of active contacts replaced per event.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">credit_weak_active_pool_fraction</span></code></p></td>
+<td><p>float</p></td>
+<td><p>0.5</p></td>
+<td><p>Fraction of weakest active contacts considered for replacement.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">credit_min_observations</span></code></p></td>
+<td><p>int</p></td>
+<td><p>5</p></td>
+<td><p>Observations a candidate needs before it can replace a contact.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">credit_swap_margin</span></code></p></td>
+<td><p>float</p></td>
+<td><p>0.0</p></td>
+<td><p>Predicted improvement a swap must exceed.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">credit_force_turnover</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>Replace contacts even without a predicted improvement.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">credit_selection</span></code></p></td>
+<td><p>str</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">credit</span></code></p></td>
+<td><p>Swap selection: <code class="docutils literal notranslate"><span class="pre">credit</span></code>, <code class="docutils literal notranslate"><span class="pre">random</span></code> or <code class="docutils literal notranslate"><span class="pre">shuffled_credit</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">credit_warmup_steps</span></code></p></td>
+<td><p>int</p></td>
+<td><p>5</p></td>
+<td><p>Steps of recorded credit before swaps start.</p></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Connectivity.</strong></p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 34.0%" />
+<col style="width: 12.0%" />
+<col style="width: 12.0%" />
+<col style="width: 42.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Field</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">structured_connectivity</span></code></p></td>
+<td><p>mapping</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">{}</span></code></p></td>
+<td><p>Structured masks of the population’s pathways (see
+<a class="reference internal" href="synapses.html#structured-connectivity"><span class="std std-ref">Structured connectivity</span></a> and the interaction with connection
+masks above).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">structured_layer_idx</span></code></p></td>
+<td><p>int</p></td>
+<td><p>position in the layer</p></td>
+<td><p>The population’s position in its layer, used in the seed offsets and
+index-manifest keys of <code class="docutils literal notranslate"><span class="pre">structured_connectivity</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">structured_network_layer_idx</span></code></p></td>
+<td><p>int</p></td>
+<td><p>index of the layer</p></td>
+<td><p>The layer’s index in the network: list-valued options of
+<code class="docutils literal notranslate"><span class="pre">structured_connectivity</span></code> take this entry, and layers after the
+first add it to seed offsets and index-manifest keys.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ff_excitatory_pathway</span></code></p></td>
+<td><p>str</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">ee</span></code></p></td>
+<td><p>Pathway name of the same-step excitatory synapses in
+<code class="docutils literal notranslate"><span class="pre">structured_connectivity</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ff_inhibitory_pathway</span></code></p></td>
+<td><p>str</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">ie</span></code></p></td>
+<td><p>Pathway name of the same-step inhibitory synapses.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">rec_excitatory_pathway</span></code></p></td>
+<td><p>str</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">rec_ee</span></code></p></td>
+<td><p>Pathway name of the delayed excitatory synapses.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">rec_inhibitory_pathway</span></code></p></td>
+<td><p>str</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">rec_ie</span></code></p></td>
+<td><p>Pathway name of the delayed inhibitory synapses.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">allow_self_recurrence</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code> excludes each neuron’s own output on a delayed connection
+from the population to itself.</p></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Temporal constants.</strong> See <a class="reference internal" href="#temporal-constants"><span class="std std-ref">Temporal constants and delays</span></a>.</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 34.0%" />
+<col style="width: 12.0%" />
+<col style="width: 12.0%" />
+<col style="width: 42.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Field</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">tau_base</span></code></p></td>
+<td><p>float</p></td>
+<td><p>50.0</p></td>
+<td><p>Time constant of the soma level when <code class="docutils literal notranslate"><span class="pre">level_taus</span></code> is empty.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">tau_ratio</span></code></p></td>
+<td><p>float</p></td>
+<td><p>3.0</p></td>
+<td><p>Ratio between the time constants of adjacent levels.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">level_taus</span></code></p></td>
+<td><p>list[float]</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[]</span></code></p></td>
+<td><p>Explicit time constants, from the most distal level to the soma.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">learnable_tau</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>Learn one time constant per level.</p></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Receptor types and spiking soma.</strong> See <a class="reference internal" href="temporal_dynamics.html#synapse-types"><span class="std std-ref">Receptor synapse types</span></a> and
+<a class="reference internal" href="temporal_dynamics.html#spiking-soma"><span class="std std-ref">Spiking soma</span></a>.</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 34.0%" />
+<col style="width: 12.0%" />
+<col style="width: 12.0%" />
+<col style="width: 42.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Field</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">synapse_types</span></code></p></td>
+<td><p>mapping</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">{}</span></code></p></td>
+<td><p>Receptor types of the excitatory and inhibitory inputs; disabled when
+empty.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">dynamics_mode</span></code></p></td>
+<td><p>str</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">rate</span></code></p></td>
+<td><p>Soma output: <code class="docutils literal notranslate"><span class="pre">rate</span></code> or <code class="docutils literal notranslate"><span class="pre">spike</span></code> (leaky integrate-and-fire).</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">spike_threshold</span></code></p></td>
+<td><p>float</p></td>
+<td><p>1.0</p></td>
+<td><p>Membrane threshold of a spike.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">spike_reset</span></code></p></td>
+<td><p>float</p></td>
+<td><p>0.0</p></td>
+<td><p>Membrane value after a spike.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">spike_tau</span></code></p></td>
+<td><p>float</p></td>
+<td><p>20.0</p></td>
+<td><p>Membrane time constant.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">spike_refractory_steps</span></code></p></td>
+<td><p>int</p></td>
+<td><p>0</p></td>
+<td><p>Steps after a spike during which the neuron cannot spike.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">spike_surrogate_beta</span></code></p></td>
+<td><p>float</p></td>
+<td><p>10.0</p></td>
+<td><p>Steepness of the surrogate gradient.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">spike_readout</span></code></p></td>
+<td><p>str</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">spikes</span></code></p></td>
+<td><p>Population output: <code class="docutils literal notranslate"><span class="pre">spikes</span></code>, <code class="docutils literal notranslate"><span class="pre">rate</span></code> (spike trace) or
+<code class="docutils literal notranslate"><span class="pre">membrane</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">spike_readout_tau</span></code></p></td>
+<td><p>float</p></td>
+<td><p>20.0</p></td>
+<td><p>Time constant of the spike trace.</p></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Dendritic spikes.</strong> See <a class="reference internal" href="temporal_dynamics.html#dendritic-spikes"><span class="std std-ref">Dendritic spikes and plateaus</span></a>.</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 34.0%" />
+<col style="width: 12.0%" />
+<col style="width: 12.0%" />
+<col style="width: 42.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Field</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dendritic_spikes_enabled</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>Enable dendritic spike or plateau events.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">dendritic_spike_mode</span></code></p></td>
+<td><p>str</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">plateau</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">plateau</span></code> (leaky plateau trace) or <code class="docutils literal notranslate"><span class="pre">threshold</span></code> (event only).</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dendritic_spike_levels</span></code></p></td>
+<td><p>str or list[int]</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">non_soma</span></code></p></td>
+<td><p>Levels with events: <code class="docutils literal notranslate"><span class="pre">non_soma</span></code> or <code class="docutils literal notranslate"><span class="pre">all</span></code> (every dendritic level),
+<code class="docutils literal notranslate"><span class="pre">distal</span></code>, <code class="docutils literal notranslate"><span class="pre">proximal</span></code>, <code class="docutils literal notranslate"><span class="pre">none</span></code>, or level indices.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">dendritic_spike_threshold</span></code></p></td>
+<td><p>float</p></td>
+<td><p>0.7</p></td>
+<td><p>Branch voltage that triggers an event.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dendritic_spike_plateau_amplitude</span></code></p></td>
+<td><p>float</p></td>
+<td><p>1.0</p></td>
+<td><p>Amplitude of the plateau’s effect on the branch output.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">dendritic_spike_plateau_tau</span></code></p></td>
+<td><p>float</p></td>
+<td><p>20.0</p></td>
+<td><p>Time constant of the plateau trace.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dendritic_spike_refractory_steps</span></code></p></td>
+<td><p>int</p></td>
+<td><p>0</p></td>
+<td><p>Steps after an event during which the branch cannot fire.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">dendritic_spike_surrogate_beta</span></code></p></td>
+<td><p>float</p></td>
+<td><p>10.0</p></td>
+<td><p>Steepness of the surrogate gradient.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dendritic_spike_propagation</span></code></p></td>
+<td><p>str</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">additive</span></code></p></td>
+<td><p>How the plateau changes the branch output: <code class="docutils literal notranslate"><span class="pre">additive</span></code>, <code class="docutils literal notranslate"><span class="pre">replace</span></code>
+or <code class="docutils literal notranslate"><span class="pre">gated</span></code>.</p></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Soma feedback.</strong> See <a class="reference internal" href="temporal_dynamics.html#soma-feedback"><span class="std std-ref">Soma-to-dendrite feedback</span></a>.</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 34.0%" />
+<col style="width: 12.0%" />
+<col style="width: 12.0%" />
+<col style="width: 42.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Field</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">soma_feedback_enabled</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>Send the previous step’s soma signal back to dendritic levels.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">soma_feedback_mode</span></code></p></td>
+<td><p>str</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">additive</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">additive</span></code>, <code class="docutils literal notranslate"><span class="pre">shunting</span></code> or <code class="docutils literal notranslate"><span class="pre">gated</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">soma_feedback_source</span></code></p></td>
+<td><p>str</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">output</span></code></p></td>
+<td><p>Fed-back signal: <code class="docutils literal notranslate"><span class="pre">output</span></code>, <code class="docutils literal notranslate"><span class="pre">voltage</span></code> or <code class="docutils literal notranslate"><span class="pre">spike_readout</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">soma_feedback_levels</span></code></p></td>
+<td><p>str or list[int]</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">non_soma</span></code></p></td>
+<td><p>Receiving levels: <code class="docutils literal notranslate"><span class="pre">non_soma</span></code>, <code class="docutils literal notranslate"><span class="pre">all</span></code> (including the soma),
+<code class="docutils literal notranslate"><span class="pre">distal</span></code>, <code class="docutils literal notranslate"><span class="pre">proximal</span></code>, <code class="docutils literal notranslate"><span class="pre">soma</span></code>, <code class="docutils literal notranslate"><span class="pre">none</span></code>, or level indices.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">soma_feedback_strength</span></code></p></td>
+<td><p>float</p></td>
+<td><p>0.1</p></td>
+<td><p>Initial strength of the feedback.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">soma_feedback_learnable_strength</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>Learn the strength.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">soma_feedback_per_level</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
+<td><p>One strength per receiving level instead of one shared strength.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">soma_feedback_init_std</span></code></p></td>
+<td><p>float</p></td>
+<td><p>0.0</p></td>
+<td><p>Standard deviation of the initial feedback projection; 0 starts it at
+zero.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">soma_feedback_reversal</span></code></p></td>
+<td><p>float</p></td>
+<td><p>1.0</p></td>
+<td><p>Reversal potential of <code class="docutils literal notranslate"><span class="pre">shunting</span></code> feedback.</p></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Implementation.</strong></p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 34.0%" />
+<col style="width: 12.0%" />
+<col style="width: 12.0%" />
+<col style="width: 42.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Field</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">efficient_blocklinear</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>Compute the child-to-parent couplings without building the dense
+block-diagonal matrix (same values, less memory).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">blocklinear_gradient_scaling</span></code></p></td>
+<td><p>str</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">none</span></code></p></td>
+<td><p>Gradient scaling of the child-to-parent couplings: <code class="docutils literal notranslate"><span class="pre">none</span></code>,
+<code class="docutils literal notranslate"><span class="pre">conductance_dynamic</span></code> (by the total conductance in shunting
+populations; additive populations divide each child’s gradient by its
+coupling weight, see <a class="reference internal" href="structured_ei_cores.html#blocklinear-gradient-scaling"><span class="std std-ref">BlockLinear gradient scaling</span></a>) or <code class="docutils literal notranslate"><span class="pre">distal_upweight_by_idx</span></code> (by
+level index).</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">print_hooks</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>Log the activity of the gradient-scaling hooks.</p></td>
+</tr>
+</tbody>
+</table>
+<p>The renamed fields <code class="docutils literal notranslate"><span class="pre">topk_strategy</span></code>, <code class="docutils literal notranslate"><span class="pre">reactivation_strategy</span></code> and
+<code class="docutils literal notranslate"><span class="pre">blocklinear_strategy</span></code> still load, with a warning, as
+<code class="docutils literal notranslate"><span class="pre">topk_gradient_scaling</span></code>, <code class="docutils literal notranslate"><span class="pre">reactivation_gradient_scaling</span></code> and
+<code class="docutils literal notranslate"><span class="pre">blocklinear_gradient_scaling</span></code>.</p>
+<p>A population that is stepped through time (in a recurrent layer, or with
+synapse types, a spiking soma, dendritic spikes or soma feedback) runs each
+branch layer once per time step before one backward pass. Its
+<code class="docutils literal notranslate"><span class="pre">conductance_dynamic</span></code> scales are then registered on the tensors of each
+step, so every step’s gradients are scaled by that step’s scales; with
+<code class="docutils literal notranslate"><span class="pre">topk_gradient_scaling:</span> <span class="pre">none</span></code> only the couplings keep their per-step
+tensors. A feedforward population applies the scales of its single forward
+pass through backward hooks.</p>
+</section>
+</section>
+<section id="configuration-choices">
+<h2>Configuration choices<a class="headerlink" href="#configuration-choices" title="Link to this heading"></a></h2>
+<p>The table lists common choices, the library default and what to consider.</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 20.0%" />
+<col style="width: 24.0%" />
+<col style="width: 56.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Choice</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Recommendation</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Integration rule</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">use_shunting:</span> <span class="pre">true</span></code></p></td>
+<td><p>Set <code class="docutils literal notranslate"><span class="pre">use_shunting</span></code> per population. For additive populations, set
+<code class="docutils literal notranslate"><span class="pre">use_additive_normalization:</span> <span class="pre">true</span></code> only when across-output
+normalization of the voltage is part of the model, and choose the
+additive rule with <code class="docutils literal notranslate"><span class="pre">additive_mode</span></code> (see <a class="reference internal" href="dendritic_neurons.html#integration-modes"><span class="std std-ref">Integration modes</span></a>).</p></td>
+</tr>
+<tr class="row-odd"><td><p>Gate initialization</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">analytical</span></code> (<code class="docutils literal notranslate"><span class="pre">occupancy_quantile</span></code> when <code class="docutils literal notranslate"><span class="pre">use_shunting:</span> <span class="pre">false</span></code>)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">occupancy_quantile</span></code> calibrates each gate’s slope and midpoint on
+measured voltages before training, so the gate starts at the operating
+point of the data in every population and depth (see
+<a class="reference internal" href="dendritic_neurons.html#gate-initialization"><span class="std std-ref">Gate initialization and maintenance</span></a>).</p></td>
+</tr>
+<tr class="row-even"><td><p>Positive conductances</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">weight_transform:</span> <span class="pre">exp</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">softplus</span></code> also keeps conductances positive and grows linearly
+instead of exponentially in the stored parameter. Structured E/I cores
+default to <code class="docutils literal notranslate"><span class="pre">softplus</span></code>, so write the transform explicitly when the two
+families are compared.</p></td>
+</tr>
+<tr class="row-odd"><td><p>Developmental sparsity</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">topk_type:</span> <span class="pre">standard</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">dense_to_sparse</span></code> trains with more active synapses at first and
+reduces them to the target count on a schedule.</p></td>
+</tr>
+<tr class="row-even"><td><p>Multilayer routing</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">input</span></code> is the previous readout population</p></td>
+<td><p>Qualified sources (<code class="docutils literal notranslate"><span class="pre">layer0.e0</span></code>, <code class="docutils literal notranslate"><span class="pre">layer0.i0</span></code>) make cross-layer
+routing explicit and can read several populations of earlier layers.</p></td>
+</tr>
+<tr class="row-odd"><td><p>Recurrence</p></td>
+<td><p>feedforward layers</p></td>
+<td><p>Set <code class="docutils literal notranslate"><span class="pre">recurrent:</span> <span class="pre">true</span></code> and add <code class="docutils literal notranslate"><span class="pre">timing:</span> <span class="pre">delayed</span></code> connections; write
+the <code class="docutils literal notranslate"><span class="pre">rec_*_synapses</span></code> counts they need.</p></td>
+</tr>
+</tbody>
+</table>
+<p>Because layer, population and connection keys are checked only when the model
+is built, run <code class="docutils literal notranslate"><span class="pre">dendritic-train</span> <span class="pre">config.yaml</span> <span class="pre">--validate-only</span></code> after editing a
+population network. Sweep axes address population fields by dotted paths with
+list indices, for example
+<code class="docutils literal notranslate"><span class="pre">model.core.population_network.layers.0.population_defaults.tau_base</span></code> (see
+<a class="reference internal" href="sweeps.html#sweeps"><span class="std std-ref">Parameter sweeps</span></a>).</p>
+</section>
+<section id="components-and-code-map">
+<h2>Components and code map<a class="headerlink" href="#components-and-code-map" title="Link to this heading"></a></h2>
+<figure class="align-default" id="id5">
+<a class="reference internal image-reference" href="_images/extended-recurrent-components.svg"><img alt="Components of a population network from sequence input through named populations, connectivity, synapse types and dendrites to the soma output, decoder and analysis" src="_images/extended-recurrent-components.svg" style="width: 100%;" />
+</a>
+<figcaption>
+<p><span class="caption-text">The components that act on a population’s input, in processing order:
+connections and connectivity masks decide which presynaptic units can
+contact a population, receptor types filter the selected input, the
+dendritic tree integrates it with shunting or additive rules, and the soma
+emits a rate or spikes for the decoder. Analyzers read the intermediate
+signals.</span><a class="headerlink" href="#id5" title="Link to this image"></a></p>
+</figcaption>
+</figure>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 34.0%" />
+<col style="width: 66.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Configuration</p></th>
+<th class="head"><p>Implementation</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">model.core.population_network</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">dendritic_modeling.networks.PopulationNetwork</span></code>, configured by
+<code class="docutils literal notranslate"><span class="pre">PopulationNetworkConfig</span></code>. It applies the input adapter
+(<code class="docutils literal notranslate"><span class="pre">dendritic_modeling.networks.NonNegativeInputAdapter</span></code>), the transfer
+layer (<code class="docutils literal notranslate"><span class="pre">dendritic_modeling.networks.TransferLayer</span></code>) and the input
+projection, runs the layers and reduces sequences.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">layers[]</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">dendritic_modeling.networks.PopulationLayer</span></code> (<code class="docutils literal notranslate"><span class="pre">PopulationLayerConfig</span></code>):
+connection routing, connection masks and the order of same-step
+populations.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">layers[].populations[]</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">PopulationDefinitionConfig</span></code>; one
+<code class="docutils literal notranslate"><span class="pre">dendritic_modeling.networks.StatefulDendriNet</span></code> per population,
+configured by <code class="docutils literal notranslate"><span class="pre">PopulationConfig</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">layers[].connections[]</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">PopulationProjectionConfig</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">structured_connectivity</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">dendritic_modeling.networks.architectures.excitation_inhibition.synapse.structured_mask</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">topk_type</span></code></p></td>
+<td><p>Sparse synapse classes registered in
+<code class="docutils literal notranslate"><span class="pre">dendritic_modeling.networks.architectures.excitation_inhibition.synapse.factory</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">synapse_types</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">dendritic_modeling.networks.build_synapse_type_set</span></code> (<code class="docutils literal notranslate"><span class="pre">SynapseTypeSet</span></code>,
+<code class="docutils literal notranslate"><span class="pre">SynapseTypeConfig</span></code>) and
+<code class="docutils literal notranslate"><span class="pre">dendritic_modeling.networks.architectures.recurrent.stateful_typed_dynamics.StatefulTypedDynamicsMixin</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">dynamics_mode:</span> <span class="pre">spike</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">dendritic_modeling.networks.LIFSoma</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dendritic_spikes_enabled</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">dendritic_modeling.networks.architectures.recurrent.DendriticSpikeDynamics</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">soma_feedback_enabled</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">dendritic_modeling.networks.architectures.recurrent.stateful_feedback</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p>Sequence interface</p></td>
+<td><p>The protocols <code class="docutils literal notranslate"><span class="pre">dendritic_modeling.networks.RecurrentCore</span></code> (the
+sequence interface that recurrent trainers use) and
+<code class="docutils literal notranslate"><span class="pre">dendritic_modeling.networks.SteppableRecurrentCore</span></code> (one-step
+populations).</p></td>
+</tr>
+</tbody>
+</table>
+<p>All configuration classes above are importable from
+<code class="docutils literal notranslate"><span class="pre">dendritic_modeling.networks</span></code>. Structured and unified E/I cores build the
+same <code class="docutils literal notranslate"><span class="pre">StatefulDendriNet</span></code> populations from their own configuration sections
+(see <a class="reference internal" href="structured_ei_cores.html"><span class="doc">Structured E/I cores</span></a>).</p>
+</section>
+<section id="examples">
+<h2>Examples<a class="headerlink" href="#examples" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_feedforward.yaml</span></code> is the smallest
+complete training configuration of a population network, and
+<code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_recurrent_pyr_pv_sst.yaml</span></code> a recurrent
+microcircuit. The table in <a class="reference internal" href="examples.html#examples-map"><span class="std std-ref">Example map</span></a> lists every shipped example,
+including multilayer, heterogeneous, CIFAR-10, local-learning and temporal
+dynamics configurations.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="synapses.html" class="btn btn-neutral float-left" title="Synapses and connectivity" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="temporal_dynamics.html" class="btn btn-neutral float-right" title="Temporal dynamics" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024-2026, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

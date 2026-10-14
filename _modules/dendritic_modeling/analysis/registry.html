@@ -1,0 +1,634 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>dendritic_modeling.analysis.registry &mdash; DendriNet v0.2.0</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=938c9ccc"></script>
+      <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            DendriNet
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../examples.html">Example configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Building models</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../network_architectures.html">Model architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../dendritic_neurons.html">Dendritic neurons</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../synapses.html">Synapses and connectivity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../population_networks.html">Population networks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../temporal_dynamics.html">Temporal dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../structured_ei_cores.html">Structured E/I cores</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../conductance_options.html">Conductance options</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../comparison_models.html">Baselines and comparison models</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Configuration</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../configuration_guide.html">Configuration guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../config_reference.html">Annotated reference configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../training_strategies.html">Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../distributed_training.html">Distributed training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../performance_kernels.html">Sparse execution and performance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Data and analysis</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../datasets.html">Datasets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../analysis.html">Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../analyzers.html">Analyzer reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../checkpoint_analysis.html">Analyzing saved checkpoints</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Running experiments</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../runs_and_outputs.html">Runs and outputs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../sweeps.html">Parameter sweeps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../model_compression.html">Compact checkpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../project_provenance.html">Project provenance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../available_components.html">Component catalogue</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../options_reference.html">Options reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../cli_reference.html">Command-line reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api_reference.html">Python API</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../extending.html">Extending DendriNet</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../engineering_architecture.html">Engineering architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../contributing.html">Contributing</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">DendriNet</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">dendritic_modeling.analysis.registry</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for dendritic_modeling.analysis.registry</h1><div class="highlight"><pre>
+<span></span><span class="sd">"""Analyzer registry.</span>
+
+<span class="sd">Each analyzer is described by an :class:`AnalyzerSpec`. ``AnalysisManager``</span>
+<span class="sd">builds the analyzers whose configuration section is enabled and runs them in</span>
+<span class="sd">its fixed order. Plugins add analyzers with :func:`register_analyzer`; an</span>
+<span class="sd">analyzer registered with a ``phase`` runs in that phase of the order, and its</span>
+<span class="sd">configuration section is the plugin section ``analysis.&lt;config_field&gt;``</span>
+<span class="sd">(registered with :func:`dendritic_modeling.config.extensions.register_config_section`).</span>
+<span class="sd">"""</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">importlib</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Literal</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.plugins</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_plugins</span>
+
+<span class="n">AnalyzerConstructor</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"params"</span><span class="p">,</span> <span class="s2">"model_params"</span><span class="p">,</span> <span class="s2">"none"</span><span class="p">]</span>
+<span class="c1">#: Where a plugin analyzer runs in the analysis order: with the test-dataset</span>
+<span class="c1">#: analyses before or after the weight and reactivation analyses, or with the</span>
+<span class="c1">#: model-only analyses.</span>
+<span class="n">AnalyzerPhase</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"pre_weight"</span><span class="p">,</span> <span class="s2">"post_reactivation"</span><span class="p">,</span> <span class="s2">"model_only"</span><span class="p">]</span>
+<span class="n">ANALYZER_PHASES</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"pre_weight"</span><span class="p">,</span> <span class="s2">"post_reactivation"</span><span class="p">,</span> <span class="s2">"model_only"</span><span class="p">)</span>
+
+
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">AnalyzerSpec</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Metadata describing one analysis component."""</span>
+
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">config_field</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">class_path</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">attribute_name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">save_subdir</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">constructor_style</span><span class="p">:</span> <span class="n">AnalyzerConstructor</span> <span class="o">=</span> <span class="s2">"params"</span>
+    <span class="n">supports_training</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="c1"># Analyzers that compare snapshots taken during training.</span>
+    <span class="n">requires_training</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">description</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span>
+    <span class="c1"># Plugin analyzers: where they run, whether the runner passes ``training``</span>
+    <span class="c1"># and whether a missing analyzer instance is an error.</span>
+    <span class="n">phase</span><span class="p">:</span> <span class="n">AnalyzerPhase</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">pass_training</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">require_analyzer</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">load_class</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">type</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Resolve the analyzer class declared by this spec."""</span>
+        <span class="n">module_name</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">class_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">class_path</span><span class="o">.</span><span class="n">rpartition</span><span class="p">(</span><span class="s2">"."</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">module_name</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">class_name</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Invalid analyzer class path: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">class_path</span><span class="si">!r}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="n">module</span> <span class="o">=</span> <span class="n">importlib</span><span class="o">.</span><span class="n">import_module</span><span class="p">(</span><span class="n">module_name</span><span class="p">)</span>
+        <span class="n">analyzer_cls</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">class_name</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">analyzer_cls</span><span class="p">,</span> <span class="nb">type</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"Analyzer path does not resolve to a class: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">class_path</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="n">analyzer_cls</span>
+
+
+<span class="n">_ANALYZER_REGISTRY</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">AnalyzerSpec</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+
+
+<span class="n">_BUILTIN_ANALYZERS</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">AnalyzerSpec</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">AnalyzerSpec</span><span class="p">(</span>
+        <span class="n">name</span><span class="o">=</span><span class="s2">"performance"</span><span class="p">,</span>
+        <span class="n">config_field</span><span class="o">=</span><span class="s2">"performance"</span><span class="p">,</span>
+        <span class="n">class_path</span><span class="o">=</span><span class="s2">"dendritic_modeling.analysis.metrics.performance.PerformanceAnalyzer"</span><span class="p">,</span>
+        <span class="n">attribute_name</span><span class="o">=</span><span class="s2">"performance_analyzer"</span><span class="p">,</span>
+        <span class="n">save_subdir</span><span class="o">=</span><span class="s2">"performance"</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">AnalyzerSpec</span><span class="p">(</span>
+        <span class="n">name</span><span class="o">=</span><span class="s2">"information"</span><span class="p">,</span>
+        <span class="n">config_field</span><span class="o">=</span><span class="s2">"information"</span><span class="p">,</span>
+        <span class="n">class_path</span><span class="o">=</span><span class="s2">"dendritic_modeling.analysis.core.information.InformationAnalyzer"</span><span class="p">,</span>
+        <span class="n">attribute_name</span><span class="o">=</span><span class="s2">"information_analyzer"</span><span class="p">,</span>
+        <span class="n">save_subdir</span><span class="o">=</span><span class="s2">"information_analysis"</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">AnalyzerSpec</span><span class="p">(</span>
+        <span class="n">name</span><span class="o">=</span><span class="s2">"representation_accessibility"</span><span class="p">,</span>
+        <span class="n">config_field</span><span class="o">=</span><span class="s2">"representation_accessibility"</span><span class="p">,</span>
+        <span class="n">class_path</span><span class="o">=</span><span class="p">(</span>
+            <span class="s2">"dendritic_modeling.analysis.tools.representation_accessibility."</span>
+            <span class="s2">"RepresentationAccessibilityAnalyzer"</span>
+        <span class="p">),</span>
+        <span class="n">attribute_name</span><span class="o">=</span><span class="s2">"representation_accessibility_analyzer"</span><span class="p">,</span>
+        <span class="n">save_subdir</span><span class="o">=</span><span class="s2">"representation_accessibility"</span><span class="p">,</span>
+        <span class="n">supports_training</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+            <span class="s2">"Validation-fit linear/nonlinear probes and matched-support class "</span>
+            <span class="s2">"information for stacked soma populations"</span>
+        <span class="p">),</span>
+    <span class="p">),</span>
+    <span class="n">AnalyzerSpec</span><span class="p">(</span>
+        <span class="n">name</span><span class="o">=</span><span class="s2">"source_tuning_support"</span><span class="p">,</span>
+        <span class="n">config_field</span><span class="o">=</span><span class="s2">"source_tuning_support"</span><span class="p">,</span>
+        <span class="n">class_path</span><span class="o">=</span><span class="p">(</span>
+            <span class="s2">"dendritic_modeling.analysis.tools.source_tuning."</span>
+            <span class="s2">"SourceTuningSupportAnalyzer"</span>
+        <span class="p">),</span>
+        <span class="n">attribute_name</span><span class="o">=</span><span class="s2">"source_tuning_support_analyzer"</span><span class="p">,</span>
+        <span class="n">save_subdir</span><span class="o">=</span><span class="s2">"source_tuning_support_analysis"</span><span class="p">,</span>
+        <span class="n">supports_training</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+            <span class="s2">"Split-safe source-coordinate tuning aligned with exact sparse "</span>
+            <span class="s2">"contacts and effective conductances"</span>
+        <span class="p">),</span>
+    <span class="p">),</span>
+    <span class="n">AnalyzerSpec</span><span class="p">(</span>
+        <span class="n">name</span><span class="o">=</span><span class="s2">"input_region_intervention"</span><span class="p">,</span>
+        <span class="n">config_field</span><span class="o">=</span><span class="s2">"input_region_intervention"</span><span class="p">,</span>
+        <span class="n">class_path</span><span class="o">=</span><span class="p">(</span>
+            <span class="s2">"dendritic_modeling.analysis.tools.input_region_intervention."</span>
+            <span class="s2">"InputRegionInterventionAnalyzer"</span>
+        <span class="p">),</span>
+        <span class="n">attribute_name</span><span class="o">=</span><span class="s2">"input_region_intervention_analyzer"</span><span class="p">,</span>
+        <span class="n">save_subdir</span><span class="o">=</span><span class="s2">"input_region_intervention"</span><span class="p">,</span>
+        <span class="n">supports_training</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+            <span class="s2">"Paired image-region interventions with layerwise E/I response propagation"</span>
+        <span class="p">),</span>
+    <span class="p">),</span>
+    <span class="n">AnalyzerSpec</span><span class="p">(</span>
+        <span class="n">name</span><span class="o">=</span><span class="s2">"synapse_turnover"</span><span class="p">,</span>
+        <span class="n">config_field</span><span class="o">=</span><span class="s2">"synapse_turnover"</span><span class="p">,</span>
+        <span class="n">class_path</span><span class="o">=</span><span class="s2">"dendritic_modeling.analysis.tools.synaptic_turnover.SynapticTurnoverAnalyzer"</span><span class="p">,</span>
+        <span class="n">attribute_name</span><span class="o">=</span><span class="s2">"syn_turnover_analyzer"</span><span class="p">,</span>
+        <span class="n">save_subdir</span><span class="o">=</span><span class="s2">"synapse_turnover_analysis"</span><span class="p">,</span>
+        <span class="n">constructor_style</span><span class="o">=</span><span class="s2">"model_params"</span><span class="p">,</span>
+        <span class="n">requires_training</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">AnalyzerSpec</span><span class="p">(</span>
+        <span class="n">name</span><span class="o">=</span><span class="s2">"synapse_pruning"</span><span class="p">,</span>
+        <span class="n">config_field</span><span class="o">=</span><span class="s2">"synapse_pruning"</span><span class="p">,</span>
+        <span class="n">class_path</span><span class="o">=</span><span class="s2">"dendritic_modeling.analysis.tools.synaptic_pruning.SynapticPruningAnalyzer"</span><span class="p">,</span>
+        <span class="n">attribute_name</span><span class="o">=</span><span class="s2">"syn_pruning_analyzer"</span><span class="p">,</span>
+        <span class="n">save_subdir</span><span class="o">=</span><span class="s2">"synapse_pruning_analysis"</span><span class="p">,</span>
+        <span class="n">supports_training</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">description</span><span class="o">=</span><span class="s2">"Realized-contact census and the contacts each pruning step removed"</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">AnalyzerSpec</span><span class="p">(</span>
+        <span class="n">name</span><span class="o">=</span><span class="s2">"noise_perturbation"</span><span class="p">,</span>
+        <span class="n">config_field</span><span class="o">=</span><span class="s2">"noise_perturbation"</span><span class="p">,</span>
+        <span class="n">class_path</span><span class="o">=</span><span class="s2">"dendritic_modeling.analysis.metrics.noise_perturbation.NoisePerturbationAnalyzer"</span><span class="p">,</span>
+        <span class="n">attribute_name</span><span class="o">=</span><span class="s2">"noise_perturbation_analyzer"</span><span class="p">,</span>
+        <span class="n">save_subdir</span><span class="o">=</span><span class="s2">"noise_perturbation_analysis"</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">AnalyzerSpec</span><span class="p">(</span>
+        <span class="n">name</span><span class="o">=</span><span class="s2">"single_layer_contribution"</span><span class="p">,</span>
+        <span class="n">config_field</span><span class="o">=</span><span class="s2">"single_layer_contribution"</span><span class="p">,</span>
+        <span class="n">class_path</span><span class="o">=</span><span class="s2">"dendritic_modeling.analysis.metrics.layer_contribution.SingleLayerContributionAnalyzer"</span><span class="p">,</span>
+        <span class="n">attribute_name</span><span class="o">=</span><span class="s2">"single_layer_analyzer"</span><span class="p">,</span>
+        <span class="n">save_subdir</span><span class="o">=</span><span class="s2">"single_layer_contribution"</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">AnalyzerSpec</span><span class="p">(</span>
+        <span class="n">name</span><span class="o">=</span><span class="s2">"ablation"</span><span class="p">,</span>
+        <span class="n">config_field</span><span class="o">=</span><span class="s2">"ablation"</span><span class="p">,</span>
+        <span class="n">class_path</span><span class="o">=</span><span class="s2">"dendritic_modeling.analysis.core.ablation.AblationAnalyzer"</span><span class="p">,</span>
+        <span class="n">attribute_name</span><span class="o">=</span><span class="s2">"ablation_analyzer"</span><span class="p">,</span>
+        <span class="n">save_subdir</span><span class="o">=</span><span class="s2">"ablation_analysis"</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">AnalyzerSpec</span><span class="p">(</span>
+        <span class="n">name</span><span class="o">=</span><span class="s2">"path_matched_intervention"</span><span class="p">,</span>
+        <span class="n">config_field</span><span class="o">=</span><span class="s2">"path_matched_intervention"</span><span class="p">,</span>
+        <span class="n">class_path</span><span class="o">=</span><span class="p">(</span>
+            <span class="s2">"dendritic_modeling.analysis.tools.path_matched_intervention."</span>
+            <span class="s2">"PathMatchedInterventionAnalyzer"</span>
+        <span class="p">),</span>
+        <span class="n">attribute_name</span><span class="o">=</span><span class="s2">"path_matched_intervention_analyzer"</span><span class="p">,</span>
+        <span class="n">save_subdir</span><span class="o">=</span><span class="s2">"path_matched_intervention"</span><span class="p">,</span>
+        <span class="n">supports_training</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+            <span class="s2">"Fixed-count, nested soma-to-distal coordinate interventions across "</span>
+            <span class="s2">"dendritic depth"</span>
+        <span class="p">),</span>
+    <span class="p">),</span>
+    <span class="n">AnalyzerSpec</span><span class="p">(</span>
+        <span class="n">name</span><span class="o">=</span><span class="s2">"branch_local_sensitivity"</span><span class="p">,</span>
+        <span class="n">config_field</span><span class="o">=</span><span class="s2">"branch_local_sensitivity"</span><span class="p">,</span>
+        <span class="n">class_path</span><span class="o">=</span><span class="p">(</span>
+            <span class="s2">"dendritic_modeling.analysis.tools.branch_local_sensitivity."</span>
+            <span class="s2">"BranchLocalSensitivityAnalyzer"</span>
+        <span class="p">),</span>
+        <span class="n">attribute_name</span><span class="o">=</span><span class="s2">"branch_local_sensitivity_analyzer"</span><span class="p">,</span>
+        <span class="n">save_subdir</span><span class="o">=</span><span class="s2">"branch_local_sensitivity"</span><span class="p">,</span>
+        <span class="n">supports_training</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+            <span class="s2">"Observed local E/I/inherited-current branch sensitivities including "</span>
+            <span class="s2">"the fitted reactivation derivative"</span>
+        <span class="p">),</span>
+    <span class="p">),</span>
+    <span class="n">AnalyzerSpec</span><span class="p">(</span>
+        <span class="n">name</span><span class="o">=</span><span class="s2">"local_inhibitory_population_intervention"</span><span class="p">,</span>
+        <span class="n">config_field</span><span class="o">=</span><span class="s2">"local_inhibitory_population_intervention"</span><span class="p">,</span>
+        <span class="n">class_path</span><span class="o">=</span><span class="p">(</span>
+            <span class="s2">"dendritic_modeling.analysis.tools.layer_population_intervention."</span>
+            <span class="s2">"LocalInhibitoryPopulationInterventionAnalyzer"</span>
+        <span class="p">),</span>
+        <span class="n">attribute_name</span><span class="o">=</span><span class="s2">"local_inhibitory_population_intervention_analyzer"</span><span class="p">,</span>
+        <span class="n">save_subdir</span><span class="o">=</span><span class="s2">"local_inhibitory_population_intervention"</span><span class="p">,</span>
+        <span class="n">supports_training</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+            <span class="s2">"Whole local inhibitory soma-population interventions across "</span>
+            <span class="s2">"feedforward network layers"</span>
+        <span class="p">),</span>
+    <span class="p">),</span>
+    <span class="n">AnalyzerSpec</span><span class="p">(</span>
+        <span class="n">name</span><span class="o">=</span><span class="s2">"path_matched_information"</span><span class="p">,</span>
+        <span class="n">config_field</span><span class="o">=</span><span class="s2">"path_matched_information"</span><span class="p">,</span>
+        <span class="n">class_path</span><span class="o">=</span><span class="p">(</span>
+            <span class="s2">"dendritic_modeling.analysis.tools.path_matched_information."</span>
+            <span class="s2">"PathMatchedInformationAnalyzer"</span>
+        <span class="p">),</span>
+        <span class="n">attribute_name</span><span class="o">=</span><span class="s2">"path_matched_information_analyzer"</span><span class="p">,</span>
+        <span class="n">save_subdir</span><span class="o">=</span><span class="s2">"path_matched_information"</span><span class="p">,</span>
+        <span class="n">supports_training</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+            <span class="s2">"Validation-set joint class information on fixed-width, nested "</span>
+            <span class="s2">"soma-to-distal coordinate supports"</span>
+        <span class="p">),</span>
+    <span class="p">),</span>
+    <span class="n">AnalyzerSpec</span><span class="p">(</span>
+        <span class="n">name</span><span class="o">=</span><span class="s2">"weight"</span><span class="p">,</span>
+        <span class="n">config_field</span><span class="o">=</span><span class="s2">"weight"</span><span class="p">,</span>
+        <span class="n">class_path</span><span class="o">=</span><span class="s2">"dendritic_modeling.analysis.tools.weight.WeightAnalyzer"</span><span class="p">,</span>
+        <span class="n">attribute_name</span><span class="o">=</span><span class="s2">"weight_analyzer"</span><span class="p">,</span>
+        <span class="n">save_subdir</span><span class="o">=</span><span class="s2">"weight_analysis"</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">AnalyzerSpec</span><span class="p">(</span>
+        <span class="n">name</span><span class="o">=</span><span class="s2">"compartment_statistics"</span><span class="p">,</span>
+        <span class="n">config_field</span><span class="o">=</span><span class="s2">"compartment_statistics"</span><span class="p">,</span>
+        <span class="n">class_path</span><span class="o">=</span><span class="s2">"dendritic_modeling.analysis.tools.compartment_statistics.CompartmentStatisticsAnalyzer"</span><span class="p">,</span>
+        <span class="n">attribute_name</span><span class="o">=</span><span class="s2">"compartment_statistics_analyzer"</span><span class="p">,</span>
+        <span class="n">save_subdir</span><span class="o">=</span><span class="s2">"compartment_statistics_analysis"</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">AnalyzerSpec</span><span class="p">(</span>
+        <span class="n">name</span><span class="o">=</span><span class="s2">"compartment_snr"</span><span class="p">,</span>
+        <span class="n">config_field</span><span class="o">=</span><span class="s2">"compartment_snr"</span><span class="p">,</span>
+        <span class="n">class_path</span><span class="o">=</span><span class="s2">"dendritic_modeling.analysis.tools.compartment_snr.CompartmentSNRAnalyzer"</span><span class="p">,</span>
+        <span class="n">attribute_name</span><span class="o">=</span><span class="s2">"compartment_snr_analyzer"</span><span class="p">,</span>
+        <span class="n">save_subdir</span><span class="o">=</span><span class="s2">"compartment_snr_analysis"</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">AnalyzerSpec</span><span class="p">(</span>
+        <span class="n">name</span><span class="o">=</span><span class="s2">"multiplicative_gain"</span><span class="p">,</span>
+        <span class="n">config_field</span><span class="o">=</span><span class="s2">"multiplicative_gain"</span><span class="p">,</span>
+        <span class="n">class_path</span><span class="o">=</span><span class="s2">"dendritic_modeling.analysis.tools.multiplicative_gain.MultiplicativeGainAnalyzer"</span><span class="p">,</span>
+        <span class="n">attribute_name</span><span class="o">=</span><span class="s2">"multiplicative_gain_analyzer"</span><span class="p">,</span>
+        <span class="n">save_subdir</span><span class="o">=</span><span class="s2">"multiplicative_gain_analysis"</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">AnalyzerSpec</span><span class="p">(</span>
+        <span class="n">name</span><span class="o">=</span><span class="s2">"gain_load_perturbation"</span><span class="p">,</span>
+        <span class="n">config_field</span><span class="o">=</span><span class="s2">"gain_load_perturbation"</span><span class="p">,</span>
+        <span class="n">class_path</span><span class="o">=</span><span class="p">(</span>
+            <span class="s2">"dendritic_modeling.analysis.tools.gain_load_perturbation."</span>
+            <span class="s2">"GainLoadPerturbationAnalyzer"</span>
+        <span class="p">),</span>
+        <span class="n">attribute_name</span><span class="o">=</span><span class="s2">"gain_load_perturbation_analyzer"</span><span class="p">,</span>
+        <span class="n">save_subdir</span><span class="o">=</span><span class="s2">"gain_load_perturbation"</span><span class="p">,</span>
+        <span class="n">supports_training</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+            <span class="s2">"Mean-one trial-shared lognormal gain crossed with an explicit "</span>
+            <span class="s2">"independent input-load intervention"</span>
+        <span class="p">),</span>
+    <span class="p">),</span>
+    <span class="n">AnalyzerSpec</span><span class="p">(</span>
+        <span class="n">name</span><span class="o">=</span><span class="s2">"receptive_field"</span><span class="p">,</span>
+        <span class="n">config_field</span><span class="o">=</span><span class="s2">"receptive_field"</span><span class="p">,</span>
+        <span class="n">class_path</span><span class="o">=</span><span class="s2">"dendritic_modeling.analysis.tools.receptive_fields.ReceptiveFieldAnalyzer"</span><span class="p">,</span>
+        <span class="n">attribute_name</span><span class="o">=</span><span class="s2">"receptive_field_analyzer"</span><span class="p">,</span>
+        <span class="n">save_subdir</span><span class="o">=</span><span class="s2">"receptive_field_analysis"</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">AnalyzerSpec</span><span class="p">(</span>
+        <span class="n">name</span><span class="o">=</span><span class="s2">"reactivation_dynamics"</span><span class="p">,</span>
+        <span class="n">config_field</span><span class="o">=</span><span class="s2">"reactivation_dynamics"</span><span class="p">,</span>
+        <span class="n">class_path</span><span class="o">=</span><span class="s2">"dendritic_modeling.analysis.tools.reactivation_dynamics.ReactivationDynamicsAnalyzer"</span><span class="p">,</span>
+        <span class="n">attribute_name</span><span class="o">=</span><span class="s2">"reactivation_dynamics_analyzer"</span><span class="p">,</span>
+        <span class="n">save_subdir</span><span class="o">=</span><span class="s2">"reactivation_dynamics"</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">AnalyzerSpec</span><span class="p">(</span>
+        <span class="n">name</span><span class="o">=</span><span class="s2">"synaptic_activation"</span><span class="p">,</span>
+        <span class="n">config_field</span><span class="o">=</span><span class="s2">"synaptic_activation"</span><span class="p">,</span>
+        <span class="n">class_path</span><span class="o">=</span><span class="s2">"dendritic_modeling.analysis.tools.synaptic_activation.SynapticActivationAnalyzer"</span><span class="p">,</span>
+        <span class="n">attribute_name</span><span class="o">=</span><span class="s2">"synaptic_activation_analyzer"</span><span class="p">,</span>
+        <span class="n">save_subdir</span><span class="o">=</span><span class="s2">"synaptic_activation_analysis"</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">AnalyzerSpec</span><span class="p">(</span>
+        <span class="n">name</span><span class="o">=</span><span class="s2">"branch_activation"</span><span class="p">,</span>
+        <span class="n">config_field</span><span class="o">=</span><span class="s2">"branch_activation"</span><span class="p">,</span>
+        <span class="n">class_path</span><span class="o">=</span><span class="s2">"dendritic_modeling.analysis.core.branch_activation.BranchActivationAnalyzer"</span><span class="p">,</span>
+        <span class="n">attribute_name</span><span class="o">=</span><span class="s2">"branch_activation_analyzer"</span><span class="p">,</span>
+        <span class="n">save_subdir</span><span class="o">=</span><span class="s2">"branch_activation_analysis"</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">AnalyzerSpec</span><span class="p">(</span>
+        <span class="n">name</span><span class="o">=</span><span class="s2">"local_rule_components"</span><span class="p">,</span>
+        <span class="n">config_field</span><span class="o">=</span><span class="s2">"local_rule_components"</span><span class="p">,</span>
+        <span class="n">class_path</span><span class="o">=</span><span class="s2">"dendritic_modeling.analysis.tools.local_rule_components.LocalRuleComponentAnalyzer"</span><span class="p">,</span>
+        <span class="n">attribute_name</span><span class="o">=</span><span class="s2">"local_rule_component_analyzer"</span><span class="p">,</span>
+        <span class="n">save_subdir</span><span class="o">=</span><span class="s2">"local_rule_components"</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">AnalyzerSpec</span><span class="p">(</span>
+        <span class="n">name</span><span class="o">=</span><span class="s2">"correlation"</span><span class="p">,</span>
+        <span class="n">config_field</span><span class="o">=</span><span class="s2">"correlation"</span><span class="p">,</span>
+        <span class="n">class_path</span><span class="o">=</span><span class="s2">"dendritic_modeling.analysis.tools.correlation_analysis.CorrelationAnalyzer"</span><span class="p">,</span>
+        <span class="n">attribute_name</span><span class="o">=</span><span class="s2">"correlation_analyzer"</span><span class="p">,</span>
+        <span class="n">save_subdir</span><span class="o">=</span><span class="s2">"correlation_analysis"</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">AnalyzerSpec</span><span class="p">(</span>
+        <span class="n">name</span><span class="o">=</span><span class="s2">"routing"</span><span class="p">,</span>
+        <span class="n">config_field</span><span class="o">=</span><span class="s2">"routing"</span><span class="p">,</span>
+        <span class="n">class_path</span><span class="o">=</span><span class="s2">"dendritic_modeling.analysis.tools.routing_analysis.RoutingAnalyzer"</span><span class="p">,</span>
+        <span class="n">attribute_name</span><span class="o">=</span><span class="s2">"routing_analyzer"</span><span class="p">,</span>
+        <span class="n">save_subdir</span><span class="o">=</span><span class="s2">"routing_analysis"</span><span class="p">,</span>
+        <span class="n">constructor_style</span><span class="o">=</span><span class="s2">"none"</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">AnalyzerSpec</span><span class="p">(</span>
+        <span class="n">name</span><span class="o">=</span><span class="s2">"inhibitory_specialization"</span><span class="p">,</span>
+        <span class="n">config_field</span><span class="o">=</span><span class="s2">"inhibitory_specialization"</span><span class="p">,</span>
+        <span class="n">class_path</span><span class="o">=</span><span class="s2">"dendritic_modeling.analysis.tools.inhibitory_specialization.InhibitorySpecializationAnalyzer"</span><span class="p">,</span>
+        <span class="n">attribute_name</span><span class="o">=</span><span class="s2">"inhibitory_specialization_analyzer"</span><span class="p">,</span>
+        <span class="n">save_subdir</span><span class="o">=</span><span class="s2">"inhibitory_specialization"</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">AnalyzerSpec</span><span class="p">(</span>
+        <span class="n">name</span><span class="o">=</span><span class="s2">"jacobian_spectrum"</span><span class="p">,</span>
+        <span class="n">config_field</span><span class="o">=</span><span class="s2">"jacobian_spectrum"</span><span class="p">,</span>
+        <span class="n">class_path</span><span class="o">=</span><span class="s2">"dendritic_modeling.analysis.tools.jacobian_spectrum.JacobianSpectrumAnalyzer"</span><span class="p">,</span>
+        <span class="n">attribute_name</span><span class="o">=</span><span class="s2">"jacobian_spectrum_analyzer"</span><span class="p">,</span>
+        <span class="n">save_subdir</span><span class="o">=</span><span class="s2">"jacobian_spectrum"</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">AnalyzerSpec</span><span class="p">(</span>
+        <span class="n">name</span><span class="o">=</span><span class="s2">"dendritic_timetraces"</span><span class="p">,</span>
+        <span class="n">config_field</span><span class="o">=</span><span class="s2">"dendritic_timetraces"</span><span class="p">,</span>
+        <span class="n">class_path</span><span class="o">=</span><span class="s2">"dendritic_modeling.analysis.tools.dendritic_timetraces.DendriticTimetracesAnalyzer"</span><span class="p">,</span>
+        <span class="n">attribute_name</span><span class="o">=</span><span class="s2">"dendritic_timetraces_analyzer"</span><span class="p">,</span>
+        <span class="n">save_subdir</span><span class="o">=</span><span class="s2">"dendritic_timetraces"</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">AnalyzerSpec</span><span class="p">(</span>
+        <span class="n">name</span><span class="o">=</span><span class="s2">"spike_train"</span><span class="p">,</span>
+        <span class="n">config_field</span><span class="o">=</span><span class="s2">"spike_train"</span><span class="p">,</span>
+        <span class="n">class_path</span><span class="o">=</span><span class="s2">"dendritic_modeling.analysis.tools.spike_trains.SpikeTrainAnalyzer"</span><span class="p">,</span>
+        <span class="n">attribute_name</span><span class="o">=</span><span class="s2">"spike_train_analyzer"</span><span class="p">,</span>
+        <span class="n">save_subdir</span><span class="o">=</span><span class="s2">"spike_train_analysis"</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">AnalyzerSpec</span><span class="p">(</span>
+        <span class="n">name</span><span class="o">=</span><span class="s2">"adversarial_robustness"</span><span class="p">,</span>
+        <span class="n">config_field</span><span class="o">=</span><span class="s2">"adversarial_robustness"</span><span class="p">,</span>
+        <span class="n">class_path</span><span class="o">=</span><span class="s2">"dendritic_modeling.analysis.metrics.adversarial_robustness.AdversarialRobustnessAnalyzer"</span><span class="p">,</span>
+        <span class="n">attribute_name</span><span class="o">=</span><span class="s2">"adversarial_robustness_analyzer"</span><span class="p">,</span>
+        <span class="n">save_subdir</span><span class="o">=</span><span class="s2">"adversarial_robustness_analysis"</span><span class="p">,</span>
+    <span class="p">),</span>
+<span class="p">)</span>
+
+
+<div class="viewcode-block" id="register_analyzer">
+<a class="viewcode-back" href="../../../api_reference.html#dendritic_modeling.analysis.registry.register_analyzer">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">register_analyzer</span><span class="p">(</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">config_field</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">class_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">attribute_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">save_subdir</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">constructor_style</span><span class="p">:</span> <span class="n">AnalyzerConstructor</span> <span class="o">=</span> <span class="s2">"params"</span><span class="p">,</span>
+    <span class="n">supports_training</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">requires_training</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">description</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
+    <span class="n">phase</span><span class="p">:</span> <span class="n">AnalyzerPhase</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">pass_training</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">require_analyzer</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">allow_override</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Register an analyzer.</span>
+
+<span class="sd">    Without ``phase`` the analyzer is metadata only: ``AnalysisManager`` builds</span>
+<span class="sd">    it when its section is enabled but never runs it. With ``phase`` it runs</span>
+<span class="sd">    there, receiving the test dataset (``pre_weight``, ``post_reactivation``)</span>
+<span class="sd">    or only the model (``model_only``).</span>
+<span class="sd">    """</span>
+    <span class="n">key</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">name</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">key</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"analyzer name must be non-empty"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">_ANALYZER_REGISTRY</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">allow_override</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Analyzer '</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">' is already registered"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">constructor_style</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"params"</span><span class="p">,</span> <span class="s2">"model_params"</span><span class="p">,</span> <span class="s2">"none"</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Unsupported analyzer constructor style: </span><span class="si">{</span><span class="n">constructor_style</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">phase</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">phase</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">ANALYZER_PHASES</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"Unsupported analyzer phase </span><span class="si">{</span><span class="n">phase</span><span class="si">!r}</span><span class="s2">; use one of </span><span class="si">{</span><span class="n">ANALYZER_PHASES</span><span class="si">}</span><span class="s2">"</span>
+        <span class="p">)</span>
+    <span class="n">_ANALYZER_REGISTRY</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">AnalyzerSpec</span><span class="p">(</span>
+        <span class="n">name</span><span class="o">=</span><span class="n">key</span><span class="p">,</span>
+        <span class="n">config_field</span><span class="o">=</span><span class="n">config_field</span><span class="p">,</span>
+        <span class="n">class_path</span><span class="o">=</span><span class="n">class_path</span><span class="p">,</span>
+        <span class="n">attribute_name</span><span class="o">=</span><span class="n">attribute_name</span><span class="p">,</span>
+        <span class="n">save_subdir</span><span class="o">=</span><span class="n">save_subdir</span><span class="p">,</span>
+        <span class="n">constructor_style</span><span class="o">=</span><span class="n">constructor_style</span><span class="p">,</span>
+        <span class="n">supports_training</span><span class="o">=</span><span class="n">supports_training</span><span class="p">,</span>
+        <span class="n">requires_training</span><span class="o">=</span><span class="n">requires_training</span><span class="p">,</span>
+        <span class="n">description</span><span class="o">=</span><span class="n">description</span><span class="p">,</span>
+        <span class="n">phase</span><span class="o">=</span><span class="n">phase</span><span class="p">,</span>
+        <span class="n">pass_training</span><span class="o">=</span><span class="n">pass_training</span><span class="p">,</span>
+        <span class="n">require_analyzer</span><span class="o">=</span><span class="n">require_analyzer</span><span class="p">,</span>
+    <span class="p">)</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">unregister_analyzer</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Remove analyzer metadata if present."""</span>
+    <span class="n">_ANALYZER_REGISTRY</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">name</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">(),</span> <span class="kc">None</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">get_analyzer_spec</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AnalyzerSpec</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return metadata for one analyzer."""</span>
+    <span class="n">key</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">name</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">_ANALYZER_REGISTRY</span><span class="p">:</span>
+        <span class="n">load_plugins</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">_ANALYZER_REGISTRY</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">get_registered_analyzer_names</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Return registered analyzer names, including those of plugins."""</span>
+    <span class="n">load_plugins</span><span class="p">()</span>
+    <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">_ANALYZER_REGISTRY</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">get_registered_analyzers</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">AnalyzerSpec</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Return a copy of all analyzer specs, including those of plugins."""</span>
+    <span class="n">load_plugins</span><span class="p">()</span>
+    <span class="k">return</span> <span class="nb">dict</span><span class="p">(</span><span class="n">_ANALYZER_REGISTRY</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">get_builtin_analyzer_names</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Return built-in analyzer names in their declared initialization order."""</span>
+    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">spec</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">spec</span> <span class="ow">in</span> <span class="n">_BUILTIN_ANALYZERS</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">get_extension_analyzer_names</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Return the names of registered analyzers that are not built in, sorted."""</span>
+    <span class="n">load_plugins</span><span class="p">()</span>
+    <span class="n">builtin</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">get_builtin_analyzer_names</span><span class="p">())</span>
+    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">name</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">_ANALYZER_REGISTRY</span> <span class="k">if</span> <span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">builtin</span><span class="p">))</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">load_analyzer_class</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">type</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Resolve the registered analyzer class for one analyzer name."""</span>
+    <span class="n">spec</span> <span class="o">=</span> <span class="n">get_analyzer_spec</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">spec</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Analyzer </span><span class="si">{</span><span class="n">name</span><span class="si">!r}</span><span class="s2"> is not registered"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">spec</span><span class="o">.</span><span class="n">load_class</span><span class="p">()</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_register_builtin_analyzers</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">for</span> <span class="n">spec</span> <span class="ow">in</span> <span class="n">_BUILTIN_ANALYZERS</span><span class="p">:</span>
+        <span class="n">register_analyzer</span><span class="p">(</span>
+            <span class="n">spec</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+            <span class="n">config_field</span><span class="o">=</span><span class="n">spec</span><span class="o">.</span><span class="n">config_field</span><span class="p">,</span>
+            <span class="n">class_path</span><span class="o">=</span><span class="n">spec</span><span class="o">.</span><span class="n">class_path</span><span class="p">,</span>
+            <span class="n">attribute_name</span><span class="o">=</span><span class="n">spec</span><span class="o">.</span><span class="n">attribute_name</span><span class="p">,</span>
+            <span class="n">save_subdir</span><span class="o">=</span><span class="n">spec</span><span class="o">.</span><span class="n">save_subdir</span><span class="p">,</span>
+            <span class="n">constructor_style</span><span class="o">=</span><span class="n">spec</span><span class="o">.</span><span class="n">constructor_style</span><span class="p">,</span>
+            <span class="n">supports_training</span><span class="o">=</span><span class="n">spec</span><span class="o">.</span><span class="n">supports_training</span><span class="p">,</span>
+            <span class="n">requires_training</span><span class="o">=</span><span class="n">spec</span><span class="o">.</span><span class="n">requires_training</span><span class="p">,</span>
+            <span class="n">description</span><span class="o">=</span><span class="n">spec</span><span class="o">.</span><span class="n">description</span><span class="p">,</span>
+        <span class="p">)</span>
+
+
+<span class="n">_register_builtin_analyzers</span><span class="p">()</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s2">"ANALYZER_PHASES"</span><span class="p">,</span>
+    <span class="s2">"AnalyzerConstructor"</span><span class="p">,</span>
+    <span class="s2">"AnalyzerPhase"</span><span class="p">,</span>
+    <span class="s2">"AnalyzerSpec"</span><span class="p">,</span>
+    <span class="s2">"get_analyzer_spec"</span><span class="p">,</span>
+    <span class="s2">"get_builtin_analyzer_names"</span><span class="p">,</span>
+    <span class="s2">"get_extension_analyzer_names"</span><span class="p">,</span>
+    <span class="s2">"get_registered_analyzer_names"</span><span class="p">,</span>
+    <span class="s2">"get_registered_analyzers"</span><span class="p">,</span>
+    <span class="s2">"load_analyzer_class"</span><span class="p">,</span>
+    <span class="s2">"register_analyzer"</span><span class="p">,</span>
+    <span class="s2">"unregister_analyzer"</span><span class="p">,</span>
+<span class="p">]</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024-2026, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

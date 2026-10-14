@@ -1,67 +1,94 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760">
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760" role="img" aria-labelledby="title desc">
+  <title id="title">One time step of a recurrent unified E/I layer</title>
+  <desc id="desc">The inhibitory population updates first from the feedforward streams and the previous-step outputs; the excitatory population then reads the same-step inhibitory output and the previous-step outputs; only the excitatory output leaves the layer.</desc>
   <defs>
     <style>
-      .title { font: 700 34px "DejaVu Sans", Arial, sans-serif; fill: #16324f; }
-      .label { font: 600 22px "DejaVu Sans", Arial, sans-serif; fill: #16324f; }
-      .body { font: 400 18px "DejaVu Sans", Arial, sans-serif; fill: #284b63; }
-      .small { font: 400 16px "DejaVu Sans", Arial, sans-serif; fill: #3c5666; }
-      .box { fill: #f8fbfd; stroke: #89a9bf; stroke-width: 2.5; rx: 22; }
-      .exc { fill: #eef7ec; stroke: #6aa56a; stroke-width: 2.5; rx: 22; }
-      .inh { fill: #fff3f1; stroke: #c06a5b; stroke-width: 2.5; rx: 22; }
-      .accent { fill: #e8f3f8; stroke: #4b8aa8; stroke-width: 2.5; rx: 22; }
-      .arrow { stroke: #4b6f88; stroke-width: 4; fill: none; marker-end: url(#arrowhead); }
-      .dashed { stroke-dasharray: 12 10; }
+      .title { font: 700 30px "DejaVu Sans", Arial, sans-serif; fill: #16324f; }
+      .label { font: 600 21px "DejaVu Sans", Arial, sans-serif; fill: #16324f; }
+      .body { font: 400 17px "DejaVu Sans", Arial, sans-serif; fill: #284b63; }
+      .code { font: 400 16px "DejaVu Sans Mono", Consolas, monospace; fill: #284b63; }
+      .small { font: 400 15px "DejaVu Sans", Arial, sans-serif; fill: #3c5666; }
+      .box { fill: #f8fbfd; stroke: #89a9bf; stroke-width: 2.5; rx: 18; }
+      .exc { fill: #eaf2fb; stroke: #2f6fb0; stroke-width: 2.5; rx: 18; }
+      .inh { fill: #fdf0ee; stroke: #b84a43; stroke-width: 2.5; stroke-dasharray: 2 0; rx: 18; }
+      .same { stroke: #34495e; stroke-width: 3.5; fill: none; marker-end: url(#arrowhead); }
+      .sameInh { stroke: #34495e; stroke-width: 3.5; fill: none; marker-end: url(#bar); }
+      .delayed { stroke: #6b5b95; stroke-width: 3; fill: none; stroke-dasharray: 10 8; marker-end: url(#openhead); }
     </style>
-    <marker id="arrowhead" markerWidth="14" markerHeight="10" refX="10" refY="5" orient="auto">
-      <polygon points="0 0, 10 5, 0 10" fill="#4b6f88"/>
+    <marker id="arrowhead" markerUnits="userSpaceOnUse" markerWidth="16" markerHeight="14" refX="13" refY="7" orient="auto">
+      <polygon points="0 0, 14 7, 0 14" fill="#34495e"/>
+    </marker>
+    <marker id="openhead" markerUnits="userSpaceOnUse" markerWidth="16" markerHeight="16" refX="13" refY="8" orient="auto">
+      <polyline points="1 1, 14 8, 1 15" fill="none" stroke="#6b5b95" stroke-width="2.5"/>
+    </marker>
+    <marker id="bar" markerUnits="userSpaceOnUse" markerWidth="8" markerHeight="22" refX="4" refY="11" orient="auto">
+      <rect x="1" y="0" width="6" height="22" fill="#34495e"/>
     </marker>
   </defs>
   <rect width="1200" height="760" fill="#ffffff"/>
-  <text x="60" y="70" class="title">Recurrent Unified E/I Design</text>
+  <text x="50" y="58" class="title">Recurrent unified E/I layer: one time step t</text>
 
-  <rect x="70" y="130" width="250" height="120" class="accent"/>
-  <text x="100" y="175" class="label">Input / Encoder</text>
-  <text x="100" y="206" class="body">transfer.output_</text>
-  <text x="100" y="228" class="body">activation</text>
-  <text x="100" y="250" class="small">guards shunting inputs</text>
+  <!-- feedforward input -->
+  <rect x="50" y="250" width="250" height="150" class="box"/>
+  <text x="72" y="290" class="label">Feedforward input</text>
+  <text x="72" y="322" class="code">x_ff</text>
+  <text x="120" y="322" class="body">excitatory stream</text>
+  <text x="72" y="352" class="code">x_I</text>
+  <text x="120" y="352" class="body">inhibitory stream</text>
+  <text x="72" y="382" class="small">transfer layer or previous layer</text>
 
-  <rect x="390" y="120" width="320" height="150" class="box"/>
-  <text x="420" y="165" class="label">EILayerConfig</text>
-  <text x="420" y="198" class="body">excitatory: PopulationConfig</text>
-  <text x="420" y="224" class="body">inhibitory: PopulationConfig</text>
-  <text x="420" y="250" class="body">per-layer recurrent structure</text>
+  <!-- inhibitory population -->
+  <rect x="420" y="110" width="380" height="170" class="inh"/>
+  <text x="442" y="148" class="label">1. Inhibitory population</text>
+  <text x="442" y="180" class="body">updates first; reads x_ff, x_I</text>
+  <text x="442" y="208" class="body">and the previous-step outputs</text>
+  <text x="442" y="240" class="code">output h_I(t)</text>
+  <text x="442" y="266" class="small">StatefulDendriNet</text>
 
-  <rect x="120" y="350" width="360" height="180" class="exc"/>
-  <text x="150" y="395" class="label">Excitatory Population</text>
-  <text x="150" y="428" class="body">StatefulDendriNet</text>
-  <text x="150" y="454" class="body">shared branch-layer + init logic</text>
-  <text x="150" y="480" class="body">per-level tau traces</text>
-  <text x="150" y="506" class="body">FF + recurrent synapse banks</text>
+  <!-- excitatory population -->
+  <rect x="420" y="380" width="380" height="170" class="exc"/>
+  <text x="442" y="418" class="label">2. Excitatory population</text>
+  <text x="442" y="450" class="body">reads x_ff, the same-step h_I(t)</text>
+  <text x="442" y="478" class="body">and the previous-step outputs</text>
+  <text x="442" y="510" class="code">output s_E(t)</text>
+  <text x="442" y="536" class="small">StatefulDendriNet</text>
 
-  <rect x="620" y="350" width="360" height="180" class="inh"/>
-  <text x="650" y="395" class="label">Inhibitory Population</text>
-  <text x="650" y="428" class="body">matching PopulationConfig</text>
-  <text x="650" y="454" class="body">recurrent / feedforward routing</text>
-  <text x="650" y="480" class="body">same branch semantics as</text>
-  <text x="650" y="504" class="body">feedforward EI</text>
+  <!-- next layer -->
+  <rect x="900" y="400" width="250" height="130" class="box"/>
+  <text x="922" y="440" class="label">Next layer</text>
+  <text x="922" y="470" class="body">or the decoder</text>
+  <text x="922" y="500" class="small">receives s_E(t) only</text>
 
-  <rect x="430" y="610" width="340" height="90" class="accent"/>
-  <text x="460" y="653" class="label">Decoder / Readout</text>
-  <text x="460" y="680" class="body">population outputs -&gt; task head</text>
+  <!-- state -->
+  <rect x="900" y="110" width="250" height="150" class="box"/>
+  <text x="922" y="150" class="label">Layer state</text>
+  <text x="922" y="182" class="code">s_E(t-1), h_I(t-1)</text>
+  <text x="922" y="212" class="small">read at step t,</text>
+  <text x="922" y="236" class="small">replaced by s_E(t), h_I(t)</text>
 
-  <path d="M320 190 L390 190" class="arrow"/>
-  <path d="M550 270 L300 350" class="arrow"/>
-  <path d="M550 270 L800 350" class="arrow"/>
-  <path d="M480 440 L620 440" class="arrow"/>
-  <path d="M620 460 L480 460" class="arrow"/>
-  <path d="M300 530 L300 590 L520 590 L520 610" class="arrow"/>
-  <path d="M800 530 L800 590 L680 590 L680 610" class="arrow"/>
+  <!-- same-step edges -->
+  <path d="M300 290 C350 270 370 200 418 195" class="same"/>
+  <path d="M300 360 C350 380 370 455 418 460" class="same"/>
+  <path d="M560 282 L560 376" class="sameInh"/>
+  <text x="572" y="335" class="small">h_I(t), same step</text>
+  <path d="M800 465 L896 465" class="same"/>
 
-  <path d="M240 350 C240 280, 240 260, 180 250" class="arrow dashed"/>
-  <path d="M740 350 C740 280, 740 260, 710 250" class="arrow dashed"/>
+  <!-- previous-step (delayed) edges -->
+  <path d="M1025 262 C1025 330 880 330 804 250" class="delayed"/>
+  <path d="M1040 262 C1060 360 880 420 804 430" class="delayed"/>
+  <path d="M800 160 L896 160" class="delayed"/>
+  <path d="M800 510 C860 560 1000 560 1050 535 C1110 500 1180 300 1152 200" class="delayed"/>
 
-  <text x="85" y="290" class="small">shared feedforward/recurrent branch semantics</text>
-  <text x="835" y="290" class="small">recurrent inputs from previous-step outputs</text>
-  <text x="420" y="724" class="small">allow_self_recurrence masks same-population feedback</text>
-  <text x="420" y="744" class="small">cross-population recurrence is unchanged</text>
+  <!-- legend -->
+  <rect x="50" y="600" width="1100" height="130" class="box"/>
+  <path d="M75 632 L145 632" class="same"/>
+  <text x="160" y="638" class="small">same step, excitatory input</text>
+  <path d="M75 664 L141 664" class="sameInh"/>
+  <text x="160" y="670" class="small">same step, inhibitory input</text>
+  <path d="M75 696 L145 696" class="delayed"/>
+  <text x="160" y="702" class="small">previous step (t-1) or state update</text>
+  <text x="520" y="638" class="small">Each layer is an EILayerConfig with an excitatory and</text>
+  <text x="520" y="662" class="small">an inhibitory PopulationConfig. allow_self_recurrence: false</text>
+  <text x="520" y="686" class="small">removes s_E(t-1) into E and h_I(t-1) into I; recurrence</text>
+  <text x="520" y="710" class="small">between the two populations is kept.</text>
 </svg>
