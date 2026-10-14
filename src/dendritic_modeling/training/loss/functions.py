@@ -138,7 +138,8 @@ def unregister_loss_function(name: str) -> None:
 
 
 def get_available_loss_functions() -> list[str]:
-    """Return registered loss function names."""
+    """Return registered loss function names, including those of plugins."""
+    load_plugins()
     return sorted(LOSS_FUNCTION_REGISTRY)
 
 

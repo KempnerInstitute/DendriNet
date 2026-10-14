@@ -117,7 +117,9 @@ def reject_unsupported_training_strategy(dataset_name: str, strategy: str) -> No
 
 
 def get_registered_dataset_names(*, sequence: bool | None = None) -> list[str]:
-    """Return registered dataset names, optionally filtered by sequence flag."""
+    """Return registered dataset names, including those of plugins, optionally
+    filtered by sequence flag."""
+    load_plugins()
     if sequence is None:
         return sorted(_DATASET_REGISTRY)
     return sorted(

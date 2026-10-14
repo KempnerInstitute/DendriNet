@@ -40,6 +40,7 @@ from omegaconf import OmegaConf
 
 from dendritic_modeling.config.base import BaseConfig
 from dendritic_modeling.config.conversion import to_plain_dict
+from dendritic_modeling.plugins import load_plugins
 
 logger = logging.getLogger(__name__)
 
@@ -129,16 +130,21 @@ def unregister_config_section(path: str) -> None:
 
 def config_section_builder(path: str) -> SectionBuilder | None:
     """The registered builder of an extension section, or None."""
-    return _BUILDERS.get(canonical_section_path(path))
+    key = canonical_section_path(path)
+    if key not in _BUILDERS:
+        load_plugins()
+    return _BUILDERS.get(key)
 
 
 def registered_config_sections() -> list[str]:
-    """Extension sections that have a registered builder."""
+    """Extension sections that have a registered builder, including plugins'."""
+    load_plugins()
     return sorted(_BUILDERS)
 
 
 def registered_named_sections(prefix: str) -> list[str]:
     """Names registered under ``training.strategies`` or ``analysis``."""
+    load_plugins()
     head = f"{prefix}."
     return sorted(path[len(head) :] for path in _BUILDERS if path.startswith(head))
 
@@ -154,8 +160,6 @@ def extension_default(
     key = canonical_section_path(path)
 
     def factory() -> Any:
-        from dendritic_modeling.plugins import load_plugins
-
         load_plugins()
         builder = _BUILDERS.get(key)
         return fallback() if builder is None else builder({})
@@ -213,6 +217,7 @@ def unregister_config_migration(name: str) -> None:
 
 def registered_config_migrations() -> list[str]:
     """Names of the registered configuration migrations, in the order they run."""
+    load_plugins()
     return sorted(_MIGRATIONS)
 
 
@@ -233,8 +238,9 @@ def apply_config_migrations(
 
     Returns the migrated mapping and the notes of the changes, each prefixed
     with the migration's name. Without registered migrations ``data`` is
-    returned as a dict, unchanged.
+    returned as a dict, unchanged. Installed plugins are loaded first.
     """
+    load_plugins()
     if not _MIGRATIONS:
         return dict(data), []
     migrated = _plain(data)

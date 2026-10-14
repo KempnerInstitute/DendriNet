@@ -46,16 +46,17 @@ registrations:
        register_trainer_strategy("boundary_distillation", BoundaryDistillationTrainer)
 
 DendriNet loads every installed plugin once, in the order of the entry-point
-names: before the first configuration loads, and whenever a registry is asked
-for a name it does not know. A plugin that cannot be imported, or whose
-registration raises, stops the program with
-:class:`~dendritic_modeling.plugins.PluginLoadError`; a run never continues
-without a plugin it may depend on. The failure is kept for the rest of the
-process, because the plugin may have registered part of its components:
-every later configuration load or registry lookup raises it again, so a
-caller that catches the first error cannot go on with a half-registered
-plugin. Setting ``DENDRITIC_MODELING_PLUGINS=0``
-turns loading off, so that only built-in components exist. The library's test
+names: before the first configuration loads, whenever a registry is asked for
+a name it does not know, and whenever a registry lists its names (such as
+``get_available_architectures()`` or ``get_registered_dataset_names()``). A
+plugin that cannot be imported, or whose registration raises, stops the
+program with :class:`~dendritic_modeling.plugins.PluginLoadError`; a run never
+continues without a plugin it may depend on. The failure is kept for the rest
+of the process, because the plugin may have registered part of its
+components: every later configuration load or registry lookup raises it again,
+so a caller that catches the first error cannot go on with a half-registered
+plugin. Setting ``DENDRITIC_MODELING_PLUGINS=0`` turns loading off, so that
+only built-in components exist. The library's test
 suite runs this way unless the variable is set.
 
 Training runs record each loaded plugin in ``runtime_environment.json``

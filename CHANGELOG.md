@@ -395,6 +395,15 @@ Configuration and run records:
   configuration load or registry lookup in the process raises its
   ``PluginLoadError`` again, because the plugin may have registered part of
   its components (a second load used to succeed without it).
+- Every function that lists a registry's names loads the installed plugins
+  first, as the trainer-strategy, activation and sparse-layer listings did:
+  ``get_available_architectures`` and ``get_registered_architecture_names``,
+  the analyzer, dataset, sequence-dataset, model-builder, additive-rule, loss
+  and optimizer listings, and the configuration-section and migration
+  listings, as well as ``apply_config_migrations``. A plugin's components
+  were missing from them until a lookup had loaded it. ``get_additive_rule``
+  and ``config_section_builder`` load plugins for a name they do not know,
+  like the other lookups.
 - A top-level ``fsdp`` block raises when the configuration loads. Next to a
   ``distributed`` section it was ignored with a warning.
 - Unknown keys in ``synapse_types`` raise: a misspelt ``enabled`` left the

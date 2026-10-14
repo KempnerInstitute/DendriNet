@@ -74,7 +74,8 @@ def unregister_architecture(name: str) -> None:
 
 
 def get_registered_architecture_names() -> list[str]:
-    """Return registered extension architecture names."""
+    """Return registered extension architecture names, including those of plugins."""
+    load_plugins()
     return sorted(_ARCHITECTURE_REGISTRY)
 
 

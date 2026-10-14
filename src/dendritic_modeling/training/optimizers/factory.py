@@ -61,7 +61,8 @@ def unregister_optimizer(name: str) -> None:
 
 
 def get_available_optimizers() -> list[str]:
-    """Return registered optimizer names."""
+    """Return registered optimizer names, including those of plugins."""
+    load_plugins()
     return sorted(OPTIMIZER_REGISTRY)
 
 

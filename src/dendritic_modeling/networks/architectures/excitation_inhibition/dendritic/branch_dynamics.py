@@ -75,11 +75,15 @@ def unregister_additive_rule(name: str) -> None:
 
 def get_additive_rule(name: str) -> AdditiveRule | None:
     """The registered rule for a non-built-in additive mode, or None."""
-    return _ADDITIVE_RULES.get(str(name).strip().lower())
+    key = str(name).strip().lower()
+    if key not in ADDITIVE_MODES and key not in _ADDITIVE_RULES:
+        load_plugins()
+    return _ADDITIVE_RULES.get(key)
 
 
 def available_additive_modes() -> frozenset[str]:
-    """Built-in and registered additive modes."""
+    """Built-in and registered additive modes, including those of plugins."""
+    load_plugins()
     return ADDITIVE_MODES | frozenset(_ADDITIVE_RULES)
 
 

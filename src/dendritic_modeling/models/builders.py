@@ -68,7 +68,8 @@ def unregister_model_builder(name: str) -> None:
 
 
 def registered_model_builders() -> list[str]:
-    """Names of the registered model builders."""
+    """Names of the registered model builders, including those of plugins."""
+    load_plugins()
     return sorted(_BUILDERS)
 
 

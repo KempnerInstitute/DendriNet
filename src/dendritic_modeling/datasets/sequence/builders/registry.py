@@ -93,7 +93,8 @@ def has_sequence_dataset_builder(name: str) -> bool:
 
 
 def get_registered_sequence_dataset_names() -> list[str]:
-    """Return registered sequence dataset names."""
+    """Return registered sequence dataset names, including those of plugins."""
+    load_plugins()
     return sorted(SEQUENCE_DATASET_BUILDERS)
 
 

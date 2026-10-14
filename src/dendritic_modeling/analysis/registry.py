@@ -414,12 +414,14 @@ def get_analyzer_spec(name: str) -> AnalyzerSpec | None:
 
 
 def get_registered_analyzer_names() -> list[str]:
-    """Return registered analyzer names."""
+    """Return registered analyzer names, including those of plugins."""
+    load_plugins()
     return sorted(_ANALYZER_REGISTRY)
 
 
 def get_registered_analyzers() -> dict[str, AnalyzerSpec]:
-    """Return a copy of all analyzer specs."""
+    """Return a copy of all analyzer specs, including those of plugins."""
+    load_plugins()
     return dict(_ANALYZER_REGISTRY)
 
 
@@ -430,6 +432,7 @@ def get_builtin_analyzer_names() -> tuple[str, ...]:
 
 def get_extension_analyzer_names() -> tuple[str, ...]:
     """Return the names of registered analyzers that are not built in, sorted."""
+    load_plugins()
     builtin = set(get_builtin_analyzer_names())
     return tuple(sorted(name for name in _ANALYZER_REGISTRY if name not in builtin))
 

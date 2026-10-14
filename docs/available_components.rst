@@ -392,9 +392,10 @@ of component.
 
 Registrations run in the process that uses them. A package makes them
 available to every DendriNet command and script by declaring them as a plugin,
-which the library loads before the first configuration and whenever a registry
-meets a name it does not know; plugins can also register configuration
-sections, model builders and additive integration rules (:doc:`extending`).
+which the library loads before the first configuration, whenever a registry
+meets a name it does not know and whenever a registry lists its names; plugins
+can also register configuration sections, model builders and additive
+integration rules (:doc:`extending`).
 
 Other component lists
 ---------------------

@@ -13,14 +13,14 @@ integration rules, datasets, trainer strategies, losses, optimizers and
 analyzers (see the "Extending DendriNet" guide).
 
 DendriNet loads every installed plugin once, before the first configuration
-is loaded and whenever a registry is asked for a name it does not know. Set
-``DENDRITIC_MODELING_PLUGINS=0`` to use built-in components only. A plugin that
-fails to load raises :class:`PluginLoadError`: a run never continues silently
-without a plugin it may depend on. The failure is kept for the rest of the
-process, because the plugin may have registered part of its components, so
-every later load raises it again; fix or uninstall the plugin and start a new
-process. Training runs record the loaded plugins in
-``runtime_environment.json``.
+is loaded, whenever a registry is asked for a name it does not know and
+whenever a registry lists its names. Set ``DENDRITIC_MODELING_PLUGINS=0`` to
+use built-in components only. A plugin that fails to load raises
+:class:`PluginLoadError`: a run never continues silently without a plugin it
+may depend on. The failure is kept for the rest of the process, because the
+plugin may have registered part of its components, so every later load raises
+it again; fix or uninstall the plugin and start a new process. Training runs
+record the loaded plugins in ``runtime_environment.json``.
 """
 
 from __future__ import annotations

@@ -176,10 +176,23 @@ def test_a_model_builder_builds_the_components_for_configs_it_applies_to(
 def _registries():
     """(register, lookup, unregister) for each registry a plugin can extend."""
     from dendritic_modeling.analysis.registry import get_analyzer_spec
+    from dendritic_modeling.config.extensions import (
+        apply_config_migrations,
+        config_section_builder,
+        register_config_migration,
+        register_config_section,
+        unregister_config_migration,
+        unregister_config_section,
+    )
     from dendritic_modeling.datasets.registry import (
         get_dataset_spec,
         register_dataset,
         unregister_dataset,
+    )
+    from dendritic_modeling.datasets.sequence.builders.registry import (
+        has_sequence_dataset_builder,
+        register_sequence_dataset_builder,
+        unregister_sequence_dataset_builder,
     )
     from dendritic_modeling.networks.activations.factory import (
         get_activation_builder,
@@ -216,6 +229,7 @@ def _registries():
     )
 
     name = "from_plugin"
+    section = f"analysis.{name}"
     return {
         "architecture": (
             lambda: register_architecture(name, lambda p, **_: nn.Identity()),
@@ -269,10 +283,108 @@ def _registries():
             lambda: register_additive_rule(
                 name, AdditiveRule(voltage=lambda layer, **_: None)
             ),
-            lambda: normalize_additive_mode(name) == name
-            and get_additive_rule(name) is not None,
+            lambda: get_additive_rule(name) is not None
+            and normalize_additive_mode(name) == name,
             lambda: unregister_additive_rule(name),
         ),
+        "model_builder": (
+            lambda: register_model_builder(
+                name,
+                applies=lambda config: getattr(config, "plugin_probe", False),
+                build=lambda config: None,
+            ),
+            lambda: resolve_model_builder(SimpleNamespace(plugin_probe=True))
+            is not None,
+            lambda: unregister_model_builder(name),
+        ),
+        "sequence_dataset": (
+            lambda: register_sequence_dataset_builder(name, lambda *_, **__: None),
+            lambda: has_sequence_dataset_builder(name),
+            lambda: unregister_sequence_dataset_builder(name),
+        ),
+        "config_section": (
+            lambda: register_config_section(section, lambda data: data),
+            lambda: config_section_builder(section) is not None,
+            lambda: unregister_config_section(section),
+        ),
+        "config_migration": (
+            lambda: register_config_migration(name, lambda data: ["probe"]),
+            lambda: apply_config_migrations({})[1] == [f"{name}: probe"],
+            lambda: unregister_config_migration(name),
+        ),
+    }
+
+
+def _listings():
+    """The functions that list each registry's names, by registry.
+
+    Each returns names that include the ``from_plugin`` component of
+    :func:`_registries` once its plugin has loaded.
+    """
+    from dendritic_modeling.analysis.registry import (
+        get_extension_analyzer_names,
+        get_registered_analyzer_names,
+        get_registered_analyzers,
+    )
+    from dendritic_modeling.config.extensions import (
+        registered_config_migrations,
+        registered_config_sections,
+        registered_named_sections,
+    )
+    from dendritic_modeling.datasets.registry import get_registered_dataset_names
+    from dendritic_modeling.datasets.sequence.builders.registry import (
+        get_registered_sequence_dataset_names,
+    )
+    from dendritic_modeling.models.builders import registered_model_builders
+    from dendritic_modeling.networks.activations.factory import (
+        get_registered_activation_types,
+    )
+    from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_dynamics import (
+        available_additive_modes,
+    )
+    from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.factory import (
+        get_available_sparse_types,
+    )
+    from dendritic_modeling.networks.architectures.factory import (
+        get_available_architectures,
+    )
+    from dendritic_modeling.networks.architectures.registry import (
+        get_registered_architecture_names,
+    )
+    from dendritic_modeling.training.loss.functions import get_available_loss_functions
+    from dendritic_modeling.training.optimizers.factory import get_available_optimizers
+
+    return {
+        "activation": {
+            "get_registered_activation_types": get_registered_activation_types
+        },
+        "additive_rule": {"available_additive_modes": available_additive_modes},
+        "analyzer": {
+            "get_registered_analyzer_names": get_registered_analyzer_names,
+            "get_registered_analyzers": get_registered_analyzers,
+            "get_extension_analyzer_names": get_extension_analyzer_names,
+        },
+        "architecture": {
+            "get_registered_architecture_names": get_registered_architecture_names,
+            "get_available_architectures": get_available_architectures,
+        },
+        "config_migration": {
+            "registered_config_migrations": registered_config_migrations
+        },
+        "config_section": {
+            "registered_named_sections": lambda: registered_named_sections("analysis"),
+            "registered_config_sections": lambda: [
+                path.removeprefix("analysis.") for path in registered_config_sections()
+            ],
+        },
+        "dataset": {"get_registered_dataset_names": get_registered_dataset_names},
+        "loss": {"get_available_loss_functions": get_available_loss_functions},
+        "model_builder": {"registered_model_builders": registered_model_builders},
+        "optimizer": {"get_available_optimizers": get_available_optimizers},
+        "sequence_dataset": {
+            "get_registered_sequence_dataset_names": get_registered_sequence_dataset_names
+        },
+        "sparse_layer": {"get_available_sparse_types": get_available_sparse_types},
     }
 
 
@@ -288,6 +400,29 @@ def test_registries_load_plugins_for_names_they_do_not_know(fresh_plugins, regis
     fresh_plugins.append(_EntryPoint("components", register))
     try:
         assert lookup()
+        assert [record.name for record in plugins.loaded_plugins()] == ["components"]
+    finally:
+        unregister()
+
+
+def test_every_registry_has_its_listings_tested():
+    assert sorted(_listings()) == sorted(_registries())
+
+
+@pytest.mark.parametrize(
+    ("registry", "listing"),
+    [
+        (registry, listing)
+        for registry in sorted(_listings())
+        for listing in _listings()[registry]
+    ],
+)
+def test_registry_listings_include_plugin_components(fresh_plugins, registry, listing):
+    """Listing a registry loads the installed plugins first, as a lookup does."""
+    register, _lookup, unregister = _registries()[registry]
+    fresh_plugins.append(_EntryPoint("components", register))
+    try:
+        assert "from_plugin" in _listings()[registry][listing]()
         assert [record.name for record in plugins.loaded_plugins()] == ["components"]
     finally:
         unregister()
