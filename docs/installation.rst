@@ -11,7 +11,7 @@ Install from a checkout
 
 .. code-block:: bash
 
-   git clone https://github.com/KempnerInstitute/DendriNet.git
+   git clone --branch develop https://github.com/KempnerInstitute/DendriNet.git
    cd DendriNet
    conda env create -f setup/environment.yml
    conda activate dendritic_env
@@ -21,6 +21,10 @@ Install from a checkout
 with Python 3.10 and pip only; a ``venv`` with Python 3.10 works the same.
 pip then installs the package in editable mode with its dependencies,
 including the PyTorch wheels.
+
+These instructions select the maintained ``develop`` branch. For a study,
+check out and record the exact library commit before running experiments;
+see :doc:`project_provenance`.
 
 The constraints file ``setup/constraints/core-py310-torch2.9.1.txt`` pins the
 versions the test suite passed with on Python 3.10: PyTorch 2.9.1 with its
@@ -48,8 +52,8 @@ Extras add dependency groups, for example ``pip install -e ".[dev,gpu]"``:
      - ``test`` and ``lint``, plus build, setuptools, wheel and twine for
        packaging.
    * - ``docs``
-     - Sphinx, the Read the Docs theme and further Sphinx extensions, to build
-       these pages.
+     - Sphinx and the Read the Docs theme. The configured extensions are
+       bundled with Sphinx.
    * - ``train``
      - Jupyter, IPython and ipykernel for notebooks.
    * - ``gpu``

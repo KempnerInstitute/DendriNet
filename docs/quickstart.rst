@@ -5,10 +5,10 @@ DendriNet models replace the point neurons of a neural network with dendritic
 neurons: each neuron is a tree of branch compartments that receive sparse
 excitatory (E) and inhibitory (I) synapses. A compartment combines its
 excitation and inhibition by shunting (divisive) or additive integration,
-passes the result through a reactivation gate, and feeds its parent
-compartment, up to the soma. A population network arranges such neurons in
-named E and I populations connected by explicit, directed connections, in
-feedforward or recurrent layers.
+passes the result through a branch nonlinearity (a reactivation gate), and
+feeds its parent compartment, up to the soma. A population network arranges
+these neurons in named E and I populations connected by explicit, directed
+connections, in feedforward or recurrent layers.
 
 This page trains a small population network on MNIST, reads the files the run
 writes, analyzes the trained checkpoint and generates a parameter sweep. Run
@@ -57,9 +57,9 @@ options, is:
          hidden_dims: [32]
          output_dim: 10
 
-:doc:`population_networks` explains every field. The file trains for 50
-epochs; ``--epochs 1`` shortens the run to one epoch, which is short enough
-for a CPU. Without a GPU the run trains on the CPU.
+:doc:`population_networks` explains every field. The file allows up to 50
+epochs, with early stopping; ``--epochs 1`` shortens the run for an initial
+check. Without a GPU the run trains on the CPU.
 
 The first run downloads MNIST into ``<data root>/datasets/mnist/``. The data
 root is ``data.base_dir`` when it is set, else the ``DENDRITIC_DATA_DIR``
@@ -141,10 +141,11 @@ and run it on the trained weights:
 
 .. code-block:: bash
 
-   RUN=outputs/population_network_feedforward_<YYYYMMDD_HHMMSS>
+   # Replace the timestamp below with the directory created by your run.
+   RUN="outputs/population_network_feedforward_<YYYYMMDD_HHMMSS>"
    dendritic-analyze-checkpoint \
-     --config $RUN/config.json \
-     --checkpoint $RUN/final_model.pt \
+     --config "$RUN/config.json" \
+     --checkpoint "$RUN/final_model.pt" \
      --analysis-config weight_analysis.yaml \
      --output-dir outputs/weight_analysis
 

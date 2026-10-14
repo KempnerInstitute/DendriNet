@@ -1,7 +1,7 @@
 Example configurations
 ======================
 
-The repository ships complete configurations under ``configs/``: reference
+The repository ships several kinds of YAML files under ``configs/``: reference
 configurations, training examples for the main model families and features,
 sweep templates, analysis profiles and smaller building blocks. This page
 lists every one of them and the command that uses it. Run the commands from
@@ -24,6 +24,13 @@ Each example names its own ``outputs.results_dir`` and ``outputs.run_name``
 first use, and the sequence examples generate their data (see
 :doc:`datasets`).
 
+Complete experiment files use ``config_version: 3``. Their settings define
+specific examples, rather than the library defaults. Analysis profiles,
+deployment policies and operator presets are reusable sections with their own
+readers; they cannot be passed directly to ``dendritic-train``. A sweep embeds
+an experiment under ``base_config``. :ref:`config-version` explains how to
+upgrade earlier experiment files.
+
 A sweep template expands into training configurations, which you then train
 one by one or submit as Slurm jobs:
 
@@ -40,8 +47,8 @@ MNIST example of :doc:`quickstart`:
 .. code-block:: bash
 
    dendritic-analyze-checkpoint \
-     --config <run directory>/config.json \
-     --checkpoint <run directory>/final_model.pt \
+     --config "<run directory>/config.json" \
+     --checkpoint "<run directory>/final_model.pt" \
      --analysis-config configs/examples/synaptic_source_support_analysis.yaml \
      --output-dir outputs/synaptic_source_support
 
@@ -68,8 +75,11 @@ Example map
        :ref:`reference-config`.
      - ``dendritic-train``
    * - ``configs/config_exp_fsdp.yaml``
-     - The same model with indexed synapses for fully sharded data-parallel
-       training (``distributed.mode: fsdp``). See :ref:`distributed-training`.
+     - The same population architecture for fully sharded data-parallel
+       training (``distributed.mode: fsdp``), with fixed indexed contacts
+       and ``occupancy_quantile`` gate initialization. The single-process
+       reference uses standard Top-K contacts and analytical gate
+       initialization. See :ref:`distributed-training`.
      - ``torchrun`` with ``train_experiments_fsdp``
    * - ``configs/sweep_config.yaml``
      - Annotated sweep template: synapse counts and excitatory branch factors
@@ -247,5 +257,7 @@ Most population-network examples use indexed synapses
 (``topk_type: indexed_rewire``, or ``indexed`` in the spatial-morphology
 example) with ``indexed_index_dtype: auto``, the ``recompute`` projection
 backend and memory-efficient gates (``reactivation_memory_efficient: true``).
-The two context-cued EMNIST examples use the ``eager`` backend with 32-bit
-indices. :ref:`indexed-backends` explains the choice.
+The context-cued EMNIST example with stochastic release uses the ``eager``
+backend with 32-bit indices. The example with level-specific inhibitory
+targets uses variance Top-K over a dense candidate bank, so indexed-backend
+settings do not apply. :ref:`indexed-backends` explains the indexed options.

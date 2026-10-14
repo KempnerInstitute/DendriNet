@@ -24,7 +24,7 @@ distributed training, parameter sweeps and analysis tools.
 ## Installation
 
 ```bash
-git clone https://github.com/KempnerInstitute/DendriNet.git
+git clone --branch develop https://github.com/KempnerInstitute/DendriNet.git
 cd DendriNet
 pip install -e .
 ```
@@ -62,7 +62,7 @@ The documentation is built with Sphinx from `docs/`:
 
 ```bash
 pip install -e ".[docs]"
-python -m sphinx -b html docs docs/_build/html
+python -m sphinx -b html -W --keep-going docs docs/_build/html
 ```
 
 Start with:

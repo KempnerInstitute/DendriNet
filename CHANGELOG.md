@@ -11,6 +11,13 @@ runs.
 
 Repository housekeeping:
 
+- Installation instructions select ``develop`` explicitly. The example guide
+  distinguishes complete experiment configurations from section templates,
+  and documents the contact-policy and gate-initialization differences between
+  the single-process and FSDP recipes. Removed inactive indexed-backend options
+  from the variance Top-K target-level example; its initialized state, forward
+  output and gradients are unchanged. The quickstart and documentation-check
+  instructions now describe the configured early stopping and test coverage.
 - Removed the empty submodule manifest and consolidated the ignore rules for
   local environments, credentials, editor state, generated runs and scratch
   files. Generated Slurm files are ignored in their output directories;

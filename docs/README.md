@@ -33,12 +33,20 @@ of date.
 
 ## Checks
 
-`tests/test_doc_yaml_snippets.py` loads every `.. code-block:: yaml` example
-of the pages through the strict configuration loader. Run it after changing an
-example:
+The example tests load every shipped YAML through its appropriate reader and
+build the experiment models. The documentation tests check YAML excerpts
+through the strict configuration loader, wrapping section fragments where
+needed. Sweep-axis excerpts without a base configuration are explicitly
+skipped; complete shipped sweeps are checked by the example tests. The
+contextual-task examples have dedicated construction tests because their input
+dimensions come from the dataset setup.
+
+Run these checks from the repository root after changing an example:
 
 ```bash
-python -m pytest tests/test_doc_yaml_snippets.py
+PYTHONPATH=src python -m pytest \
+  tests/test_all_example_configs_smoke.py tests/test_doc_yaml_snippets.py \
+  tests/test_contextual_remapping_pipeline.py tests/test_population_target_levels.py
 ```
 
 ## Assets
