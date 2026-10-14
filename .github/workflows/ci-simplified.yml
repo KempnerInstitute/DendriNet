@@ -127,6 +127,7 @@ jobs:
         python -m pytest tests/ \
           -n 2 \
           --dist loadfile \
+          -m "not multiprocess" \
           --no-cov \
           --timeout=300 \
           --durations=25 \
@@ -145,6 +146,7 @@ jobs:
         python -m pytest tests/ \
           -n 2 \
           --dist loadfile \
+          -m "not multiprocess" \
           --cov=src/dendritic_modeling \
           --cov-branch \
           --cov-report=xml \
@@ -153,6 +155,27 @@ jobs:
           --durations=25 \
           --junitxml=pytest-results.xml \
           --maxfail=5 \
+          -v
+
+    # Tests that start their own worker processes (distributed training) run
+    # one at a time, outside pytest-xdist: on the two-CPU runners a parallel
+    # test worker starves them. gloo connects the local processes over the
+    # loopback interface.
+    - name: Run multi-process tests
+      env:
+        PYTHONPATH: ${{ github.workspace }}/src
+        MPLBACKEND: Agg
+        CUDA_VISIBLE_DEVICES: ""
+        OMP_NUM_THREADS: "1"
+        GLOO_SOCKET_IFNAME: lo
+      run: |
+        python -m pytest tests/ \
+          -m multiprocess \
+          -p no:xdist \
+          --no-cov \
+          --timeout=900 \
+          --durations=10 \
+          --junitxml=pytest-multiprocess-results.xml \
           -v
 
     # Only upload coverage from one job to avoid duplicates
@@ -214,7 +237,9 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: test-results-${{ matrix.os }}-${{ matrix.python-version }}
-        path: pytest-results.xml
+        path: |
+          pytest-results.xml
+          pytest-multiprocess-results.xml
 
     - name: Upload coverage report
       if: always() && matrix.python-version == '3.11'
