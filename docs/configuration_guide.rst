@@ -669,6 +669,32 @@ algorithms. ``runtime_environment.json`` records the imported library, its
 checkout state and the numerical stack. :ref:`run-outputs` describes these
 files and the other records of a run.
 
+Explicit biological adoption
+----------------------------
+
+Historical upgrades preserve the old biological declaration. To adopt the
+constraint set deliberately, use
+``dendritic_modeling.config.biological_adoption.prepare_biological_config``
+on an expanded experiment mapping. Choose ``input_activation`` and
+``input_source_identity`` explicitly; omitted arguments preserve the existing
+settings. The helper upgrades historical keys first, rejects unresolved
+ambiguities, sets ``biological_neuron: true`` and validates the typed recipe.
+Construction still checks the complete biological constraint set.
+
+``input_activation="nonnegative"`` checks nonnegative inputs without changing
+their values or derivatives. Keep an existing rectifier when preserving a
+previous computation. ``input_source_identity="paired_afferents"`` declares
+distinct external E/I sources with shared tuning, not an upstream interneuron
+circuit. ``positive_input_projection=True`` replaces a population network's
+signed projection and requires retraining. The helper does not choose output
+gates or repair circuit topology. ``biological=False`` explicitly prepares an
+exploratory or conventional control configuration and cannot be combined with
+biological repair arguments.
+
+Save new recipes separately from the configurations that generated retained
+results. A successful build is not a numerical migration check or evidence that
+the new recipe produced those results.
+
 Where options are documented
 ----------------------------
 

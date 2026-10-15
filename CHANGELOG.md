@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add explicit biological configuration preparation for expanded experiments.
+  It upgrades historical keys before applying caller-selected input/source
+  contracts, rejects ambiguous upgrades and leaves circuit choices to callers.
+
 - Configuration format 4 enables ``biological_neuron`` by default for standard
   dendritic E/I cores. Explicit ``false`` remains available for exploratory
   models; signed/MLP controls and unrelated families retain their contracts.
