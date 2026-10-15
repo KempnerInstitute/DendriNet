@@ -16,6 +16,8 @@
   ``input_projection_weight_transform: softplus``. This is a new model with
   positive weights and a rectified output; it requires retraining when replacing
   a signed projection. The omitted option preserves the signed Linear path.
+  Analytic local updates reject trainable positive projections instead of
+  leaving their parameters without updates; frozen projections are supported.
 - Correct biological operator-card checks to cover the neuronal core, excluding
   task encoders and decoders. Recognize a rectified internal projection when
   checking the dendritic input domain, while still rejecting its signed weights.

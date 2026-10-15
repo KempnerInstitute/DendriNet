@@ -326,6 +326,8 @@ cannot be relabeled as positive projections. The historical ``identity``
 option still builds ordinary signed ``Linear`` layers and requires an explicit
 non-biological declaration. The positive projection is supported through the
 population-network builder with standard backpropagation.
+Analytic local updates reject trainable positive projections; a frozen projection
+can instead supply fixed input features to those rules.
 
 Before using an older configuration, run ``dendritic-upgrade-config``. It writes
 ``biological_neuron: false`` where an earlier format omitted the declaration,

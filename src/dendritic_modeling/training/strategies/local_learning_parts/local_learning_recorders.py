@@ -17,6 +17,7 @@ from dendritic_modeling.networks.architectures.recurrent.stateful_dendrinet impo
     StatefulDendriNet,
 )
 from dendritic_modeling.networks.structure import inhibitory_branch_layer_ids
+from dendritic_modeling.networks.utils.nonnegative_linear import NonnegativeLinear
 from dendritic_modeling.training.strategies.local_learning_parts.local_learning_pathways import (
     RECORDER_TOPK_PATHS,
     TopKGradientPath,
@@ -84,6 +85,13 @@ def reject_unsupported_forward_paths(model: nn.Module, *, allow: bool = False) -
     applies the rules anyway, as a rule variant, and logs the features.
     """
     for name, module in model.named_modules():
+        if isinstance(module, NonnegativeLinear) and any(
+            parameter.requires_grad for parameter in module.parameters()
+        ):
+            raise ValueError(
+                f"analytic local updates do not train the positive input projection "
+                f"at {name!r}; use backpropagation or freeze the projection"
+            )
         if not isinstance(module, StatefulDendriNet):
             continue
         features = [
