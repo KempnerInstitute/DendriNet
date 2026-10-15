@@ -376,7 +376,7 @@ use ``affine_mlp``; for a matched control use ``point_mlp``.
 :ref:`core-types` lists the other names of this kind.
 
 Shared projections and native shunting banks
--------------------------------------------
+--------------------------------------------
 
 ``shared_projection_shunting`` composes existing library operators: one
 normalized positive indexed projection per group, a flat native ``DendriNet``

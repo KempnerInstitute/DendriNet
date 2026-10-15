@@ -120,6 +120,14 @@ _LEGENDRE = {
     }
 }
 _AFFINE = {"affine_mlp": {"dimensions": [16, 7, 5]}}
+_SHARED_PROJECTION = {
+    "shared_projection_shunting": {
+        "input_dim": 16,
+        "output_dim": 5,
+        "supports": [[0, 2], [3, 5]],
+        "nodes": [0.1, 1.0],
+    }
+}
 _ALEXNET = {
     "architecture": {
         "excitatory_branch_factors": [2],
@@ -215,6 +223,7 @@ CORE_TYPES = {
     "population_network": (_POPULATION, 16),
     "legendre_memory": (_LEGENDRE, 3),
     "affine_mlp": (_AFFINE, 16),
+    "shared_projection_shunting": (_SHARED_PROJECTION, 16),
     "dendritic_alexnet": (_ALEXNET, [3, 16, 16]),
     "identity": ({}, 16),
     "none": ({}, 16),

@@ -56,6 +56,7 @@ FAMILIES = {
         "spatial_sparse_active_matched_point",
     ],
     "dendritic_alexnet": ["dendritic_alexnet"],
+    "shared_projection_shunting": ["shared_projection_shunting"],
     # Non-dendritic baselines and controls.
     "baseline_rnn": ["gru", "lstm", "rnn", "vanilla_rnn"],
     "heterogeneous_leak_ctrnn": ["heterogeneous_leak_ctrnn", "heterogeneous_ctrnn"],
