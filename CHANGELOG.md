@@ -5,6 +5,8 @@
 - Add explicit biological configuration preparation for expanded experiments.
   It upgrades historical keys before applying caller-selected input/source
   contracts, rejects ambiguous upgrades and leaves circuit choices to callers.
+  A source-pinned recipe runner validates study inventories and compares
+  diagnostic states, outputs and gradients before writing isolated new recipes.
 
 - Configuration format 4 enables ``biological_neuron`` by default for standard
   dendritic E/I cores. Explicit ``false`` remains available for exploratory

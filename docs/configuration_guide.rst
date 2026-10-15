@@ -695,6 +695,25 @@ Save new recipes separately from the configurations that generated retained
 results. A successful build is not a numerical migration check or evidence that
 the new recipe produced those results.
 
+Study inventories can use
+``python -m dendritic_modeling.scripts.tools.biological_recipes`` with
+``--manifest``, ``--library-root`` and a new external ``--output-dir``. The JSON
+manifest pins the library commit and lists experiment, collection or composed
+sweep sources with SHA-256 hashes, expected run counts, input dimensions,
+explicit ``adoption`` arguments, ``check_indices`` and an
+``expected_computation`` of ``identical`` or ``retraining_required``. Collection
+entries bind each file in ``sources``; composed sweeps bind every parent in
+``composition_sha256``. Relative paths resolve beside the manifest.
+
+The default checks the declared representative models; ``--check-models all``
+checks every model and ``none`` only validates recipes. Checks compare initial
+state, outputs, input and parameter gradients, and one SGD update on
+nonnegative diagnostic inputs, including zeros. They test adoption within the
+selected source version, not historical training equivalence. ``--materialize``
+writes new training YAMLs with isolated output paths; ``--data-root`` relocates
+the dataset. The command never submits jobs. Receipts distinguish partial entry
+selection, recipe validation and model comparisons.
+
 Where options are documented
 ----------------------------
 
