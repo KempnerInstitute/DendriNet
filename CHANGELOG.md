@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- The README coverage badge uses a relative image path so private-repository
+  readers can load it. CI proposes measured badge updates through a pull
+  request instead of pushing directly to ``develop`` and ignoring failures.
+  Refreshed the badge to 80.3% line coverage from the Python 3.11 report in
+  [CI run 195](https://github.com/KempnerInstitute/DendriNet/actions/runs/38682938459)
+  for ``fdf49d0a81aa039a873bbf538fabf1545fb9ee0e``.
+  The CI Python setup action now uses its supported Node 24 runtime.
 - ``dendritic-collect-reactivation --require-clean-analysis-source`` (or
   ``require_clean_analysis_source: true``) rejects runs whose analysis
   provenance records no Git checkout, tracked changes, untracked source files

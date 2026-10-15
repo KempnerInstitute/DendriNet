@@ -1,7 +1,7 @@
 # DendriNet
 
 [![CI Pipeline](https://github.com/KempnerInstitute/DendriNet/actions/workflows/ci-simplified.yml/badge.svg?branch=develop)](https://github.com/KempnerInstitute/DendriNet/actions/workflows/ci-simplified.yml?query=branch%3Adevelop)
-[![Coverage](https://raw.githubusercontent.com/KempnerInstitute/DendriNet/develop/docs/_static/badges/coverage.svg)](https://github.com/KempnerInstitute/DendriNet/actions/workflows/ci-simplified.yml?query=branch%3Adevelop)
+[![Coverage](docs/_static/badges/coverage.svg)](https://github.com/KempnerInstitute/DendriNet/actions/workflows/ci-simplified.yml?query=branch%3Adevelop)
 [![Documentation](https://github.com/KempnerInstitute/DendriNet/actions/workflows/deploy-docs.yml/badge.svg?branch=develop)](https://github.com/KempnerInstitute/DendriNet/actions/workflows/deploy-docs.yml?query=branch%3Adevelop)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
