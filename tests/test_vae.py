@@ -369,3 +369,31 @@ class TestVAEIntegration:
         # In eval mode with same random seed, outputs should be similar
         # (though not identical due to sampling in VAE)
         assert output1.shape == output2.shape
+
+
+@pytest.mark.parametrize("kind", ["mlp", "cnn"])
+def test_training_samples_carry_gradients_to_the_latent_mean_and_scale(kind):
+    """Training mode draws the latent by reparameterization (``rsample``), so the
+    reconstruction loss reaches the layers that produce the latent mean and
+    scale. A plain ``sample()`` cuts them off while ``backward()`` still runs."""
+    torch.manual_seed(0)
+    if kind == "mlp":
+        vae = MLPVariationalAutoencoder(
+            input_dim=12, encoder_hidden_dims=[8], decoder_hidden_dims=[8], latent_dim=4
+        )
+        x = torch.rand(5, 12)
+        layers = (vae.encoder.fc_mean[0], vae.encoder.fc_std[0])
+    else:
+        vae = CNNVariationalAutoencoder(
+            input_shape=(3, 32, 32),
+            encoder_hidden_dims=[16],
+            latent_shape=(32, 8, 8),
+            decoder_hidden_dims=[16],
+        )
+        x = torch.rand(2, 3, 32, 32)
+        layers = (vae.encoder.conv_mean, vae.encoder.conv_std[0])
+    vae.train()
+    nn.functional.mse_loss(vae(x), x).backward()
+    for layer in layers:
+        assert layer.weight.grad is not None
+        assert layer.weight.grad.abs().sum() > 0

@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- A regression test pins the variational autoencoders' reparameterized
+  sampling: in training mode the reconstruction loss reaches the layers that
+  produce the latent mean and scale. An August 2025 fix had replaced
+  ``sample()`` with ``rsample()``; no test guarded it.
+
 ## 0.2.0 (2026-10-14)
 
 Changes since the ``pre-refactor`` tag (version 0.1.0), newest first.
