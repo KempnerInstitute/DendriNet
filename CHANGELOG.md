@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- ``dendritic-collect-reactivation --require-clean-analysis-source`` (or
+  ``require_clean_analysis_source: true``) rejects runs whose analysis
+  provenance records no Git checkout, tracked changes, untracked source files
+  or a commit other runs do not share, and records the shared commit. It checks
+  the source of the analysis only, not the commit that trained the checkpoint.
+  Off by default; collections without it are unchanged.
 - A regression test pins the variational autoencoders' reparameterized
   sampling: in training mode the reconstruction loss reaches the layers that
   produce the latent mean and scale. An August 2025 fix had replaced
