@@ -89,6 +89,7 @@ from dendritic_modeling.config.recurrence import (
 )
 from dendritic_modeling.config.recurrent_payloads import check_recurrent_payloads
 from dendritic_modeling.config.regularization import PruningConfig, RegularizationConfig
+from dendritic_modeling.config.shared_projection import SharedProjectionShuntingConfig
 from dendritic_modeling.config.structured_connectivity import canonical_rule
 from dendritic_modeling.config.training import (
     LOCAL_RULE_STRATEGIES,
@@ -647,6 +648,11 @@ def _build_core_config(core_data: Any) -> CoreConfig:
     core = CoreConfig(
         type=core_type,
         affine_mlp=None if affine_mlp is None else typed("affine_mlp", AffineMLPConfig),
+        shared_projection_shunting=(
+            None
+            if core_dict.get("shared_projection_shunting") is None
+            else typed("shared_projection_shunting", SharedProjectionShuntingConfig)
+        ),
         target_active_parameters=(
             None
             if core_dict.get("target_active_parameters") is None

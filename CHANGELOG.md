@@ -9,6 +9,14 @@
   [CI run 195](https://github.com/KempnerInstitute/DendriNet/actions/runs/38682938459)
   for ``fdf49d0a81aa039a873bbf538fabf1545fb9ee0e``.
   The CI Python setup action now uses its supported Node 24 runtime.
+- Add opt-in ``shared_projection_shunting``: normalized sparse projections
+  reused across native flat DendriNet banks, signed block pooling and an affine
+  output. Its typed configuration declares supports, initial transition nodes,
+  precision and frozen parameter groups; epsilon is included in the node-to-
+  conductance mapping. It exposes native features and complete resource counts.
+  This composition supports standard backpropagation; it is not a new branch
+  integration rule or a qualification of nonlinear-soma dendritic trees.
+  Existing model defaults and initialization paths are unchanged.
 - ``dendritic-collect-reactivation --require-clean-analysis-source`` (or
   ``require_clean_analysis_source: true``) rejects runs whose analysis
   provenance records no Git checkout, tracked changes, untracked source files

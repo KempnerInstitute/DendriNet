@@ -8,6 +8,7 @@ from dendritic_modeling.config.choices import normalize_gradient_scaling
 from dendritic_modeling.config.conversion import to_plain_dict
 from dendritic_modeling.config.extensions import extension_default
 from dendritic_modeling.config.keys import check_section_keys
+from dendritic_modeling.config.shared_projection import SharedProjectionShuntingConfig
 from dendritic_modeling.config.sparse_backends import (
     normalize_indexed_projection_options,
 )
@@ -497,6 +498,7 @@ class CoreConfig(BaseConfig):
     type: str = "einet"
     # Opt-in ordinary dense/fixed/Top-K MLP control; existing defaults unchanged.
     affine_mlp: Optional[AffineMLPConfig] = None
+    shared_projection_shunting: Optional[SharedProjectionShuntingConfig] = None
     # Optional explicit learned-scalar budget for fixed-output sparse point
     # controls.  Structured dendritic configurations normally leave this
     # unset, in which case ``sparse_active_matched_point`` derives its budget

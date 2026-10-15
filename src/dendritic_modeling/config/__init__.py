@@ -134,6 +134,7 @@ from dendritic_modeling.config.regularization import (
     RegularizationConfig,
     SelectiveConfig,
 )
+from dendritic_modeling.config.shared_projection import SharedProjectionShuntingConfig
 from dendritic_modeling.config.training import (
     CommonTrainerConfig,
     EncoderPretrainingConfig,
@@ -255,6 +256,7 @@ __all__ = [
     "RepresentationSubsetProbeConfig",
     "RoutingAnalysisConfig",
     "SelectiveConfig",
+    "SharedProjectionShuntingConfig",
     "SingleLayerContributionAnalysisConfig",
     "SingleLayerContributionAnalysisParams",
     "SourceTuningSupportAnalysisConfig",

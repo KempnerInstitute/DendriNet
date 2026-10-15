@@ -13,6 +13,7 @@ from dendritic_modeling.config.conversion import to_plain_dict as _to_plain_mapp
 from dendritic_modeling.config.core_sections import BUILTIN_CORE_TYPES
 from dendritic_modeling.config.model_aliases import get_core_morphology_alias_overrides
 from dendritic_modeling.config.recurrence import _STRUCTURED_EI_TYPES, _UNIFIED_EI_TYPES
+from dendritic_modeling.config.shared_projection import SharedProjectionShuntingConfig
 from dendritic_modeling.networks.architectures.biological_constraints import (
     enforce_biological_neuron,
 )
@@ -342,6 +343,39 @@ def _build_affine_mlp_architecture(type, parameters, input_dim, suffix_input_dim
     return build_affine_mlp(config)
 
 
+def _build_shared_projection_architecture(
+    type, parameters, input_dim, suffix_input_dim
+):
+    from dendritic_modeling.config.core_sections import reject_unread_core_sections
+    from dendritic_modeling.networks.architectures.excitation_inhibition.shared_projection import (
+        build_shared_projection_shunting,
+    )
+
+    raw = _to_plain_mapping(parameters)
+    payload = raw.get("shared_projection_shunting", raw)
+    if payload is None:
+        raise ValueError(
+            "shared_projection_shunting requires an explicit configuration"
+        )
+    if "shared_projection_shunting" in raw:
+        # Direct structured construction must reject ignored options too.
+        from dendritic_modeling.config.model import CoreConfig
+
+        core = CoreConfig(**raw)
+        reject_unread_core_sections(core, raw)
+    config = SharedProjectionShuntingConfig(**payload)
+    config.validate()
+    if input_dim is not None and input_dim != config.input_dim:
+        raise ValueError(
+            "shared_projection_shunting input dimension does not match the encoder"
+        )
+    if suffix_input_dim is not None and suffix_input_dim != config.output_dim:
+        raise ValueError(
+            "shared_projection_shunting output dimension does not match the decoder"
+        )
+    return build_shared_projection_shunting(config)
+
+
 def _build_flat_mlp_architecture(
     type: str,
     parameters: Union[dict[str, Any], DictConfig],
@@ -544,6 +578,7 @@ def _build_builtin_architecture_registry() -> dict[str, ArchitectureBuilder]:
             "point_mlp": _build_point_mlp_architecture,
             "mlp": _build_flat_mlp_architecture,
             "affine_mlp": _build_affine_mlp_architecture,
+            "shared_projection_shunting": _build_shared_projection_architecture,
             "total_param_mlp": _build_total_param_mlp,
             "active_param_mlp": _build_active_param_mlp,
             "ss_mlp": _build_sparse_structured_mlp,

@@ -51,6 +51,7 @@ OTHER_BUILTIN_CORE_TYPES = frozenset(
     {
         "active_param_mlp",
         "affine_mlp",
+        "shared_projection_shunting",
         "alexnet",
         "cnn",
         "cnn_down",
@@ -102,6 +103,11 @@ SPATIAL_OPTIONS_READ: dict[str, frozenset[str] | None] = {
 
 # Families that read only their own payload section.
 _PAYLOAD_FAMILIES: tuple[tuple[frozenset[str], str, str], ...] = (
+    (
+        frozenset({"shared_projection_shunting"}),
+        "shared_projection_shunting",
+        "shared_projection_shunting",
+    ),
     (frozenset(_POPULATION_NETWORK_TYPES), "population_network", "population_network"),
     (frozenset(_UNIFIED_EI_TYPES), "unified_ei", "unified_ei"),
     (frozenset(_BASELINE_RNN_TYPES), "baseline_rnn", "baseline_rnn"),
@@ -123,6 +129,7 @@ EINET_FOREIGN_PAYLOADS = frozenset(
         "heterogeneous_leak_ctrnn",
         "legendre_memory",
         "vision",
+        "shared_projection_shunting",
         "affine_mlp",
         "spatial",
     }
@@ -178,6 +185,13 @@ def unread_core_sections(core: Any, explicit: Iterable[str]) -> list[str]:
     are returned as ``spatial.<option>``.
     """
     lowered = str(getattr(core, "type", "") or "").strip().lower()
+    if (
+        lowered in BUILTIN_CORE_TYPES
+        and lowered != "shared_projection_shunting"
+        and "shared_projection_shunting" in explicit
+        and getattr(core, "shared_projection_shunting", None) is not None
+    ):
+        return ["shared_projection_shunting"]
     family = core_family(lowered)
     if family is None and lowered not in _STRUCTURED_EI_TYPES:
         # Other builders (MLP controls, spatial and vision cores) read sections
