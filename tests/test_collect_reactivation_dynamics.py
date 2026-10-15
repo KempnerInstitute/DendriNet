@@ -12,7 +12,12 @@ from dendritic_modeling.scripts.analysis.collect_reactivation_dynamics import (
     _load_collection_config,
     _module_coordinates,
     collect_reactivation_dynamics,
+    main,
 )
+
+_MODULE = "core_network.layers.0.populations.e0.branch_layers.0.reactivation"
+_COMMIT_A = "a" * 40
+_COMMIT_B = "b" * 40
 
 
 def _sha256(path: Path) -> str:
@@ -233,3 +238,153 @@ def test_collector_rejects_results_without_analyzer_depth(tmp_path: Path) -> Non
             output_dir=tmp_path / "collection",
             expected_count=1,
         )
+
+
+def _set_analysis_source(jobs: Path, edit=None, **git_fields) -> None:
+    """Record the Git identity of the analysis source in a run's provenance."""
+    job = json.loads(jobs.read_text().splitlines()[0])
+    path = Path(job["output_dir"]) / "checkpoint_analysis_provenance.json"
+    provenance = json.loads(path.read_text())
+    git = {
+        "available": True,
+        "commit": _COMMIT_A,
+        "tracked_worktree_dirty": False,
+        "untracked_src_files": [],
+        **git_fields,
+    }
+    if edit is not None:
+        edit(git)
+    provenance["code_identity"] = {"repository_name": "dendritic-modeling", "git": git}
+    path.write_text(json.dumps(provenance))
+
+
+def test_the_analysis_source_check_is_off_by_default(tmp_path: Path) -> None:
+    """Runs without a recorded source identity still collect, and the release
+    record is unchanged."""
+    jobs, _result = _write_run(tmp_path, module_name=_MODULE)
+
+    release = collect_reactivation_dynamics(
+        jobs_paths=[jobs], output_dir=tmp_path / "collection", expected_count=1
+    )
+
+    assert release["collected_checkpoint_count"] == 1
+    assert "require_clean_analysis_source" not in release
+    assert "analysis_source_commit" not in release
+
+
+def test_a_clean_analysis_source_is_recorded(tmp_path: Path) -> None:
+    jobs, _result = _write_run(tmp_path, module_name=_MODULE)
+    _set_analysis_source(jobs)
+
+    release = collect_reactivation_dynamics(
+        jobs_paths=[jobs],
+        output_dir=tmp_path / "collection",
+        expected_count=1,
+        require_clean_analysis_source=True,
+    )
+
+    assert release["require_clean_analysis_source"] is True
+    assert release["analysis_source_commit"] == _COMMIT_A
+    recorded = json.loads(
+        (tmp_path / "collection/collection_provenance.json").read_text()
+    )
+    assert recorded["analysis_source_commit"] == _COMMIT_A
+
+
+@pytest.mark.parametrize(
+    ("change", "message"),
+    [
+        (None, "records no Git source identity"),
+        ({"available": False}, "records no Git source identity"),
+        ({"commit": "abc123"}, "records no valid commit"),
+        ({"tracked_worktree_dirty": True}, "ran with tracked changes"),
+        ({"untracked_src_files": ["src/extra.py"]}, "untracked files under src/"),
+        ("drop untracked list", "untracked files under src/"),
+    ],
+)
+def test_an_unclean_analysis_source_is_rejected(
+    tmp_path: Path, change, message: str
+) -> None:
+    jobs, _result = _write_run(tmp_path, module_name=_MODULE)
+    if isinstance(change, dict):
+        _set_analysis_source(jobs, **change)
+    elif change == "drop untracked list":
+        _set_analysis_source(jobs, edit=lambda git: git.pop("untracked_src_files"))
+
+    with pytest.raises(ValueError, match=message):
+        collect_reactivation_dynamics(
+            jobs_paths=[jobs],
+            output_dir=tmp_path / "collection",
+            expected_count=1,
+            require_clean_analysis_source=True,
+        )
+
+
+def test_analyses_from_different_commits_are_rejected(tmp_path: Path) -> None:
+    for name in ("first", "second"):
+        (tmp_path / name).mkdir()
+    first, _ = _write_run(tmp_path / "first", module_name=_MODULE)
+    second, _ = _write_run(tmp_path / "second", module_name=_MODULE)
+    _set_analysis_source(first, commit=_COMMIT_A)
+    _set_analysis_source(second, commit=_COMMIT_B)
+    kwargs = {"jobs_paths": [first, second], "output_dir": tmp_path / "collection"}
+
+    collect_reactivation_dynamics(**kwargs)  # accepted without the check
+    with pytest.raises(ValueError, match="ran from different commits"):
+        collect_reactivation_dynamics(**kwargs, require_clean_analysis_source=True)
+
+
+def test_the_check_is_set_by_the_config_or_the_command_line(tmp_path: Path) -> None:
+    jobs, _result = _write_run(tmp_path, module_name=_MODULE)
+    config = tmp_path / "collection.yaml"
+    config.write_text(
+        "schema_version: reactivation_dynamics_collection_config_v1\n"
+        "jobs: [jobs.jsonl]\n"
+        "output_dir: collected\n"
+        "require_clean_analysis_source: true\n"
+    )
+
+    assert _load_collection_config(config)["require_clean_analysis_source"] is True
+    with pytest.raises(ValueError, match="records no Git source identity"):
+        main(["--config", str(config)])
+    with pytest.raises(ValueError, match="records no Git source identity"):
+        main(
+            [
+                "--jobs",
+                str(jobs),
+                "--output-dir",
+                str(tmp_path / "cli"),
+                "--require-clean-analysis-source",
+            ]
+        )
+    with pytest.raises(ValueError, match="cannot be combined"):
+        main(["--config", str(config), "--require-clean-analysis-source"])
+
+
+@pytest.mark.parametrize(
+    ("line", "message"),
+    [
+        ('require_clean_analysis_source: "false"', "must be true or false"),
+        ("require_structured_coordinates: 'true'", "must be true or false"),
+        ("require_clean_analysis_source: 1", "must be true or false"),
+        ("require_clean_analysis_souce: true", "unknown keys"),
+        ("expected_count: '3'", "positive integer"),
+        ("expected_count: 2.5", "positive integer"),
+        ("expected_count: true", "positive integer"),
+        ("expected_count: 0", "positive integer"),
+    ],
+)
+def test_the_collection_config_rejects_invalid_settings(
+    tmp_path: Path, line: str, message: str
+) -> None:
+    """A quoted "false" switched a check on, and a misspelt key was ignored."""
+    config = tmp_path / "collection.yaml"
+    config.write_text(
+        "schema_version: reactivation_dynamics_collection_config_v1\n"
+        "jobs: [jobs.jsonl]\n"
+        "output_dir: collected\n"
+        f"{line}\n"
+    )
+
+    with pytest.raises(ValueError, match=message):
+        _load_collection_config(config)

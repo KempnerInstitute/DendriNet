@@ -36,6 +36,8 @@ SCHEMA_VERSION = "reactivation_dynamics_collection_v2"
 CONFIG_SCHEMA_VERSION = "reactivation_dynamics_collection_config_v1"
 RESULT_SUBDIRECTORY = Path("reactivation_dynamics/epochs")
 
+_GIT_OBJECT_ID = re.compile(r"[0-9a-f]{40}|[0-9a-f]{64}")
+
 _POPULATION_PATH = re.compile(
     r"^(?P<prefix>.*?)"
     r"(?:layers\.(?P<network_layer>\d+)\.)?"
@@ -217,14 +219,48 @@ def _module_rows(
     return modules, metrics
 
 
+def _analysis_source_commit(provenance: Mapping[str, Any], *, run_dir: Path) -> str:
+    """The commit of the clean checkout that ran one checkpoint analysis.
+
+    Raises when the run's analysis provenance records no Git identity, no valid
+    commit, tracked changes or untracked files under ``src/``. Only the source
+    of the analysis is checked; the checkpoint itself may come from another
+    (validated) training commit.
+    """
+    identity = provenance.get("code_identity")
+    git_identity = identity.get("git") if isinstance(identity, Mapping) else None
+    if (
+        not isinstance(git_identity, Mapping)
+        or git_identity.get("available") is not True
+    ):
+        raise ValueError(f"the analysis of {run_dir} records no Git source identity")
+    commit = str(git_identity.get("commit", ""))
+    if _GIT_OBJECT_ID.fullmatch(commit) is None:
+        raise ValueError(f"the analysis of {run_dir} records no valid commit")
+    if git_identity.get("tracked_worktree_dirty") is not False:
+        raise ValueError(f"the analysis of {run_dir} ran with tracked changes")
+    if git_identity.get("untracked_src_files") != []:
+        raise ValueError(
+            f"the analysis of {run_dir} ran with untracked files under src/ "
+            "(or records no list of them)"
+        )
+    return commit
+
+
 def collect_reactivation_dynamics(
     *,
     jobs_paths: Sequence[Path],
     output_dir: Path,
     expected_count: int | None = None,
     require_structured_coordinates: bool = False,
+    require_clean_analysis_source: bool = False,
 ) -> dict[str, Any]:
-    """Validate declared final snapshots and emit checkpoint-bound tables."""
+    """Validate declared final snapshots and emit checkpoint-bound tables.
+
+    ``require_clean_analysis_source`` additionally requires every run's
+    analysis provenance to record a clean Git checkout, and all runs to share
+    its commit (see :func:`_analysis_source_commit`).
+    """
 
     jobs = _read_jobs(jobs_paths)
     if expected_count is not None and len(jobs) != int(expected_count):
@@ -234,6 +270,7 @@ def collect_reactivation_dynamics(
     module_rows: list[dict[str, Any]] = []
     metric_rows: list[dict[str, Any]] = []
     source_rows: list[dict[str, Any]] = []
+    analysis_commits: set[str] = set()
 
     for job_index, job in enumerate(jobs):
         run_dir = Path(str(job["output_dir"])).resolve()
@@ -253,6 +290,8 @@ def collect_reactivation_dynamics(
             str(name) for name in provenance.get("enabled_analyzers", [])
         }:
             raise ValueError("reactivation_dynamics is absent from run provenance")
+        if require_clean_analysis_source:
+            analysis_commits.add(_analysis_source_commit(provenance, run_dir=run_dir))
         require_completed_analyses(
             provenance, ["reactivation_dynamics"], run_dir=run_dir
         )
@@ -279,6 +318,12 @@ def collect_reactivation_dynamics(
             }
         )
 
+    if len(analysis_commits) > 1:
+        raise ValueError(
+            "the checkpoint analyses ran from different commits: "
+            + ", ".join(sorted(analysis_commits))
+        )
+
     outputs = {
         "checkpoint_modules.csv": module_rows,
         "checkpoint_metric_records.csv": metric_rows,
@@ -303,11 +348,34 @@ def collect_reactivation_dynamics(
         ),
         "outputs": {filename: _sha256(output_dir / filename) for filename in outputs},
     }
+    if require_clean_analysis_source:
+        release["require_clean_analysis_source"] = True
+        release["analysis_source_commit"] = next(iter(analysis_commits), None)
     (output_dir / "collection_provenance.json").write_text(
         json.dumps(release, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
     return release
+
+
+_CONFIG_KEYS = frozenset(
+    {
+        "schema_version",
+        "jobs",
+        "output_dir",
+        "expected_count",
+        "require_structured_coordinates",
+        "require_clean_analysis_source",
+    }
+)
+
+
+def _config_flag(payload: Mapping[str, Any], key: str) -> bool:
+    """A true/false setting of the collection config (absent means false)."""
+    value = payload.get(key, False)
+    if not isinstance(value, bool):
+        raise ValueError(f"{key} must be true or false, got {value!r}")
+    return value
 
 
 def _resolve_config_path(value: str | Path, *, base: Path) -> Path:
@@ -324,6 +392,18 @@ def _load_collection_config(path: Path) -> dict[str, Any]:
     missing = {"jobs", "output_dir"} - set(payload)
     if missing:
         raise ValueError(f"collection config lacks required fields: {sorted(missing)}")
+    unknown = sorted(set(payload) - _CONFIG_KEYS)
+    if unknown:
+        raise ValueError(f"collection config has unknown keys: {unknown}")
+    expected_count = payload.get("expected_count")
+    if expected_count is not None and (
+        isinstance(expected_count, bool)
+        or not isinstance(expected_count, int)
+        or expected_count < 1
+    ):
+        raise ValueError(
+            f"expected_count must be a positive integer, got {expected_count!r}"
+        )
     jobs = payload["jobs"]
     if not isinstance(jobs, list) or not jobs:
         raise ValueError("collection config jobs must be a nonempty list")
@@ -331,9 +411,12 @@ def _load_collection_config(path: Path) -> dict[str, Any]:
     return {
         "jobs_paths": [_resolve_config_path(value, base=base) for value in jobs],
         "output_dir": _resolve_config_path(payload["output_dir"], base=base),
-        "expected_count": payload.get("expected_count"),
-        "require_structured_coordinates": bool(
-            payload.get("require_structured_coordinates", False)
+        "expected_count": expected_count,
+        "require_structured_coordinates": _config_flag(
+            payload, "require_structured_coordinates"
+        ),
+        "require_clean_analysis_source": _config_flag(
+            payload, "require_clean_analysis_source"
         ),
     }
 
@@ -364,6 +447,15 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Require gate module names of population_network layers",
     )
+    parser.add_argument(
+        "--require-clean-analysis-source",
+        action="store_true",
+        help=(
+            "Require every run's analysis to have run from a clean Git checkout, "
+            "and all runs from the same commit (the commit that trained the "
+            "checkpoints is not checked)"
+        ),
+    )
     return parser
 
 
@@ -376,6 +468,7 @@ def main(argv: list[str] | None = None) -> dict[str, Any]:
                 args.output_dir,
                 args.expected_count is not None,
                 args.require_structured_coordinates,
+                args.require_clean_analysis_source,
             )
         )
         if explicit:
@@ -388,6 +481,7 @@ def main(argv: list[str] | None = None) -> dict[str, Any]:
         output_dir=args.output_dir,
         expected_count=args.expected_count,
         require_structured_coordinates=args.require_structured_coordinates,
+        require_clean_analysis_source=args.require_clean_analysis_source,
     )
 
 
