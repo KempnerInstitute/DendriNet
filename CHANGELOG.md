@@ -28,6 +28,14 @@
   while rejecting negative or nonfinite rates. Transfer layers can explicitly
   declare distinct, identically tuned external E/I ``paired_afferents``;
   shared input channels still fail the Dale constraint when used with both signs.
+- Recurrent unrolls of population and unified E/I networks read their
+  nonnegative-input checks (the checked input, a ``nonnegative`` transfer
+  activation and each positive projection) once per sequence instead of at
+  every check and step, and each immediate check reduces in one pass: one
+  device synchronization replaces up to two per check and step. The checks
+  run on the same tensors at the same points, so outputs, recurrent states
+  and gradients are unchanged, and invalid input still raises before the
+  output is returned (``deferred_nonnegative_checks``).
 - Population networks support an opt-in positive input projection via
   ``input_projection_weight_transform: softplus``. This is a new model with
   positive weights and a rectified output; it requires retraining when replacing

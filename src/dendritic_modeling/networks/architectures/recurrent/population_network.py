@@ -51,6 +51,7 @@ from dendritic_modeling.networks.architectures.replacement.adapters import (
 )
 from dendritic_modeling.networks.base import BaseNetwork
 from dendritic_modeling.networks.utils.forward_caches import detach_forward_caches
+from dendritic_modeling.networks.utils.input_domain import deferred_nonnegative_checks
 from dendritic_modeling.networks.utils.nonnegative_linear import NonnegativeLinear
 from dendritic_modeling.networks.utils.weight_transforms import (
     POSITIVE_WEIGHT_TRANSFORMS,
@@ -663,6 +664,7 @@ class PopulationNetwork(BaseNetwork):
                 return h
         raise AssertionError("unreachable")
 
+    @deferred_nonnegative_checks()
     def _forward_recurrent(
         self,
         x: torch.Tensor,

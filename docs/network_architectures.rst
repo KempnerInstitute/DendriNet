@@ -282,7 +282,9 @@ not a claim of complete biological realism. A core satisfies it when:
   a population network. This checks finite, nonnegative values on every batch
   and returns the input unchanged, including its derivative at zero. ReLU also
   preserves nonnegative values, but changes the derivative at zero. Runtime
-  checks synchronize the device; they are not free. For signed features,
+  checks synchronize the device once per batch, or once per sequence in a
+  recurrent unroll, which reads the checks of all its steps together; they
+  are not free. For signed features,
   ``signed_split`` preserves both polarities in separate nonnegative channels
   and doubles the input width. Neither encoding may be introduced silently
   into a historical experiment.
