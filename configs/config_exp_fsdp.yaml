@@ -19,7 +19,7 @@
 # be 0 and weight_boosting false for Top-K and indexed synapses), rewiring
 # synapses, and strategies other than "standard" and "recurrent".
 
-config_version: 3
+config_version: 4
 
 analysis:
   runtime:
@@ -289,8 +289,10 @@ distributed:
   # cached_core_batch_size, and distributed.timeout_seconds.
 model:
   core:
+    biological_neuron: true   # Enforce the neuronal-core constraint set.
     type: population_network
     population_network:
+      input_transform: nonnegative     # Check nonnegative data without changing values or gradients.
       use_transfer: false
       transfer_params: {}
       output_mode: "last"

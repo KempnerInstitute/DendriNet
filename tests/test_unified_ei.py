@@ -57,6 +57,7 @@ def test_structured_recurrent_yaml_builds_true_point_inhibitory_state(tmp_path):
 model:
   task: classification
   core:
+    biological_neuron: false
     type: einet
     architecture:
       excitatory_layer_sizes: [4]
@@ -537,6 +538,7 @@ def test_resolve_stateful_soma_feedback_levels_preserves_selector_rules():
 
 def test_legacy_unified_ei_tau_schema_builds_canonical_recurrent_network():
     params = {
+        "biological_neuron": False,
         "unified_ei": {
             "n_excitatory": 8,
             "n_inhibitory": 3,
@@ -558,7 +560,7 @@ def test_legacy_unified_ei_tau_schema_builds_canonical_recurrent_network():
                     "weight_transform": "softplus",
                 }
             ],
-        }
+        },
     }
     core_cfg = {"type": "unified_ei", **params}
 
@@ -584,6 +586,7 @@ def test_legacy_unified_ei_tau_schema_builds_canonical_recurrent_network():
 
 def test_legacy_unified_ei_recurrent_only_layer_gets_trainable_upstream_drive():
     params = {
+        "biological_neuron": False,
         "unified_ei": {
             "n_excitatory": 6,
             "n_inhibitory": 2,
@@ -604,7 +607,7 @@ def test_legacy_unified_ei_recurrent_only_layer_gets_trainable_upstream_drive():
                     "use_shunting": True,
                 },
             ],
-        }
+        },
     }
 
     torch.manual_seed(0)  # the zero-gradient check depends on the random draw
@@ -1030,6 +1033,7 @@ def test_unified_ei_network_return_hidden():
 def test_factory_builds_unified_ei_feedforward():
     params = OmegaConf.create(
         {
+            "biological_neuron": False,
             "unified_ei": {
                 "output_mode": "last",
                 "layers": [
@@ -1044,7 +1048,7 @@ def test_factory_builds_unified_ei_feedforward():
                         "dt": 1.0,
                     }
                 ],
-            }
+            },
         }
     )
     net = get_architecture("ei_unified", params, input_dim=9)
@@ -1056,6 +1060,7 @@ def test_factory_builds_unified_ei_feedforward():
 def test_factory_builds_unified_ei_recurrent():
     params = OmegaConf.create(
         {
+            "biological_neuron": False,
             "unified_ei": {
                 "output_mode": "last",
                 "layers": [
@@ -1071,7 +1076,7 @@ def test_factory_builds_unified_ei_recurrent():
                         "dt": 1.0,
                     }
                 ],
-            }
+            },
         }
     )
     net = get_architecture("ei_unified", params, input_dim=8)
@@ -1083,6 +1088,7 @@ def test_factory_builds_unified_ei_recurrent():
 def test_recurrent_additive_alias_uses_responsive_fixed_gate():
     params = OmegaConf.create(
         {
+            "biological_neuron": False,
             "unified_ei": {
                 "output_mode": "last",
                 "layers": [
@@ -1102,7 +1108,7 @@ def test_recurrent_additive_alias_uses_responsive_fixed_gate():
                         "dt": 1.0,
                     }
                 ],
-            }
+            },
         }
     )
 
@@ -1123,6 +1129,7 @@ def test_recurrent_additive_alias_uses_responsive_fixed_gate():
 
 def test_recurrent_additive_alias_applies_to_inhibitory_population():
     params = {
+        "biological_neuron": False,
         "unified_ei": {
             "output_mode": "last",
             "layers": [
@@ -1145,7 +1152,7 @@ def test_recurrent_additive_alias_applies_to_inhibitory_population():
                     "dt": 1.0,
                 }
             ],
-        }
+        },
     }
 
     with pytest.warns(UserWarning, match="rnn_dendritic_additive"):
@@ -1205,6 +1212,7 @@ def test_additive_normalization_is_finite_for_singleton_population():
 
 def test_structured_dendritic_additive_recurrent_is_raw_additive():
     params = {
+        "biological_neuron": False,
         "architecture": {
             "excitatory_layer_sizes": [4],
             "inhibitory_layer_sizes": [],
@@ -1243,6 +1251,7 @@ def test_structured_dendritic_additive_recurrent_is_raw_additive():
 
 def test_structured_dendritic_normalized_additive_enables_normalization():
     params = {
+        "biological_neuron": False,
         "architecture": {
             "excitatory_layer_sizes": [4],
             "inhibitory_layer_sizes": [],
@@ -1280,7 +1289,10 @@ def test_recurrent_alias_applies_to_typed_layer_population_config():
         recurrent=True,
         dt=1.0,
     )
-    params = {"unified_ei": {"output_mode": "last", "layers": [layer_cfg]}}
+    params = {
+        "biological_neuron": False,
+        "unified_ei": {"output_mode": "last", "layers": [layer_cfg]},
+    }
 
     with pytest.warns(UserWarning, match="rnn_flat_additive"):
         net = get_architecture("rnn_flat_additive", params, input_dim=5)
@@ -1295,6 +1307,7 @@ def test_recurrent_alias_applies_to_typed_layer_population_config():
 
 def test_structured_recurrent_inhibitory_copies_reactivation_calibration_fields():
     params = {
+        "biological_neuron": False,
         "architecture": {
             "excitatory_layer_sizes": [4],
             "inhibitory_layer_sizes": [2],
@@ -1353,6 +1366,7 @@ def test_structured_recurrent_inhibitory_copies_reactivation_calibration_fields(
 
 def test_recurrent_conductance_dynamic_uses_forward_hooks_without_stale_scale_vectors():
     params = {
+        "biological_neuron": False,
         "architecture": {
             "excitatory_layer_sizes": [4],
             "inhibitory_layer_sizes": [],
@@ -1387,6 +1401,7 @@ def test_recurrent_conductance_dynamic_uses_forward_hooks_without_stale_scale_ve
 
 def test_structured_recurrent_factory_propagates_soma_feedback_config():
     params = {
+        "biological_neuron": False,
         "architecture": {
             "excitatory_layer_sizes": [4],
             "inhibitory_layer_sizes": [],
@@ -1430,6 +1445,7 @@ def test_structured_recurrent_factory_propagates_soma_feedback_config():
 
 def test_structured_soma_feedback_only_core_is_recurrent():
     params = {
+        "biological_neuron": False,
         "architecture": {
             "excitatory_layer_sizes": [4],
             "inhibitory_layer_sizes": [],
@@ -1454,6 +1470,7 @@ def test_factory_builds_einet_recurrent_option_with_transfer():
     """New-style: rec synapses in connectivity, no explicit enabled flag."""
     params = OmegaConf.create(
         {
+            "biological_neuron": False,
             "architecture": {
                 "excitatory_layer_sizes": [6],
                 "inhibitory_layer_sizes": [],
@@ -1524,6 +1541,7 @@ def test_factory_builds_einet_recurrent_option_with_transfer():
 def test_factory_recurrent_einet_uses_transfer_by_default():
     params = OmegaConf.create(
         {
+            "biological_neuron": False,
             "architecture": {
                 "excitatory_layer_sizes": [5],
                 "inhibitory_layer_sizes": [3],
@@ -1580,6 +1598,7 @@ def test_factory_recurrent_einet_uses_transfer_by_default():
 def test_factory_recurrent_einet_builds_defined_inhibitory_population():
     params = OmegaConf.create(
         {
+            "biological_neuron": False,
             "architecture": {
                 "excitatory_layer_sizes": [5],
                 "inhibitory_layer_sizes": [3],
@@ -1637,6 +1656,7 @@ def test_factory_builds_einet_recurrent_old_style_backward_compat():
     """Old-style: rec synapses in recurrent_ei with enabled flag (backward compat)."""
     params = OmegaConf.create(
         {
+            "biological_neuron": False,
             "architecture": {
                 "excitatory_layer_sizes": [6],
                 "inhibitory_layer_sizes": [],
@@ -1691,6 +1711,7 @@ def test_factory_builds_einet_recurrent_old_style_backward_compat():
 def test_factory_einet_without_recurrent_option_stays_legacy():
     params = OmegaConf.create(
         {
+            "biological_neuron": False,
             "architecture": {
                 "excitatory_layer_sizes": [7],
                 "inhibitory_layer_sizes": [],
@@ -1776,6 +1797,7 @@ def test_factory_einet_recurrent_per_layer_tau():
     """Per-layer tau_base and tau_ratio lists are supported."""
     params = OmegaConf.create(
         {
+            "biological_neuron": False,
             "architecture": {
                 "excitatory_layer_sizes": [6, 4],
                 "excitatory_branch_factors": [2],
@@ -1826,7 +1848,7 @@ def test_factory_einet_recurrent_per_layer_tau():
 
 
 def test_factory_requires_layers_for_unified_ei():
-    params = {"unified_ei": {"layers": []}}
+    params = {"biological_neuron": False, "unified_ei": {"layers": []}}
     with pytest.raises(ValueError, match="requires at least one layer"):
         get_architecture("ei_unified", params, input_dim=8)
 
@@ -1840,6 +1862,7 @@ def test_recurrent_einet_reads_the_transferred_stream_in_the_first_layer_only():
     """Without inhibitory cells, only first-layer E cells read the I stream."""
     params = OmegaConf.create(
         {
+            "biological_neuron": False,
             "architecture": {
                 "excitatory_layer_sizes": [6, 4],
                 "inhibitory_layer_sizes": [],
@@ -2591,6 +2614,7 @@ def test_cosine_lr_schedule_values():
 def test_factory_passes_learnable_tau():
     """Factory should pass learnable_tau to PopulationConfig."""
     params = {
+        "biological_neuron": False,
         "architecture": {
             "excitatory_layer_sizes": [32],
             "inhibitory_layer_sizes": [],
@@ -2658,6 +2682,7 @@ def test_layers_and_populations_sharing_an_indexed_seed_get_distinct_contacts():
 
 def _unified_layer(**layer):
     return {
+        "biological_neuron": False,
         "unified_ei": {
             "output_mode": "last",
             "layers": [
@@ -2674,7 +2699,7 @@ def _unified_layer(**layer):
                     **layer,
                 }
             ],
-        }
+        },
     }
 
 
@@ -2707,7 +2732,10 @@ def _sourced_layer(*, inhibitory=True, recurrent=True, exc=None, inh=None):
 
 
 def _sourced_core(*layers, **options):
-    return {"unified_ei": {"output_mode": "last", "layers": list(layers), **options}}
+    return {
+        "biological_neuron": False,
+        "unified_ei": {"output_mode": "last", "layers": list(layers), **options},
+    }
 
 
 def _sourced_build(core):
@@ -2804,4 +2832,4 @@ def test_typed_populations_are_checked_by_their_non_default_counts():
         recurrent=False,
     )
     with pytest.raises(ValueError, match="ff_inhibitory_synapses=6"):
-        _sourced_build({"unified_ei": {"layers": [layer]}})
+        _sourced_build({"biological_neuron": False, "unified_ei": {"layers": [layer]}})

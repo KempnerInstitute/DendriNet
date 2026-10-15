@@ -142,7 +142,7 @@ def test_factory_yaml_and_loader_routes(tmp_path):
         OmegaConf.to_yaml(
             OmegaConf.create(
                 {
-                    "config_version": 3,
+                    "config_version": 4,
                     "model": {
                         "core": {
                             "type": "shared_projection_shunting",
@@ -192,7 +192,7 @@ def test_reject_unused_options_and_training_strategies():
     with pytest.raises(ValueError, match="shared_projection_shunting"):
         load_config(
             overrides={
-                "config_version": 3,
+                "config_version": 4,
                 "model.core.type": "affine_mlp",
                 "model.core.shared_projection_shunting": asdict(spec()),
             }
@@ -206,7 +206,7 @@ def test_reject_unused_options_and_training_strategies():
         with pytest.raises(ValueError):
             load_config(
                 overrides={
-                    "config_version": 3,
+                    "config_version": 4,
                     "model.core.type": "shared_projection_shunting",
                     "model.core.shared_projection_shunting": asdict(spec()),
                     **overrides,

@@ -170,6 +170,7 @@ def test_recurrent_unified_ei_aliases_build(core_type, expect_shunting):
     branch_factors = [1] if "flat" in core_type else [2]
     params = OmegaConf.create(
         {
+            "biological_neuron": False,
             "unified_ei": {
                 "output_mode": "last",
                 "layers": [
@@ -185,7 +186,7 @@ def test_recurrent_unified_ei_aliases_build(core_type, expect_shunting):
                         "dt": 1.0,
                     }
                 ],
-            }
+            },
         }
     )
     torch.manual_seed(0)

@@ -387,14 +387,17 @@ class DistributedConfig(BaseConfig):
 #: this library gives every key. Files without ``config_version`` load with
 #: that meaning; ``dendritic-upgrade-config`` rewrites files written for
 #: earlier versions, whose omitted keys could mean something else, and marks
-#: them ``config_version: 3``. Runs record the version in ``config.json``.
+#: them with the current version. Runs record the version in ``config.json``.
 #:
 #: Version 3 changed two omitted structured-connectivity keys: a ``distance``
 #: rule without ``distance_kernel`` is gaussian in structured E/I cores as it
 #: is in population rules (it was "none"), and training seeds an unseeded
 #: population or unified E/I rule from the topology seed (its masks drew from
 #: the global random stream).
-CONFIG_VERSION = 3
+#: Version 4 enables biological validation by default for standard dendritic
+#: E/I cores. The upgrader writes historical biological_neuron: false values;
+#: it never changes a model to make it pass the new validation contract.
+CONFIG_VERSION = 4
 
 #: Top-level key in which ``dendritic-upgrade-config`` lists what it could not
 #: rewrite. A file with it is only partly upgraded and does not load.

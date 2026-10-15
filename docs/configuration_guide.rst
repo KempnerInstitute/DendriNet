@@ -346,7 +346,7 @@ Configuration format version
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The top-level ``config_version`` names the configuration format a file is
-written for. The current format is ``3``
+written for. The current format is ``4``
 (``dendritic_modeling.config.CONFIG_VERSION``): the meaning this library gives
 every key, including what an omitted key means. A file without
 ``config_version`` loads with that meaning; an earlier version raises with a
@@ -354,9 +354,14 @@ pointer to ``dendritic-upgrade-config``, and a later one asks for a newer
 library. Runs record the version in ``config.json``, and the sweep tools write
 it into every generated config.
 
-Write ``config_version: 3`` in new files, as the shipped configs do:
+Write ``config_version: 4`` in new files, as the shipped configs do:
 ``dendritic-upgrade-config`` reads a file without it as written for an
 earlier version, whose omitted keys could mean something else.
+
+Version 4 enables the biological constraint check by default for standard
+dendritic E/I cores (:ref:`biological-constraints`). The upgrade tool writes
+``biological_neuron: false`` for older omitted declarations; it preserves the
+original computation rather than redesigning a circuit.
 
 Version 3 (2026-10-13) changed what two omitted structured-connectivity keys
 mean (:ref:`structured-connectivity`): a ``distance`` rule of
@@ -383,10 +388,10 @@ It prints the number of changes per file; ``--report`` records every change,
 and ``--in-place`` overwrites the files (YAML comments are lost). Copies keep
 their paths relative to the common directory of the inputs, and the tool
 stops before writing anything when two inputs would be written to one file.
-Every upgraded file starts with ``config_version: 3``; a file that already has
+Every upgraded file starts with ``config_version: 4``; a file that already has
 it is left unchanged, so upgrading twice changes nothing. Each rewrite applies
 to the files of the versions before the one that changed the meaning it
-records, so a version-2 file gets only the version-3 rewrites. For files
+records, so a version-2 file gets the version-3 and version-4 rewrites. For files
 written for version 2 or earlier the tool
 
 - writes ``distance_kernel: none`` into a ``model.core.connectivity.structured``

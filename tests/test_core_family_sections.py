@@ -13,6 +13,7 @@ from dendritic_modeling.config.core_sections import unread_core_sections
 from dendritic_modeling.config.model import CoreConfig
 
 POPULATION = {
+    "biological_neuron": False,
     "type": "population_network",
     "population_network": {
         "layers": [
@@ -115,6 +116,7 @@ def test_saved_record_with_unread_sections_warns(tmp_path, caplog):
 
 def test_alias_type_rejects_a_conflicting_written_morphology(tmp_path):
     core = {
+        "biological_neuron": False,
         "type": "dendritic_additive",
         "architecture": {"excitatory_layer_sizes": [3], "inhibitory_layer_sizes": []},
         "connectivity": {
@@ -130,6 +132,7 @@ def test_alias_type_rejects_a_conflicting_written_morphology(tmp_path):
 
 
 _EINET_SECTIONS = {
+    "biological_neuron": False,
     "architecture": {"excitatory_layer_sizes": [3], "inhibitory_layer_sizes": []},
     "connectivity": {
         "ee_synapses_per_branch_per_layer": [2],

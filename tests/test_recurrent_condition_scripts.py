@@ -54,6 +54,7 @@ def trained_run(tmp_path):
             "task": "classification",
             "encoder": {"type": "identity", "params": {"input_dim": 4}},
             "core": {
+                "biological_neuron": False,
                 "type": "unified_ei",
                 "unified_ei": {
                     "output_mode": "last",

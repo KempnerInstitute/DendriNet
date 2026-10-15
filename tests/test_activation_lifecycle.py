@@ -32,6 +32,7 @@ from dendritic_modeling.training.strategies.standard import Trainer
 def _einet_config(*, reactivation=None, sparsity=None, blocklinear=None):
     """Tiny shunting EINet with explicit inhibitory dendritic cells."""
     config = {
+        "biological_neuron": False,
         "architecture": {
             "excitatory_layer_sizes": [6],
             "inhibitory_layer_sizes": [3],
@@ -425,6 +426,7 @@ def _endpoint_classifier():
         "dbl_init_method": "default",
     }
     config = {
+        "biological_neuron": False,
         "population_network": {
             "input_transform": "identity",
             "layers": [
@@ -443,7 +445,7 @@ def _endpoint_classifier():
                     "connections": [{"source": "input", "target": "e"}],
                 }
             ],
-        }
+        },
     }
     torch.manual_seed(3)
     core = get_architecture("population_network", config, input_dim=6)

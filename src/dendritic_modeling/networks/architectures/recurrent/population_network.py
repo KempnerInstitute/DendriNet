@@ -51,6 +51,7 @@ from dendritic_modeling.networks.architectures.replacement.adapters import (
 )
 from dendritic_modeling.networks.base import BaseNetwork
 from dendritic_modeling.networks.utils.forward_caches import detach_forward_caches
+from dendritic_modeling.networks.utils.nonnegative_linear import NonnegativeLinear
 from dendritic_modeling.networks.utils.weight_transforms import (
     POSITIVE_WEIGHT_TRANSFORMS,
 )
@@ -91,7 +92,12 @@ class PopulationNetwork(BaseNetwork):
         proj_layers = []
         prev_dim = input_dim
         for hidden_dim in config.input_projection_dims:
-            proj_layers.append(nn.Linear(prev_dim, int(hidden_dim)))
+            projection_type = (
+                NonnegativeLinear
+                if config.input_projection_weight_transform == "softplus"
+                else nn.Linear
+            )
+            proj_layers.append(projection_type(prev_dim, int(hidden_dim)))
             proj_layers.append(nn.ReLU())
             prev_dim = int(hidden_dim)
         self.input_projection = (

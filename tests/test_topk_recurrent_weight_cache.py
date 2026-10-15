@@ -173,6 +173,7 @@ def _recurrent_population_config() -> dict:
         "weight_transform": "exp",
     }
     return {
+        "biological_neuron": False,
         "population_network": {
             "output_mode": "last",
             "layers": [
@@ -203,7 +204,7 @@ def _recurrent_population_config() -> dict:
                     ],
                 }
             ],
-        }
+        },
     }
 
 

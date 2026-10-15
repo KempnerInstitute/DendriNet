@@ -29,6 +29,7 @@ class TestConfigExtractor(unittest.TestCase):
                         },
                     },
                     "core": {
+                        "biological_neuron": False,
                         "connectivity": {
                             "ee_synapses_per_branch_per_layer": [40],
                             "ie_synapses_per_branch_per_layer": [10],
@@ -294,6 +295,7 @@ class TestConfigExtractor(unittest.TestCase):
             {
                 "model": {
                     "core": {
+                        "biological_neuron": False,
                         "type": "population_network",
                         "population_network": {
                             "use_transfer": True,
@@ -403,6 +405,7 @@ class TestConfigExtractor(unittest.TestCase):
             {
                 "model": {
                     "core": {
+                        "biological_neuron": False,
                         "type": "population_network",
                         "population_network": {
                             "layers": [
@@ -446,6 +449,7 @@ class TestConfigExtractor(unittest.TestCase):
             {
                 "model": {
                     "core": {
+                        "biological_neuron": False,
                         "type": "population_network",
                         "population_network": {
                             "layers": [
@@ -494,6 +498,7 @@ class TestConfigExtractor(unittest.TestCase):
                 {
                     "model": {
                         "core": {
+                            "biological_neuron": False,
                             "type": "population_network",
                             "population_network": {
                                 "layers": [
@@ -552,6 +557,7 @@ class TestConfigExtractor(unittest.TestCase):
             {
                 "model": {
                     "core": {
+                        "biological_neuron": False,
                         "type": "population_network",
                         "population_network": {
                             "layers": [

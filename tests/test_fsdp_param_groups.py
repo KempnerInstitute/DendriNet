@@ -56,7 +56,9 @@ def _core(gate="param_tanh"):
     if gate == "endpoint_tanh":
         changes["reactivation.init_policy"] = "fixed"
     torch.manual_seed(0)
-    return get_architecture("einet", _einet(**changes), input_dim=IN_DIM)
+    return get_architecture(
+        "einet", {**_einet(**changes), "biological_neuron": False}, input_dim=IN_DIM
+    )
 
 
 def _model(gate="param_tanh", *, decoder=None, encoder=None, **classifier):

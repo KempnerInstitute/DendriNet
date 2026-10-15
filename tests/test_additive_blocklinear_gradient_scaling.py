@@ -216,6 +216,7 @@ def _recurrent_ei():
     return (
         "dendritic_additive",
         {
+            "biological_neuron": False,
             "architecture": {
                 "excitatory_layer_sizes": [4],
                 "inhibitory_layer_sizes": [],

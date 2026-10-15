@@ -49,4 +49,4 @@ def test_preset_builds_and_runs_forward(preset: str) -> None:
 
     card = build_operator_card(config)
     assert card["weight_domain"]["signed"] == signed_weights
-    assert card["schema_version"] == "dendritic_operator_card_v2"
+    assert card["schema_version"] == "dendritic_operator_card_v3"

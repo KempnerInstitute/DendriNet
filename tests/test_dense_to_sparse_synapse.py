@@ -107,6 +107,7 @@ def test_branch_layer_uses_dense_to_sparse_and_advances_on_forward():
 
 def test_structured_einet_config_propagates_dense_to_sparse():
     core = {
+        "biological_neuron": False,
         "architecture": {
             "excitatory_layer_sizes": [4],
             "inhibitory_layer_sizes": [],

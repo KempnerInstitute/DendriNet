@@ -201,6 +201,12 @@ def section(path: str, cls: type) -> tuple[list[str], list[tuple[str, type]]]:
             default = "mapping; keys below"
         else:
             default = literal(value)
+        if child_path == "model.core.biological_neuron":
+            default += (
+                ": resolves to true for standard dendritic E/I cores; false for "
+                "signed/MLP controls and other families "
+                "(:ref:`biological-constraints`)"
+            )
         rows.append((f"``{field.name}``", f"``{type_name(annotation)}``", default))
         if isinstance(value, dict) and value and not nested:
             for key, item in value.items():

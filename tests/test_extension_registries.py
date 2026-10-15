@@ -146,6 +146,7 @@ def test_config_alias_canonicalization_is_config_level_and_script_compatible():
     payload = {
         "model": {
             "core": {
+                "biological_neuron": False,
                 "type": "dendritic_additive",
                 "architecture": {},
                 "connectivity": {},

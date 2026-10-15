@@ -182,6 +182,7 @@ def test_arbitrary_depth_without_output_activation():
 
 def test_structured_core_config_with_mlp_type_raises():
     params = {
+        "biological_neuron": False,
         "architecture": {"excitatory_layer_sizes": [4]},
         "connectivity": {"ee_synapses_per_branch_per_layer": [2]},
     }

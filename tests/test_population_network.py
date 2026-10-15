@@ -28,6 +28,7 @@ def _base_population(overrides=None):
 
 def _single_layer_temporal_population_config(population_overrides):
     return {
+        "biological_neuron": False,
         "population_network": {
             "output_mode": "last",
             "layers": [
@@ -64,12 +65,13 @@ def _single_layer_temporal_population_config(population_overrides):
                     ],
                 }
             ],
-        }
+        },
     }
 
 
 def test_population_network_all_somatic_population_allows_empty_branch_factors():
     cfg = {
+        "biological_neuron": False,
         "population_network": {
             "layers": [
                 {
@@ -93,7 +95,7 @@ def test_population_network_all_somatic_population_allows_empty_branch_factors()
                     "connections": [{"source": "input", "target": "e"}],
                 }
             ],
-        }
+        },
     }
 
     net = get_architecture("population_network", cfg, input_dim=4)
@@ -105,6 +107,7 @@ def test_population_network_all_somatic_population_allows_empty_branch_factors()
 
 def test_population_network_two_pop_feedforward_matches_current_ei_pattern():
     cfg = {
+        "biological_neuron": False,
         "population_network": {
             "layers": [
                 {
@@ -137,7 +140,7 @@ def test_population_network_two_pop_feedforward_matches_current_ei_pattern():
                     ],
                 }
             ]
-        }
+        },
     }
     net = get_architecture("population_network", cfg, input_dim=4)
     assert isinstance(net, PopulationNetwork)
@@ -151,6 +154,7 @@ def test_population_network_two_pop_feedforward_matches_current_ei_pattern():
 
 def test_population_network_canonical_key_builds_feedforward():
     cfg = {
+        "biological_neuron": False,
         "population_network": {
             "layers": [
                 {
@@ -183,7 +187,7 @@ def test_population_network_canonical_key_builds_feedforward():
                     ],
                 }
             ]
-        }
+        },
     }
     net = get_architecture("population_network", cfg, input_dim=4)
 
@@ -196,6 +200,7 @@ def test_population_network_canonical_key_builds_feedforward():
 
 def test_population_network_typed_config_detects_delayed_recurrence():
     core = CoreConfig(
+        biological_neuron=False,
         type="population_network",
         population_network={
             "output_mode": "last",
@@ -272,6 +277,7 @@ def test_population_network_temporal_features_force_recurrent_sequence_path(
 
 def test_population_network_four_pop_feedforward_with_distinct_morphologies():
     cfg = {
+        "biological_neuron": False,
         "population_network": {
             "layers": [
                 {
@@ -322,7 +328,7 @@ def test_population_network_four_pop_feedforward_with_distinct_morphologies():
                     ],
                 }
             ]
-        }
+        },
     }
     net = get_architecture("population_network", cfg, input_dim=5)
     layer = net.layers[0]
@@ -336,6 +342,7 @@ def test_population_network_four_pop_feedforward_with_distinct_morphologies():
 
 def test_population_network_two_feedforward_layers_propagate_readout_dims():
     cfg = {
+        "biological_neuron": False,
         "population_network": {
             "layers": [
                 {
@@ -397,7 +404,7 @@ def test_population_network_two_feedforward_layers_propagate_readout_dims():
                     ],
                 },
             ]
-        }
+        },
     }
     net = get_architecture("population_network", cfg, input_dim=4)
     assert net.layers[0].input_dim == 4
@@ -411,6 +418,7 @@ def test_population_network_two_feedforward_layers_propagate_readout_dims():
 
 def test_population_network_level_readout_population_fills_selected_layer():
     cfg = {
+        "biological_neuron": False,
         "population_network": {
             "readout_layer": "layer0",
             "readout_population": "e",
@@ -444,7 +452,7 @@ def test_population_network_level_readout_population_fills_selected_layer():
                     ],
                 }
             ],
-        }
+        },
     }
     net = get_architecture("population_network", cfg, input_dim=4)
     assert net.layers[0].readout_population == "e"
@@ -453,6 +461,7 @@ def test_population_network_level_readout_population_fills_selected_layer():
 
 def test_population_network_readout_layer_must_exist():
     cfg = {
+        "biological_neuron": False,
         "population_network": {
             "readout_layer": "missing",
             "layers": [
@@ -469,7 +478,7 @@ def test_population_network_readout_layer_must_exist():
                     "connections": [{"source": "input", "target": "e"}],
                 }
             ],
-        }
+        },
     }
     with pytest.raises(ValueError, match="readout_layer"):
         get_architecture("population_network", cfg, input_dim=3)
@@ -477,6 +486,7 @@ def test_population_network_readout_layer_must_exist():
 
 def test_population_network_readout_population_conflict_errors():
     cfg = {
+        "biological_neuron": False,
         "population_network": {
             "readout_layer": "layer0",
             "readout_population": "e",
@@ -504,7 +514,7 @@ def test_population_network_readout_population_conflict_errors():
                     ],
                 }
             ],
-        }
+        },
     }
     with pytest.raises(ValueError, match="conflicts"):
         get_architecture("population_network", cfg, input_dim=3)
@@ -512,6 +522,7 @@ def test_population_network_readout_population_conflict_errors():
 
 def test_population_network_missing_required_drive_errors_at_build():
     cfg = {
+        "biological_neuron": False,
         "population_network": {
             "layers": [
                 {
@@ -527,7 +538,7 @@ def test_population_network_missing_required_drive_errors_at_build():
                     "connections": [],
                 }
             ]
-        }
+        },
     }
     with pytest.raises(ValueError, match="ff_excitatory"):
         get_architecture("population_network", cfg, input_dim=3)
@@ -535,6 +546,7 @@ def test_population_network_missing_required_drive_errors_at_build():
 
 def test_population_network_rejects_runtime_input_dim_mismatch():
     cfg = {
+        "biological_neuron": False,
         "population_network": {
             "layers": [
                 {
@@ -550,7 +562,7 @@ def test_population_network_rejects_runtime_input_dim_mismatch():
                     "connections": [{"source": "input", "target": "e"}],
                 }
             ]
-        }
+        },
     }
     net = get_architecture("population_network", cfg, input_dim=3)
     with pytest.raises(ValueError, match="expected last input dimension 3"):
@@ -559,6 +571,7 @@ def test_population_network_rejects_runtime_input_dim_mismatch():
 
 def test_population_network_input_projection_dims_must_be_positive():
     cfg = {
+        "biological_neuron": False,
         "population_network": {
             "input_projection_dims": [0],
             "layers": [
@@ -575,7 +588,7 @@ def test_population_network_input_projection_dims_must_be_positive():
                     "connections": [{"source": "input", "target": "e"}],
                 }
             ],
-        }
+        },
     }
     with pytest.raises(ValueError, match="input_projection_dims"):
         get_architecture("population_network", cfg, input_dim=3)
@@ -583,6 +596,7 @@ def test_population_network_input_projection_dims_must_be_positive():
 
 def test_population_network_transfer_named_input_streams_split_first_layer():
     cfg = {
+        "biological_neuron": False,
         "population_network": {
             "use_transfer": True,
             "transfer_params": {
@@ -614,7 +628,7 @@ def test_population_network_transfer_named_input_streams_split_first_layer():
                     ],
                 }
             ],
-        }
+        },
     }
     net = get_architecture("population_network", cfg, input_dim=5)
     layer = net.layers[0]
@@ -631,6 +645,7 @@ def test_population_network_transfer_named_input_streams_split_first_layer():
 
 def test_population_network_input_i_defaults_to_inhibitory_pathway():
     cfg = {
+        "biological_neuron": False,
         "population_network": {
             "use_transfer": True,
             "transfer_params": {
@@ -662,7 +677,7 @@ def test_population_network_input_i_defaults_to_inhibitory_pathway():
                     ],
                 }
             ],
-        }
+        },
     }
     net = get_architecture("population_network", cfg, input_dim=5)
     layer = net.layers[0]
@@ -672,6 +687,7 @@ def test_population_network_input_i_defaults_to_inhibitory_pathway():
 
 def test_population_network_input_aliases_share_stream_without_transfer():
     cfg = {
+        "biological_neuron": False,
         "population_network": {
             "layers": [
                 {
@@ -696,7 +712,7 @@ def test_population_network_input_aliases_share_stream_without_transfer():
                     ],
                 }
             ]
-        }
+        },
     }
     net = get_architecture("population_network", cfg, input_dim=3)
     layer = net.layers[0]
@@ -711,6 +727,7 @@ def test_population_network_input_aliases_share_stream_without_transfer():
 
 def test_population_network_delayed_external_input_sources_error():
     cfg = {
+        "biological_neuron": False,
         "population_network": {
             "layers": [
                 {
@@ -734,7 +751,7 @@ def test_population_network_delayed_external_input_sources_error():
                     ],
                 }
             ]
-        }
+        },
     }
     with pytest.raises(ValueError, match="cannot use timing='delayed'"):
         get_architecture("population_network", cfg, input_dim=3)
@@ -742,6 +759,7 @@ def test_population_network_delayed_external_input_sources_error():
 
 def test_population_network_second_layer_input_is_previous_readout():
     cfg = {
+        "biological_neuron": False,
         "population_network": {
             "layers": [
                 {
@@ -783,7 +801,7 @@ def test_population_network_second_layer_input_is_previous_readout():
                     "connections": [{"source": "input", "target": "e1"}],
                 },
             ]
-        }
+        },
     }
     net = get_architecture("population_network", cfg, input_dim=3)
     layer1 = net.layers[1]
@@ -797,6 +815,7 @@ def test_population_network_second_layer_input_is_previous_readout():
 
 def test_population_network_qualified_cross_layer_sources_and_gradients():
     cfg = {
+        "biological_neuron": False,
         "population_network": {
             "layers": [
                 {
@@ -854,7 +873,7 @@ def test_population_network_qualified_cross_layer_sources_and_gradients():
                     ],
                 },
             ]
-        }
+        },
     }
     net = get_architecture("population_network", cfg, input_dim=4)
     layer1 = net.layers[1]
@@ -900,6 +919,7 @@ def test_population_network_layer_state_has_recurrent_state_helpers():
 
 def test_population_network_probability_masks_include_pathway_in_seed():
     cfg = {
+        "biological_neuron": False,
         "population_network": {
             "layers": [
                 {
@@ -938,7 +958,7 @@ def test_population_network_probability_masks_include_pathway_in_seed():
                     ],
                 }
             ]
-        }
+        },
     }
 
     net = get_architecture("population_network", cfg, input_dim=8)
@@ -952,6 +972,7 @@ def test_population_network_probability_masks_include_pathway_in_seed():
 
 def test_population_network_probability_masks_repair_empty_rows():
     cfg = {
+        "biological_neuron": False,
         "population_network": {
             "layers": [
                 {
@@ -988,7 +1009,7 @@ def test_population_network_probability_masks_repair_empty_rows():
                     ],
                 }
             ]
-        }
+        },
     }
 
     net = get_architecture("population_network", cfg, input_dim=5)
@@ -1004,6 +1025,7 @@ def test_population_network_probability_masks_repair_empty_rows():
 
 def test_population_network_population_override_deep_merges_nested_defaults():
     cfg = {
+        "biological_neuron": False,
         "population_network": {
             "layers": [
                 {
@@ -1036,7 +1058,7 @@ def test_population_network_population_override_deep_merges_nested_defaults():
                     "connections": [{"source": "input", "target": "e"}],
                 }
             ]
-        }
+        },
     }
 
     net = get_architecture("population_network", cfg, input_dim=3)
@@ -1049,6 +1071,7 @@ def test_population_network_population_override_deep_merges_nested_defaults():
 
 def test_population_network_qualified_sources_validate_layer_order_and_names():
     future_cfg = {
+        "biological_neuron": False,
         "population_network": {
             "layers": [
                 {
@@ -1079,12 +1102,13 @@ def test_population_network_qualified_sources_validate_layer_order_and_names():
                     "connections": [{"source": "input", "target": "e1"}],
                 },
             ]
-        }
+        },
     }
     with pytest.raises(ValueError, match="earlier layers"):
         get_architecture("population_network", future_cfg, input_dim=3)
 
     missing_cfg = {
+        "biological_neuron": False,
         "population_network": {
             "layers": [
                 {
@@ -1115,7 +1139,7 @@ def test_population_network_qualified_sources_validate_layer_order_and_names():
                     ],
                 },
             ]
-        }
+        },
     }
     with pytest.raises(ValueError, match="unknown population"):
         get_architecture("population_network", missing_cfg, input_dim=3)
@@ -1123,6 +1147,7 @@ def test_population_network_qualified_sources_validate_layer_order_and_names():
 
 def test_population_network_delayed_qualified_future_source_is_recurrent_safe():
     cfg = {
+        "biological_neuron": False,
         "population_network": {
             "output_mode": "last",
             "layers": [
@@ -1168,7 +1193,7 @@ def test_population_network_delayed_qualified_future_source_is_recurrent_safe():
                     "connections": [{"source": "layer0.e0", "target": "e1"}],
                 },
             ],
-        }
+        },
     }
     net = get_architecture("population_network", cfg, input_dim=3)
     assert net.is_recurrent is True
@@ -1188,6 +1213,7 @@ def test_population_network_delayed_qualified_future_source_is_recurrent_safe():
 
 def test_population_network_local_learning_recorders_see_qualified_streams():
     cfg = {
+        "biological_neuron": False,
         "population_network": {
             "layers": [
                 {
@@ -1243,7 +1269,7 @@ def test_population_network_local_learning_recorders_see_qualified_streams():
                     ],
                 },
             ]
-        }
+        },
     }
     core = get_architecture("population_network", cfg, input_dim=4)
     model = Classifier(
@@ -1276,6 +1302,7 @@ def test_population_network_local_learning_recorders_see_qualified_streams():
 
 def test_population_network_same_step_bidirectional_cycle_errors():
     cfg = {
+        "biological_neuron": False,
         "population_network": {
             "layers": [
                 {
@@ -1302,7 +1329,7 @@ def test_population_network_same_step_bidirectional_cycle_errors():
                     ],
                 }
             ]
-        }
+        },
     }
     with pytest.raises(ValueError, match="acyclic"):
         get_architecture("population_network", cfg, input_dim=3)
@@ -1310,6 +1337,7 @@ def test_population_network_same_step_bidirectional_cycle_errors():
 
 def test_population_network_recurrent_delayed_bidirectional_edges_are_allowed():
     cfg = {
+        "biological_neuron": False,
         "population_network": {
             "output_mode": "last",
             "layers": [
@@ -1348,7 +1376,7 @@ def test_population_network_recurrent_delayed_bidirectional_edges_are_allowed():
                     ],
                 }
             ],
-        }
+        },
     }
     net = get_architecture("population_network", cfg, input_dim=4)
     assert net.is_recurrent is True
@@ -1360,6 +1388,7 @@ def test_population_network_recurrent_delayed_bidirectional_edges_are_allowed():
 
 def test_population_network_delayed_edges_require_recurrent_layer():
     cfg = {
+        "biological_neuron": False,
         "population_network": {
             "layers": [
                 {
@@ -1385,7 +1414,7 @@ def test_population_network_delayed_edges_require_recurrent_layer():
                     ],
                 }
             ]
-        }
+        },
     }
     with pytest.raises(ValueError, match="recurrent=true"):
         get_architecture("population_network", cfg, input_dim=3)
@@ -1436,7 +1465,10 @@ def _two_layer_config(*, layer0_readout="e", layer1_source="input"):
             {"source": layer1_source, "target": "e"},
         ],
     }
-    return {"population_network": {"layers": [layer0, layer1]}}
+    return {
+        "biological_neuron": False,
+        "population_network": {"layers": [layer0, layer1]},
+    }
 
 
 @pytest.mark.parametrize("source", ["input_i", "input_e", "input_inh"])

@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+- Configuration format 4 enables ``biological_neuron`` by default for standard
+  dendritic E/I cores. Explicit ``false`` remains available for exploratory
+  models; signed/MLP controls and unrelated families retain their contracts.
+  The upgrader writes the historical ``false`` default in older files and
+  leaves explicit declarations intact. Shipped historical recipes preserve
+  their previous computation rather than silently adopting new circuitry.
+- Add checked-identity ``nonnegative`` inputs, preserving values and gradients
+  while rejecting negative or nonfinite rates. Transfer layers can explicitly
+  declare distinct, identically tuned external E/I ``paired_afferents``;
+  shared input channels still fail the Dale constraint when used with both signs.
+- Population networks support an opt-in positive input projection via
+  ``input_projection_weight_transform: softplus``. This is a new model with
+  positive weights and a rectified output; it requires retraining when replacing
+  a signed projection. The omitted option preserves the signed Linear path.
+- Correct biological operator-card checks to cover the neuronal core, excluding
+  task encoders and decoders. Recognize a rectified internal projection when
+  checking the dendritic input domain, while still rejecting its signed weights.
+  Operator-card schema v3 records this scope and the external-source declaration.
+- Conventional parameter-budget benchmarks explicitly retain their historical
+  non-biological contract in generated configurations and reports. Their model
+  states, outputs and numerical report fields are unchanged.
+
 - The README coverage badge uses a relative image path so private-repository
   readers can load it. CI proposes measured badge updates through a pull
   request instead of pushing directly to ``develop`` and ignoring failures.

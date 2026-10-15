@@ -11,6 +11,7 @@ import torch
 from omegaconf import DictConfig
 from torch import nn
 
+from dendritic_modeling.config.biological import reference_core_config
 from dendritic_modeling.networks.activations.factory import ActivationFactory
 from dendritic_modeling.networks.architectures.excitation_inhibition import (
     BlockLinear,
@@ -33,7 +34,7 @@ class MatchedTotalParamMLP(BaseNetwork):
     def __init__(self, config: Union[dict, DictConfig], input_dim):
         super().__init__()
         # Create EINet to get parameter count and number of layers
-        einet = ConfigurableEINetwork(config, input_dim)
+        einet = ConfigurableEINetwork(reference_core_config(config), input_dim)
 
         self.output_dim = einet.output_dim
 
@@ -137,7 +138,7 @@ class MatchedActiveParamMLP(BaseNetwork):
     def __init__(self, config: Union[dict, DictConfig], input_dim):
         super().__init__()
         # Create EINet to get parameter count and number of layers
-        einet = ConfigurableEINetwork(config, input_dim)
+        einet = ConfigurableEINetwork(reference_core_config(config), input_dim)
 
         self.output_dim = einet.output_dim
 
@@ -350,7 +351,9 @@ class SparseStructuredMLP(BaseNetwork):
         super().__init__()
 
         einet = ConfigurableEINetwork(
-            config, input_dim, flatten_dendrites=flatten_dendrites
+            reference_core_config(config),
+            input_dim,
+            flatten_dendrites=flatten_dendrites,
         )
         self.output_dim = einet.output_dim
 

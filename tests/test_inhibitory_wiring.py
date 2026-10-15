@@ -20,6 +20,7 @@ INPUT_DIM = 12
 
 def _core(layers=1, inhibitory=(), ei=0, ie=3, ii=0, **transfer):
     return {
+        "biological_neuron": False,
         "architecture": {
             "excitatory_layer_sizes": [6] * layers,
             "inhibitory_layer_sizes": list(inhibitory),

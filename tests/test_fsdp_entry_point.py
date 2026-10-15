@@ -37,6 +37,7 @@ RUN_RECORDS = {
 
 def _population_core():
     return {
+        "biological_neuron": False,
         "type": "population_network",
         "population_network": {
             "layers": [
@@ -205,6 +206,7 @@ def test_recurrent_fsdp_models_use_the_recurrent_wrapper(tmp_path):
             "task": "classification",
             "encoder": {"type": "identity", "params": {"input_dim": 4}},
             "core": {
+                "biological_neuron": False,
                 "type": "unified_ei",
                 "unified_ei": {
                     "output_mode": "last",

@@ -951,6 +951,7 @@ def test_estimation_builds_every_einet_core_type_as_training_does(tmp_path, core
                 "data": {"dataset_name": "mnist"},
                 "model": {
                     "core": {
+                        "biological_neuron": False,
                         "type": core_type,
                         "architecture": {
                             "excitatory_layer_sizes": [8],

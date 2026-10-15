@@ -100,7 +100,9 @@ def test_gate_stats_record_the_policy_each_layer_applied(tmp_path):
     }
     torch.manual_seed(0)
     network = get_architecture(
-        "population_network", {"population_network": {"layers": [layer]}}, input_dim=4
+        "population_network",
+        {"biological_neuron": False, "population_network": {"layers": [layer]}},
+        input_dim=4,
     )
     payload = dump_init_gate_stats(network, tmp_path)
     saved = json.loads((tmp_path / "init_gate_stats.json").read_text())
@@ -129,6 +131,7 @@ def test_unified_additive_aliases_record_the_analytical_policy(tmp_path):
     network = get_architecture(
         "rnn_dendritic_additive",
         {
+            "biological_neuron": False,
             "unified_ei": {
                 "layers": [
                     {
@@ -137,7 +140,7 @@ def test_unified_additive_aliases_record_the_analytical_policy(tmp_path):
                         "recurrent": True,
                     }
                 ]
-            }
+            },
         },
         input_dim=4,
     )

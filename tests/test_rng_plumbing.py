@@ -425,7 +425,11 @@ def test_layer_population_defaults_seed_reaches_every_population(layer_seed, exp
         ],
     }
     model = SimpleNamespace(
-        core={"type": "population_network", "population_network": {"layers": [layer]}}
+        core={
+            "biological_neuron": False,
+            "type": "population_network",
+            "population_network": {"layers": [layer]},
+        }
     )
 
     setup_utils._apply_topology_seed_defaults(model, topology_seed=41)

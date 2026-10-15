@@ -33,7 +33,7 @@ Explained in :doc:`configuration_guide`. Class ``dendritic_modeling.config.confi
      - Default
    * - ``config_version``
      - ``int``
-     - ``3``
+     - ``4``
    * - ``experiment``
      - ``ExperimentConfig``
      - :ref:`experiment <options-experiment>`
@@ -497,8 +497,8 @@ Explained in :ref:`core-types`. Class ``dendritic_modeling.config.model.CoreConf
      - ``Optional[int]``
      - ``null``
    * - ``biological_neuron``
-     - ``bool``
-     - ``false``
+     - ``Optional[bool]``
+     - ``null``: resolves to true for standard dendritic E/I cores; false for signed/MLP controls and other families (:ref:`biological-constraints`)
    * - ``initialization_seed``
      - ``Optional[int]``
      - ``null``
@@ -1765,6 +1765,9 @@ Explained in :ref:`transfer-layer`. Class ``dendritic_modeling.config.model.Tran
    * - ``independent_pathways``
      - ``bool``
      - ``false``
+   * - ``input_source_identity``
+     - ``str``
+     - ``shared``
    * - ``excitatory_dim``
      - ``Optional[int]``
      - ``null``

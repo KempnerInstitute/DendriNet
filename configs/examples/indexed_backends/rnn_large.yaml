@@ -45,7 +45,7 @@ filter_config: {mode: default}
 sweep_contract: {expected_config_count: 4}
 
 base_config:
-  config_version: 3
+  config_version: 4
   experiment:
     seed: 42
     train_valid_split: 0.8
@@ -82,6 +82,7 @@ base_config:
       params:
         input_dim: 10
     core:
+      biological_neuron: false  # Preserve this example's historical model contract.
       type: unified_ei
       unified_ei:
         output_mode: last

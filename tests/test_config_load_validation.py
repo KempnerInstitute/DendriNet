@@ -25,6 +25,7 @@ def test_load_config_rejects_invalid_legacy_synapse_list_length(tmp_path):
         tmp_path,
         _base_config(
             {
+                "biological_neuron": False,
                 "type": "einet",
                 "architecture": {"excitatory_layer_sizes": [8]},
                 "connectivity": {
@@ -62,6 +63,7 @@ def test_every_type_built_from_the_structured_sections_checks_its_lists(
     # These types build (or match) a structured E/I network from the same
     # sections, which would ignore entries past the number of layers.
     core = {
+        "biological_neuron": False,
         "type": core_type,
         "architecture": {"excitatory_layer_sizes": [8], "inhibitory_layer_sizes": []},
         "connectivity": {
@@ -80,6 +82,7 @@ def test_load_config_rejects_population_network_bad_endpoint(tmp_path):
         tmp_path,
         _base_config(
             {
+                "biological_neuron": False,
                 "type": "population_network",
                 "population_network": {
                     "layers": [
@@ -110,6 +113,7 @@ def test_load_config_rejects_population_network_delayed_without_recurrent(tmp_pa
         tmp_path,
         _base_config(
             {
+                "biological_neuron": False,
                 "type": "population_network",
                 "population_network": {
                     "layers": [

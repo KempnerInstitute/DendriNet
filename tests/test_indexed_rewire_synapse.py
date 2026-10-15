@@ -558,7 +558,7 @@ def test_configured_rewiring_regrows_contacts_with_the_pruned_weight():
         }
         network = get_architecture(
             "population_network",
-            {"population_network": {"layers": [layer]}},
+            {"biological_neuron": False, "population_network": {"layers": [layer]}},
             input_dim=6,
         )
         rewired = [m for m in network.modules() if isinstance(m, IndexedRewireLinear)]

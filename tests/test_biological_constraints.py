@@ -111,7 +111,9 @@ def _population(defaults=None, connections=None, **network):
 
 def _violations(core_type, core):
     torch.manual_seed(0)
-    return biological_violations(get_architecture(core_type, core, input_dim=8))
+    return biological_violations(
+        get_architecture(core_type, {**core, "biological_neuron": False}, input_dim=8)
+    )
 
 
 def _single(core_type, core):
@@ -291,12 +293,12 @@ def test_loader_validates_the_declaration(tmp_path):
     assert _load(
         tmp_path, {**population, "biological_neuron": True}
     ).model.core.biological_neuron
-    assert _load(tmp_path, population).model.core.biological_neuron is False
+    assert _load(tmp_path, population).model.core.biological_neuron is True
     assert (
         _load(
             tmp_path, {**population, "biological_neuron": None}
         ).model.core.biological_neuron
-        is False
+        is True
     )
     with pytest.raises(ValueError, match="must be true or false"):
         _load(tmp_path, {**population, "biological_neuron": "yes"})

@@ -65,6 +65,7 @@ def test_both_launchers_record_canonical_rnn_alias_flags():
     payload = {
         "model": {
             "core": {
+                "biological_neuron": False,
                 "type": "rnn_dendritic_additive",
                 "unified_ei": {"layers": [{"excitatory": {}, "inhibitory": {}}]},
             }
@@ -511,6 +512,7 @@ class TestConfigLoading(unittest.TestCase):
             "model": {
                 "task": "classification",
                 "core": {
+                    "biological_neuron": False,
                     "type": "EINet",
                     "architecture": {
                         "excitatory_layer_sizes": [64, 32],
@@ -1224,6 +1226,7 @@ class TestConfigSerialization(unittest.TestCase):
             "model": {
                 "task": "classification",
                 "core": {
+                    "biological_neuron": False,
                     "architecture": {"excitatory_layer_sizes": [16, 8]},
                     "connectivity": {"ee_synapses_per_branch_per_layer": [4, 4]},
                 },

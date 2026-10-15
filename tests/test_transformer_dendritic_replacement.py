@@ -360,6 +360,7 @@ def test_deepseek_parameter_estimates_show_sparse_vs_dense_difference():
 
 def test_transformer_replacement_config_maps_shared_core_like_alexnet():
     core_config = {
+        "biological_neuron": False,
         "type": "dendritic_ffn",
         "architecture": {
             "excitatory_layer_sizes": [4],
@@ -420,6 +421,7 @@ def test_transformer_replacement_config_maps_shared_core_like_alexnet():
 
 def test_transformer_replacement_core_alias_overrides_morphology_shunting():
     core_config = {
+        "biological_neuron": False,
         "type": "dendritic_additive",
         "architecture": {
             "excitatory_layer_sizes": [4],
@@ -447,6 +449,7 @@ def test_transformer_replacement_core_alias_overrides_morphology_shunting():
 
 def test_transformer_ei_stack_core_alias_overrides_morphology_shunting():
     core_config = {
+        "biological_neuron": False,
         "type": "dendritic_shunting",
         "architecture": {
             "excitatory_layer_sizes": [5],
@@ -471,6 +474,7 @@ def test_transformer_ei_stack_core_alias_overrides_morphology_shunting():
 
 def test_transformer_replacement_can_patch_shared_ei_stack():
     core_config = {
+        "biological_neuron": False,
         "architecture": {
             "excitatory_layer_sizes": [5],
             "inhibitory_layer_sizes": [2],

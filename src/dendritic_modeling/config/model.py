@@ -4,6 +4,10 @@ from typing import Any, Optional
 
 from dendritic_modeling.config.affine_mlp import AffineMLPConfig
 from dendritic_modeling.config.base import BaseConfig
+from dendritic_modeling.config.biological import (
+    resolve_biological_neuron,
+    validate_input_source_identity,
+)
 from dendritic_modeling.config.choices import normalize_gradient_scaling
 from dendritic_modeling.config.conversion import to_plain_dict
 from dendritic_modeling.config.extensions import extension_default
@@ -35,12 +39,21 @@ class TransferFunctionConfig(BaseConfig):
     # False duplicates the input into both streams; True splits the input
     # channels between them (excitatory_dim + inhibitory_dim = input size).
     independent_pathways: bool = False
+    # Explicit external source identity: shared channels, or distinct E/I
+    # afferents with identical tuning. This changes the declared circuit only.
+    input_source_identity: str = "shared"
     excitatory_dim: Optional[int] = None
     inhibitory_dim: Optional[int] = None
     split_strategy: str = "random"
     split_seed: Optional[int] = None
-    # Applied to both streams: none, relu, sigmoid, softplus or tanh.
+    # Applied to both streams: none, nonnegative (checked identity), relu,
+    # sigmoid, softplus or tanh.
     output_activation: Optional[str] = None
+
+    def __post_init__(self) -> None:
+        validate_input_source_identity(
+            self.input_source_identity, self.independent_pathways
+        )
 
 
 #: Options of the MLP inhibitory cells (inhibitory_network_type: mlp).
@@ -509,7 +522,9 @@ class CoreConfig(BaseConfig):
     # inhibition (Dale's law), a rectified input and nonnegative population
     # outputs. See networks.architectures.biological_constraints. Only
     # dendritic E/I core types can declare it.
-    biological_neuron: bool = False
+    # None resolves by core type: true for ordinary dendritic E/I networks,
+    # false for explicitly signed/MLP controls and unrelated architectures.
+    biological_neuron: Optional[bool] = None
     # Optional base seed for component-keyed parameter initialization. Training
     # setup fills this from experiment.model_seed; ``None`` preserves direct
     # construction through the historical global RNG stream.
@@ -555,6 +570,11 @@ class CoreConfig(BaseConfig):
     # Config-driven end-to-end vision architectures assembled from dendritic
     # convolutional and feedforward blocks.
     vision: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        self.biological_neuron = resolve_biological_neuron(
+            self.type, self.biological_neuron
+        )
 
 
 @dataclass

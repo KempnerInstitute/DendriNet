@@ -77,7 +77,10 @@ def _network(connections, *, e_inhibitory=(2, 2, 2), seed=3):
     torch.manual_seed(seed)
     return get_architecture(
         "population_network",
-        {"population_network": {"input_dim": 8, "layers": [layer]}},
+        {
+            "biological_neuron": False,
+            "population_network": {"input_dim": 8, "layers": [layer]},
+        },
         input_dim=8,
     )
 

@@ -38,6 +38,7 @@ SPIKES = {"enabled": True, "levels": "distal", "threshold": 0.6}
 
 def _core(**blocks) -> CoreConfig:
     return CoreConfig(
+        biological_neuron=False,
         type="dendritic_shunting",
         architecture=ArchitectureConfig(
             excitatory_layer_sizes=[4],

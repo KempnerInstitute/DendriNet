@@ -222,6 +222,7 @@ def _experiment(**pretraining):
                 },
             },
             "core": {
+                "biological_neuron": False,
                 "type": "einet",
                 "architecture": {
                     "excitatory_layer_sizes": [6],

@@ -10,7 +10,7 @@
 # download under raw/:
 #   dendritic-train configs/examples/population_network_target_levels.yaml --data_dir <root>
 
-config_version: 3
+config_version: 4
 
 experiment:
   seed: 2
@@ -27,6 +27,7 @@ model:
   task: classification
   encoder: {type: identity}
   core:
+    biological_neuron: false  # Preserve this example's historical model contract.
     type: population_network
     population_network:
       input_dim: 816

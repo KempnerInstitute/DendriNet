@@ -161,6 +161,7 @@ class TestEffectiveMatchedParamMLP(unittest.TestCase):
             )
 
         structured = {
+            "biological_neuron": False,
             "architecture": {"excitatory_layer_sizes": [5]},
             "connectivity": {},
         }
@@ -180,6 +181,7 @@ class TestEffectiveMatchedParamMLP(unittest.TestCase):
     def test_point_mlp_matches_population_network_reference(self):
         """point_mlp can use the canonical population_network schema as reference."""
         params = {
+            "biological_neuron": False,
             "population_network": {
                 "layers": [
                     {
@@ -209,7 +211,7 @@ class TestEffectiveMatchedParamMLP(unittest.TestCase):
                         "connections": [{"source": "input", "target": "e0"}],
                     }
                 ]
-            }
+            },
         }
         net = get_architecture("point_mlp", params, input_dim=10)
         out = net(torch.randn(4, 10))
@@ -219,6 +221,7 @@ class TestEffectiveMatchedParamMLP(unittest.TestCase):
     def test_total_param_mlp_matches_population_network_reference(self):
         """total_param_mlp can also use the population_network reference path."""
         params = {
+            "biological_neuron": False,
             "population_network": {
                 "layers": [
                     {
@@ -248,7 +251,7 @@ class TestEffectiveMatchedParamMLP(unittest.TestCase):
                         "connections": [{"source": "input", "target": "e0"}],
                     }
                 ]
-            }
+            },
         }
         net = get_architecture("total_param_mlp", params, input_dim=10)
         out = net(torch.randn(4, 10))

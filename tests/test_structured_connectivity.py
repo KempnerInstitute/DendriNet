@@ -1497,6 +1497,7 @@ def test_distance_kernel_probabilities_decay_with_distance():
 
 def test_factory_applies_structured_connectivity_to_feedforward_einet():
     config = {
+        "biological_neuron": False,
         "type": "dendritic_shunting",
         "architecture": {
             "excitatory_layer_sizes": [4],
@@ -1539,6 +1540,7 @@ def test_factory_applies_structured_connectivity_to_feedforward_einet():
 
 def test_factory_applies_structured_connectivity_to_recurrent_einet():
     config = {
+        "biological_neuron": False,
         "type": "dendritic_shunting",
         "architecture": {
             "excitatory_layer_sizes": [5],

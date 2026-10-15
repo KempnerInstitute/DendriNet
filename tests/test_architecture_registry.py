@@ -146,6 +146,7 @@ ALIASES = [
 def _unified_parameters() -> dict:
     """The unified recurrent golden case's parameters, without its type."""
     return {
+        "biological_neuron": False,
         "unified_ei": {
             "output_mode": "last",
             "layers": [
@@ -161,7 +162,7 @@ def _unified_parameters() -> dict:
                     "dt": 1.0,
                 }
             ],
-        }
+        },
     }
 
 

@@ -56,6 +56,7 @@ def _einet_core(
 ) -> dict:
     core = {
         "type": core_type,
+        "biological_neuron": False,
         "architecture": {
             "excitatory_layer_sizes": [4],
             "excitatory_branch_factors": list(branch_factors),
@@ -70,6 +71,7 @@ def _einet_two_layer_inhibitory() -> dict:
     """Two E layers whose branches receive inhibitory-population synapses."""
     return {
         "type": "dendritic_shunting",
+        "biological_neuron": False,
         "architecture": {
             "excitatory_layer_sizes": [4, 3],
             "inhibitory_layer_sizes": [2, 2],
@@ -90,6 +92,7 @@ def _population_core(
 ) -> dict:
     return {
         "type": "population_network",
+        "biological_neuron": False,
         "population_network": {
             "layers": [
                 {
@@ -136,6 +139,7 @@ def _recurrent_population_core() -> dict:
     """
     return {
         "type": "population_network",
+        "biological_neuron": False,
         "population_network": {
             "output_mode": "last",
             "layers": [
@@ -297,6 +301,7 @@ def _unified_rnn() -> torch.nn.Module:
     return get_architecture(
         "rnn_dendritic_shunting",
         {
+            "biological_neuron": False,
             "unified_ei": {
                 "output_mode": "last",
                 "layers": [
@@ -312,7 +317,7 @@ def _unified_rnn() -> torch.nn.Module:
                         "dt": 1.0,
                     }
                 ],
-            }
+            },
         },
         input_dim=INPUT_DIM,
     )

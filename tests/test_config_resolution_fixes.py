@@ -15,6 +15,7 @@ from dendritic_modeling.scripts.script_utils.config_utils import (
 )
 
 CORE = {
+    "biological_neuron": False,
     "type": "einet",
     "architecture": {"excitatory_layer_sizes": [3], "inhibitory_layer_sizes": []},
     "connectivity": {

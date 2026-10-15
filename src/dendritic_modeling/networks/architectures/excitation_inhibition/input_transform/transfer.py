@@ -5,6 +5,7 @@ from typing import Any
 import torch
 from torch import nn
 
+from dendritic_modeling.config.biological import validate_input_source_identity
 from dendritic_modeling.config.inhibitory_wiring import strip_retired_routing_keys
 from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.divisive import (
     DivisiveInputNormalizer,
@@ -15,6 +16,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.input_trans
 from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.index import (
     IndexInputTransform,
 )
+from dendritic_modeling.networks.utils.input_domain import NonnegativeInputCheck
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +26,7 @@ TRANSFER_LAYER_KEYS = frozenset(
     {
         "input_transform",
         "independent_pathways",
+        "input_source_identity",
         "excitatory_dim",
         "inhibitory_dim",
         "split_strategy",
@@ -72,6 +75,10 @@ class TransferLayer(nn.Module):
         self.independent_pathways = independent_pathways = transfer_params.get(
             "independent_pathways", False
         )
+        self.input_source_identity = transfer_params.get(
+            "input_source_identity", "shared"
+        )
+        validate_input_source_identity(self.input_source_identity, independent_pathways)
         if input_dim is None or int(input_dim) <= 0:
             raise ValueError(f"input_dim must be a positive integer, got {input_dim}")
         input_dim = int(input_dim)
@@ -85,7 +92,9 @@ class TransferLayer(nn.Module):
         self.output_activation = transfer_params.get("output_activation", None)
 
         # Create activation function if specified
-        if self.output_activation == "sigmoid":
+        if self.output_activation == "nonnegative":
+            self.activation_fn = NonnegativeInputCheck()
+        elif self.output_activation == "sigmoid":
             self.activation_fn = nn.Sigmoid()
         elif self.output_activation == "relu":
             self.activation_fn = nn.ReLU()
@@ -137,7 +146,7 @@ class TransferLayer(nn.Module):
             )
         normalized = self.input_normalizer(x)
         x1, x2 = self.pathway_split(normalized)
-        if x1 is x2 and self.output_activation in (None, "none", "relu"):
+        if x1 is x2 and self.output_activation in (None, "none", "relu", "nonnegative"):
             # Both streams carry the same input: activate it once. For these
             # activations (derivative 0 or 1) the gradient is bitwise the same.
             activated = self.activation_fn(x1)

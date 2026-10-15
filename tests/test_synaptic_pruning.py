@@ -25,7 +25,11 @@ def _model(core_type="einet", core=None):
     core = (
         _einet(**{"morphology.weight_transform": "identity"}) if core is None else core
     )
-    return _wrap(get_architecture(core_type, core, input_dim=IN_DIM))
+    return _wrap(
+        get_architecture(
+            core_type, {**core, "biological_neuron": False}, input_dim=IN_DIM
+        )
+    )
 
 
 def _first_bank(model):

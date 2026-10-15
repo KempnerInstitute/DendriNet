@@ -165,6 +165,14 @@ so each channel is either excitatory or inhibitory. Its options are in
      - Stream sizes of the split. An unset size is the rest of the input; with
        both unset the input is halved. Setting them without
        ``independent_pathways: true`` raises.
+   * - ``input_source_identity``
+     - str
+     - ``shared``
+     - ``paired_afferents`` explicitly declares separate external E and I
+       afferents with identical feature tuning. It requires
+       ``independent_pathways: false`` and leaves computation unchanged.
+       Report the source populations and this assumption when using it
+       (:ref:`biological-constraints`).
    * - ``split_strategy``
      - str
      - ``random``
@@ -178,7 +186,7 @@ so each channel is either excitatory or inhibitory. Its options are in
    * - ``output_activation``
      - str or null
      - ``null``
-     - Applied to both streams: ``relu``, ``sigmoid``, ``softplus``,
+     - Applied to both streams: ``nonnegative`` (checked identity), ``relu``, ``sigmoid``, ``softplus``,
        ``tanh`` or ``none``. The nonnegative weight transforms (``exp``,
        ``softplus``, ``relu``) reject ``tanh``, whose output is signed.
    * - ``input_transform``

@@ -24,7 +24,7 @@ Train an example from the repository root:
 dendritic-train configs/examples/population_network_feedforward.yaml
 ```
 
-Experiment files use `config_version: 3`. Values in an example are a chosen
+Experiment files use `config_version: 4`. Values in an example are a chosen
 recipe, not a declaration of the library defaults. Analysis profiles,
 deployment policies, operator presets and sweep files have their own formats;
 they are not standalone training configurations. Each sweep's `base_config`

@@ -7,7 +7,7 @@
 # download under raw/:
 #   dendritic-train configs/examples/contextual_remapping_affine_mlp.yaml --data_dir <root>
 
-config_version: 3
+config_version: 4
 
 experiment:
   seed: 2
@@ -25,6 +25,7 @@ model:
   output_scale_mode: fixed
   encoder: {type: identity}
   core:
+    biological_neuron: false  # Preserve this example's historical model contract.
     type: affine_mlp
     affine_mlp:
       dimensions: [816, 246, 127, 47]

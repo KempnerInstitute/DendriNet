@@ -21,6 +21,7 @@ def _layer(defaults, connections, *, e_override=None, branch_factors=(2,)):
         **defaults,
     }
     return {
+        "biological_neuron": False,
         "population_network": {
             "output_mode": "last",
             "layers": [
@@ -52,7 +53,7 @@ def _layer(defaults, connections, *, e_override=None, branch_factors=(2,)):
                     ],
                 }
             ],
-        }
+        },
     }
 
 

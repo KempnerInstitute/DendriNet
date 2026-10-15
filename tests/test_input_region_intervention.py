@@ -74,7 +74,7 @@ def _model() -> Classifier:
     layers = [_population_layer(0, "input"), _population_layer(1, "layer0.e0")]
     core = get_architecture(
         "population_network",
-        {"population_network": {"layers": layers}},
+        {"biological_neuron": False, "population_network": {"layers": layers}},
         input_dim=6,
     )
     return Classifier(Identity(input_dim=6), core, Identity(input_dim=4))
@@ -121,6 +121,7 @@ def _direct_ei_model(*, use_shunting: bool) -> Classifier:
     core = get_architecture(
         "population_network",
         {
+            "biological_neuron": False,
             "population_network": {
                 "use_transfer": True,
                 "transfer_params": {
@@ -128,7 +129,7 @@ def _direct_ei_model(*, use_shunting: bool) -> Classifier:
                     "output_activation": "relu",
                 },
                 "layers": [layer],
-            }
+            },
         },
         input_dim=6,
     )

@@ -2064,6 +2064,19 @@ def _report_top_level_fsdp(data: dict, notes: list[str], unresolved: list[str]) 
     )
 
 
+def _write_version3_biological_meaning(data: dict, notes: list[str]) -> None:
+    """Preserve the old omitted/null declaration without altering a circuit."""
+    model = data.setdefault("model", {})
+    if not isinstance(model, dict):
+        return
+    core = model.setdefault("core", {})
+    if isinstance(core, dict) and core.get("biological_neuron") is None:
+        core["biological_neuron"] = False
+        notes.append(
+            "model.core.biological_neuron: wrote false (historical validation default; model unchanged)"
+        )
+
+
 def upgrade_experiment(
     data: dict,
     *,
@@ -2152,6 +2165,12 @@ def upgrade_experiment(
     # (rule, sections and fields it reads, version): each rule rewrites the
     # files written for a format before that version.
     rules = (
+        (
+            _write_version3_biological_meaning,
+            ("model.core",),
+            {"biological_neuron"},
+            4,
+        ),
         (
             _reproduce_inhibitory_routing,
             ("model.core",),

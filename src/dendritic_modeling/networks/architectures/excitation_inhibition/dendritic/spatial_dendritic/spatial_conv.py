@@ -28,6 +28,7 @@ import torch
 import torch.nn.functional as F
 from omegaconf import DictConfig
 
+from dendritic_modeling.config.biological import reference_core_config
 from dendritic_modeling.networks.architectures.excitation_inhibition.ei_network import (
     ConfigurableEINetwork,
 )
@@ -130,7 +131,7 @@ class HierarchicalDendriticConv(BaseNetwork):
         patch_dim = self.adapted_in_channels * self.kernel_size[0] * self.kernel_size[1]
 
         self.einet = ConfigurableEINetwork(
-            config=config,
+            config=reference_core_config(config),
             input_dim=patch_dim,
             synapse_mode=synapse_mode,
             use_shunting=use_shunting,

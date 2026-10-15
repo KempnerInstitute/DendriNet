@@ -638,6 +638,9 @@ def get_architecture(
         Initialized network module
     """
     type = (type or "").lower()
+    biological = resolve_biological_neuron(
+        type, _declared_biological_neuron(parameters)
+    )
     if type in {"ei_net", "unified_einet"}:
         logger.warning(
             "Architecture type %r is deprecated; use 'unified_ei' instead.",
@@ -655,7 +658,7 @@ def get_architecture(
         )
         if network is None:
             raise ValueError(f"Invalid architecture type: {type}")
-    if resolve_biological_neuron(type, _declared_biological_neuron(parameters)):
+    if biological:
         enforce_biological_neuron(type, network)
     return network
 

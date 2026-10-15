@@ -10,6 +10,7 @@ from dendritic_modeling.networks.architectures.factory import (
 
 def _tiny_config() -> dict:
     return {
+        "biological_neuron": False,
         "vision": {
             "input_transform": "signed_split",
             "channels": [2, 3, 4, 4, 4],

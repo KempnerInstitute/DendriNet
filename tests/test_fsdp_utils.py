@@ -1681,6 +1681,7 @@ class TestApplyGradientCheckpointing:
     def test_recurrent_ei_checkpoint_preserves_forward_and_gradients(self):
         """Checkpoint the recurrent layer that owns raw-current computation."""
         params = {
+            "biological_neuron": False,
             "unified_ei": {
                 "output_mode": "last",
                 "layers": [
@@ -1696,7 +1697,7 @@ class TestApplyGradientCheckpointing:
                         "recurrent": True,
                     }
                 ],
-            }
+            },
         }
         torch.manual_seed(12)
         baseline = get_architecture("ei_unified", params, input_dim=4)
