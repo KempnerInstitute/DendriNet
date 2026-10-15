@@ -273,6 +273,8 @@ without a dataset.
        params: {input_dim: 784}
      core:
        type: dendritic_shunting
+       transfer:
+         output_activation: nonnegative
        architecture:
          excitatory_layer_sizes: [100, 50]
          inhibitory_layer_sizes: [20, 10]
@@ -665,6 +667,7 @@ A one-layer recurrent unified core:
      core:
        type: ei_unified
        unified_ei:
+         input_transform: nonnegative
          output_mode: last
          layers:
            - recurrent: true

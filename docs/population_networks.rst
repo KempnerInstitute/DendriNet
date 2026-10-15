@@ -51,6 +51,7 @@ excitatory one:
      core:
        type: population_network
        population_network:
+         input_transform: nonnegative
          layers:
            - name: layer0
              readout_population: e
@@ -228,6 +229,7 @@ This first layer reads independent excitatory and inhibitory halves of a
      core:
        type: population_network
        population_network:
+         input_transform: nonnegative
          use_transfer: true
          transfer_params:
            independent_pathways: true
@@ -469,6 +471,7 @@ give the three populations different dendritic time constants, and
      core:
        type: population_network
        population_network:
+         input_transform: nonnegative
          layers:
            - name: microcircuit
              recurrent: true

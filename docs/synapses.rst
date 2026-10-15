@@ -310,6 +310,9 @@ such as auxiliary analysis passes, do not advance the schedule. The block
    model:
      core:
        type: dendritic_shunting
+       transfer:
+         output_activation: nonnegative
+         input_source_identity: paired_afferents  # Distinct E/I sources, matched tuning.
        architecture:
          excitatory_layer_sizes: [32]
          excitatory_branch_factors: [2, 2]
@@ -457,6 +460,9 @@ synapses:
    model:
      core:
        type: dendritic_shunting
+       transfer:
+         output_activation: nonnegative
+         input_source_identity: paired_afferents  # Distinct E/I sources, matched tuning.
        architecture:
          excitatory_layer_sizes: [64]
          inhibitory_layer_sizes: []
@@ -476,6 +482,9 @@ synapses:
    model:
      core:
        type: dendritic_shunting
+       transfer:
+         output_activation: nonnegative
+         input_source_identity: paired_afferents  # Distinct E/I sources, matched tuning.
        architecture:
          excitatory_layer_sizes: [64]
          excitatory_branch_factors: [2, 2]
@@ -671,6 +680,8 @@ population's ``population`` block).
    model:
      core:
        type: dendritic_shunting
+       transfer:
+         output_activation: nonnegative
        architecture:
          excitatory_layer_sizes: [64]
          inhibitory_layer_sizes: [16]
@@ -877,6 +888,9 @@ where the excitatory cells read the inhibitory stream directly:
    model:
      core:
        type: dendritic_shunting
+       transfer:
+         output_activation: nonnegative
+         input_source_identity: paired_afferents  # Distinct E/I sources, matched tuning.
        architecture:
          excitatory_layer_sizes: [32]
          inhibitory_layer_sizes: []
@@ -907,6 +921,7 @@ image geometry.
      core:
        type: population_network
        population_network:
+         input_transform: nonnegative
          layers:
            - name: hidden
              readout_population: pyr

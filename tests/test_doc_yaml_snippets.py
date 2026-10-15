@@ -137,6 +137,38 @@ def test_the_documentation_has_yaml_examples():
     assert len(BLOCKS) > 50
 
 
+def _native_examples():
+    from dendritic_modeling.config.biological import BIOLOGICAL_DEFAULT_CORE_TYPES
+
+    for path, line, body in BLOCKS:
+        data = yaml.safe_load(body)
+        if not isinstance(data, dict):
+            continue
+        kind = data.get("model", {}).get("core", {}).get("type", "").lower()
+        if kind in BIOLOGICAL_DEFAULT_CORE_TYPES:
+            yield path, line, data
+
+
+@pytest.mark.parametrize(
+    "path, line, data",
+    list(_native_examples()),
+    ids=lambda value: str(value) if isinstance(value, (Path, int)) else None,
+)
+def test_native_documented_models_construct(path, line, data):
+    """Loading alone cannot verify the biological contract of built modules."""
+    import torch
+
+    from dendritic_modeling.config.conversion import to_plain_dict
+    from dendritic_modeling.networks.architectures.factory import get_architecture
+
+    torch.manual_seed(1)
+    config = config_from_mapping(data)
+    input_dim = data["model"].get("encoder", {}).get("params", {}).get("input_dim", 784)
+    get_architecture(
+        config.model.core.type, to_plain_dict(config.model.core), input_dim=input_dim
+    )
+
+
 def test_every_unchecked_entry_names_a_documented_example():
     documented = {
         (path.relative_to(REPO_ROOT).as_posix(), frozenset(data))

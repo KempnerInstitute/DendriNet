@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Make native YAML documentation examples construct under the biological
+  default, with explicit input-rate and external-source contracts. Test model
+  construction as well as schema loading; the signed soma-feedback example
+  explicitly opts out.
+
 - Unified E/I networks also support explicit nonnegative/split input adapters
   and positive input projections. Omitted options keep the historical signed
   projection and identity input; biological adoption requires an explicit

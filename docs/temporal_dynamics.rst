@@ -62,13 +62,16 @@ population raises.
 In a structured E/I core, the four blocks use the population field names
 without their prefix, for example ``model.core.dynamics.threshold`` for
 ``spike_threshold`` and ``model.core.soma_feedback.mode`` for
-``soma_feedback_mode``. This structured core enables all four features:
+``soma_feedback_mode``. This structured core enables all four features.
+Its soma-feedback projections have signed weights, so the example explicitly
+opts out of the biological constraint set:
 
 .. code-block:: yaml
 
    model:
      core:
        type: dendritic_shunting
+       biological_neuron: false  # Signed soma-feedback projections.
        architecture:
          excitatory_layer_sizes: [32]
          inhibitory_layer_sizes: [8]

@@ -68,6 +68,10 @@ A file can also name a parent file with ``extends``; see :ref:`config-extends`.
 A minimal config
 ~~~~~~~~~~~~~~~~
 
+The input contract below checks nonnegative rates without changing their
+values or gradients. Biological validation is on by default for native
+dendritic E/I cores; see :ref:`biological-constraints`.
+
 This config trains a one-layer population network on MNIST. An inhibitory
 population and an excitatory population both read the input, the inhibitory
 population also projects to the excitatory one, and a linear readout of the
@@ -86,6 +90,7 @@ dendritic branches, each with two branches of its own
      core:
        type: population_network
        population_network:
+         input_transform: nonnegative
          layers:
            - name: layer0
              readout_population: e

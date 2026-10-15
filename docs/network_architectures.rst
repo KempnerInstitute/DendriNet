@@ -76,6 +76,7 @@ readout:
      core:
        type: population_network
        population_network:
+         input_transform: nonnegative
          layers:
            - name: hidden
              readout_population: pyr
