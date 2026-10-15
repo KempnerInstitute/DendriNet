@@ -8,6 +8,11 @@
   or a commit other runs do not share, and records the shared commit. It checks
   the source of the analysis only, not the commit that trained the checkpoint.
   Off by default; collections without it are unchanged.
+- The reactivation collection configuration rejects unknown keys and requires
+  ``true`` or ``false`` for ``require_structured_coordinates`` and
+  ``require_clean_analysis_source`` and a positive integer ``expected_count``:
+  a quoted ``"false"`` turned a check on, a misspelt key was ignored, and
+  ``expected_count: 2.5`` became 2.
 - A regression test pins the variational autoencoders' reparameterized
   sampling: in training mode the reconstruction loss reaches the layers that
   produce the latent mean and scale. An August 2025 fix had replaced

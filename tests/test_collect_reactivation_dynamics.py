@@ -359,3 +359,32 @@ def test_the_check_is_set_by_the_config_or_the_command_line(tmp_path: Path) -> N
         )
     with pytest.raises(ValueError, match="cannot be combined"):
         main(["--config", str(config), "--require-clean-analysis-source"])
+
+
+@pytest.mark.parametrize(
+    ("line", "message"),
+    [
+        ('require_clean_analysis_source: "false"', "must be true or false"),
+        ("require_structured_coordinates: 'true'", "must be true or false"),
+        ("require_clean_analysis_source: 1", "must be true or false"),
+        ("require_clean_analysis_souce: true", "unknown keys"),
+        ("expected_count: '3'", "positive integer"),
+        ("expected_count: 2.5", "positive integer"),
+        ("expected_count: true", "positive integer"),
+        ("expected_count: 0", "positive integer"),
+    ],
+)
+def test_the_collection_config_rejects_invalid_settings(
+    tmp_path: Path, line: str, message: str
+) -> None:
+    """A quoted "false" switched a check on, and a misspelt key was ignored."""
+    config = tmp_path / "collection.yaml"
+    config.write_text(
+        "schema_version: reactivation_dynamics_collection_config_v1\n"
+        "jobs: [jobs.jsonl]\n"
+        "output_dir: collected\n"
+        f"{line}\n"
+    )
+
+    with pytest.raises(ValueError, match=message):
+        _load_collection_config(config)

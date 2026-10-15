@@ -367,6 +367,8 @@ Notes on individual collectors:
   ``src/``, all runs must share its commit, and ``collection_provenance.json``
   records that commit as ``analysis_source_commit``. The commit that trained a
   checkpoint is not checked: a reanalysis may use another validated commit.
+  Its configuration file rejects unknown keys and takes ``true`` or ``false``
+  for both requirements.
 - ``dendritic-collect-source-tuning`` reads
   ``source_tuning_support_analysis/final.json`` unless
   ``--result-subdirectory`` or ``--result-filename`` say otherwise.

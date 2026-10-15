@@ -358,6 +358,26 @@ def collect_reactivation_dynamics(
     return release
 
 
+_CONFIG_KEYS = frozenset(
+    {
+        "schema_version",
+        "jobs",
+        "output_dir",
+        "expected_count",
+        "require_structured_coordinates",
+        "require_clean_analysis_source",
+    }
+)
+
+
+def _config_flag(payload: Mapping[str, Any], key: str) -> bool:
+    """A true/false setting of the collection config (absent means false)."""
+    value = payload.get(key, False)
+    if not isinstance(value, bool):
+        raise ValueError(f"{key} must be true or false, got {value!r}")
+    return value
+
+
 def _resolve_config_path(value: str | Path, *, base: Path) -> Path:
     path = Path(value).expanduser()
     return (base / path).resolve() if not path.is_absolute() else path.resolve()
@@ -372,6 +392,18 @@ def _load_collection_config(path: Path) -> dict[str, Any]:
     missing = {"jobs", "output_dir"} - set(payload)
     if missing:
         raise ValueError(f"collection config lacks required fields: {sorted(missing)}")
+    unknown = sorted(set(payload) - _CONFIG_KEYS)
+    if unknown:
+        raise ValueError(f"collection config has unknown keys: {unknown}")
+    expected_count = payload.get("expected_count")
+    if expected_count is not None and (
+        isinstance(expected_count, bool)
+        or not isinstance(expected_count, int)
+        or expected_count < 1
+    ):
+        raise ValueError(
+            f"expected_count must be a positive integer, got {expected_count!r}"
+        )
     jobs = payload["jobs"]
     if not isinstance(jobs, list) or not jobs:
         raise ValueError("collection config jobs must be a nonempty list")
@@ -379,12 +411,12 @@ def _load_collection_config(path: Path) -> dict[str, Any]:
     return {
         "jobs_paths": [_resolve_config_path(value, base=base) for value in jobs],
         "output_dir": _resolve_config_path(payload["output_dir"], base=base),
-        "expected_count": payload.get("expected_count"),
-        "require_structured_coordinates": bool(
-            payload.get("require_structured_coordinates", False)
+        "expected_count": expected_count,
+        "require_structured_coordinates": _config_flag(
+            payload, "require_structured_coordinates"
         ),
-        "require_clean_analysis_source": bool(
-            payload.get("require_clean_analysis_source", False)
+        "require_clean_analysis_source": _config_flag(
+            payload, "require_clean_analysis_source"
         ),
     }
 
