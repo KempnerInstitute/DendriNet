@@ -55,6 +55,7 @@ GUIDES = {
     "model.decoder": ":ref:`encoder-decoder-types`",
     "model.core": ":ref:`core-types`",
     "model.core.affine_mlp": ":ref:`baseline-models`",
+    "model.core.shared_projection_shunting": ":doc:`comparison_models`",
     "model.core.architecture": ":doc:`structured_ei_cores`",
     "model.core.connectivity": ":doc:`structured_ei_cores`",
     "model.core.connectivity.structured": ":ref:`structured-connectivity`",

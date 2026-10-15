@@ -375,6 +375,63 @@ one of them raises an error that names the alternatives. For a plain MLP core
 use ``affine_mlp``; for a matched control use ``point_mlp``.
 :ref:`core-types` lists the other names of this kind.
 
+Shared projections and native shunting banks
+-------------------------------------------
+
+``shared_projection_shunting`` composes existing library operators: one
+normalized positive indexed projection per group, a flat native ``DendriNet``
+bank for each projected scalar, signed ``BlockLinear`` pooling, and an affine
+output. It implements ``v[j] = sum_i theta[j,i] x[i]`` followed by
+``h[j] = sum_k a[j,k] v[j]/(v[j]+z[j,k])`` and ``y = C h + b``.
+The linear group pool is external to the native compartments; this is not a
+tree whose soma applies an additional conductance division or activation.
+
+.. code-block:: python
+
+   from dendritic_modeling.config import SharedProjectionShuntingConfig
+   from dendritic_modeling.networks.architectures.excitation_inhibition.shared_projection import (
+       build_shared_projection_shunting,
+   )
+
+   config = SharedProjectionShuntingConfig(
+       input_dim=6, supports=[[0, 1], [3, 4]],
+       nodes=[0.001, 0.01, 0.1, 1.0], dtype="float64",
+       train_projection=False, train_conductance=False, train_output=False,
+   )
+   model = build_shared_projection_shunting(config)
+   report = model.resource_report()
+
+The same payload can be passed to ``get_architecture`` or written under
+``model.core.shared_projection_shunting`` with core type
+``shared_projection_shunting``. Unknown configuration keys, unused core
+sections, invalid supports, and non-standard trainer strategies raise.
+Inputs must be finite and nonnegative. Supports have equal contact counts;
+overlap is supported but violates the disjoint-support assumption of some
+theory applications. The eager backend and ordinary backpropagation are used.
+CPU float32/float64 equations and gradients are tested; accelerated backends,
+local learning, recurrent use and export formats are not qualified here.
+
+Construction preserves the caller's Torch RNG. Projection weights start
+uniform, branch pooling weights start at ``1/W``, output weights at ``1/q``,
+and the bias at zero. Native compartments have unit leak and no extra gate.
+Their positive conductance is initialized to ``(1+epsilon)/z`` so the native
+denominator, including epsilon, realizes the declared transition node. The
+conductance parameters are logarithmic, using the existing bounded exponential
+transform. This parameterization differs from historical softplus scalar runs;
+it is not a silent migration of those results. Numerical underflow or transform
+saturation can limit extreme learned scales.
+
+``features(x)`` returns the actual native features in group-major order.
+``effective_nodes()`` measures current transition scales. With ``q`` groups,
+``s`` contacts, ``W`` nodes and ``o`` outputs, stored scalar slots number
+``q*s + 2*q*W + q*o + o``, including frozen parameters. Freezing output weights
+leaves the intercept and group pooling trainable for linear readout fitting.
+For one output this is ``q*(s+2*W+1)+1``. Support buffers and all native buffers
+are reported separately; the scalar specialization does not automatically
+remove its stored projection and outer weights. Arithmetic counts describe
+sparse MACs and shunting divisions, excluding weight transforms, normalization,
+checks and training overhead; they are not measured FLOPs or latency.
+
 Parameter-budget model families
 -------------------------------
 

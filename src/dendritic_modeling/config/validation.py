@@ -654,6 +654,26 @@ def validate_loaded_config(config: Any) -> None:
         _validate_legacy_ei_core(core, errors)
     elif core_type in _POPULATION_NETWORK_TYPES:
         _validate_population_network_core(core, errors)
+    elif core_type == "shared_projection_shunting":
+        from dendritic_modeling.config.shared_projection import (
+            SharedProjectionShuntingConfig,
+        )
+
+        payload = _get(core, "shared_projection_shunting", None)
+        if payload is None:
+            errors.append(
+                "shared_projection_shunting requires its configuration section"
+            )
+        else:
+            try:
+                SharedProjectionShuntingConfig(**to_plain_dict(payload)).validate()
+            except (TypeError, ValueError) as exc:
+                errors.append(str(exc))
+        main = _get(_get(config, "training", {}), "main", {})
+        if _get(main, "strategy", "standard") != "standard":
+            errors.append(
+                "shared_projection_shunting supports only the standard backpropagation trainer"
+            )
     elif core_type in _REMOVED_STRUCTURED_TYPES:
         errors.append(
             f"core.type {core_type!r} has been removed. "
