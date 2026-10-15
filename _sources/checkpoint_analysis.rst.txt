@@ -360,7 +360,15 @@ Notes on individual collectors:
   ``analysis.noise_perturbation.params.n_samples`` from the analysis profile,
   so that profile must have an ``analysis:`` root and set ``n_samples``.
 - ``dendritic-collect-reactivation`` with ``--require-structured-coordinates``
-  requires the module names of ``population_network`` layers.
+  requires the module names of ``population_network`` layers. With
+  ``--require-clean-analysis-source`` (``require_clean_analysis_source: true``
+  in the configuration) every run's ``checkpoint_analysis_provenance.json``
+  must record a Git checkout without tracked changes or untracked files under
+  ``src/``, all runs must share its commit, and ``collection_provenance.json``
+  records that commit as ``analysis_source_commit``. The commit that trained a
+  checkpoint is not checked: a reanalysis may use another validated commit.
+  Its configuration file rejects unknown keys and takes ``true`` or ``false``
+  for both requirements.
 - ``dendritic-collect-source-tuning`` reads
   ``source_tuning_support_analysis/final.json`` unless
   ``--result-subdirectory`` or ``--result-filename`` say otherwise.

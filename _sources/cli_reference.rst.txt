@@ -522,6 +522,7 @@ Entry point: ``dendritic_modeling.scripts.analysis.collect_reactivation_dynamics
                                          [--output-dir OUTPUT_DIR]
                                          [--expected-count EXPECTED_COUNT]
                                          [--require-structured-coordinates]
+                                         [--require-clean-analysis-source]
 
    Collect reactivation operating-state records from frozen checkpoints. The generic
    checkpoint collector deliberately preserves analyzer dictionaries without interpreting
@@ -541,6 +542,10 @@ Entry point: ``dendritic_modeling.scripts.analysis.collect_reactivation_dynamics
                            Number of declared jobs the collection must contain
      --require-structured-coordinates
                            Require gate module names of population_network layers
+     --require-clean-analysis-source
+                           Require every run's analysis to have run from a clean Git
+                           checkout, and all runs from the same commit (the commit that
+                           trained the checkpoints is not checked)
 
 ``dendritic-collect-synaptic-support``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

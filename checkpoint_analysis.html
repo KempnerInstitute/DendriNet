@@ -504,7 +504,15 @@ clean test accuracy above it, and report the chance-corrected retention
 <code class="docutils literal notranslate"><span class="pre">analysis.noise_perturbation.params.n_samples</span></code> from the analysis profile,
 so that profile must have an <code class="docutils literal notranslate"><span class="pre">analysis:</span></code> root and set <code class="docutils literal notranslate"><span class="pre">n_samples</span></code>.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">dendritic-collect-reactivation</span></code> with <code class="docutils literal notranslate"><span class="pre">--require-structured-coordinates</span></code>
-requires the module names of <code class="docutils literal notranslate"><span class="pre">population_network</span></code> layers.</p></li>
+requires the module names of <code class="docutils literal notranslate"><span class="pre">population_network</span></code> layers. With
+<code class="docutils literal notranslate"><span class="pre">--require-clean-analysis-source</span></code> (<code class="docutils literal notranslate"><span class="pre">require_clean_analysis_source:</span> <span class="pre">true</span></code>
+in the configuration) every run’s <code class="docutils literal notranslate"><span class="pre">checkpoint_analysis_provenance.json</span></code>
+must record a Git checkout without tracked changes or untracked files under
+<code class="docutils literal notranslate"><span class="pre">src/</span></code>, all runs must share its commit, and <code class="docutils literal notranslate"><span class="pre">collection_provenance.json</span></code>
+records that commit as <code class="docutils literal notranslate"><span class="pre">analysis_source_commit</span></code>. The commit that trained a
+checkpoint is not checked: a reanalysis may use another validated commit.
+Its configuration file rejects unknown keys and takes <code class="docutils literal notranslate"><span class="pre">true</span></code> or <code class="docutils literal notranslate"><span class="pre">false</span></code>
+for both requirements.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">dendritic-collect-source-tuning</span></code> reads
 <code class="docutils literal notranslate"><span class="pre">source_tuning_support_analysis/final.json</span></code> unless
 <code class="docutils literal notranslate"><span class="pre">--result-subdirectory</span></code> or <code class="docutils literal notranslate"><span class="pre">--result-filename</span></code> say otherwise.</p></li>
