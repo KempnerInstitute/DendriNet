@@ -383,7 +383,7 @@ class DistributedConfig(BaseConfig):
             )
 
 
-#: Version of the configuration format. Version 3 (2026-10-13) is the meaning
+#: Version of the configuration format. Version 4 (2026-10-15) is the meaning
 #: this library gives every key. Files without ``config_version`` load with
 #: that meaning; ``dendritic-upgrade-config`` rewrites files written for
 #: earlier versions, whose omitted keys could mean something else, and marks
