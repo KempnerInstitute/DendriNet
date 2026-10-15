@@ -311,6 +311,12 @@ def _input_violations(core: nn.Module) -> list[str]:
         ]
     if isinstance(core, EINetwork):
         if core.transfer_fn is None:
+            if getattr(core, "input_transform", "identity") in {
+                "nonnegative",
+                "relu",
+                "signed_split",
+            }:
+                return []
             if _projection_rectifies(core):
                 return []
             return [

@@ -514,10 +514,30 @@ class EINetworkConfig(BaseConfig):
     use_transfer: bool = False
     transfer_params: dict[str, Any] = field(default_factory=dict)
     input_projection_dims: list[int] = field(default_factory=list)
+    input_transform: str = "identity"
+    input_projection_weight_transform: str = "identity"
     output_mode: str = "last"  # recurrent only: "last" | "all" | "mean"
     store_routing: bool = False
 
     def __post_init__(self):
+        from dendritic_modeling.networks.architectures.replacement.adapters import (
+            validate_input_transform,
+        )
+
+        validate_input_transform(self.input_transform)
+        if not isinstance(
+            self.input_projection_weight_transform, str
+        ) or self.input_projection_weight_transform not in {"identity", "softplus"}:
+            raise ValueError(
+                "input_projection_weight_transform must be identity or softplus"
+            )
+        if (
+            not self.input_projection_dims
+            and self.input_projection_weight_transform != "identity"
+        ):
+            raise ValueError(
+                "input_projection_weight_transform requires input_projection_dims"
+            )
         if self.input_dim <= 0:
             raise ValueError(f"input_dim must be > 0, got {self.input_dim}")
         if not self.layers:

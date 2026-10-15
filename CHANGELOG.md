@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Unified E/I networks also support explicit nonnegative/split input adapters
+  and positive input projections. Omitted options keep the historical signed
+  projection and identity input; biological adoption requires an explicit
+  encoding and retraining when those choices change the model.
+
 - Add explicit biological configuration preparation for expanded experiments.
   It upgrades historical keys before applying caller-selected input/source
   contracts, rejects ambiguous upgrades and leaves circuit choices to callers.

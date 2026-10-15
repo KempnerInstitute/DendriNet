@@ -20,8 +20,13 @@ from dendritic_modeling.networks.architectures.recurrent.ei_config import (
 )
 from dendritic_modeling.networks.architectures.recurrent.ei_layer import EILayer
 from dendritic_modeling.networks.architectures.recurrent.ei_state import EIState
+from dendritic_modeling.networks.architectures.replacement.adapters import (
+    NonNegativeInputAdapter,
+    transformed_feature_dim,
+)
 from dendritic_modeling.networks.base import BaseNetwork
 from dendritic_modeling.networks.utils.forward_caches import detach_forward_caches
+from dendritic_modeling.networks.utils.nonnegative_linear import NonnegativeLinear
 
 
 class EINetwork(BaseNetwork):
@@ -41,12 +46,19 @@ class EINetwork(BaseNetwork):
         self._routing_info: list[dict] = []
         self._use_transfer = bool(config.use_transfer)
         self.transfer_fn: TransferLayer | None = None
+        self.input_transform = config.input_transform
+        self.input_adapter = NonNegativeInputAdapter(
+            config.input_dim, config.input_transform
+        )
+        adapted_input_dim = transformed_feature_dim(
+            config.input_dim, config.input_transform
+        )
 
-        transfer_exc_dim = config.input_dim
+        transfer_exc_dim = adapted_input_dim
         transfer_inh_dim: int | None = None
         if self._use_transfer:
             self.transfer_fn = TransferLayer(
-                input_dim=config.input_dim, transfer_params=config.transfer_params
+                input_dim=adapted_input_dim, transfer_params=config.transfer_params
             )
             transfer_exc_dim = self.transfer_fn.excitatory_dim
             transfer_inh_dim = self.transfer_fn.inhibitory_dim
@@ -54,7 +66,12 @@ class EINetwork(BaseNetwork):
         proj_layers = []
         prev_dim = transfer_exc_dim
         for hidden_dim in config.input_projection_dims:
-            proj_layers.append(nn.Linear(prev_dim, hidden_dim))
+            projection_type = (
+                NonnegativeLinear
+                if config.input_projection_weight_transform == "softplus"
+                else nn.Linear
+            )
+            proj_layers.append(projection_type(prev_dim, hidden_dim))
             proj_layers.append(nn.ReLU())
             prev_dim = hidden_dim
         self.input_projection = (
@@ -236,6 +253,9 @@ class EINetwork(BaseNetwork):
             output: Network output tensor.
             hidden: Final hidden state (only when return_hidden=True).
         """
+        adapter = getattr(self, "input_adapter", None)
+        if adapter is not None:
+            x = adapter(x)
         if self.is_recurrent:
             if x.dim() == 2:
                 x = x.unsqueeze(1)

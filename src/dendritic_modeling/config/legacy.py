@@ -202,6 +202,8 @@ _UNIFIED_EI_CANONICAL_KEYS = frozenset(
         "use_transfer",
         "transfer_params",
         "input_projection_dims",
+        "input_transform",
+        "input_projection_weight_transform",
         "output_mode",
         "store_routing",
     }

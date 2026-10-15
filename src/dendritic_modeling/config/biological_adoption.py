@@ -27,7 +27,10 @@ def prepare_biological_config(
     the explicit exploratory/control path. Unsupported models fail validation.
     """
     from dendritic_modeling.config import config_from_mapping
-    from dendritic_modeling.config.recurrence import _POPULATION_NETWORK_TYPES
+    from dendritic_modeling.config.recurrence import (
+        _POPULATION_NETWORK_TYPES,
+        _UNIFIED_EI_TYPES,
+    )
     from dendritic_modeling.scripts.tools.upgrade_config import upgrade_mapping
 
     if "base_config" in mapping or "model" not in mapping:
@@ -55,8 +58,11 @@ def prepare_biological_config(
     core["biological_neuron"] = biological
     if biological:
         population = str(core.get("type", "")).lower() in _POPULATION_NETWORK_TYPES
-        if population:
-            network = core.setdefault("population_network", {})
+        unified = str(core.get("type", "")).lower() in _UNIFIED_EI_TYPES
+        if population or unified:
+            network = core.setdefault(
+                "population_network" if population else "unified_ei", {}
+            )
             if network.get("use_transfer", False):
                 transfer = network.setdefault("transfer_params", {})
                 if input_activation is not None:

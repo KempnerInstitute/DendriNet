@@ -315,7 +315,7 @@ The constraint set concerns the forward neuronal model, not the biological
 plausibility of a training algorithm or its signed error signals.
 The operator card also records the external-afferent declaration.
 
-Population networks can use
+Population and unified E/I networks can use
 ``input_projection_weight_transform: softplus`` with ``input_projection_dims``
 to build a positive input projection followed by ReLU. Its equation is
 ``y = relu(softplus(W_raw) x + b)``: ``x`` must be nonnegative, the weights are
@@ -325,7 +325,12 @@ option changes the model and initialization; signed projection checkpoints
 cannot be relabeled as positive projections. The historical ``identity``
 option still builds ordinary signed ``Linear`` layers and requires an explicit
 non-biological declaration. The positive projection is supported through the
-population-network builder with standard backpropagation.
+population-network and unified E/I builders with standard backpropagation.
+Both accept ``input_transform: signed_split`` to retain both polarities of a
+signed task observation as separate nonnegative channels before that projection.
+The default input transform remains ``identity``; changing to a split doubles
+the input width and requires retraining. Unified E/I options live under
+``model.core.unified_ei`` and population options under ``population_network``.
 Analytic local updates reject trainable positive projections; a frozen projection
 can instead supply fixed input features to those rules.
 
