@@ -414,7 +414,9 @@ class IndexedDynamicTopKLinear(nn.Module):
         if self.weight_norm_order is None:
             return active_weight
         norm = torch.norm(active_weight, p=self.weight_norm_order, dim=-1, keepdim=True)
-        safe_norm = norm.clamp_min(torch.finfo(active_weight.dtype).eps)
+        # The floor only keeps the unselected branch finite; normalization
+        # stays exact down to the smallest normal float.
+        safe_norm = norm.clamp_min(torch.finfo(active_weight.dtype).tiny)
         normalized = (active_weight / safe_norm) * self.gamma
         return torch.where(norm > 0, normalized, active_weight)
 
@@ -504,7 +506,7 @@ class IndexedDynamicTopKLinear(nn.Module):
             dense_norm = torch.norm(
                 dense, p=self.weight_norm_order, dim=-1, keepdim=True
             )
-            safe_norm = dense_norm.clamp_min(torch.finfo(dense.dtype).eps)
+            safe_norm = dense_norm.clamp_min(torch.finfo(dense.dtype).tiny)
             dense = torch.where(dense_norm > 0, (dense / safe_norm) * self.gamma, dense)
         return dense
 

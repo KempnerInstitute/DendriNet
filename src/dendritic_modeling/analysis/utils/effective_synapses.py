@@ -113,7 +113,8 @@ def _effective_weight_from_mask(
         return effective
 
     norm = torch.norm(effective, p=norm_order, dim=-1, keepdim=True)
-    safe_norm = norm.clamp_min(torch.finfo(effective.dtype).eps)
+    # As in the synapse layers: exact down to the smallest normal float.
+    safe_norm = norm.clamp_min(torch.finfo(effective.dtype).tiny)
     gamma = torch.as_tensor(
         getattr(module, "gamma", 1.0),
         device=effective.device,

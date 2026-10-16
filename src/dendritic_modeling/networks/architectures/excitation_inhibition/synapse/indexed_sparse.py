@@ -508,7 +508,9 @@ class IndexedSparseLinear(nn.Module):
         if self.weight_norm_order is None:
             return weight
         norm = torch.norm(weight, p=self.weight_norm_order, dim=-1, keepdim=True)
-        safe_norm = norm.clamp_min(torch.finfo(weight.dtype).eps)
+        # The floor only keeps the unselected branch finite; normalization
+        # stays exact down to the smallest normal float.
+        safe_norm = norm.clamp_min(torch.finfo(weight.dtype).tiny)
         normalized = (weight / safe_norm) * self.gamma
         return torch.where(norm > 0, normalized, weight)
 
@@ -763,7 +765,7 @@ class IndexedSparseLinear(nn.Module):
             dense_norm = torch.norm(
                 dense, p=self.weight_norm_order, dim=-1, keepdim=True
             )
-            safe_norm = dense_norm.clamp_min(torch.finfo(dense.dtype).eps)
+            safe_norm = dense_norm.clamp_min(torch.finfo(dense.dtype).tiny)
             dense = torch.where(dense_norm > 0, (dense / safe_norm) * self.gamma, dense)
         return dense
 

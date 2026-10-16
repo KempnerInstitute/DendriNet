@@ -372,7 +372,9 @@ class TopKLinear(nn.Module):
             return pruned_weight
 
         w_norm = torch.norm(pruned_weight, p=self.weight_norm_order, dim=-1)
-        safe_norm = w_norm.clamp_min(torch.finfo(pruned_weight.dtype).eps)
+        # The floor only keeps the unselected branch finite; normalization
+        # stays exact down to the smallest normal float.
+        safe_norm = w_norm.clamp_min(torch.finfo(pruned_weight.dtype).tiny)
         normalized = (pruned_weight / safe_norm[:, None]) * self.gamma
         return torch.where(w_norm[:, None] > 0, normalized, pruned_weight)
 

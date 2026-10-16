@@ -29,6 +29,13 @@ same models and runs; a file without ``config_version`` is read as format 4.
   that recipe, whose nested sizes and topology seeds later builds reuse.
 - Biological recipe overrides whose last path element is a list index apply
   instead of failing.
+- Synaptic weight normalization (``weight_norm_order``) scales rows whose norm
+  lies below machine epsilon to ``gamma`` as well, so a
+  ``shared_projection_shunting`` projection keeps unit-sum weights when its
+  raw weights are small. Indexed sparse, Top-K and indexed dynamic layers and
+  the effective-synapse snapshot now floor the norm at the smallest normal
+  float instead of machine epsilon; rows with larger norms are normalized
+  bit for bit as before.
 - Make native YAML documentation examples construct under the biological
   default, with explicit input-rate and external-source contracts. Test model
   construction as well as schema loading; the signed soma-feedback example

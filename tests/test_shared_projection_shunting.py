@@ -264,3 +264,23 @@ def test_section_wrapped_mapping_builds_without_a_type():
     )
     for name, value in direct.state_dict().items():
         assert torch.equal(value, via.state_dict()[name])
+
+
+@pytest.mark.parametrize("dtype", ["float32", "float64"])
+def test_small_finite_projection_weights_keep_unit_sum(dtype):
+    m = SharedProjectionShunting(spec(dtype=dtype))
+    with torch.no_grad():
+        # softplus near 4e-18: the projection norm is below machine epsilon.
+        m.projection.pre_w.copy_(torch.tensor([[-40.0, -40.0], [-42.0, -39.0]]))
+    weights = m.projection._normalized_sparse_weight()
+    torch.testing.assert_close(weights.sum(-1), torch.ones(2, dtype=weights.dtype))
+    x = (
+        torch.linspace(0, 1, 35, dtype=getattr(torch, dtype))
+        .reshape(5, 7)
+        .requires_grad_()
+    )
+    actual, expected = m(x), reference(m, x)
+    tolerance = 3e-6 if dtype == "float32" else 3e-13
+    torch.testing.assert_close(actual, expected, rtol=tolerance, atol=tolerance)
+    gradients = torch.autograd.grad(actual.square().sum(), [x, *m.parameters()])
+    assert all(torch.isfinite(gradient).all() for gradient in gradients)
