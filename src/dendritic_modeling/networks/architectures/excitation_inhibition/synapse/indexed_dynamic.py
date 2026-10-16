@@ -30,6 +30,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.top
     TOPK_INIT_METHODS,
 )
 from dendritic_modeling.networks.utils.sparse_maintenance import maintenance_applies
+from dendritic_modeling.networks.utils.weight_normalization import normalize_weight_rows
 from dendritic_modeling.networks.utils.weight_transforms import (
     WeightTransformType,
     apply_weight_transform,
@@ -413,12 +414,14 @@ class IndexedDynamicTopKLinear(nn.Module):
         active_weight = self.sparse_weight() * active_mask
         if self.weight_norm_order is None:
             return active_weight
-        norm = torch.norm(active_weight, p=self.weight_norm_order, dim=-1, keepdim=True)
-        # The floor only keeps the unselected branch finite; normalization
-        # stays exact down to the smallest normal float.
-        safe_norm = norm.clamp_min(torch.finfo(active_weight.dtype).tiny)
-        normalized = (active_weight / safe_norm) * self.gamma
-        return torch.where(norm > 0, normalized, active_weight)
+        return normalize_weight_rows(
+            active_weight,
+            self.weight_norm_order,
+            self.gamma,
+            pre_weight=self.pre_w,
+            transform=self.weight_transform,
+            contacts=active_mask != 0,
+        )
 
     def set_recurrent_weight_cache(self, enabled: bool) -> None:
         """Cache deterministic candidate selection once per recurrent unroll."""
@@ -500,15 +503,35 @@ class IndexedDynamicTopKLinear(nn.Module):
             device=self.pre_w.device,
             dtype=self.pre_w.dtype,
         )
-        active_weight = self.sparse_weight() * self.active_sparse_mask()
-        dense.scatter_add_(1, self.connection_indices.to(dense.device), active_weight)
-        if self.weight_norm_order is not None:
-            dense_norm = torch.norm(
-                dense, p=self.weight_norm_order, dim=-1, keepdim=True
-            )
-            safe_norm = dense_norm.clamp_min(torch.finfo(dense.dtype).tiny)
-            dense = torch.where(dense_norm > 0, (dense / safe_norm) * self.gamma, dense)
-        return dense
+        active_mask = self.active_sparse_mask()
+        active_weight = self.sparse_weight() * active_mask
+        indices = self.connection_indices.to(dense.device)
+        dense.scatter_add_(1, indices, active_weight)
+        if self.weight_norm_order is None:
+            return dense
+        contacts = torch.zeros_like(dense).scatter(1, indices, active_mask) != 0
+        return self._normalize_dense(dense, contacts)
+
+    def _pruned_weight_from_mask(self, mask: torch.Tensor) -> torch.Tensor:
+        """Normalize the dense candidate weights selected by a dense ``mask``."""
+        dense = self.weight() * mask
+        if self.weight_norm_order is None:
+            return dense
+        return self._normalize_dense(dense, mask != 0)
+
+    def _normalize_dense(
+        self, dense: torch.Tensor, contacts: torch.Tensor
+    ) -> torch.Tensor:
+        return normalize_weight_rows(
+            dense,
+            self.weight_norm_order,
+            self.gamma,
+            pre_weight=torch.zeros_like(dense).scatter(
+                1, self.connection_indices.to(dense.device), self.pre_w
+            ),
+            transform=self.weight_transform,
+            contacts=contacts,
+        )
 
     def log_pruned_weight(self) -> torch.Tensor:
         """Return log active weights with inactive entries shifted down."""

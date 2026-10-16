@@ -1,5 +1,6 @@
 """Equation, gradient, configuration and stored-resource contracts."""
 
+import copy
 import io
 import json
 from dataclasses import asdict, replace
@@ -266,12 +267,14 @@ def test_section_wrapped_mapping_builds_without_a_type():
         assert torch.equal(value, via.state_dict()[name])
 
 
+@pytest.mark.parametrize("level", [-20.0, -40.0, -90.0])
 @pytest.mark.parametrize("dtype", ["float32", "float64"])
-def test_small_finite_projection_weights_keep_unit_sum(dtype):
+def test_small_finite_projection_weights_keep_unit_sum(dtype, level):
     m = SharedProjectionShunting(spec(dtype=dtype))
     with torch.no_grad():
-        # softplus near 4e-18: the projection norm is below machine epsilon.
-        m.projection.pre_w.copy_(torch.tensor([[-40.0, -40.0], [-42.0, -39.0]]))
+        # The projection norm lies below machine epsilon; at -90 the float32
+        # weights are subnormal.
+        m.projection.pre_w.copy_(level + torch.tensor([[0.0, 0.0], [-2.0, 1.0]]))
     weights = m.projection._normalized_sparse_weight()
     torch.testing.assert_close(weights.sum(-1), torch.ones(2, dtype=weights.dtype))
     x = (
@@ -279,8 +282,15 @@ def test_small_finite_projection_weights_keep_unit_sum(dtype):
         .reshape(5, 7)
         .requires_grad_()
     )
-    actual, expected = m(x), reference(m, x)
+    # The reference equation, evaluated independently in float64.
+    m64 = copy.deepcopy(m).double()
+    x64 = x.detach().double().requires_grad_()
+    actual, expected = m(x), reference(m64, x64)
     tolerance = 3e-6 if dtype == "float32" else 3e-13
-    torch.testing.assert_close(actual, expected, rtol=tolerance, atol=tolerance)
-    gradients = torch.autograd.grad(actual.square().sum(), [x, *m.parameters()])
-    assert all(torch.isfinite(gradient).all() for gradient in gradients)
+    torch.testing.assert_close(
+        actual.double(), expected, rtol=tolerance, atol=tolerance
+    )
+    a = torch.autograd.grad(actual.square().sum(), [x, *m.parameters()])
+    b = torch.autograd.grad(expected.square().sum(), [x64, *m64.parameters()])
+    for aa, bb in zip(a, b):
+        torch.testing.assert_close(aa.double(), bb, rtol=10 * tolerance, atol=tolerance)

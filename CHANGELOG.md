@@ -29,13 +29,18 @@ same models and runs; a file without ``config_version`` is read as format 4.
   that recipe, whose nested sizes and topology seeds later builds reuse.
 - Biological recipe overrides whose last path element is a list index apply
   instead of failing.
-- Synaptic weight normalization (``weight_norm_order``) scales rows whose norm
-  lies below machine epsilon to ``gamma`` as well, so a
-  ``shared_projection_shunting`` projection keeps unit-sum weights when its
-  raw weights are small. Indexed sparse, Top-K and indexed dynamic layers and
-  the effective-synapse snapshot now floor the norm at the smallest normal
-  float instead of machine epsilon; rows with larger norms are normalized
-  bit for bit as before.
+- Synaptic weight normalization (``weight_norm_order``) normalizes rows whose
+  norm lies below machine epsilon exactly, instead of dividing them by
+  machine epsilon, and no longer skips rows whose L2 norm underflows. A
+  ``shared_projection_shunting`` projection therefore keeps unit-sum weights
+  when its raw weights are small. ``exp`` and ``softplus`` rows are
+  normalized in log space from their raw parameters, so their values and
+  gradients stay finite and exact when the weights are subnormal or underflow
+  (also under ``torch.compile``). Indexed sparse, Top-K and indexed dynamic
+  layers, their dense views and the effective-synapse snapshot share the new
+  ``normalize_weight_rows``; rows whose norm is at least machine epsilon keep
+  their previous values and gradients bit for bit. The snapshot of an indexed
+  dynamic layer now uses the layer's own normalization.
 - Make native YAML documentation examples construct under the biological
   default, with explicit input-rate and external-source contracts. Test model
   construction as well as schema loading; the signed soma-feedback example

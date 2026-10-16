@@ -17,6 +17,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.str
     validate_connection_mask,
 )
 from dendritic_modeling.networks.utils.sparse_maintenance import maintenance_applies
+from dendritic_modeling.networks.utils.weight_normalization import normalize_weight_rows
 from dendritic_modeling.networks.utils.weight_transforms import (
     WeightTransformType,
     apply_weight_transform,
@@ -367,19 +368,23 @@ class TopKLinear(nn.Module):
             )
         return adjusted
 
-    def _apply_weight_norm(self, pruned_weight: torch.Tensor) -> torch.Tensor:
+    def _apply_weight_norm(
+        self, pruned_weight: torch.Tensor, mask: torch.Tensor
+    ) -> torch.Tensor:
+        """Normalize ``pruned_weight``, the selection ``mask`` times ``weight()``."""
         if self.weight_norm_order is None:
             return pruned_weight
-
-        w_norm = torch.norm(pruned_weight, p=self.weight_norm_order, dim=-1)
-        # The floor only keeps the unselected branch finite; normalization
-        # stays exact down to the smallest normal float.
-        safe_norm = w_norm.clamp_min(torch.finfo(pruned_weight.dtype).tiny)
-        normalized = (pruned_weight / safe_norm[:, None]) * self.gamma
-        return torch.where(w_norm[:, None] > 0, normalized, pruned_weight)
+        return normalize_weight_rows(
+            pruned_weight,
+            self.weight_norm_order,
+            self.gamma,
+            pre_weight=self.pre_w,
+            transform=self.weight_transform,
+            contacts=mask != 0,
+        )
 
     def _pruned_weight_from_mask(self, mask: torch.Tensor) -> torch.Tensor:
-        return self._apply_weight_norm(mask * self.weight())
+        return self._apply_weight_norm(mask * self.weight(), mask)
 
     def set_recurrent_weight_cache(self, enabled: bool) -> None:
         """Enable/disable a per-forward pruned-weight cache for recurrent unrolls.

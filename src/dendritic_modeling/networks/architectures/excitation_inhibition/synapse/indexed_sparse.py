@@ -38,6 +38,7 @@ from dendritic_modeling.networks.state_versions import (
     record_legacy_state,
 )
 from dendritic_modeling.networks.utils.sparse_maintenance import maintenance_applies
+from dendritic_modeling.networks.utils.weight_normalization import normalize_weight_rows
 from dendritic_modeling.networks.utils.weight_transforms import (
     WeightTransformType,
     apply_weight_transform,
@@ -507,12 +508,13 @@ class IndexedSparseLinear(nn.Module):
         weight = self.sparse_weight()
         if self.weight_norm_order is None:
             return weight
-        norm = torch.norm(weight, p=self.weight_norm_order, dim=-1, keepdim=True)
-        # The floor only keeps the unselected branch finite; normalization
-        # stays exact down to the smallest normal float.
-        safe_norm = norm.clamp_min(torch.finfo(weight.dtype).tiny)
-        normalized = (weight / safe_norm) * self.gamma
-        return torch.where(norm > 0, normalized, weight)
+        return normalize_weight_rows(
+            weight,
+            self.weight_norm_order,
+            self.gamma,
+            pre_weight=self.pre_w,
+            transform=self.weight_transform,
+        )
 
     def set_recurrent_weight_cache(self, enabled: bool) -> None:
         """Cache the transformed fixed weights once per recurrent unroll."""
@@ -762,11 +764,17 @@ class IndexedSparseLinear(nn.Module):
             1, self.connection_indices.to(dense.device), self.sparse_weight()
         )
         if self.weight_norm_order is not None:
-            dense_norm = torch.norm(
-                dense, p=self.weight_norm_order, dim=-1, keepdim=True
+            indices = self.connection_indices.to(dense.device)
+            dense = normalize_weight_rows(
+                dense,
+                self.weight_norm_order,
+                self.gamma,
+                pre_weight=torch.zeros_like(dense).scatter(1, indices, self.pre_w),
+                transform=self.weight_transform,
+                contacts=torch.zeros_like(dense, dtype=torch.bool).scatter_(
+                    1, indices, True
+                ),
             )
-            safe_norm = dense_norm.clamp_min(torch.finfo(dense.dtype).tiny)
-            dense = torch.where(dense_norm > 0, (dense / safe_norm) * self.gamma, dense)
         return dense
 
     def log_weight(self) -> torch.Tensor:

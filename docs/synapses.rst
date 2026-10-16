@@ -118,7 +118,11 @@ column per input. On every forward pass it computes the weights
 
 ``weight_norm_order`` (default unset)
    When set to ``p``, every row of the selected weights is divided by its
-   L\ :sub:`p` norm.
+   L\ :sub:`p` norm. Rows below machine epsilon are normalized exactly too:
+   ``exp`` and ``softplus`` rows depend only on differences of their raw
+   parameters, so they keep their values and finite gradients when the
+   weights become subnormal or underflow. Rows without selected weights stay
+   zero.
 
 ``gamma`` (default ``1.0``)
    Multiplies the normalized rows of the inhibitory banks (excitatory banks
