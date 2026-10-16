@@ -6,14 +6,14 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Structured E/I cores &mdash; DendriNet v0.2.0</title>
+  <title>Structured E/I cores &mdash; DendriNet v0.3.0</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
 
   
       <script src="_static/jquery.js?v=5d32c60e"></script>
       <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="_static/documentation_options.js?v=938c9ccc"></script>
+      <script src="_static/documentation_options.js?v=e259d695"></script>
       <script src="_static/doctools.js?v=fd6eb6e6"></script>
       <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
       <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
@@ -338,26 +338,35 @@ input into both.</p></td>
 both unset the input is halved. Setting them without
 <code class="docutils literal notranslate"><span class="pre">independent_pathways:</span> <span class="pre">true</span></code> raises.</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">split_strategy</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">input_source_identity</span></code></p></td>
+<td><p>str</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">shared</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">paired_afferents</span></code> explicitly declares separate external E and I
+afferents with identical feature tuning. It requires
+<code class="docutils literal notranslate"><span class="pre">independent_pathways:</span> <span class="pre">false</span></code> and leaves computation unchanged.
+Report the source populations and this assumption when using it
+(<a class="reference internal" href="network_architectures.html#biological-constraints"><span class="std std-ref">Biological constraints</span></a>).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">split_strategy</span></code></p></td>
 <td><p>str</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">random</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">random</span></code> assigns channels with a seeded permutation; <code class="docutils literal notranslate"><span class="pre">ordered</span></code> gives
 the first <code class="docutils literal notranslate"><span class="pre">excitatory_dim</span></code> channels to the excitatory stream.</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">split_seed</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">split_seed</span></code></p></td>
 <td><p>int or null</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">null</span></code></p></td>
 <td><p>Seed of the <code class="docutils literal notranslate"><span class="pre">random</span></code> split. Training fills an unset seed from the
 experiment’s topology seed (<a class="reference internal" href="configuration_guide.html#random-seeds"><span class="std std-ref">Random seeds and reproducibility flags</span></a>).</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">output_activation</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">output_activation</span></code></p></td>
 <td><p>str or null</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">null</span></code></p></td>
-<td><p>Applied to both streams: <code class="docutils literal notranslate"><span class="pre">relu</span></code>, <code class="docutils literal notranslate"><span class="pre">sigmoid</span></code>, <code class="docutils literal notranslate"><span class="pre">softplus</span></code>,
+<td><p>Applied to both streams: <code class="docutils literal notranslate"><span class="pre">nonnegative</span></code> (checked identity), <code class="docutils literal notranslate"><span class="pre">relu</span></code>, <code class="docutils literal notranslate"><span class="pre">sigmoid</span></code>, <code class="docutils literal notranslate"><span class="pre">softplus</span></code>,
 <code class="docutils literal notranslate"><span class="pre">tanh</span></code> or <code class="docutils literal notranslate"><span class="pre">none</span></code>. The nonnegative weight transforms (<code class="docutils literal notranslate"><span class="pre">exp</span></code>,
 <code class="docutils literal notranslate"><span class="pre">softplus</span></code>, <code class="docutils literal notranslate"><span class="pre">relu</span></code>) reject <code class="docutils literal notranslate"><span class="pre">tanh</span></code>, whose output is signed.</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">input_transform</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">input_transform</span></code></p></td>
 <td><p>str or null</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">null</span></code></p></td>
 <td><p>Only <code class="docutils literal notranslate"><span class="pre">identity</span></code> is accepted. Signed-input adapters are selected
@@ -432,6 +441,8 @@ without a dataset.</p>
 <span class="w">    </span><span class="nt">params</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">input_dim</span><span class="p">:</span><span class="w"> </span><span class="nv">784</span><span class="p p-Indicator">}</span>
 <span class="w">  </span><span class="nt">core</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_shunting</span>
+<span class="w">    </span><span class="nt">transfer</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">output_activation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nonnegative</span>
 <span class="w">    </span><span class="nt">architecture</span><span class="p">:</span>
 <span class="w">      </span><span class="nt">excitatory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">100</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">50</span><span class="p p-Indicator">]</span>
 <span class="w">      </span><span class="nt">inhibitory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">20</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">10</span><span class="p p-Indicator">]</span>
@@ -864,6 +875,7 @@ alias (<a class="reference internal" href="dendritic_neurons.html#gate-initializ
 <span class="w">  </span><span class="nt">core</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ei_unified</span>
 <span class="w">    </span><span class="nt">unified_ei</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">input_transform</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nonnegative</span>
 <span class="w">      </span><span class="nt">output_mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">last</span>
 <span class="w">      </span><span class="nt">layers</span><span class="p">:</span>
 <span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">recurrent</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>

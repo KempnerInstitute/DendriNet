@@ -5,14 +5,14 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>dendritic_modeling.networks.architectures.biological_constraints &mdash; DendriNet v0.2.0</title>
+  <title>dendritic_modeling.networks.architectures.biological_constraints &mdash; DendriNet v0.3.0</title>
       <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="../../../../_static/css/theme.css?v=9edc463e" />
 
   
       <script src="../../../../_static/jquery.js?v=5d32c60e"></script>
       <script src="../../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="../../../../_static/documentation_options.js?v=938c9ccc"></script>
+      <script src="../../../../_static/documentation_options.js?v=e259d695"></script>
       <script src="../../../../_static/doctools.js?v=fd6eb6e6"></script>
       <script src="../../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../../../_static/js/theme.js"></script>
@@ -135,13 +135,15 @@
 <span class="sd">   excitatory and inhibitory inputs, and every source acts with one sign. An</span>
 <span class="sd">   inhibitory pathway reads the network input only when the transfer layer</span>
 <span class="sd">   splits it into separate excitatory and inhibitory channels</span>
-<span class="sd">   (``independent_pathways: true``); a duplicated input would make every input</span>
-<span class="sd">   channel both excite and inhibit. Each population-network connection uses the</span>
+<span class="sd">   (``independent_pathways: true``), or explicitly declares</span>
+<span class="sd">   ``input_source_identity: paired_afferents``: distinct external E/I sources</span>
+<span class="sd">   with identical tuning. Undeclared duplicated source identities cannot have</span>
+<span class="sd">   both polarities. Each population-network connection uses the</span>
 <span class="sd">   pathway of its source's polarity.</span>
-<span class="sd">3. The input is nonnegative. The core rectifies its input before the first</span>
+<span class="sd">3. The input is nonnegative. The core checks or rectifies input before the first</span>
 <span class="sd">   synapses: ``transfer.output_activation`` is ``relu``, ``softplus`` or</span>
-<span class="sd">   ``sigmoid``, or a population network's ``input_transform`` is ``relu`` or</span>
-<span class="sd">   ``signed_split``.</span>
+<span class="sd">   ``sigmoid`` or ``nonnegative`` (checked identity), or a population network's</span>
+<span class="sd">   ``input_transform`` is ``relu``, ``signed_split`` or ``nonnegative``.</span>
 <span class="sd">4. Every population emits nonnegative activity: spikes, a spike rate, or the</span>
 <span class="sd">   output of its soma gate. A gate that is nonnegative for every voltage</span>
 <span class="sd">   (``relu``, ``softplus``, ``sigmoid``, ``param_relu``, ``param_tanh``,</span>
@@ -193,6 +195,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.recurrent.stateful_dendrinet</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">StatefulDendriNet</span><span class="p">,</span>
 <span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.utils.input_domain</span><span class="w"> </span><span class="kn">import</span> <span class="n">NonnegativeInputCheck</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.utils.weight_transforms</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">NONNEGATIVE_WEIGHT_TRANSFORMS</span><span class="p">,</span>
 <span class="p">)</span>
@@ -214,7 +217,7 @@
     <span class="n">ParametricLinearSigmoid</span><span class="p">,</span>
     <span class="n">ParametricLinearTanh</span><span class="p">,</span>
 <span class="p">)</span>
-<span class="n">_RECTIFYING_ACTIVATIONS</span> <span class="o">=</span> <span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">,</span> <span class="n">nn</span><span class="o">.</span><span class="n">Softplus</span><span class="p">,</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sigmoid</span><span class="p">)</span>
+<span class="n">_RECTIFYING_ACTIVATIONS</span> <span class="o">=</span> <span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">,</span> <span class="n">nn</span><span class="o">.</span><span class="n">Softplus</span><span class="p">,</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sigmoid</span><span class="p">,</span> <span class="n">NonnegativeInputCheck</span><span class="p">)</span>
 <span class="n">_UNCONSTRAINED_WEIGHT_LAYERS</span> <span class="o">=</span> <span class="p">(</span>
     <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">,</span>
     <span class="n">nn</span><span class="o">.</span><span class="n">Bilinear</span><span class="p">,</span>
@@ -235,6 +238,9 @@
 <a class="viewcode-back" href="../../../../api_reference.html#dendritic_modeling.networks.architectures.biological_constraints.biological_violations">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">biological_violations</span><span class="p">(</span><span class="n">core</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">"""Return a description of every biological constraint ``core`` breaks."""</span>
+    <span class="c1"># The declaration concerns the neuronal core, not a task decoder or encoder.</span>
+    <span class="c1"># Analysis callers may pass the complete classification/regression wrapper.</span>
+    <span class="n">core</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">core</span><span class="p">,</span> <span class="s2">"core_network"</span><span class="p">,</span> <span class="n">core</span><span class="p">)</span>
     <span class="k">return</span> <span class="p">[</span>
         <span class="o">*</span><span class="n">_weight_violations</span><span class="p">(</span><span class="n">core</span><span class="p">),</span>
         <span class="o">*</span><span class="n">_wiring_violations</span><span class="p">(</span><span class="n">core</span><span class="p">),</span>
@@ -316,6 +322,8 @@
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_duplicates_input</span><span class="p">(</span><span class="n">transfer</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Whether the inhibitory input stream repeats the excitatory channels."""</span>
+    <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">transfer</span><span class="p">,</span> <span class="s2">"input_source_identity"</span><span class="p">,</span> <span class="s2">"shared"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"paired_afferents"</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">False</span>
     <span class="k">return</span> <span class="n">transfer</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span>
         <span class="nb">getattr</span><span class="p">(</span><span class="n">transfer</span><span class="p">,</span> <span class="s2">"pathway_split"</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span> <span class="n">IdentityInputTransform</span>
     <span class="p">)</span>
@@ -327,7 +335,8 @@
         <span class="s2">"repeats the excitatory input channels (transfer independent_pathways: "</span>
         <span class="s2">"false), so every input channel both excites and inhibits; set "</span>
         <span class="s2">"independent_pathways: true to split the input into excitatory and "</span>
-        <span class="s2">"inhibitory channels"</span>
+        <span class="s2">"inhibitory channels, or explicitly declare input_source_identity: "</span>
+        <span class="s2">"paired_afferents for distinct external E/I sources with shared tuning"</span>
     <span class="p">)</span>
 
 
@@ -378,7 +387,8 @@
             <span class="s2">"the first layer reads input_i together with input or input_e, which "</span>
             <span class="s2">"carry the same channels because the input is not split, so every "</span>
             <span class="s2">"input channel both excites and inhibits; set use_transfer: true with "</span>
-            <span class="s2">"transfer_params.independent_pathways: true"</span>
+            <span class="s2">"transfer_params.independent_pathways: true, or explicitly declare "</span>
+            <span class="s2">"transfer_params.input_source_identity: paired_afferents"</span>
         <span class="p">)</span>
     <span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="n">core</span><span class="o">.</span><span class="n">layers</span><span class="p">:</span>
         <span class="k">for</span> <span class="n">connection</span> <span class="ow">in</span> <span class="n">layer</span><span class="o">.</span><span class="n">connections</span><span class="p">:</span>
@@ -405,8 +415,17 @@
     <span class="p">)</span>
 
 
+<span class="k">def</span><span class="w"> </span><span class="nf">_projection_rectifies</span><span class="p">(</span><span class="n">core</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+    <span class="n">projection</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">core</span><span class="p">,</span> <span class="s2">"input_projection"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">(</span>
+        <span class="nb">isinstance</span><span class="p">(</span><span class="n">projection</span><span class="p">,</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">)</span>
+        <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">projection</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span>
+        <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">projection</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">_RECTIFYING_ACTIVATIONS</span><span class="p">)</span>
+    <span class="p">)</span>
+
+
 <span class="k">def</span><span class="w"> </span><span class="nf">_input_violations</span><span class="p">(</span><span class="n">core</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
-    <span class="n">unrectified</span> <span class="o">=</span> <span class="s2">"rectify it with transfer output_activation relu, softplus or sigmoid"</span>
+    <span class="n">unrectified</span> <span class="o">=</span> <span class="s2">"use transfer output_activation nonnegative (checked identity), relu, softplus or sigmoid"</span>
     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">core</span><span class="p">,</span> <span class="n">ExcitationInhibitionNetwork</span><span class="p">):</span>
         <span class="k">if</span> <span class="n">_rectifies</span><span class="p">(</span><span class="n">core</span><span class="o">.</span><span class="n">transfer_fn</span><span class="p">):</span>
             <span class="k">return</span> <span class="p">[]</span>
@@ -416,7 +435,17 @@
             <span class="sa">f</span><span class="s2">"output_activation </span><span class="si">{</span><span class="n">activation</span><span class="si">!r}</span><span class="s2">); </span><span class="si">{</span><span class="n">unrectified</span><span class="si">}</span><span class="s2">"</span>
         <span class="p">]</span>
     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">core</span><span class="p">,</span> <span class="n">EINetwork</span><span class="p">):</span>
+        <span class="c1"># The input adapter acts before the transfer layer, whose sign-preserving</span>
+        <span class="c1"># normalization and stream split keep a nonnegative input nonnegative.</span>
+        <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">core</span><span class="p">,</span> <span class="s2">"input_transform"</span><span class="p">,</span> <span class="s2">"identity"</span><span class="p">)</span> <span class="ow">in</span> <span class="p">{</span>
+            <span class="s2">"nonnegative"</span><span class="p">,</span>
+            <span class="s2">"relu"</span><span class="p">,</span>
+            <span class="s2">"signed_split"</span><span class="p">,</span>
+        <span class="p">}:</span>
+            <span class="k">return</span> <span class="p">[]</span>
         <span class="k">if</span> <span class="n">core</span><span class="o">.</span><span class="n">transfer_fn</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">_projection_rectifies</span><span class="p">(</span><span class="n">core</span><span class="p">):</span>
+                <span class="k">return</span> <span class="p">[]</span>
             <span class="k">return</span> <span class="p">[</span>
                 <span class="s2">"the core has no transfer layer, so nothing rectifies its input; "</span>
                 <span class="sa">f</span><span class="s2">"enable the transfer layer and </span><span class="si">{</span><span class="n">unrectified</span><span class="si">}</span><span class="s2">"</span>
@@ -429,14 +458,25 @@
             <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">unrectified</span><span class="si">}</span><span class="s2">"</span>
         <span class="p">]</span>
     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">core</span><span class="p">,</span> <span class="n">PopulationNetwork</span><span class="p">):</span>
-        <span class="k">if</span> <span class="n">core</span><span class="o">.</span><span class="n">input_transform</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">"relu"</span><span class="p">,</span> <span class="s2">"signed_split"</span><span class="p">}</span> <span class="ow">or</span> <span class="n">_rectifies</span><span class="p">(</span>
-            <span class="n">core</span><span class="o">.</span><span class="n">transfer_fn</span>
-        <span class="p">):</span>
+        <span class="k">if</span> <span class="n">core</span><span class="o">.</span><span class="n">input_transform</span> <span class="ow">in</span> <span class="p">{</span>
+            <span class="s2">"nonnegative"</span><span class="p">,</span>
+            <span class="s2">"relu"</span><span class="p">,</span>
+            <span class="s2">"signed_split"</span><span class="p">,</span>
+        <span class="p">}</span> <span class="ow">or</span> <span class="n">_rectifies</span><span class="p">(</span><span class="n">core</span><span class="o">.</span><span class="n">transfer_fn</span><span class="p">):</span>
+            <span class="k">return</span> <span class="p">[]</span>
+        <span class="c1"># The projection rectifies input/input_e, but a transfer layer's</span>
+        <span class="c1"># input_i bypasses it. Only accept this guarantee if that bypass is</span>
+        <span class="c1"># unused. Signed projection weights remain a separate violation.</span>
+        <span class="n">reads_unprojected_i</span> <span class="o">=</span> <span class="n">core</span><span class="o">.</span><span class="n">transfer_fn</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">any</span><span class="p">(</span>
+            <span class="n">connection</span><span class="o">.</span><span class="n">enabled</span> <span class="ow">and</span> <span class="n">connection</span><span class="o">.</span><span class="n">source</span> <span class="o">==</span> <span class="n">_INPUT_I_SOURCE</span>
+            <span class="k">for</span> <span class="n">connection</span> <span class="ow">in</span> <span class="n">core</span><span class="o">.</span><span class="n">layers</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">connections</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">_projection_rectifies</span><span class="p">(</span><span class="n">core</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">reads_unprojected_i</span><span class="p">:</span>
             <span class="k">return</span> <span class="p">[]</span>
         <span class="k">return</span> <span class="p">[</span>
             <span class="s2">"the input reaches the synapses unrectified (population_network "</span>
             <span class="sa">f</span><span class="s2">"input_transform </span><span class="si">{</span><span class="n">core</span><span class="o">.</span><span class="n">input_transform</span><span class="si">!r}</span><span class="s2">); set input_transform "</span>
-            <span class="s2">"relu or signed_split, or a rectifying transfer_params "</span>
+            <span class="s2">"nonnegative, relu or signed_split, or a rectifying transfer_params "</span>
             <span class="s2">"output_activation"</span>
         <span class="p">]</span>
     <span class="k">return</span> <span class="p">[]</span>

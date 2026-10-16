@@ -6,14 +6,14 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Configuration guide &mdash; DendriNet v0.2.0</title>
+  <title>Configuration guide &mdash; DendriNet v0.3.0</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
 
   
       <script src="_static/jquery.js?v=5d32c60e"></script>
       <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="_static/documentation_options.js?v=938c9ccc"></script>
+      <script src="_static/documentation_options.js?v=e259d695"></script>
       <script src="_static/doctools.js?v=fd6eb6e6"></script>
       <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/js/theme.js"></script>
@@ -87,6 +87,7 @@
 <li class="toctree-l3"><a class="reference internal" href="#what-a-run-records">What a run records</a></li>
 </ul>
 </li>
+<li class="toctree-l2"><a class="reference internal" href="#explicit-biological-adoption">Explicit biological adoption</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#where-options-are-documented">Where options are documented</a></li>
 </ul>
 </li>
@@ -227,6 +228,9 @@ timeout (<code class="docutils literal notranslate"><span class="pre">timeout_se
 </section>
 <section id="a-minimal-config">
 <h3>A minimal config<a class="headerlink" href="#a-minimal-config" title="Link to this heading"></a></h3>
+<p>The input contract below checks nonnegative rates without changing their
+values or gradients. Biological validation is on by default for native
+dendritic E/I cores; see <a class="reference internal" href="network_architectures.html#biological-constraints"><span class="std std-ref">Biological constraints</span></a>.</p>
 <p>This config trains a one-layer population network on MNIST. An inhibitory
 population and an excitatory population both read the input, the inhibitory
 population also projects to the excitatory one, and a linear readout of the
@@ -242,6 +246,7 @@ dendritic branches, each with two branches of its own
 <span class="w">  </span><span class="nt">core</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">population_network</span>
 <span class="w">    </span><span class="nt">population_network</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">input_transform</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nonnegative</span>
 <span class="w">      </span><span class="nt">layers</span><span class="p">:</span>
 <span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">layer0</span>
 <span class="w">          </span><span class="nt">readout_population</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">e</span>
@@ -501,16 +506,20 @@ are absent or set <code class="docutils literal notranslate"><span class="pre">e
 <section id="configuration-format-version">
 <span id="config-version"></span><h3>Configuration format version<a class="headerlink" href="#configuration-format-version" title="Link to this heading"></a></h3>
 <p>The top-level <code class="docutils literal notranslate"><span class="pre">config_version</span></code> names the configuration format a file is
-written for. The current format is <code class="docutils literal notranslate"><span class="pre">3</span></code>
+written for. The current format is <code class="docutils literal notranslate"><span class="pre">4</span></code>
 (<code class="docutils literal notranslate"><span class="pre">dendritic_modeling.config.CONFIG_VERSION</span></code>): the meaning this library gives
 every key, including what an omitted key means. A file without
 <code class="docutils literal notranslate"><span class="pre">config_version</span></code> loads with that meaning; an earlier version raises with a
 pointer to <code class="docutils literal notranslate"><span class="pre">dendritic-upgrade-config</span></code>, and a later one asks for a newer
 library. Runs record the version in <code class="docutils literal notranslate"><span class="pre">config.json</span></code>, and the sweep tools write
 it into every generated config.</p>
-<p>Write <code class="docutils literal notranslate"><span class="pre">config_version:</span> <span class="pre">3</span></code> in new files, as the shipped configs do:
+<p>Write <code class="docutils literal notranslate"><span class="pre">config_version:</span> <span class="pre">4</span></code> in new files, as the shipped configs do:
 <code class="docutils literal notranslate"><span class="pre">dendritic-upgrade-config</span></code> reads a file without it as written for an
 earlier version, whose omitted keys could mean something else.</p>
+<p>Version 4 enables the biological constraint check by default for standard
+dendritic E/I cores (<a class="reference internal" href="network_architectures.html#biological-constraints"><span class="std std-ref">Biological constraints</span></a>). The upgrade tool writes
+<code class="docutils literal notranslate"><span class="pre">biological_neuron:</span> <span class="pre">false</span></code> for older omitted declarations; it preserves the
+original computation rather than redesigning a circuit.</p>
 <p>Version 3 (2026-10-13) changed what two omitted structured-connectivity keys
 mean (<a class="reference internal" href="synapses.html#structured-connectivity"><span class="std std-ref">Structured connectivity</span></a>): a <code class="docutils literal notranslate"><span class="pre">distance</span></code> rule of
 <code class="docutils literal notranslate"><span class="pre">model.core.connectivity.structured</span></code> without <code class="docutils literal notranslate"><span class="pre">distance_kernel</span></code> is
@@ -531,10 +540,10 @@ the current form, describing the same run:</p>
 and <code class="docutils literal notranslate"><span class="pre">--in-place</span></code> overwrites the files (YAML comments are lost). Copies keep
 their paths relative to the common directory of the inputs, and the tool
 stops before writing anything when two inputs would be written to one file.
-Every upgraded file starts with <code class="docutils literal notranslate"><span class="pre">config_version:</span> <span class="pre">3</span></code>; a file that already has
+Every upgraded file starts with <code class="docutils literal notranslate"><span class="pre">config_version:</span> <span class="pre">4</span></code>; a file that already has
 it is left unchanged, so upgrading twice changes nothing. Each rewrite applies
 to the files of the versions before the one that changed the meaning it
-records, so a version-2 file gets only the version-3 rewrites. For files
+records, so a version-2 file gets the version-3 and version-4 rewrites. For files
 written for version 2 or earlier the tool</p>
 <ul class="simple">
 <li><p>writes <code class="docutils literal notranslate"><span class="pre">distance_kernel:</span> <span class="pre">none</span></code> into a <code class="docutils literal notranslate"><span class="pre">model.core.connectivity.structured</span></code>
@@ -821,6 +830,46 @@ algorithms. <code class="docutils literal notranslate"><span class="pre">runtime
 checkout state and the numerical stack. <a class="reference internal" href="runs_and_outputs.html#run-outputs"><span class="std std-ref">Run directory layout</span></a> describes these
 files and the other records of a run.</p>
 </section>
+</section>
+<section id="explicit-biological-adoption">
+<h2>Explicit biological adoption<a class="headerlink" href="#explicit-biological-adoption" title="Link to this heading"></a></h2>
+<p>Historical upgrades preserve the old biological declaration. To adopt the
+constraint set deliberately, use
+<code class="docutils literal notranslate"><span class="pre">dendritic_modeling.config.biological_adoption.prepare_biological_config</span></code>
+on an expanded experiment mapping. Choose <code class="docutils literal notranslate"><span class="pre">input_activation</span></code> and
+<code class="docutils literal notranslate"><span class="pre">input_source_identity</span></code> explicitly; omitted arguments preserve the existing
+settings. The helper upgrades historical keys first, rejects unresolved
+ambiguities, sets <code class="docutils literal notranslate"><span class="pre">biological_neuron:</span> <span class="pre">true</span></code> and validates the typed recipe.
+Construction still checks the complete biological constraint set.</p>
+<p><code class="docutils literal notranslate"><span class="pre">input_activation=&quot;nonnegative&quot;</span></code> checks nonnegative inputs without changing
+their values or derivatives. Keep an existing rectifier when preserving a
+previous computation. <code class="docutils literal notranslate"><span class="pre">input_source_identity=&quot;paired_afferents&quot;</span></code> declares
+distinct external E/I sources with shared tuning, not an upstream interneuron
+circuit. <code class="docutils literal notranslate"><span class="pre">positive_input_projection=True</span></code> replaces a population network’s
+signed projection and requires retraining. The helper does not choose output
+gates or repair circuit topology. <code class="docutils literal notranslate"><span class="pre">biological=False</span></code> explicitly prepares an
+exploratory or conventional control configuration and cannot be combined with
+biological repair arguments.</p>
+<p>Save new recipes separately from the configurations that generated retained
+results. A successful build is not a numerical migration check or evidence that
+the new recipe produced those results.</p>
+<p>Study inventories can use
+<code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">dendritic_modeling.scripts.tools.biological_recipes</span></code> with
+<code class="docutils literal notranslate"><span class="pre">--manifest</span></code>, <code class="docutils literal notranslate"><span class="pre">--library-root</span></code> and a new external <code class="docutils literal notranslate"><span class="pre">--output-dir</span></code>. The JSON
+manifest pins the library commit and lists experiment, collection or composed
+sweep sources with SHA-256 hashes, expected run counts, input dimensions,
+explicit <code class="docutils literal notranslate"><span class="pre">adoption</span></code> arguments, <code class="docutils literal notranslate"><span class="pre">check_indices</span></code> and an
+<code class="docutils literal notranslate"><span class="pre">expected_computation</span></code> of <code class="docutils literal notranslate"><span class="pre">identical</span></code> or <code class="docutils literal notranslate"><span class="pre">retraining_required</span></code>. Collection
+entries bind each file in <code class="docutils literal notranslate"><span class="pre">sources</span></code>; composed sweeps bind every parent in
+<code class="docutils literal notranslate"><span class="pre">composition_sha256</span></code>. Relative paths resolve beside the manifest.</p>
+<p>The default checks the declared representative models; <code class="docutils literal notranslate"><span class="pre">--check-models</span> <span class="pre">all</span></code>
+checks every model and <code class="docutils literal notranslate"><span class="pre">none</span></code> only validates recipes. Checks compare initial
+state, outputs, input and parameter gradients, and one SGD update on
+nonnegative diagnostic inputs, including zeros. They test adoption within the
+selected source version, not historical training equivalence. <code class="docutils literal notranslate"><span class="pre">--materialize</span></code>
+writes new training YAMLs with isolated output paths; <code class="docutils literal notranslate"><span class="pre">--data-root</span></code> relocates
+the dataset. The command never submits jobs. Receipts distinguish partial entry
+selection, recipe validation and model comparisons.</p>
 </section>
 <section id="where-options-are-documented">
 <h2>Where options are documented<a class="headerlink" href="#where-options-are-documented" title="Link to this heading"></a></h2>

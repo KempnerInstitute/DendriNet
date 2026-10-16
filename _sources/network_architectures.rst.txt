@@ -76,6 +76,7 @@ readout:
      core:
        type: population_network
        population_network:
+         input_transform: nonnegative
          layers:
            - name: hidden
              readout_population: pyr
@@ -243,29 +244,50 @@ Biological constraints
 ``model.core.biological_neuron: true`` declares that a core is a biologically
 constrained E/I network. The declaration is checked on the built model, so
 type aliases, defaults and per-population settings are all taken into account,
-and building fails with a list of every broken rule. The default, ``false``,
-makes no claim and checks nothing. A core satisfies the constraint set when:
+and building fails with a list of every broken rule. With configuration format
+4, this is the default for standard dendritic E/I cores. The explicitly signed
+and MLP aliases, and other model families, keep their conventional contracts.
+Set ``biological_neuron: false`` explicitly for non-biological exploration;
+this disables the constraint check without changing the integration equations.
+The declaration is an operational constraint set for a rate or spike model,
+not a claim of complete biological realism. A core satisfies it when:
 
 * **Synaptic weights are nonnegative.** Every synapse bank uses a nonnegative
   weight transform (``exp``, ``softplus`` or ``relu``; see
   :ref:`weight-transforms`), and the core has no layer with unconstrained
-  weights: no ``input_projection_dims``, no
+  weights: no signed input projection, no
   ``inhibitory_network_type: mlp`` and no soma feedback. The ``*_signed`` and
   ``*_mlp`` core types use signed weights and cannot satisfy the set.
 * **Excitation and inhibition stay separate (Dale's law).** No synapse bank
   merges excitatory and inhibitory inputs, and every source acts with one sign.
   An inhibitory pathway may read the network input only when the transfer layer
   splits it into separate excitatory and inhibitory channels
-  (``independent_pathways: true``); with a duplicated input every channel would
-  both excite and inhibit. Feedforward inhibition through inhibitory cells that
+  (``independent_pathways: true``), or explicitly declares distinct external
+  afferents (``input_source_identity: paired_afferents``). The latter supplies
+  the same feature-dependent rates to two separate afferent populations, one
+  excitatory and one inhibitory. Dale's law concerns source identity, not
+  statistical independence. This assumption does not model the upstream
+  inhibitory circuit and must be reported; there are twice as many external
+  source identities as input features, with no added trainable parameters.
+  The default ``input_source_identity: shared`` makes no such declaration:
+  duplicated channels cannot both excite and inhibit. Feedforward inhibition through inhibitory cells that
   read the excitatory stream needs no split. In a population network, each
   connection must use the pathway of its source's polarity.
-* **The input is nonnegative.** The core rectifies its input before the first
+* **The input is nonnegative.** The core checks or rectifies its input before the first
   synapses: ``transfer.output_activation`` is ``relu``, ``softplus`` or
   ``sigmoid``; or a population network sets ``input_transform: relu`` or
   ``signed_split``, or uses a transfer layer with one of these output
-  activations. For inputs that are already nonnegative, such as pixel
-  intensities in ``[0, 1]``, ``relu`` leaves them unchanged.
+  activations. For already nonnegative data, use ``output_activation:
+  nonnegative`` in the transfer layer or ``input_transform: nonnegative`` in
+  a population network. This checks finite, nonnegative values on every batch
+  and returns the input unchanged, including its derivative at zero. ReLU also
+  preserves nonnegative values, but changes the derivative at zero. Runtime
+  checks synchronize the device once per batch, or once per sequence in a
+  recurrent unroll, which reads the checks of all its steps together; they
+  are not free. For signed features,
+  ``signed_split`` preserves both polarities in separate nonnegative channels
+  and doubles the input width. Neither encoding may be introduced silently
+  into a historical experiment.
 * **Populations emit nonnegative activity.** Each population outputs spikes, a
   spike rate or the output of its soma gate (:ref:`activation-types`).
   ``relu``, ``softplus``, ``sigmoid``, ``param_relu``, ``param_tanh`` and
@@ -277,15 +299,51 @@ makes no claim and checks nothing. A core satisfies the constraint set when:
   reversal potential, because shunting then keeps every voltage nonnegative.
   A spiking soma that reads out its membrane potential does not qualify.
 
+The declaration validates a specified circuit; it does not choose an input
+encoding or create inhibitory afferents. A bare ``ModelConfig()`` therefore
+needs these choices before it can build. The reference configurations
+``configs/config_exp.yaml`` and ``configs/examples/population_network_feedforward.yaml``
+show biological cores with nonnegative image input and modeled inhibitory cells.
+
 Only dendritic E/I cores can declare ``true``: structured E/I, unified E/I and
 population-network types. Other core types accept ``false`` and reject
 ``true`` when the configuration loads. The check lives in
 ``dendritic_modeling.networks.architectures.biological_constraints``;
 ``biological_violations(module)`` returns the rules that a built module breaks.
 A training run with a dendritic E/I core records the declaration and that list
-in the ``biological_neuron`` entry of ``operator_card.json``. The recorded list
-is computed for the whole model, so it also names the linear layers of an
-``MLP`` decoder.
+in the ``biological_neuron`` entry of ``operator_card.json``. The check and the
+record concern the neuronal core. A task encoder or signed classification
+decoder outside it is not certified; report these components separately.
+The constraint set concerns the forward neuronal model, not the biological
+plausibility of a training algorithm or its signed error signals.
+The operator card also records the external-afferent declaration.
+
+Population and unified E/I networks can use
+``input_projection_weight_transform: softplus`` with ``input_projection_dims``
+to build a positive input projection followed by ReLU. Its equation is
+``y = relu(softplus(W_raw) x + b)``: ``x`` must be nonnegative, the weights are
+positive, and ``b`` is an intrinsic offset, not a synaptic input. Weights start
+uniformly between zero and inverse fan-in, and offsets start at zero. This
+option changes the model and initialization; signed projection checkpoints
+cannot be relabeled as positive projections. The historical ``identity``
+option still builds ordinary signed ``Linear`` layers and requires an explicit
+non-biological declaration. The positive projection is supported through the
+population-network and unified E/I builders with standard backpropagation.
+Both accept ``input_transform: signed_split`` to retain both polarities of a
+signed task observation as separate nonnegative channels before that projection.
+The default input transform remains ``identity``; changing to a split doubles
+the input width and requires retraining. Unified E/I options live under
+``model.core.unified_ei`` and population options under ``population_network``.
+Analytic local updates reject trainable positive projections; a frozen projection
+can instead supply fixed input features to those rules.
+
+Before using an older configuration, run ``dendritic-upgrade-config``. It writes
+``biological_neuron: false`` where an earlier format omitted the declaration,
+preserving the historical validation policy and computation. Adoption is a
+separate step: identify external sources, establish the input domain, then
+enable the check and compare states, outputs and gradients. If that requires
+changing an encoding, synaptic signs or circuitry, retrain and retain the old
+result and its source pin. The flag alone does not convert a trained network.
 
 .. _output-scale:
 

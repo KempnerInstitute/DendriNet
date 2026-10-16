@@ -6,14 +6,14 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Synapses and connectivity &mdash; DendriNet v0.2.0</title>
+  <title>Synapses and connectivity &mdash; DendriNet v0.3.0</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
 
   
       <script src="_static/jquery.js?v=5d32c60e"></script>
       <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="_static/documentation_options.js?v=938c9ccc"></script>
+      <script src="_static/documentation_options.js?v=e259d695"></script>
       <script src="_static/doctools.js?v=fd6eb6e6"></script>
       <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
       <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
@@ -280,7 +280,15 @@ selection, in training mode only. Evaluation always uses the deterministic
 selection.</p>
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">weight_norm_order</span></code> (default unset)</dt><dd><p>When set to <code class="docutils literal notranslate"><span class="pre">p</span></code>, every row of the selected weights is divided by its
-L<sub>p</sub> norm.</p>
+L<sub>p</sub> norm, also when that norm lies below machine epsilon. Such
+<code class="docutils literal notranslate"><span class="pre">exp</span></code> and <code class="docutils literal notranslate"><span class="pre">softplus</span></code> rows are normalized in log space from their raw
+parameters, so they keep finite gradients when the weights become subnormal
+or underflow; <code class="docutils literal notranslate"><span class="pre">exp</span></code> rows depend exactly on parameter differences, and
+<code class="docutils literal notranslate"><span class="pre">softplus</span></code> rows use the raw parameter as the log weight, which changes
+each weight by less than half of machine epsilon (relative) before the
+usual floating-point rounding. Rows without selected weights stay zero.
+Orders <code class="docutils literal notranslate"><span class="pre">p</span> <span class="pre">&lt;=</span> <span class="pre">0</span></code>, which are not norms, divide every row by the larger of
+its “norm” and machine epsilon, as before.</p>
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">gamma</span></code> (default <code class="docutils literal notranslate"><span class="pre">1.0</span></code>)</dt><dd><p>Multiplies the normalized rows of the inhibitory banks (excitatory banks
 use <code class="docutils literal notranslate"><span class="pre">1</span></code>); it has an effect only together with <code class="docutils literal notranslate"><span class="pre">weight_norm_order</span></code>.</p>
@@ -490,6 +498,9 @@ such as auxiliary analysis passes, do not advance the schedule. The block
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">core</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_shunting</span>
+<span class="w">    </span><span class="nt">transfer</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">output_activation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nonnegative</span>
+<span class="w">      </span><span class="nt">input_source_identity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">paired_afferents</span><span class="w">  </span><span class="c1"># Distinct E/I sources, matched tuning.</span>
 <span class="w">    </span><span class="nt">architecture</span><span class="p">:</span>
 <span class="w">      </span><span class="nt">excitatory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">32</span><span class="p p-Indicator">]</span>
 <span class="w">      </span><span class="nt">excitatory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">2</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">2</span><span class="p p-Indicator">]</span>
@@ -638,6 +649,9 @@ synapses:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">core</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_shunting</span>
+<span class="w">    </span><span class="nt">transfer</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">output_activation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nonnegative</span>
+<span class="w">      </span><span class="nt">input_source_identity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">paired_afferents</span><span class="w">  </span><span class="c1"># Distinct E/I sources, matched tuning.</span>
 <span class="w">    </span><span class="nt">architecture</span><span class="p">:</span>
 <span class="w">      </span><span class="nt">excitatory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">64</span><span class="p p-Indicator">]</span>
 <span class="w">      </span><span class="nt">inhibitory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[]</span>
@@ -656,6 +670,9 @@ synapses:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">core</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_shunting</span>
+<span class="w">    </span><span class="nt">transfer</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">output_activation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nonnegative</span>
+<span class="w">      </span><span class="nt">input_source_identity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">paired_afferents</span><span class="w">  </span><span class="c1"># Distinct E/I sources, matched tuning.</span>
 <span class="w">    </span><span class="nt">architecture</span><span class="p">:</span>
 <span class="w">      </span><span class="nt">excitatory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">64</span><span class="p p-Indicator">]</span>
 <span class="w">      </span><span class="nt">excitatory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">2</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">2</span><span class="p p-Indicator">]</span>
@@ -838,6 +855,8 @@ population’s <code class="docutils literal notranslate"><span class="pre">popu
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">core</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_shunting</span>
+<span class="w">    </span><span class="nt">transfer</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">output_activation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nonnegative</span>
 <span class="w">    </span><span class="nt">architecture</span><span class="p">:</span>
 <span class="w">      </span><span class="nt">excitatory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">64</span><span class="p p-Indicator">]</span>
 <span class="w">      </span><span class="nt">inhibitory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">16</span><span class="p p-Indicator">]</span>
@@ -1039,6 +1058,9 @@ where the excitatory cells read the inhibitory stream directly:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">core</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_shunting</span>
+<span class="w">    </span><span class="nt">transfer</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">output_activation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nonnegative</span>
+<span class="w">      </span><span class="nt">input_source_identity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">paired_afferents</span><span class="w">  </span><span class="c1"># Distinct E/I sources, matched tuning.</span>
 <span class="w">    </span><span class="nt">architecture</span><span class="p">:</span>
 <span class="w">      </span><span class="nt">excitatory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">32</span><span class="p p-Indicator">]</span>
 <span class="w">      </span><span class="nt">inhibitory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[]</span>
@@ -1067,6 +1089,7 @@ image geometry.</p>
 <span class="w">  </span><span class="nt">core</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">population_network</span>
 <span class="w">    </span><span class="nt">population_network</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">input_transform</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nonnegative</span>
 <span class="w">      </span><span class="nt">layers</span><span class="p">:</span>
 <span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">hidden</span>
 <span class="w">          </span><span class="nt">readout_population</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pyr</span>

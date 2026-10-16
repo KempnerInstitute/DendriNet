@@ -6,14 +6,14 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Model architecture &mdash; DendriNet v0.2.0</title>
+  <title>Model architecture &mdash; DendriNet v0.3.0</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
 
   
       <script src="_static/jquery.js?v=5d32c60e"></script>
       <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="_static/documentation_options.js?v=938c9ccc"></script>
+      <script src="_static/documentation_options.js?v=e259d695"></script>
       <script src="_static/doctools.js?v=fd6eb6e6"></script>
       <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/js/theme.js"></script>
@@ -216,6 +216,7 @@ readout:</p>
 <span class="w">  </span><span class="nt">core</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">population_network</span>
 <span class="w">    </span><span class="nt">population_network</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">input_transform</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nonnegative</span>
 <span class="w">      </span><span class="nt">layers</span><span class="p">:</span>
 <span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">hidden</span>
 <span class="w">          </span><span class="nt">readout_population</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pyr</span>
@@ -390,29 +391,50 @@ population.</span><a class="headerlink" href="#id2" title="Link to this image">�
 <p><code class="docutils literal notranslate"><span class="pre">model.core.biological_neuron:</span> <span class="pre">true</span></code> declares that a core is a biologically
 constrained E/I network. The declaration is checked on the built model, so
 type aliases, defaults and per-population settings are all taken into account,
-and building fails with a list of every broken rule. The default, <code class="docutils literal notranslate"><span class="pre">false</span></code>,
-makes no claim and checks nothing. A core satisfies the constraint set when:</p>
+and building fails with a list of every broken rule. With configuration format
+4, this is the default for standard dendritic E/I cores. The explicitly signed
+and MLP aliases, and other model families, keep their conventional contracts.
+Set <code class="docutils literal notranslate"><span class="pre">biological_neuron:</span> <span class="pre">false</span></code> explicitly for non-biological exploration;
+this disables the constraint check without changing the integration equations.
+The declaration is an operational constraint set for a rate or spike model,
+not a claim of complete biological realism. A core satisfies it when:</p>
 <ul class="simple">
 <li><p><strong>Synaptic weights are nonnegative.</strong> Every synapse bank uses a nonnegative
 weight transform (<code class="docutils literal notranslate"><span class="pre">exp</span></code>, <code class="docutils literal notranslate"><span class="pre">softplus</span></code> or <code class="docutils literal notranslate"><span class="pre">relu</span></code>; see
 <a class="reference internal" href="synapses.html#weight-transforms"><span class="std std-ref">Weight transforms</span></a>), and the core has no layer with unconstrained
-weights: no <code class="docutils literal notranslate"><span class="pre">input_projection_dims</span></code>, no
+weights: no signed input projection, no
 <code class="docutils literal notranslate"><span class="pre">inhibitory_network_type:</span> <span class="pre">mlp</span></code> and no soma feedback. The <code class="docutils literal notranslate"><span class="pre">*_signed</span></code> and
 <code class="docutils literal notranslate"><span class="pre">*_mlp</span></code> core types use signed weights and cannot satisfy the set.</p></li>
 <li><p><strong>Excitation and inhibition stay separate (Dale’s law).</strong> No synapse bank
 merges excitatory and inhibitory inputs, and every source acts with one sign.
 An inhibitory pathway may read the network input only when the transfer layer
 splits it into separate excitatory and inhibitory channels
-(<code class="docutils literal notranslate"><span class="pre">independent_pathways:</span> <span class="pre">true</span></code>); with a duplicated input every channel would
-both excite and inhibit. Feedforward inhibition through inhibitory cells that
+(<code class="docutils literal notranslate"><span class="pre">independent_pathways:</span> <span class="pre">true</span></code>), or explicitly declares distinct external
+afferents (<code class="docutils literal notranslate"><span class="pre">input_source_identity:</span> <span class="pre">paired_afferents</span></code>). The latter supplies
+the same feature-dependent rates to two separate afferent populations, one
+excitatory and one inhibitory. Dale’s law concerns source identity, not
+statistical independence. This assumption does not model the upstream
+inhibitory circuit and must be reported; there are twice as many external
+source identities as input features, with no added trainable parameters.
+The default <code class="docutils literal notranslate"><span class="pre">input_source_identity:</span> <span class="pre">shared</span></code> makes no such declaration:
+duplicated channels cannot both excite and inhibit. Feedforward inhibition through inhibitory cells that
 read the excitatory stream needs no split. In a population network, each
 connection must use the pathway of its source’s polarity.</p></li>
-<li><p><strong>The input is nonnegative.</strong> The core rectifies its input before the first
+<li><p><strong>The input is nonnegative.</strong> The core checks or rectifies its input before the first
 synapses: <code class="docutils literal notranslate"><span class="pre">transfer.output_activation</span></code> is <code class="docutils literal notranslate"><span class="pre">relu</span></code>, <code class="docutils literal notranslate"><span class="pre">softplus</span></code> or
 <code class="docutils literal notranslate"><span class="pre">sigmoid</span></code>; or a population network sets <code class="docutils literal notranslate"><span class="pre">input_transform:</span> <span class="pre">relu</span></code> or
 <code class="docutils literal notranslate"><span class="pre">signed_split</span></code>, or uses a transfer layer with one of these output
-activations. For inputs that are already nonnegative, such as pixel
-intensities in <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">1]</span></code>, <code class="docutils literal notranslate"><span class="pre">relu</span></code> leaves them unchanged.</p></li>
+activations. For already nonnegative data, use <code class="docutils literal notranslate"><span class="pre">output_activation:</span>
+<span class="pre">nonnegative</span></code> in the transfer layer or <code class="docutils literal notranslate"><span class="pre">input_transform:</span> <span class="pre">nonnegative</span></code> in
+a population network. This checks finite, nonnegative values on every batch
+and returns the input unchanged, including its derivative at zero. ReLU also
+preserves nonnegative values, but changes the derivative at zero. Runtime
+checks synchronize the device once per batch, or once per sequence in a
+recurrent unroll, which reads the checks of all its steps together; they
+are not free. For signed features,
+<code class="docutils literal notranslate"><span class="pre">signed_split</span></code> preserves both polarities in separate nonnegative channels
+and doubles the input width. Neither encoding may be introduced silently
+into a historical experiment.</p></li>
 <li><p><strong>Populations emit nonnegative activity.</strong> Each population outputs spikes, a
 spike rate or the output of its soma gate (<a class="reference internal" href="dendritic_neurons.html#activation-types"><span class="std std-ref">Activation functions</span></a>).
 <code class="docutils literal notranslate"><span class="pre">relu</span></code>, <code class="docutils literal notranslate"><span class="pre">softplus</span></code>, <code class="docutils literal notranslate"><span class="pre">sigmoid</span></code>, <code class="docutils literal notranslate"><span class="pre">param_relu</span></code>, <code class="docutils literal notranslate"><span class="pre">param_tanh</span></code> and
@@ -424,15 +446,48 @@ integrates by shunting with such gates and no synapse type has a negative
 reversal potential, because shunting then keeps every voltage nonnegative.
 A spiking soma that reads out its membrane potential does not qualify.</p></li>
 </ul>
+<p>The declaration validates a specified circuit; it does not choose an input
+encoding or create inhibitory afferents. A bare <code class="docutils literal notranslate"><span class="pre">ModelConfig()</span></code> therefore
+needs these choices before it can build. The reference configurations
+<code class="docutils literal notranslate"><span class="pre">configs/config_exp.yaml</span></code> and <code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_feedforward.yaml</span></code>
+show biological cores with nonnegative image input and modeled inhibitory cells.</p>
 <p>Only dendritic E/I cores can declare <code class="docutils literal notranslate"><span class="pre">true</span></code>: structured E/I, unified E/I and
 population-network types. Other core types accept <code class="docutils literal notranslate"><span class="pre">false</span></code> and reject
 <code class="docutils literal notranslate"><span class="pre">true</span></code> when the configuration loads. The check lives in
 <code class="docutils literal notranslate"><span class="pre">dendritic_modeling.networks.architectures.biological_constraints</span></code>;
 <code class="docutils literal notranslate"><span class="pre">biological_violations(module)</span></code> returns the rules that a built module breaks.
 A training run with a dendritic E/I core records the declaration and that list
-in the <code class="docutils literal notranslate"><span class="pre">biological_neuron</span></code> entry of <code class="docutils literal notranslate"><span class="pre">operator_card.json</span></code>. The recorded list
-is computed for the whole model, so it also names the linear layers of an
-<code class="docutils literal notranslate"><span class="pre">MLP</span></code> decoder.</p>
+in the <code class="docutils literal notranslate"><span class="pre">biological_neuron</span></code> entry of <code class="docutils literal notranslate"><span class="pre">operator_card.json</span></code>. The check and the
+record concern the neuronal core. A task encoder or signed classification
+decoder outside it is not certified; report these components separately.
+The constraint set concerns the forward neuronal model, not the biological
+plausibility of a training algorithm or its signed error signals.
+The operator card also records the external-afferent declaration.</p>
+<p>Population and unified E/I networks can use
+<code class="docutils literal notranslate"><span class="pre">input_projection_weight_transform:</span> <span class="pre">softplus</span></code> with <code class="docutils literal notranslate"><span class="pre">input_projection_dims</span></code>
+to build a positive input projection followed by ReLU. Its equation is
+<code class="docutils literal notranslate"><span class="pre">y</span> <span class="pre">=</span> <span class="pre">relu(softplus(W_raw)</span> <span class="pre">x</span> <span class="pre">+</span> <span class="pre">b)</span></code>: <code class="docutils literal notranslate"><span class="pre">x</span></code> must be nonnegative, the weights are
+positive, and <code class="docutils literal notranslate"><span class="pre">b</span></code> is an intrinsic offset, not a synaptic input. Weights start
+uniformly between zero and inverse fan-in, and offsets start at zero. This
+option changes the model and initialization; signed projection checkpoints
+cannot be relabeled as positive projections. The historical <code class="docutils literal notranslate"><span class="pre">identity</span></code>
+option still builds ordinary signed <code class="docutils literal notranslate"><span class="pre">Linear</span></code> layers and requires an explicit
+non-biological declaration. The positive projection is supported through the
+population-network and unified E/I builders with standard backpropagation.
+Both accept <code class="docutils literal notranslate"><span class="pre">input_transform:</span> <span class="pre">signed_split</span></code> to retain both polarities of a
+signed task observation as separate nonnegative channels before that projection.
+The default input transform remains <code class="docutils literal notranslate"><span class="pre">identity</span></code>; changing to a split doubles
+the input width and requires retraining. Unified E/I options live under
+<code class="docutils literal notranslate"><span class="pre">model.core.unified_ei</span></code> and population options under <code class="docutils literal notranslate"><span class="pre">population_network</span></code>.
+Analytic local updates reject trainable positive projections; a frozen projection
+can instead supply fixed input features to those rules.</p>
+<p>Before using an older configuration, run <code class="docutils literal notranslate"><span class="pre">dendritic-upgrade-config</span></code>. It writes
+<code class="docutils literal notranslate"><span class="pre">biological_neuron:</span> <span class="pre">false</span></code> where an earlier format omitted the declaration,
+preserving the historical validation policy and computation. Adoption is a
+separate step: identify external sources, establish the input domain, then
+enable the check and compare states, outputs and gradients. If that requires
+changing an encoding, synaptic signs or circuitry, retrain and retain the old
+result and its source pin. The flag alone does not convert a trained network.</p>
 </section>
 <section id="classifier-output-scale">
 <span id="output-scale"></span><h2><a class="toc-backref" href="#id8" role="doc-backlink">Classifier output scale</a><a class="headerlink" href="#classifier-output-scale" title="Link to this heading"></a></h2>

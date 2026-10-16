@@ -68,6 +68,10 @@ A file can also name a parent file with ``extends``; see :ref:`config-extends`.
 A minimal config
 ~~~~~~~~~~~~~~~~
 
+The input contract below checks nonnegative rates without changing their
+values or gradients. Biological validation is on by default for native
+dendritic E/I cores; see :ref:`biological-constraints`.
+
 This config trains a one-layer population network on MNIST. An inhibitory
 population and an excitatory population both read the input, the inhibitory
 population also projects to the excitatory one, and a linear readout of the
@@ -86,6 +90,7 @@ dendritic branches, each with two branches of its own
      core:
        type: population_network
        population_network:
+         input_transform: nonnegative
          layers:
            - name: layer0
              readout_population: e
@@ -346,7 +351,7 @@ Configuration format version
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The top-level ``config_version`` names the configuration format a file is
-written for. The current format is ``3``
+written for. The current format is ``4``
 (``dendritic_modeling.config.CONFIG_VERSION``): the meaning this library gives
 every key, including what an omitted key means. A file without
 ``config_version`` loads with that meaning; an earlier version raises with a
@@ -354,9 +359,14 @@ pointer to ``dendritic-upgrade-config``, and a later one asks for a newer
 library. Runs record the version in ``config.json``, and the sweep tools write
 it into every generated config.
 
-Write ``config_version: 3`` in new files, as the shipped configs do:
+Write ``config_version: 4`` in new files, as the shipped configs do:
 ``dendritic-upgrade-config`` reads a file without it as written for an
 earlier version, whose omitted keys could mean something else.
+
+Version 4 enables the biological constraint check by default for standard
+dendritic E/I cores (:ref:`biological-constraints`). The upgrade tool writes
+``biological_neuron: false`` for older omitted declarations; it preserves the
+original computation rather than redesigning a circuit.
 
 Version 3 (2026-10-13) changed what two omitted structured-connectivity keys
 mean (:ref:`structured-connectivity`): a ``distance`` rule of
@@ -383,10 +393,10 @@ It prints the number of changes per file; ``--report`` records every change,
 and ``--in-place`` overwrites the files (YAML comments are lost). Copies keep
 their paths relative to the common directory of the inputs, and the tool
 stops before writing anything when two inputs would be written to one file.
-Every upgraded file starts with ``config_version: 3``; a file that already has
+Every upgraded file starts with ``config_version: 4``; a file that already has
 it is left unchanged, so upgrading twice changes nothing. Each rewrite applies
 to the files of the versions before the one that changed the meaning it
-records, so a version-2 file gets only the version-3 rewrites. For files
+records, so a version-2 file gets the version-3 and version-4 rewrites. For files
 written for version 2 or earlier the tool
 
 - writes ``distance_kernel: none`` into a ``model.core.connectivity.structured``
@@ -663,6 +673,51 @@ matmuls and cuDNN, cuDNN determinism and autotuning, and deterministic
 algorithms. ``runtime_environment.json`` records the imported library, its
 checkout state and the numerical stack. :ref:`run-outputs` describes these
 files and the other records of a run.
+
+Explicit biological adoption
+----------------------------
+
+Historical upgrades preserve the old biological declaration. To adopt the
+constraint set deliberately, use
+``dendritic_modeling.config.biological_adoption.prepare_biological_config``
+on an expanded experiment mapping. Choose ``input_activation`` and
+``input_source_identity`` explicitly; omitted arguments preserve the existing
+settings. The helper upgrades historical keys first, rejects unresolved
+ambiguities, sets ``biological_neuron: true`` and validates the typed recipe.
+Construction still checks the complete biological constraint set.
+
+``input_activation="nonnegative"`` checks nonnegative inputs without changing
+their values or derivatives. Keep an existing rectifier when preserving a
+previous computation. ``input_source_identity="paired_afferents"`` declares
+distinct external E/I sources with shared tuning, not an upstream interneuron
+circuit. ``positive_input_projection=True`` replaces a population network's
+signed projection and requires retraining. The helper does not choose output
+gates or repair circuit topology. ``biological=False`` explicitly prepares an
+exploratory or conventional control configuration and cannot be combined with
+biological repair arguments.
+
+Save new recipes separately from the configurations that generated retained
+results. A successful build is not a numerical migration check or evidence that
+the new recipe produced those results.
+
+Study inventories can use
+``python -m dendritic_modeling.scripts.tools.biological_recipes`` with
+``--manifest``, ``--library-root`` and a new external ``--output-dir``. The JSON
+manifest pins the library commit and lists experiment, collection or composed
+sweep sources with SHA-256 hashes, expected run counts, input dimensions,
+explicit ``adoption`` arguments, ``check_indices`` and an
+``expected_computation`` of ``identical`` or ``retraining_required``. Collection
+entries bind each file in ``sources``; composed sweeps bind every parent in
+``composition_sha256``. Relative paths resolve beside the manifest.
+
+The default checks the declared representative models; ``--check-models all``
+checks every model and ``none`` only validates recipes. Checks compare initial
+state, outputs, input and parameter gradients, and one SGD update on
+nonnegative diagnostic inputs, including zeros. They test adoption within the
+selected source version, not historical training equivalence. ``--materialize``
+writes new training YAMLs with isolated output paths; ``--data-root`` relocates
+the dataset. The command never submits jobs. Receipts distinguish partial entry
+selection, recipe validation and model comparisons.
 
 Where options are documented
 ----------------------------

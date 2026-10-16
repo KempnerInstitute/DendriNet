@@ -6,14 +6,14 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Population networks &mdash; DendriNet v0.2.0</title>
+  <title>Population networks &mdash; DendriNet v0.3.0</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
 
   
       <script src="_static/jquery.js?v=5d32c60e"></script>
       <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="_static/documentation_options.js?v=938c9ccc"></script>
+      <script src="_static/documentation_options.js?v=e259d695"></script>
       <script src="_static/doctools.js?v=fd6eb6e6"></script>
       <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
       <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
@@ -192,6 +192,7 @@ excitatory one:</p>
 <span class="w">  </span><span class="nt">core</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">population_network</span>
 <span class="w">    </span><span class="nt">population_network</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">input_transform</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nonnegative</span>
 <span class="w">      </span><span class="nt">layers</span><span class="p">:</span>
 <span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">layer0</span>
 <span class="w">          </span><span class="nt">readout_population</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">e</span>
@@ -385,6 +386,7 @@ population drives <code class="docutils literal notranslate"><span class="pre">f
 <span class="w">  </span><span class="nt">core</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">population_network</span>
 <span class="w">    </span><span class="nt">population_network</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">input_transform</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nonnegative</span>
 <span class="w">      </span><span class="nt">use_transfer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 <span class="w">      </span><span class="nt">transfer_params</span><span class="p">:</span>
 <span class="w">        </span><span class="nt">independent_pathways</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
@@ -407,13 +409,17 @@ population drives <code class="docutils literal notranslate"><span class="pre">f
 layer, in this order:</p>
 <ol class="arabic simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">input_transform</span></code> adapts the encoder output: <code class="docutils literal notranslate"><span class="pre">identity</span></code> (default),
-<code class="docutils literal notranslate"><span class="pre">relu</span></code>, or <code class="docutils literal notranslate"><span class="pre">signed_split</span></code>, which writes the positive and negative parts
+<code class="docutils literal notranslate"><span class="pre">nonnegative</span></code> (checked identity), <code class="docutils literal notranslate"><span class="pre">relu</span></code>, or <code class="docutils literal notranslate"><span class="pre">signed_split</span></code>, which writes the positive and negative parts
 of each feature as separate non-negative channels and doubles the input
 width.</p></li>
 <li><p>The transfer layer (<code class="docutils literal notranslate"><span class="pre">use_transfer</span></code> and <code class="docutils literal notranslate"><span class="pre">transfer_params</span></code>).</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">input_projection_dims</span></code> adds linear layers, each followed by a ReLU. With
 a transfer layer they project <code class="docutils literal notranslate"><span class="pre">input</span></code> and <code class="docutils literal notranslate"><span class="pre">input_e</span></code> only; <code class="docutils literal notranslate"><span class="pre">input_i</span></code>
-keeps the width produced by the transfer layer.</p></li>
+keeps the width produced by the transfer layer. Set
+<code class="docutils literal notranslate"><span class="pre">input_projection_weight_transform:</span> <span class="pre">softplus</span></code> for positive afferent weights;
+the default <code class="docutils literal notranslate"><span class="pre">identity</span></code> retains the historical signed Linear layers.
+Positive projections check that their inputs are nonnegative and change
+the model and its initialization (see <a class="reference internal" href="network_architectures.html#biological-constraints"><span class="std std-ref">Biological constraints</span></a>).</p></li>
 </ol>
 <p>Shunting populations with a positive weight transform treat their input as
 non-negative rates. When the first batch shows signed input reaching such a
@@ -616,6 +622,7 @@ give the three populations different dendritic time constants, and
 <span class="w">  </span><span class="nt">core</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">population_network</span>
 <span class="w">    </span><span class="nt">population_network</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">input_transform</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nonnegative</span>
 <span class="w">      </span><span class="nt">layers</span><span class="p">:</span>
 <span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">microcircuit</span>
 <span class="w">          </span><span class="nt">recurrent</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
@@ -792,31 +799,38 @@ transfer layer.</p></td>
 <td><p>Widths of linear-plus-ReLU layers applied to the input (to <code class="docutils literal notranslate"><span class="pre">input_e</span></code>
 when a transfer layer is used).</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">readout_layer</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">input_projection_weight_transform</span></code></p></td>
+<td><p>str</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">identity</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">identity</span></code> builds signed Linear projections; <code class="docutils literal notranslate"><span class="pre">softplus</span></code> builds
+positive projections with checked nonnegative inputs. Requires nonempty
+<code class="docutils literal notranslate"><span class="pre">input_projection_dims</span></code> when set to <code class="docutils literal notranslate"><span class="pre">softplus</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">readout_layer</span></code></p></td>
 <td><p>str or null</p></td>
 <td><p>last layer</p></td>
 <td><p>Layer whose readout population is the network output.</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">readout_population</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">readout_population</span></code></p></td>
 <td><p>str or null</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">null</span></code></p></td>
 <td><p>Readout population of the readout layer; it must agree with that
 layer’s <code class="docutils literal notranslate"><span class="pre">readout_population</span></code> when both are written.</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">output_mode</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">output_mode</span></code></p></td>
 <td><p>str</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">last</span></code></p></td>
 <td><p>Output of a network that processes sequences: <code class="docutils literal notranslate"><span class="pre">last</span></code> (last step, or
 the last valid step of each sequence), <code class="docutils literal notranslate"><span class="pre">mean</span></code> (mean over valid steps)
 or <code class="docutils literal notranslate"><span class="pre">all</span></code> (every step). See <a class="reference internal" href="temporal_dynamics.html#temporal-output-mode"><span class="std std-ref">Sequence output</span></a>.</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">store_routing</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">store_routing</span></code></p></td>
 <td><p>bool</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
 <td><p>Record per-level routing information at every timestep of layers that
 step through time. <code class="docutils literal notranslate"><span class="pre">analysis.routing</span></code> enables it by itself.</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">compile_step</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">compile_step</span></code></p></td>
 <td><p>bool</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
 <td><p>Compile each layer with <code class="docutils literal notranslate"><span class="pre">torch.compile</span></code>. A network that processes

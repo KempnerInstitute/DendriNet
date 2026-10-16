@@ -6,14 +6,14 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Temporal dynamics &mdash; DendriNet v0.2.0</title>
+  <title>Temporal dynamics &mdash; DendriNet v0.3.0</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
 
   
       <script src="_static/jquery.js?v=5d32c60e"></script>
       <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="_static/documentation_options.js?v=938c9ccc"></script>
+      <script src="_static/documentation_options.js?v=e259d695"></script>
       <script src="_static/doctools.js?v=fd6eb6e6"></script>
       <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
       <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
@@ -195,10 +195,13 @@ population raises.</p>
 <p>In a structured E/I core, the four blocks use the population field names
 without their prefix, for example <code class="docutils literal notranslate"><span class="pre">model.core.dynamics.threshold</span></code> for
 <code class="docutils literal notranslate"><span class="pre">spike_threshold</span></code> and <code class="docutils literal notranslate"><span class="pre">model.core.soma_feedback.mode</span></code> for
-<code class="docutils literal notranslate"><span class="pre">soma_feedback_mode</span></code>. This structured core enables all four features:</p>
+<code class="docutils literal notranslate"><span class="pre">soma_feedback_mode</span></code>. This structured core enables all four features.
+Its soma-feedback projections have signed weights, so the example explicitly
+opts out of the biological constraint set:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">core</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_shunting</span>
+<span class="w">    </span><span class="nt">biological_neuron</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">  </span><span class="c1"># Signed soma-feedback projections.</span>
 <span class="w">    </span><span class="nt">architecture</span><span class="p">:</span>
 <span class="w">      </span><span class="nt">excitatory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">32</span><span class="p p-Indicator">]</span>
 <span class="w">      </span><span class="nt">inhibitory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">8</span><span class="p p-Indicator">]</span>

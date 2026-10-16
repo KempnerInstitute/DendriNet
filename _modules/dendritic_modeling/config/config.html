@@ -5,14 +5,14 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>dendritic_modeling.config.config &mdash; DendriNet v0.2.0</title>
+  <title>dendritic_modeling.config.config &mdash; DendriNet v0.3.0</title>
       <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
 
   
       <script src="../../../_static/jquery.js?v=5d32c60e"></script>
       <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="../../../_static/documentation_options.js?v=938c9ccc"></script>
+      <script src="../../../_static/documentation_options.js?v=e259d695"></script>
       <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
       <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../../_static/js/theme.js"></script>
@@ -151,7 +151,10 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config.biological</span><span class="w"> </span><span class="kn">import</span> <span class="n">resolve_biological_neuron</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config.composition</span><span class="w"> </span><span class="kn">import</span> <span class="n">apply_overrides</span><span class="p">,</span> <span class="n">load_composed_yaml</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config.conversion</span><span class="w"> </span><span class="kn">import</span> <span class="n">to_plain_dict</span> <span class="k">as</span> <span class="n">_to_plain_dict</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config.core_sections</span><span class="w"> </span><span class="kn">import</span> <span class="n">reject_unread_core_sections</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config.core_sections</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">is_saved_core_record</span><span class="p">,</span>
+    <span class="n">reject_unread_core_sections</span><span class="p">,</span>
+<span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config.extensions</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">apply_config_migrations</span><span class="p">,</span>
     <span class="n">build_extension_section</span><span class="p">,</span>
@@ -211,6 +214,7 @@
 <span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config.recurrent_payloads</span><span class="w"> </span><span class="kn">import</span> <span class="n">check_recurrent_payloads</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config.regularization</span><span class="w"> </span><span class="kn">import</span> <span class="n">PruningConfig</span><span class="p">,</span> <span class="n">RegularizationConfig</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config.shared_projection</span><span class="w"> </span><span class="kn">import</span> <span class="n">SharedProjectionShuntingConfig</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config.structured_connectivity</span><span class="w"> </span><span class="kn">import</span> <span class="n">canonical_rule</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config.training</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">LOCAL_RULE_STRATEGIES</span><span class="p">,</span>
@@ -504,18 +508,21 @@
             <span class="p">)</span>
 
 
-<span class="c1">#: Version of the configuration format. Version 3 (2026-10-13) is the meaning</span>
+<span class="c1">#: Version of the configuration format. Version 4 (2026-10-15) is the meaning</span>
 <span class="c1">#: this library gives every key. Files without ``config_version`` load with</span>
 <span class="c1">#: that meaning; ``dendritic-upgrade-config`` rewrites files written for</span>
 <span class="c1">#: earlier versions, whose omitted keys could mean something else, and marks</span>
-<span class="c1">#: them ``config_version: 3``. Runs record the version in ``config.json``.</span>
+<span class="c1">#: them with the current version. Runs record the version in ``config.json``.</span>
 <span class="c1">#:</span>
 <span class="c1">#: Version 3 changed two omitted structured-connectivity keys: a ``distance``</span>
 <span class="c1">#: rule without ``distance_kernel`` is gaussian in structured E/I cores as it</span>
 <span class="c1">#: is in population rules (it was "none"), and training seeds an unseeded</span>
 <span class="c1">#: population or unified E/I rule from the topology seed (its masks drew from</span>
 <span class="c1">#: the global random stream).</span>
-<span class="n">CONFIG_VERSION</span> <span class="o">=</span> <span class="mi">3</span>
+<span class="c1">#: Version 4 enables biological validation by default for standard dendritic</span>
+<span class="c1">#: E/I cores. The upgrader writes historical biological_neuron: false values;</span>
+<span class="c1">#: it never changes a model to make it pass the new validation contract.</span>
+<span class="n">CONFIG_VERSION</span> <span class="o">=</span> <span class="mi">4</span>
 
 <span class="c1">#: Top-level key in which ``dendritic-upgrade-config`` lists what it could not</span>
 <span class="c1">#: rewrite. A file with it is only partly upgraded and does not load.</span>
@@ -688,7 +695,7 @@
     <span class="c1"># (and recorded wrongly in config.json), so it raises; saved records from</span>
     <span class="c1"># versions that stored the dataclass default instead keep loading and get</span>
     <span class="c1"># the build-time alias warning.</span>
-    <span class="n">saved_record</span> <span class="o">=</span> <span class="n">_field_names</span><span class="p">(</span><span class="n">CoreConfig</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="nb">set</span><span class="p">(</span><span class="n">core_dict</span><span class="p">)</span>
+    <span class="n">saved_record</span> <span class="o">=</span> <span class="n">is_saved_core_record</span><span class="p">(</span><span class="n">core_dict</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">lower_core_type</span> <span class="o">==</span> <span class="s2">"dendritic_alexnet"</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">saved_record</span><span class="p">:</span>
         <span class="n">written_sizes</span> <span class="o">=</span> <span class="p">[</span>
             <span class="n">key</span>
@@ -769,6 +776,11 @@
     <span class="n">core</span> <span class="o">=</span> <span class="n">CoreConfig</span><span class="p">(</span>
         <span class="nb">type</span><span class="o">=</span><span class="n">core_type</span><span class="p">,</span>
         <span class="n">affine_mlp</span><span class="o">=</span><span class="kc">None</span> <span class="k">if</span> <span class="n">affine_mlp</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">typed</span><span class="p">(</span><span class="s2">"affine_mlp"</span><span class="p">,</span> <span class="n">AffineMLPConfig</span><span class="p">),</span>
+        <span class="n">shared_projection_shunting</span><span class="o">=</span><span class="p">(</span>
+            <span class="kc">None</span>
+            <span class="k">if</span> <span class="n">core_dict</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"shared_projection_shunting"</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span>
+            <span class="k">else</span> <span class="n">typed</span><span class="p">(</span><span class="s2">"shared_projection_shunting"</span><span class="p">,</span> <span class="n">SharedProjectionShuntingConfig</span><span class="p">)</span>
+        <span class="p">),</span>
         <span class="n">target_active_parameters</span><span class="o">=</span><span class="p">(</span>
             <span class="kc">None</span>
             <span class="k">if</span> <span class="n">core_dict</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"target_active_parameters"</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span>

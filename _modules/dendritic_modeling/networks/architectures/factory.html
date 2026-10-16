@@ -5,14 +5,14 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>dendritic_modeling.networks.architectures.factory &mdash; DendriNet v0.2.0</title>
+  <title>dendritic_modeling.networks.architectures.factory &mdash; DendriNet v0.3.0</title>
       <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="../../../../_static/css/theme.css?v=9edc463e" />
 
   
       <script src="../../../../_static/jquery.js?v=5d32c60e"></script>
       <script src="../../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="../../../../_static/documentation_options.js?v=938c9ccc"></script>
+      <script src="../../../../_static/documentation_options.js?v=e259d695"></script>
       <script src="../../../../_static/doctools.js?v=fd6eb6e6"></script>
       <script src="../../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../../../_static/js/theme.js"></script>
@@ -135,6 +135,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config.core_sections</span><span class="w"> </span><span class="kn">import</span> <span class="n">BUILTIN_CORE_TYPES</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config.model_aliases</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_core_morphology_alias_overrides</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config.recurrence</span><span class="w"> </span><span class="kn">import</span> <span class="n">_STRUCTURED_EI_TYPES</span><span class="p">,</span> <span class="n">_UNIFIED_EI_TYPES</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config.shared_projection</span><span class="w"> </span><span class="kn">import</span> <span class="n">SharedProjectionShuntingConfig</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.biological_constraints</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">enforce_biological_neuron</span><span class="p">,</span>
 <span class="p">)</span>
@@ -464,6 +465,39 @@
     <span class="k">return</span> <span class="n">build_affine_mlp</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
 
 
+<span class="k">def</span><span class="w"> </span><span class="nf">_build_shared_projection_architecture</span><span class="p">(</span>
+    <span class="nb">type</span><span class="p">,</span> <span class="n">parameters</span><span class="p">,</span> <span class="n">input_dim</span><span class="p">,</span> <span class="n">suffix_input_dim</span>
+<span class="p">):</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config.core_sections</span><span class="w"> </span><span class="kn">import</span> <span class="n">reject_unread_core_sections</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.excitation_inhibition.shared_projection</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+        <span class="n">build_shared_projection_shunting</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="n">raw</span> <span class="o">=</span> <span class="n">_to_plain_mapping</span><span class="p">(</span><span class="n">parameters</span><span class="p">)</span>
+    <span class="n">payload</span> <span class="o">=</span> <span class="n">raw</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"shared_projection_shunting"</span><span class="p">,</span> <span class="n">raw</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">payload</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">"shared_projection_shunting requires an explicit configuration"</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="s2">"shared_projection_shunting"</span> <span class="ow">in</span> <span class="n">raw</span><span class="p">:</span>
+        <span class="c1"># Direct structured construction must reject ignored options too.</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config.model</span><span class="w"> </span><span class="kn">import</span> <span class="n">CoreConfig</span>
+
+        <span class="n">core</span> <span class="o">=</span> <span class="n">CoreConfig</span><span class="p">(</span><span class="o">**</span><span class="p">{</span><span class="s2">"type"</span><span class="p">:</span> <span class="nb">type</span><span class="p">,</span> <span class="o">**</span><span class="n">raw</span><span class="p">})</span>
+        <span class="n">reject_unread_core_sections</span><span class="p">(</span><span class="n">core</span><span class="p">,</span> <span class="n">raw</span><span class="p">)</span>
+    <span class="n">config</span> <span class="o">=</span> <span class="n">SharedProjectionShuntingConfig</span><span class="p">(</span><span class="o">**</span><span class="n">payload</span><span class="p">)</span>
+    <span class="n">config</span><span class="o">.</span><span class="n">validate</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">input_dim</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">input_dim</span> <span class="o">!=</span> <span class="n">config</span><span class="o">.</span><span class="n">input_dim</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">"shared_projection_shunting input dimension does not match the encoder"</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="n">suffix_input_dim</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">suffix_input_dim</span> <span class="o">!=</span> <span class="n">config</span><span class="o">.</span><span class="n">output_dim</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">"shared_projection_shunting output dimension does not match the decoder"</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="n">build_shared_projection_shunting</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
+
+
 <span class="k">def</span><span class="w"> </span><span class="nf">_build_flat_mlp_architecture</span><span class="p">(</span>
     <span class="nb">type</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">parameters</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">DictConfig</span><span class="p">],</span>
@@ -666,6 +700,7 @@
             <span class="s2">"point_mlp"</span><span class="p">:</span> <span class="n">_build_point_mlp_architecture</span><span class="p">,</span>
             <span class="s2">"mlp"</span><span class="p">:</span> <span class="n">_build_flat_mlp_architecture</span><span class="p">,</span>
             <span class="s2">"affine_mlp"</span><span class="p">:</span> <span class="n">_build_affine_mlp_architecture</span><span class="p">,</span>
+            <span class="s2">"shared_projection_shunting"</span><span class="p">:</span> <span class="n">_build_shared_projection_architecture</span><span class="p">,</span>
             <span class="s2">"total_param_mlp"</span><span class="p">:</span> <span class="n">_build_total_param_mlp</span><span class="p">,</span>
             <span class="s2">"active_param_mlp"</span><span class="p">:</span> <span class="n">_build_active_param_mlp</span><span class="p">,</span>
             <span class="s2">"ss_mlp"</span><span class="p">:</span> <span class="n">_build_sparse_structured_mlp</span><span class="p">,</span>
@@ -727,6 +762,9 @@
 <span class="sd">        Initialized network module</span>
 <span class="sd">    """</span>
     <span class="nb">type</span> <span class="o">=</span> <span class="p">(</span><span class="nb">type</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+    <span class="n">biological</span> <span class="o">=</span> <span class="n">resolve_biological_neuron</span><span class="p">(</span>
+        <span class="nb">type</span><span class="p">,</span> <span class="n">_declared_biological_neuron</span><span class="p">(</span><span class="n">parameters</span><span class="p">)</span>
+    <span class="p">)</span>
     <span class="k">if</span> <span class="nb">type</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">"ei_net"</span><span class="p">,</span> <span class="s2">"unified_einet"</span><span class="p">}:</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
             <span class="s2">"Architecture type </span><span class="si">%r</span><span class="s2"> is deprecated; use 'unified_ei' instead."</span><span class="p">,</span>
@@ -744,7 +782,7 @@
         <span class="p">)</span>
         <span class="k">if</span> <span class="n">network</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Invalid architecture type: </span><span class="si">{</span><span class="nb">type</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-    <span class="k">if</span> <span class="n">resolve_biological_neuron</span><span class="p">(</span><span class="nb">type</span><span class="p">,</span> <span class="n">_declared_biological_neuron</span><span class="p">(</span><span class="n">parameters</span><span class="p">)):</span>
+    <span class="k">if</span> <span class="n">biological</span><span class="p">:</span>
         <span class="n">enforce_biological_neuron</span><span class="p">(</span><span class="nb">type</span><span class="p">,</span> <span class="n">network</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">network</span></div>
 

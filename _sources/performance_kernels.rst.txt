@@ -288,6 +288,8 @@ experiment excerpt applies those settings to a small structured E/I core:
    model:
      core:
        type: einet
+       transfer:
+         output_activation: nonnegative
        architecture:
          excitatory_layer_sizes: [64]
          inhibitory_layer_sizes: [16]

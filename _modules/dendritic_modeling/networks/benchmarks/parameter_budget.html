@@ -5,14 +5,14 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>dendritic_modeling.networks.benchmarks.parameter_budget &mdash; DendriNet v0.2.0</title>
+  <title>dendritic_modeling.networks.benchmarks.parameter_budget &mdash; DendriNet v0.3.0</title>
       <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="../../../../_static/css/theme.css?v=9edc463e" />
 
   
       <script src="../../../../_static/jquery.js?v=5d32c60e"></script>
       <script src="../../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="../../../../_static/documentation_options.js?v=938c9ccc"></script>
+      <script src="../../../../_static/documentation_options.js?v=e259d695"></script>
       <script src="../../../../_static/doctools.js?v=fd6eb6e6"></script>
       <script src="../../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../../../_static/js/theme.js"></script>
@@ -527,6 +527,9 @@
     <span class="n">signed</span> <span class="o">=</span> <span class="n">spec</span><span class="p">[</span><span class="s2">"family"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"dendritic_signed"</span>
     <span class="n">activation_init</span> <span class="o">=</span> <span class="n">spec</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"activation_init"</span><span class="p">,</span> <span class="p">{</span><span class="s2">"gain"</span><span class="p">:</span> <span class="mf">1.5</span><span class="p">,</span> <span class="s2">"threshold"</span><span class="p">:</span> <span class="mf">0.5</span><span class="p">})</span>
     <span class="k">return</span> <span class="p">{</span>
+        <span class="c1"># These scaling controls include signed synapses and shared E/I</span>
+        <span class="c1"># feature streams; they make no biological-neuron declaration.</span>
+        <span class="s2">"biological_neuron"</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
         <span class="s2">"architecture"</span><span class="p">:</span> <span class="p">{</span>
             <span class="s2">"excitatory_layer_sizes"</span><span class="p">:</span> <span class="p">[</span><span class="n">spec</span><span class="p">[</span><span class="s2">"width"</span><span class="p">]],</span>
             <span class="s2">"inhibitory_layer_sizes"</span><span class="p">:</span> <span class="p">[],</span>

@@ -6,14 +6,14 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Baselines and comparison models &mdash; DendriNet v0.2.0</title>
+  <title>Baselines and comparison models &mdash; DendriNet v0.3.0</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
 
   
       <script src="_static/jquery.js?v=5d32c60e"></script>
       <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="_static/documentation_options.js?v=938c9ccc"></script>
+      <script src="_static/documentation_options.js?v=e259d695"></script>
       <script src="_static/doctools.js?v=fd6eb6e6"></script>
       <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
       <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
@@ -63,6 +63,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#dense-and-sparse-affine-mlps">Dense and sparse affine MLPs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#recurrent-baselines">Recurrent baselines</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#mlp-building-blocks">MLP building blocks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#shared-projections-and-native-shunting-banks">Shared projections and native shunting banks</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#parameter-budget-model-families">Parameter-budget model families</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#signed-readouts">Signed readouts</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#readout-initialization">Readout initialization</a></li>
@@ -514,6 +515,58 @@ blocks that take flat parameters, not core types: <code class="docutils literal 
 one of them raises an error that names the alternatives. For a plain MLP core
 use <code class="docutils literal notranslate"><span class="pre">affine_mlp</span></code>; for a matched control use <code class="docutils literal notranslate"><span class="pre">point_mlp</span></code>.
 <a class="reference internal" href="available_components.html#core-types"><span class="std std-ref">Core types</span></a> lists the other names of this kind.</p>
+</section>
+<section id="shared-projections-and-native-shunting-banks">
+<h2>Shared projections and native shunting banks<a class="headerlink" href="#shared-projections-and-native-shunting-banks" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">shared_projection_shunting</span></code> composes existing library operators: one
+normalized positive indexed projection per group, a flat native <code class="docutils literal notranslate"><span class="pre">DendriNet</span></code>
+bank for each projected scalar, signed <code class="docutils literal notranslate"><span class="pre">BlockLinear</span></code> pooling, and an affine
+output. It implements <code class="docutils literal notranslate"><span class="pre">v[j]</span> <span class="pre">=</span> <span class="pre">sum_i</span> <span class="pre">theta[j,i]</span> <span class="pre">x[i]</span></code> followed by
+<code class="docutils literal notranslate"><span class="pre">h[j]</span> <span class="pre">=</span> <span class="pre">sum_k</span> <span class="pre">a[j,k]</span> <span class="pre">v[j]/(v[j]+z[j,k])</span></code> and <code class="docutils literal notranslate"><span class="pre">y</span> <span class="pre">=</span> <span class="pre">C</span> <span class="pre">h</span> <span class="pre">+</span> <span class="pre">b</span></code>.
+The linear group pool is external to the native compartments; this is not a
+tree whose soma applies an additional conductance division or activation.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">SharedProjectionShuntingConfig</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.excitation_inhibition.shared_projection</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">build_shared_projection_shunting</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">config</span> <span class="o">=</span> <span class="n">SharedProjectionShuntingConfig</span><span class="p">(</span>
+    <span class="n">input_dim</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span> <span class="n">supports</span><span class="o">=</span><span class="p">[[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">]],</span>
+    <span class="n">nodes</span><span class="o">=</span><span class="p">[</span><span class="mf">0.001</span><span class="p">,</span> <span class="mf">0.01</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="s2">"float64"</span><span class="p">,</span>
+    <span class="n">train_projection</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">train_conductance</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">train_output</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">model</span> <span class="o">=</span> <span class="n">build_shared_projection_shunting</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
+<span class="n">report</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">resource_report</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>The same payload can be passed to <code class="docutils literal notranslate"><span class="pre">get_architecture</span></code> or written under
+<code class="docutils literal notranslate"><span class="pre">model.core.shared_projection_shunting</span></code> with core type
+<code class="docutils literal notranslate"><span class="pre">shared_projection_shunting</span></code>. Unknown configuration keys, unused core
+sections, invalid supports, and non-standard trainer strategies raise.
+Inputs must be finite and nonnegative. Supports have equal contact counts;
+overlap is supported but violates the disjoint-support assumption of some
+theory applications. The eager backend and ordinary backpropagation are used.
+CPU float32/float64 equations and gradients are tested; accelerated backends,
+local learning, recurrent use and export formats are not qualified here.</p>
+<p>Construction preserves the caller’s Torch RNG. Projection weights start
+uniform, branch pooling weights start at <code class="docutils literal notranslate"><span class="pre">1/W</span></code>, output weights at <code class="docutils literal notranslate"><span class="pre">1/q</span></code>,
+and the bias at zero. Native compartments have unit leak and no extra gate.
+Their positive conductance is initialized to <code class="docutils literal notranslate"><span class="pre">(1+epsilon)/z</span></code> so the native
+denominator, including epsilon, realizes the declared transition node. The
+conductance parameters are logarithmic, using the existing bounded exponential
+transform. This parameterization differs from historical softplus scalar runs;
+it is not a silent migration of those results. Numerical underflow or transform
+saturation can limit extreme learned scales.</p>
+<p><code class="docutils literal notranslate"><span class="pre">features(x)</span></code> returns the actual native features in group-major order.
+<code class="docutils literal notranslate"><span class="pre">effective_nodes()</span></code> measures current transition scales. With <code class="docutils literal notranslate"><span class="pre">q</span></code> groups,
+<code class="docutils literal notranslate"><span class="pre">s</span></code> contacts, <code class="docutils literal notranslate"><span class="pre">W</span></code> nodes and <code class="docutils literal notranslate"><span class="pre">o</span></code> outputs, stored scalar slots number
+<code class="docutils literal notranslate"><span class="pre">q*s</span> <span class="pre">+</span> <span class="pre">2*q*W</span> <span class="pre">+</span> <span class="pre">q*o</span> <span class="pre">+</span> <span class="pre">o</span></code>, including frozen parameters. Freezing output weights
+leaves the intercept and group pooling trainable for linear readout fitting.
+For one output this is <code class="docutils literal notranslate"><span class="pre">q*(s+2*W+1)+1</span></code>. Support buffers and all native buffers
+are reported separately; the scalar specialization does not automatically
+remove its stored projection and outer weights. Arithmetic counts describe
+sparse MACs and shunting divisions, excluding weight transforms, normalization,
+checks and training overhead; they are not measured FLOPs or latency.</p>
 </section>
 <section id="parameter-budget-model-families">
 <h2>Parameter-budget model families<a class="headerlink" href="#parameter-budget-model-families" title="Link to this heading"></a></h2>

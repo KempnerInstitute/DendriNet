@@ -371,6 +371,9 @@ A structured E/I core without inhibitory cells, with one anchor per level:
    model:
      core:
        type: einet
+       transfer:
+         output_activation: nonnegative
+         input_source_identity: paired_afferents  # Distinct E/I sources, matched tuning.
        architecture:
          excitatory_layer_sizes: [32]
          inhibitory_layer_sizes: []
@@ -805,6 +808,9 @@ A structured core with the ``local_ca`` gate settings:
    model:
      core:
        type: dendritic_shunting
+       transfer:
+         output_activation: nonnegative
+         input_source_identity: paired_afferents  # Distinct E/I sources, matched tuning.
        architecture:
          excitatory_layer_sizes: [32]
          excitatory_branch_factors: [2, 2]
