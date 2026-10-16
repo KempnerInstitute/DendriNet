@@ -30,17 +30,24 @@ same models and runs; a file without ``config_version`` is read as format 4.
 - Biological recipe overrides whose last path element is a list index apply
   instead of failing.
 - Synaptic weight normalization (``weight_norm_order``) normalizes rows whose
-  norm lies below machine epsilon exactly, instead of dividing them by
+  norm lies below machine epsilon to ``gamma``, instead of dividing them by
   machine epsilon, and no longer skips rows whose L2 norm underflows. A
   ``shared_projection_shunting`` projection therefore keeps unit-sum weights
   when its raw weights are small. ``exp`` and ``softplus`` rows are
-  normalized in log space from their raw parameters, so their values and
-  gradients stay finite and exact when the weights are subnormal or underflow
-  (also under ``torch.compile``). Indexed sparse, Top-K and indexed dynamic
-  layers, their dense views and the effective-synapse snapshot share the new
-  ``normalize_weight_rows``; rows whose norm is at least machine epsilon keep
-  their previous values and gradients bit for bit. The snapshot of an indexed
-  dynamic layer now uses the layer's own normalization.
+  normalized in log space from their raw parameters, so their gradients stay
+  finite when the weights are subnormal or underflow: ``exp`` rows depend
+  exactly on differences of the raw parameters, and ``softplus`` rows, whose
+  weights are then below machine epsilon, use the raw parameter as the log
+  weight (relative error below half of machine epsilon). Rows of ``exp`` or
+  ``softplus`` weights that all underflowed were returned as zeros and are now
+  normalized, which can change the outputs of existing checkpoints. Indexed
+  sparse, Top-K and indexed dynamic layers, their dense views and the
+  effective-synapse snapshot share the new ``normalize_weight_rows``; rows
+  whose norm is at least machine epsilon, and every row of an order
+  ``p <= 0``, keep their previous values, gradients and forward-mode
+  derivatives bit for bit. The normalization traces as a single graph under
+  ``torch.compile``. The snapshot of an indexed dynamic layer now uses the
+  layer's own normalization.
 - Make native YAML documentation examples construct under the biological
   default, with explicit input-rate and external-source contracts. Test model
   construction as well as schema loading; the signed soma-feedback example

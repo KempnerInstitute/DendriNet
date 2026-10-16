@@ -1,11 +1,12 @@
 """Synaptic weight normalization for rows below machine epsilon.
 
 Rows whose norm is at least machine epsilon keep the historical expression bit
-for bit, values and gradients alike. Smaller rows (including subnormal weights
-and L2 norms that underflow) normalize exactly, with finite gradients that
-match an independent float64 computation. ``exp`` and ``softplus`` rows depend
-only on differences of their parameters; rows without contacts or nonzero
-weights pass through unchanged.
+for bit: values, reverse-mode gradients and forward-mode tangents, and every
+row for orders ``p <= 0``. Smaller rows (including subnormal weights and L2
+norms that underflow) normalize to the precision of their dtype, with finite
+gradients that match an independent float64 computation. ``exp`` and
+``softplus`` rows depend only on differences of their parameters; rows without
+contacts or nonzero weights pass through unchanged.
 """
 
 import math
@@ -115,8 +116,28 @@ def _bits(tensor):
     )
 
 
+class _Apply(torch.nn.Module):
+    """Runs ``fn(layer)`` so torch.func can substitute the layer's parameters."""
+
+    def __init__(self, layer, fn):
+        super().__init__()
+        self.layer, self.fn = layer, fn
+
+    def forward(self):
+        return self.fn(self.layer)
+
+
+def _forward_tangent(layer, fn, tangent):
+    module = _Apply(layer, fn)
+    return torch.func.jvp(
+        lambda pre_w: torch.func.functional_call(module, {"layer.pre_w": pre_w}, ()),
+        (layer.pre_w.detach(),),
+        (tangent,),
+    )[1]
+
+
 @pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
-@pytest.mark.parametrize("order", [1, 2])
+@pytest.mark.parametrize("order", [-2, -1, 0, 1, 2])
 @pytest.mark.parametrize("transform", ["exp", "softplus", "identity", "relu"])
 @pytest.mark.parametrize("kind", KINDS)
 def test_rows_above_machine_epsilon_keep_historical_values_and_gradients(
@@ -124,14 +145,32 @@ def test_rows_above_machine_epsilon_keep_historical_values_and_gradients(
 ):
     layer = _layer(kind, transform, order, dtype)
     _fill_rows(layer, transform)
+    # Orders p <= 0 are not norms and keep the historical expression throughout.
     keep = torch.ones(layer.out_features, dtype=torch.bool)
-    keep[SMALL_ROW] = False
+    keep[SMALL_ROW] = order <= 0
     log_space = transform in {"exp", "softplus"}
-    keep[ZERO_ROW] = not log_space
+    keep[ZERO_ROW] = order <= 0 or not log_space
+    # Negative orders of subnormal weights had non-finite gradients already.
+    finite = torch.ones(layer.out_features, dtype=torch.bool)
+    finite[SMALL_ROW] = order >= 0
     reference = _materialized(layer)
     for name, actual in _views(layer):
         expected = _historical(reference[name], order, GAMMA)
         assert torch.equal(_bits(actual[keep]), _bits(expected[keep])), name
+        assert torch.isfinite(actual).all(), name
+
+        tangent = torch.randn_like(layer.pre_w)
+        actual_tangent = _forward_tangent(
+            layer, lambda swapped, name=name: dict(_views(swapped))[name], tangent
+        )
+        expected_tangent = _forward_tangent(
+            layer,
+            lambda swapped, name=name: _historical(
+                _materialized(swapped)[name], order, GAMMA
+            ),
+            tangent,
+        )
+        assert torch.equal(_bits(actual_tangent[keep]), _bits(expected_tangent[keep]))
 
         upstream = torch.randn_like(actual)
         upstream[:, ::3] = 0.0
@@ -142,10 +181,23 @@ def test_rows_above_machine_epsilon_keep_historical_values_and_gradients(
         (expected_grad,) = torch.autograd.grad(
             expected, layer.pre_w, upstream, retain_graph=True
         )
-        assert torch.isfinite(actual_grad).all(), name
+        assert torch.isfinite(actual_grad[finite]).all(), name
         assert torch.equal(_bits(actual_grad[keep]), _bits(expected_grad[keep])), name
         if not log_space:
             assert torch.count_nonzero(actual[ZERO_ROW]) == 0, name
+
+
+@pytest.mark.parametrize("order", [-2, -1, float("-inf")])
+def test_negative_orders_keep_finite_historical_weights(order):
+    # Masked contacts make these "norms" zero; the historical expression then
+    # returns the selected weights unchanged.
+    torch.manual_seed(0)
+    layer = TopKLinear(4, 2, 2, weight_transform="exp", weight_norm_order=order)
+    weights = layer.pruned_weight()
+    selected = layer.weight_mask() * layer.weight()
+    assert torch.equal(weights, _historical(selected, order, layer.gamma))
+    assert torch.isfinite(weights).all()
+    assert torch.isfinite(layer(torch.randn(3, 4))).all()
 
 
 def _reference_weights(layer, pre_w):
@@ -320,7 +372,9 @@ def test_rows_of_exact_zeros_return_the_input_and_its_gradient():
 @pytest.mark.parametrize("level", [-1.0, -40.0])
 @pytest.mark.parametrize("order", [1, 2])
 @pytest.mark.parametrize("transform", ["exp", "softplus", "identity"])
-def test_gradcheck_including_double_backward_and_vmap(transform, order, level):
+def test_gradcheck_including_forward_mode_double_backward_and_vmap(
+    transform, order, level
+):
     mask = torch.tensor(
         [[1.0, 0.0, 1.0, 1.0], [1.0, 1.0, 1.0, 0.0]], dtype=torch.float64
     )
@@ -339,19 +393,108 @@ def test_gradcheck_including_double_backward_and_vmap(transform, order, level):
     steps = 0.3 * torch.arange(8, dtype=torch.float64).reshape(2, 4)
     raw = 1.0 + steps if transform == "identity" else level + steps
     raw.requires_grad_()
-    assert torch.autograd.gradcheck(normalize, (raw,), check_batched_grad=True)
+    assert torch.autograd.gradcheck(
+        normalize,
+        (raw,),
+        check_batched_grad=True,
+        check_forward_ad=True,
+        check_batched_forward_grad=True,
+    )
     assert torch.autograd.gradgradcheck(normalize, (raw,))
 
 
+def _small_layer(kind, transform, dtype=torch.float64):
+    """A layer whose second row lies below machine epsilon."""
+    layer = _layer(kind, transform, 2, dtype)
+    with torch.no_grad():
+        offsets = -0.4 * torch.arange(layer.pre_w.shape[-1], dtype=dtype)
+        if transform == "identity":
+            layer.pre_w[SMALL_ROW] = 1e-20 * torch.exp(offsets)
+        else:
+            layer.pre_w[SMALL_ROW] = -60.0 + offsets
+    return layer
+
+
+@pytest.mark.parametrize("small", [False, True])
+@pytest.mark.parametrize("transform", ["exp", "softplus", "identity"])
 @pytest.mark.parametrize("kind", KINDS)
-def test_normalized_layers_trace_as_one_graph(kind):
-    layer = _layer(kind, "softplus", 2, torch.float32)
-    _fill_rows(layer, "softplus")
+def test_forward_mode_transforms_match_reverse_mode(kind, transform, small):
+    layer = (
+        _small_layer(kind, transform)
+        if small
+        else _layer(kind, transform, 2, torch.float64)
+    )
+    x = torch.randn(3, 12, dtype=torch.float64)
+
+    def loss(pre_w):
+        output = torch.func.functional_call(layer, {"pre_w": pre_w}, (x,))
+        return output.square().sum()
+
+    pre_w = layer.pre_w.detach()
+    direction = torch.randn_like(pre_w)
+    gradient = torch.func.grad(loss)(pre_w)
+    _, directional = torch.func.jvp(loss, (pre_w,), (direction,))
+    torch.testing.assert_close(directional, (gradient * direction).sum())
+    torch.testing.assert_close(torch.func.jacfwd(loss)(pre_w), gradient)
+    # Reverse-over-reverse is no reference: PyTorch's second reverse derivative
+    # of a masked torch.norm row is NaN at its zeros, before and after this change.
+    torch.testing.assert_close(
+        torch.func.hessian(loss)(pre_w),
+        torch.func.jacfwd(torch.func.jacfwd(loss))(pre_w),
+    )
+
+
+def test_dual_numbers_match_the_double_backward_jvp():
+    pre_w = torch.tensor([[-60.0, -61.0, -62.5], [0.5, -0.2, 0.1]], dtype=torch.float64)
+    tangent = torch.tensor([[0.3, -1.0, 2.0], [1.0, 0.5, -0.7]], dtype=torch.float64)
+
+    def normalize(raw):
+        return normalize_weight_rows(
+            torch.exp(raw), 2, GAMMA, pre_weight=raw, transform="exp"
+        )
+
+    with torch.autograd.forward_ad.dual_level():
+        dual = normalize(torch.autograd.forward_ad.make_dual(pre_w, tangent))
+        actual = torch.autograd.forward_ad.unpack_dual(dual).tangent
+    expected = torch.autograd.functional.jvp(normalize, pre_w, tangent)[1]
+    torch.testing.assert_close(actual, expected)
+
+
+@pytest.mark.parametrize(
+    "dtype", [torch.float16, torch.bfloat16, torch.float32, torch.float64]
+)
+@pytest.mark.parametrize("transform", ["exp", "softplus"])
+def test_rows_just_below_machine_epsilon_are_accurate_to_the_dtype(transform, dtype):
+    # The largest weight is eps / 2, where softplus departs most from exp.
+    eps = torch.finfo(dtype).eps
+    shares = eps * torch.tensor([0.5, 0.25, 0.125, 0.0625], dtype=torch.float64)
+    raw = shares.log() if transform == "exp" else torch.log(torch.expm1(shares))
+    layer = _layer("indexed", transform, 1, dtype)
+    with torch.no_grad():
+        layer.pre_w.copy_(raw.to(dtype).expand_as(layer.pre_w))
+    assert (layer.sparse_weight().double().sum(-1) < eps).all()
+    weights = layer._normalized_sparse_weight().double()
+    pre_w = layer.pre_w.detach().double()
+    exact = torch.exp(pre_w) if transform == "exp" else F.softplus(pre_w)
+    exact = GAMMA * exact / exact.sum(-1, keepdim=True)
+    torch.testing.assert_close(weights, exact, rtol=2 * eps, atol=0)
+
+
+@pytest.mark.parametrize("transform", ["softplus", "identity"])
+@pytest.mark.parametrize("kind", KINDS)
+def test_compiled_layers_match_eager_forward_and_backward(kind, transform):
+    layer = _layer(kind, transform, 2, torch.float32)
+    _fill_rows(layer, transform)
     x = torch.randn(3, 12)
     expected = layer(x)  # the first forward resolves (and logs) the backend
+    (expected_grad,) = torch.autograd.grad(expected.square().sum(), layer.pre_w)
     torch._dynamo.reset()
-    compiled = torch.compile(layer, backend="eager", fullgraph=True)
-    assert torch.equal(compiled(x), expected)
+    # aot_eager traces forward and backward as single graphs without a compiler.
+    compiled = torch.compile(layer, backend="aot_eager", fullgraph=True)
+    actual = compiled(x)
+    (actual_grad,) = torch.autograd.grad(actual.square().sum(), layer.pre_w)
+    assert torch.equal(actual, expected)
+    assert torch.equal(actual_grad, expected_grad)
 
 
 @pytest.mark.requires_gpu
@@ -369,3 +512,21 @@ def test_small_rows_on_cuda_match_the_cpu_reference(kind):
     torch.testing.assert_close(actual.cpu(), expected, rtol=2e-6, atol=0)
     (gradient,) = torch.autograd.grad(actual.square().sum(), layer.pre_w)
     assert torch.isfinite(gradient).all()
+
+
+@pytest.mark.requires_gpu
+@pytest.mark.parametrize("kind", KINDS)
+def test_inductor_on_cuda_matches_eager_for_small_rows(kind):
+    if not torch.cuda.is_available():
+        pytest.skip("CUDA is not available")
+    layer = _layer(kind, "softplus", 2, torch.float32).cuda()
+    _fill_rows(layer, "softplus")  # a subnormal row and an underflowed row
+    x = torch.randn(16, 12, device="cuda")
+    expected = layer(x)
+    (expected_grad,) = torch.autograd.grad(expected.square().sum(), layer.pre_w)
+    torch._dynamo.reset()
+    compiled = torch.compile(layer, fullgraph=True)
+    actual = compiled(x)
+    (actual_grad,) = torch.autograd.grad(actual.square().sum(), layer.pre_w)
+    torch.testing.assert_close(actual, expected, rtol=1e-5, atol=1e-6)
+    torch.testing.assert_close(actual_grad, expected_grad, rtol=1e-5, atol=1e-5)
