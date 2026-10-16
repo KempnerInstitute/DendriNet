@@ -12,14 +12,16 @@ Smaller rows are normalized after division by their largest weight. Rows of
 parameters, so they keep finite gradients when the weights are subnormal or
 underflow. For ``exp`` the result depends exactly on differences of those
 parameters. For ``softplus`` the parameter stands in for the log weight: every
-weight of a small row lies below machine epsilon, where ``softplus(x) =
-exp(x) (1 - exp(x) / 2 + ...)`` differs from ``exp(x)`` by a relative error
-below half of machine epsilon, so the result agrees with exact normalization
-to within machine epsilon (relative). The exact gradients of other small rows
-grow as ``gamma`` over the row norm and overflow to infinity only when that
-norm is subnormal. Rows without contacts (``exp`` and ``softplus``) or without
-nonzero weights (other transforms) are returned unchanged, and orders ``p <=
-0``, which are not norms, keep the historical expression for every row.
+weight of a small row lies below machine epsilon, where
+``softplus(x) = exp(x) (1 - exp(x) / 2 + ...)`` differs from ``exp(x)`` by a
+relative error below half of machine epsilon. Both transforms are then subject
+to the usual rounding of the normalization arithmetic, which grows with the
+number of contacts as for rows above machine epsilon. The exact gradients of
+other small rows grow as ``gamma`` over the row norm and overflow to infinity
+only when that norm is subnormal. Rows without contacts (``exp`` and
+``softplus``) or without nonzero weights (other transforms) are returned
+unchanged, and orders ``p <= 0``, which are not norms, keep the historical
+expression for every row.
 """
 
 from __future__ import annotations

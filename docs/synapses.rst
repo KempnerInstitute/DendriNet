@@ -122,10 +122,11 @@ column per input. On every forward pass it computes the weights
    ``exp`` and ``softplus`` rows are normalized in log space from their raw
    parameters, so they keep finite gradients when the weights become subnormal
    or underflow; ``exp`` rows depend exactly on parameter differences, and
-   ``softplus`` rows agree with exact normalization to within machine
-   epsilon (relative). Rows without selected weights stay zero. Orders
-   ``p <= 0``, which are not norms, divide every row by the larger of its
-   "norm" and machine epsilon, as before.
+   ``softplus`` rows use the raw parameter as the log weight, which changes
+   each weight by less than half of machine epsilon (relative) before the
+   usual floating-point rounding. Rows without selected weights stay zero.
+   Orders ``p <= 0``, which are not norms, divide every row by the larger of
+   its "norm" and machine epsilon, as before.
 
 ``gamma`` (default ``1.0``)
    Multiplies the normalized rows of the inhibitory banks (excitatory banks

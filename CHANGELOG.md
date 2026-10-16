@@ -38,7 +38,8 @@ same models and runs; a file without ``config_version`` is read as format 4.
   finite when the weights are subnormal or underflow: ``exp`` rows depend
   exactly on differences of the raw parameters, and ``softplus`` rows, whose
   weights are then below machine epsilon, use the raw parameter as the log
-  weight (relative error below half of machine epsilon). Rows of ``exp`` or
+  weight (an approximation below half of machine epsilon per weight, before
+  floating-point rounding). Rows of ``exp`` or
   ``softplus`` weights that all underflowed were returned as zeros and are now
   normalized, which can change the outputs of existing checkpoints. Indexed
   sparse, Top-K and indexed dynamic layers, their dense views and the
