@@ -122,7 +122,7 @@ def _block_config(
     structured_seed: int,
     keyed_initialization: bool,
 ) -> dict[str, Any]:
-    config = reference_core_config(reference)
+    config = reference_core_config(copy.deepcopy(reference))
     architecture = config.setdefault("architecture", {})
     architecture["excitatory_layer_sizes"] = [int(excitatory_size)]
     architecture["inhibitory_layer_sizes"] = [int(inhibitory_size)]

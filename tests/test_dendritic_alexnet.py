@@ -208,3 +208,15 @@ def test_block_topology_follows_the_topology_seed_and_unknown_vision_keys_raise(
     config["vision"]["chanels"] = [4, 4, 4, 4, 4]
     with pytest.raises(UnknownConfigKeyError, match="channels"):
         get_architecture("dendritic_alexnet", config)
+
+
+def test_building_leaves_a_dictionary_recipe_unchanged():
+    import copy
+
+    recipe = _tiny_config()
+    before = copy.deepcopy(recipe)
+    first = get_architecture("dendritic_alexnet", recipe, input_dim=3)
+    assert recipe == before
+    second = get_architecture("dendritic_alexnet", recipe, input_dim=3)
+    for (name, value), (_, other) in zip(first.named_buffers(), second.named_buffers()):
+        assert torch.equal(value, other), name
