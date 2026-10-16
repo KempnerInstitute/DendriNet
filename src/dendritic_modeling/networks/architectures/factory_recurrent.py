@@ -100,7 +100,11 @@ def _build_population_network_architecture(
         )
 
     raw_params = _to_plain_mapping(parameters)
-    mp_cfg = raw_params.get("population_network") or raw_params
+    # A flat payload is the network configuration itself; its core-level
+    # biological_neuron declaration is read by the architecture factory.
+    mp_cfg = raw_params.get("population_network") or {
+        key: value for key, value in raw_params.items() if key != "biological_neuron"
+    }
     if not isinstance(mp_cfg, dict):
         mp_cfg = {}
     mp_cfg = dict(mp_cfg)

@@ -302,7 +302,7 @@ def _build_unified_ei_architecture(
         unified_cfg = {
             key: value
             for key, value in raw_params.items()
-            if key not in {"type", "initialization_seed"}
+            if key not in {"type", "initialization_seed", "biological_neuron"}
         }
 
     if not isinstance(unified_cfg, dict):

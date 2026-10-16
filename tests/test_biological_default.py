@@ -423,3 +423,23 @@ def test_direct_composite_constructors_keep_their_nonbiological_default(family):
     assert a.keys() == b.keys() and all(torch.equal(a[k], b[k]) for k in a)
     with torch.no_grad():
         assert torch.equal(models[0](x), models[1](x))
+
+
+@pytest.mark.parametrize("family", ["population", "unified"])
+def test_flat_payloads_accept_the_biological_opt_out(family):
+    if family == "population":
+        core_type, input_dim = "population_network", 8
+        flat = _population(input_transform="identity")["population_network"]
+    else:
+        from test_unified_biological_input import recipe
+
+        core_type, input_dim = "ei_unified", 3
+        flat = recipe(False)["model"]["core"]["unified_ei"]
+    with pytest.raises(ValueError, match="biological constraint set"):
+        get_architecture(core_type, copy.deepcopy(flat), input_dim=input_dim)
+    model = get_architecture(
+        core_type,
+        {**copy.deepcopy(flat), "biological_neuron": False},
+        input_dim=input_dim,
+    )
+    assert biological_violations(model)
