@@ -29,7 +29,10 @@ from dendritic_modeling.config.base import BaseConfig
 from dendritic_modeling.config.biological import resolve_biological_neuron
 from dendritic_modeling.config.composition import apply_overrides, load_composed_yaml
 from dendritic_modeling.config.conversion import to_plain_dict as _to_plain_dict
-from dendritic_modeling.config.core_sections import reject_unread_core_sections
+from dendritic_modeling.config.core_sections import (
+    is_saved_core_record,
+    reject_unread_core_sections,
+)
 from dendritic_modeling.config.extensions import (
     apply_config_migrations,
     build_extension_section,
@@ -570,7 +573,7 @@ def _build_core_config(core_data: Any) -> CoreConfig:
     # (and recorded wrongly in config.json), so it raises; saved records from
     # versions that stored the dataclass default instead keep loading and get
     # the build-time alias warning.
-    saved_record = _field_names(CoreConfig) <= set(core_dict)
+    saved_record = is_saved_core_record(core_dict)
     if lower_core_type == "dendritic_alexnet" and not saved_record:
         written_sizes = [
             key

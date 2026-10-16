@@ -231,6 +231,23 @@ def _comparable(name: str, value: Any) -> Any:
     return value
 
 
+#: ``CoreConfig`` fields added after a release had written saved records, with
+#: the first release that has them. A record from an earlier release lacks them.
+CORE_FIELDS_ADDED = {"shared_projection_shunting": "0.3.0"}
+
+
+def is_saved_core_record(keys: Iterable[str]) -> bool:
+    """Whether a ``model.core`` mapping is a saved record (``config.json``).
+
+    A run records every ``CoreConfig`` field of the release that wrote it, so a
+    saved record lists every current field except those added since.
+    """
+    from dendritic_modeling.config.model import CoreConfig
+
+    current = {item.name for item in dataclasses.fields(CoreConfig)}
+    return current - set(CORE_FIELDS_ADDED) <= set(keys)
+
+
 def reject_unread_core_sections(core: Any, explicit: Iterable[str]) -> None:
     """Raise when explicit ``model.core`` sections would be ignored by the builder.
 
@@ -249,7 +266,7 @@ def reject_unread_core_sections(core: Any, explicit: Iterable[str]) -> None:
     message = f"model.core.type={core.type!r} does not read {paths}" + (
         f"; {hint}" if hint else ""
     )
-    if {item.name for item in dataclasses.fields(core)} <= explicit:
+    if is_saved_core_record(explicit):
         logger.warning("Ignoring sections of a saved config: %s.", message)
         return
     raise ValueError(message + ". Remove them.")
@@ -258,6 +275,7 @@ def reject_unread_core_sections(core: Any, explicit: Iterable[str]) -> None:
 __all__ = [
     "BUILTIN_CORE_TYPES",
     "COMMON_CORE_FIELDS",
+    "CORE_FIELDS_ADDED",
     "EINET_FOREIGN_PAYLOADS",
     "OTHER_BUILTIN_CORE_TYPES",
     "SPATIAL_DENDRITIC_CONV_TYPES",
@@ -265,6 +283,7 @@ __all__ = [
     "SPATIAL_OPTIONS_READ",
     "SPATIAL_PATCH_POINT_TYPES",
     "core_family",
+    "is_saved_core_record",
     "reject_unread_core_sections",
     "unread_core_sections",
 ]
