@@ -13,6 +13,22 @@ same models and runs; a file without ``config_version`` is read as format 4.
   docstrings that pointed to it are removed, and CI commits its coverage-badge
   pull requests as the GitHub Actions bot. The package author remains the
   Kempner Institute.
+- A saved core record written before a ``CoreConfig`` field existed (such as
+  ``shared_projection_shunting``, new in 0.3.0) is still recognized as a
+  record, so an upgraded 0.2.0 ``dendritic_alexnet`` record no longer fails as
+  a hand-written recipe for its serialized layer sizes.
+- Biological validation accepts a unified E/I network's input adapter
+  (``nonnegative``, ``relu`` or ``signed_split``) also when a transfer layer
+  follows it; the transfer layer only divides and splits the adapted input.
+- A section-wrapped ``shared_projection_shunting`` mapping without ``type``
+  builds instead of being validated as an ``einet`` core.
+- Flat population-network and unified E/I payloads accept the core-level
+  ``biological_neuron: false`` opt-out instead of rejecting it as an unknown
+  network option.
+- Building a ``dendritic_alexnet`` from a dictionary recipe no longer changes
+  that recipe, whose nested sizes and topology seeds later builds reuse.
+- Biological recipe overrides whose last path element is a list index apply
+  instead of failing.
 - Make native YAML documentation examples construct under the biological
   default, with explicit input-rate and external-source contracts. Test model
   construction as well as schema loading; the signed soma-feedback example
