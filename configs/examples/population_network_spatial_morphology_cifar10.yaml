@@ -9,7 +9,7 @@
 #   dendritic-train configs/examples/population_network_spatial_morphology_cifar10.yaml
 # ============================================================================
 
-config_version: 3
+config_version: 4
 
 experiment:
   seed: 42
@@ -30,6 +30,7 @@ model:
     params:
       input_dim: 3072
   core:
+    biological_neuron: false  # Preserve this example's historical model contract.
     type: "population_network"
     population_network:
       use_transfer: true

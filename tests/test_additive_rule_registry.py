@@ -92,6 +92,7 @@ def _family_config(family, options):
     }
     if family == "population_network":
         return {
+            "biological_neuron": False,
             "population_network": {
                 "input_transform": "identity",
                 "layers": [
@@ -122,7 +123,7 @@ def _family_config(family, options):
                         "connections": [{"source": "input", "target": "e"}],
                     }
                 ],
-            }
+            },
         }
     config = {
         "type": "einet",
@@ -232,11 +233,12 @@ def test_the_configuration_carries_a_registered_rule_to_the_model():
         {
             "model": {
                 "core": {
+                    "biological_neuron": False,
                     "morphology": {
                         "use_shunting": False,
                         "additive_mode": RULE,
                         "additive_options": {"scale": 2.0},
-                    }
+                    },
                 }
             }
         }

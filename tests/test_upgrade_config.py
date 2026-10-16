@@ -22,7 +22,13 @@ _VERSION_NOTE = (
 def _rules(changes: list[str]) -> list[str]:
     """The changes the upgrade rules made; every upgrade ends by writing the version."""
     assert changes[-1] == _VERSION_NOTE
-    return changes[:-1]
+    # This file isolates older migration rules; format-4 declarations and
+    # idempotence are tested independently in test_biological_default.py.
+    return [
+        change
+        for change in changes[:-1]
+        if not change.startswith("model.core.biological_neuron:")
+    ]
 
 
 _POPULATION = {
@@ -85,6 +91,7 @@ def test_an_upgraded_config_loads_as_the_same_run_without_warnings(caplog):
     original = _old_config()
     original.pop("paper_contract")
     original.pop("wandb")
+    original["model"]["core"]["biological_neuron"] = False
     old = config_from_mapping(original)
     assert new.training.main.common.synapse_decay_rate == 0.02
     assert dataclasses.asdict(new.training) == dataclasses.asdict(old.training)
@@ -262,6 +269,7 @@ def test_routing_the_current_rule_cannot_express_is_reported():
 
 def test_zero_inhibitory_layer_sizes_load_and_build():
     core = _structured([2, 0])
+    core["biological_neuron"] = False
     core["connectivity"]["ei_synapses_per_branch_per_layer"] = [2, 0]
     core["connectivity"]["ie_synapses_per_branch_per_layer"] = [1, 0]
     model, _encoder = initialize_model(config_from_mapping(_experiment(core)).model)

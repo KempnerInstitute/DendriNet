@@ -158,6 +158,11 @@ def test_omitted_readout_preserves_exact_legacy_state_and_report(
     # state remain byte-for-byte unchanged by the observed inventory.
     inventory = report.pop("dendrinet_inventory", None)
     assert (inventory is not None) == family.startswith("dendritic_")
+    # Format 4 records the previously implicit exploration contract. Check
+    # that declaration separately; keep all numerical/report goldens intact.
+    for layer in report["layer_receipts"]:
+        if "production_config" in layer:
+            assert layer["production_config"].pop("biological_neuron") is False
     assert (
         hashlib.sha256(json.dumps(report, sort_keys=True).encode()).hexdigest()
         == report_sha

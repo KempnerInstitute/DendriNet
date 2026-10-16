@@ -30,6 +30,7 @@ def _config(family, rule, gate):
         integration.update(additive_tangent_n0=0.4, additive_tangent_t0=1.2)
     if family == "population_network":
         return {
+            "biological_neuron": False,
             "population_network": {
                 "input_transform": "identity",
                 "layers": [
@@ -62,7 +63,7 @@ def _config(family, rule, gate):
                         "connections": [{"source": "input", "target": "e"}],
                     }
                 ],
-            }
+            },
         }
     return {
         "type": "einet",

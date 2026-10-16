@@ -113,6 +113,8 @@ The same options in a structured E/I core:
        params: {input_dim: 784}
      core:
        type: dendritic_shunting
+       transfer:
+         output_activation: nonnegative
        architecture:
          excitatory_layer_sizes: [64]
          inhibitory_layer_sizes: [16]

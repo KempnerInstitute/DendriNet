@@ -28,6 +28,7 @@ from dendritic_modeling.networks.architectures.factory import get_architecture
 
 def _direct_inhibitory_model() -> Classifier:
     config = {
+        "biological_neuron": False,
         "architecture": {
             "excitatory_layer_sizes": [4],
             "inhibitory_layer_sizes": [],
@@ -72,6 +73,7 @@ def _direct_inhibitory_model() -> Classifier:
 
 def _direct_inhibitory_population_model() -> Classifier:
     config = {
+        "biological_neuron": False,
         "population_network": {
             "use_transfer": True,
             "transfer_params": {
@@ -109,7 +111,7 @@ def _direct_inhibitory_population_model() -> Classifier:
                     ],
                 }
             ],
-        }
+        },
     }
     core = get_architecture("population_network", config, input_dim=6)
     return Classifier(Identity(6), core, Identity(4))

@@ -26,6 +26,7 @@ import torch
 import torch.nn as nn
 from omegaconf import DictConfig
 
+from dendritic_modeling.config.biological import reference_core_config
 from dendritic_modeling.networks.architectures.excitation_inhibition.ei_network import (
     ConfigurableEINetwork,
 )
@@ -66,7 +67,7 @@ class HierarchicalDendriticTensorMap(BaseNetwork):
         self.flatten = nn.Flatten(start_dim=1)
 
         self.einet = ConfigurableEINetwork(
-            config=config,
+            config=reference_core_config(config),
             input_dim=input_dim,
             synapse_mode=synapse_mode,
             use_shunting=use_shunting,

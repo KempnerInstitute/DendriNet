@@ -93,7 +93,7 @@ def _model(*, cross_layer_i_consumer: bool = False) -> Classifier:
         )
     core = get_architecture(
         "population_network",
-        {"population_network": {"layers": layers}},
+        {"biological_neuron": False, "population_network": {"layers": layers}},
         input_dim=6,
     )
     return Classifier(Identity(input_dim=6), core, Identity(input_dim=4))

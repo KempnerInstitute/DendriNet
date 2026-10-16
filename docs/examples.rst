@@ -24,7 +24,7 @@ Each example names its own ``outputs.results_dir`` and ``outputs.run_name``
 first use, and the sequence examples generate their data (see
 :doc:`datasets`).
 
-Complete experiment files use ``config_version: 3``. Their settings define
+Complete experiment files use ``config_version: 4``. Their settings define
 specific examples, rather than the library defaults. Analysis profiles,
 deployment policies and operator presets are reusable sections with their own
 readers; they cannot be passed directly to ``dendritic-train``. A sweep embeds

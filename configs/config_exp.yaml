@@ -21,7 +21,7 @@
 #
 # Multi-GPU FSDP training: config_exp_fsdp.yaml. Parameter sweeps: sweep_config.yaml.
 
-config_version: 3                       # int: configuration format; dendritic-upgrade-config rewrites earlier ones
+config_version: 4                       # int: configuration format; dendritic-upgrade-config rewrites earlier ones
 
 # ============================================================================
 # EXPERIMENT SETUP
@@ -176,6 +176,7 @@ model:
 
   # ---------- Core network ----------
   core:
+    biological_neuron: true   # Enforce the neuronal-core constraint set.
     # Named-population model. configs/examples/ holds focused variants
     # (spiking, receptor kinetics, recurrent timing, additive normalization,
     # sparse rewiring, local learning); docs/population_networks.rst documents
@@ -185,9 +186,10 @@ model:
     # ---- model.core.population_network ----
     # Keys inside this block are checked when the model is built, not when the
     # config loads; dendritic-train --validate-only checks them without
-    # training. Network options not shown: input_transform ("identity" |
-    # "relu" | "signed_split"), readout_layer, readout_population, compile_step.
+    # training. Network options not shown: readout_layer, readout_population,
+    # compile_step. input_transform also accepts identity, relu and signed_split.
     population_network:
+      input_transform: nonnegative     # Check nonnegative data without changing values or gradients.
       use_transfer: false               # bool: Split the input into excitatory and inhibitory streams with a TransferLayer
       # transfer_params: TransferLayer options (independent_pathways, excitatory_dim,
       #   inhibitory_dim, split_strategy, output_activation, ...); allowed only with

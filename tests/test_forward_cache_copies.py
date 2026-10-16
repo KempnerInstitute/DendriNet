@@ -42,6 +42,7 @@ def _einet():
 
 def _recurrent_ei():
     config = {
+        "biological_neuron": False,
         "architecture": {
             "excitatory_layer_sizes": [4],
             "inhibitory_layer_sizes": [],

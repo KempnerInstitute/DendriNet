@@ -3,7 +3,7 @@
 This fixed-fan-in ELL, feature-major family (shunting and gated-GLU
 operators) is separate from the indexed-gather kernels in
 ``networks/architectures/excitation_inhibition/synapse/kernels``: it defines
-its own layout and fused-operator boundary. Credits are in ``AUTHORS.md``.
+its own layout and fused-operator boundary.
 
 Computes, without materializing any gathered intermediate:
 

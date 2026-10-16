@@ -30,6 +30,7 @@ def _einet(compile_forward: bool):
         {
             "model": {
                 "core": {
+                    "biological_neuron": False,
                     "type": "einet",
                     "architecture": {
                         "excitatory_layer_sizes": [4],

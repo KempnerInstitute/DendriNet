@@ -13,13 +13,15 @@ are all taken into account. A core satisfies the set when:
    excitatory and inhibitory inputs, and every source acts with one sign. An
    inhibitory pathway reads the network input only when the transfer layer
    splits it into separate excitatory and inhibitory channels
-   (``independent_pathways: true``); a duplicated input would make every input
-   channel both excite and inhibit. Each population-network connection uses the
+   (``independent_pathways: true``), or explicitly declares
+   ``input_source_identity: paired_afferents``: distinct external E/I sources
+   with identical tuning. Undeclared duplicated source identities cannot have
+   both polarities. Each population-network connection uses the
    pathway of its source's polarity.
-3. The input is nonnegative. The core rectifies its input before the first
+3. The input is nonnegative. The core checks or rectifies input before the first
    synapses: ``transfer.output_activation`` is ``relu``, ``softplus`` or
-   ``sigmoid``, or a population network's ``input_transform`` is ``relu`` or
-   ``signed_split``.
+   ``sigmoid`` or ``nonnegative`` (checked identity), or a population network's
+   ``input_transform`` is ``relu``, ``signed_split`` or ``nonnegative``.
 4. Every population emits nonnegative activity: spikes, a spike rate, or the
    output of its soma gate. A gate that is nonnegative for every voltage
    (``relu``, ``softplus``, ``sigmoid``, ``param_relu``, ``param_tanh``,
@@ -71,6 +73,7 @@ from dendritic_modeling.networks.architectures.recurrent.population_network impo
 from dendritic_modeling.networks.architectures.recurrent.stateful_dendrinet import (
     StatefulDendriNet,
 )
+from dendritic_modeling.networks.utils.input_domain import NonnegativeInputCheck
 from dendritic_modeling.networks.utils.weight_transforms import (
     NONNEGATIVE_WEIGHT_TRANSFORMS,
 )
@@ -92,7 +95,7 @@ _NONNEGATIVE_ON_NONNEGATIVE_VOLTAGE = (
     ParametricLinearSigmoid,
     ParametricLinearTanh,
 )
-_RECTIFYING_ACTIVATIONS = (nn.ReLU, nn.Softplus, nn.Sigmoid)
+_RECTIFYING_ACTIVATIONS = (nn.ReLU, nn.Softplus, nn.Sigmoid, NonnegativeInputCheck)
 _UNCONSTRAINED_WEIGHT_LAYERS = (
     nn.Linear,
     nn.Bilinear,
@@ -111,6 +114,9 @@ _POPULATION_MODULES = (DendriNet, StatefulDendriNet)
 
 def biological_violations(core: nn.Module) -> list[str]:
     """Return a description of every biological constraint ``core`` breaks."""
+    # The declaration concerns the neuronal core, not a task decoder or encoder.
+    # Analysis callers may pass the complete classification/regression wrapper.
+    core = getattr(core, "core_network", core)
     return [
         *_weight_violations(core),
         *_wiring_violations(core),
@@ -191,6 +197,8 @@ def _has_inhibitory_pathway(cells: nn.Module | None) -> bool:
 
 def _duplicates_input(transfer: nn.Module | None) -> bool:
     """Whether the inhibitory input stream repeats the excitatory channels."""
+    if getattr(transfer, "input_source_identity", "shared") == "paired_afferents":
+        return False
     return transfer is None or isinstance(
         getattr(transfer, "pathway_split", None), IdentityInputTransform
     )
@@ -202,7 +210,8 @@ def _duplicated_stream_message(readers: Iterable[str]) -> str:
         "repeats the excitatory input channels (transfer independent_pathways: "
         "false), so every input channel both excites and inhibits; set "
         "independent_pathways: true to split the input into excitatory and "
-        "inhibitory channels"
+        "inhibitory channels, or explicitly declare input_source_identity: "
+        "paired_afferents for distinct external E/I sources with shared tuning"
     )
 
 
@@ -253,7 +262,8 @@ def _population_wiring_violations(core: PopulationNetwork) -> list[str]:
             "the first layer reads input_i together with input or input_e, which "
             "carry the same channels because the input is not split, so every "
             "input channel both excites and inhibits; set use_transfer: true with "
-            "transfer_params.independent_pathways: true"
+            "transfer_params.independent_pathways: true, or explicitly declare "
+            "transfer_params.input_source_identity: paired_afferents"
         )
     for layer in core.layers:
         for connection in layer.connections:
@@ -280,8 +290,17 @@ def _rectifies(transfer: nn.Module | None) -> bool:
     )
 
 
+def _projection_rectifies(core: nn.Module) -> bool:
+    projection = getattr(core, "input_projection", None)
+    return (
+        isinstance(projection, nn.Sequential)
+        and len(projection) > 0
+        and isinstance(projection[-1], _RECTIFYING_ACTIVATIONS)
+    )
+
+
 def _input_violations(core: nn.Module) -> list[str]:
-    unrectified = "rectify it with transfer output_activation relu, softplus or sigmoid"
+    unrectified = "use transfer output_activation nonnegative (checked identity), relu, softplus or sigmoid"
     if isinstance(core, ExcitationInhibitionNetwork):
         if _rectifies(core.transfer_fn):
             return []
@@ -291,7 +310,17 @@ def _input_violations(core: nn.Module) -> list[str]:
             f"output_activation {activation!r}); {unrectified}"
         ]
     if isinstance(core, EINetwork):
+        # The input adapter acts before the transfer layer, whose sign-preserving
+        # normalization and stream split keep a nonnegative input nonnegative.
+        if getattr(core, "input_transform", "identity") in {
+            "nonnegative",
+            "relu",
+            "signed_split",
+        }:
+            return []
         if core.transfer_fn is None:
+            if _projection_rectifies(core):
+                return []
             return [
                 "the core has no transfer layer, so nothing rectifies its input; "
                 f"enable the transfer layer and {unrectified}"
@@ -304,14 +333,25 @@ def _input_violations(core: nn.Module) -> list[str]:
             f"{unrectified}"
         ]
     if isinstance(core, PopulationNetwork):
-        if core.input_transform in {"relu", "signed_split"} or _rectifies(
-            core.transfer_fn
-        ):
+        if core.input_transform in {
+            "nonnegative",
+            "relu",
+            "signed_split",
+        } or _rectifies(core.transfer_fn):
+            return []
+        # The projection rectifies input/input_e, but a transfer layer's
+        # input_i bypasses it. Only accept this guarantee if that bypass is
+        # unused. Signed projection weights remain a separate violation.
+        reads_unprojected_i = core.transfer_fn is not None and any(
+            connection.enabled and connection.source == _INPUT_I_SOURCE
+            for connection in core.layers[0].connections
+        )
+        if _projection_rectifies(core) and not reads_unprojected_i:
             return []
         return [
             "the input reaches the synapses unrectified (population_network "
             f"input_transform {core.input_transform!r}); set input_transform "
-            "relu or signed_split, or a rectifying transfer_params "
+            "nonnegative, relu or signed_split, or a rectifying transfer_params "
             "output_activation"
         ]
     return []

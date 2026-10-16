@@ -23,6 +23,7 @@ from dendritic_modeling.networks.architectures.factory import get_architecture
 def _small_additive_net(input_dim: int = 16):
     """A tiny normalized-additive EINet with a data-driven reactivation gate."""
     params = {
+        "biological_neuron": False,
         "architecture": {
             "excitatory_layer_sizes": [8],
             "inhibitory_layer_sizes": [0],
@@ -86,6 +87,7 @@ def test_calibration_fires_for_every_model_in_one_process():
 
 def _two_layer_params():
     return {
+        "biological_neuron": False,
         "architecture": {
             "excitatory_layer_sizes": [16, 8],
             "inhibitory_layer_sizes": [4, 4],

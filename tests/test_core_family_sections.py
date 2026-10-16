@@ -13,6 +13,7 @@ from dendritic_modeling.config.core_sections import unread_core_sections
 from dendritic_modeling.config.model import CoreConfig
 
 POPULATION = {
+    "biological_neuron": False,
     "type": "population_network",
     "population_network": {
         "layers": [
@@ -115,6 +116,7 @@ def test_saved_record_with_unread_sections_warns(tmp_path, caplog):
 
 def test_alias_type_rejects_a_conflicting_written_morphology(tmp_path):
     core = {
+        "biological_neuron": False,
         "type": "dendritic_additive",
         "architecture": {"excitatory_layer_sizes": [3], "inhibitory_layer_sizes": []},
         "connectivity": {
@@ -130,6 +132,7 @@ def test_alias_type_rejects_a_conflicting_written_morphology(tmp_path):
 
 
 _EINET_SECTIONS = {
+    "biological_neuron": False,
     "architecture": {"excitatory_layer_sizes": [3], "inhibitory_layer_sizes": []},
     "connectivity": {
         "ee_synapses_per_branch_per_layer": [2],
@@ -228,3 +231,44 @@ def test_the_factory_builds_exactly_the_builtin_core_types():
     from dendritic_modeling.networks.architectures import factory
 
     assert set(factory._BUILTIN_ARCHITECTURE_BUILDERS) == set(BUILTIN_CORE_TYPES)
+
+
+def _alexnet_recipe():
+    from test_dendritic_alexnet import _tiny_config
+
+    recipe = {"type": "dendritic_alexnet", **_tiny_config()}
+    for key in ("excitatory_layer_sizes", "inhibitory_layer_sizes"):
+        recipe["architecture"].pop(key)
+    return recipe
+
+
+def test_saved_record_written_before_a_core_field_existed_reloads(tmp_path):
+    from dendritic_modeling.config.core_sections import CORE_FIELDS_ADDED
+    from dendritic_modeling.scripts.tools.upgrade_config import upgrade_experiment
+
+    saved = dataclasses.asdict(_load(tmp_path, _alexnet_recipe()).model.core)
+    for name in CORE_FIELDS_ADDED:
+        del saved[name]
+    # A hand-written recipe may not write the sizes its type sets; a saved
+    # record from an earlier release records them and must still reload.
+    handwritten = {**_alexnet_recipe(), "architecture": saved["architecture"]}
+    with pytest.raises(ValueError, match="sets each block's population sizes"):
+        _load(tmp_path, handwritten)
+    assert (
+        dataclasses.asdict(_load(tmp_path, saved).model.core)["architecture"]
+        == saved["architecture"]
+    )
+    record = {
+        "config_version": 3,
+        "data": {"dataset_name": "mnist"},
+        "model": {
+            "encoder": {"type": "identity", "params": {"input_dim": 4}},
+            "core": saved,
+        },
+    }
+    upgraded, _, unresolved = upgrade_experiment(record)
+    assert not unresolved and upgraded["config_version"] == 4
+    path = tmp_path / "upgraded.yaml"
+    path.write_text(yaml.safe_dump(upgraded))
+    core = load_config(str(path)).model.core
+    assert dataclasses.asdict(core)["architecture"] == saved["architecture"]

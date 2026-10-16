@@ -35,6 +35,7 @@ _STRUCTURED = {
         "task": "classification",
         "encoder": {"type": "identity", "params": {"input_dim": _INPUTS}},
         "core": {
+            "biological_neuron": False,
             "type": "dendritic_shunting",
             "architecture": {
                 "excitatory_layer_sizes": [_COMPARTMENTS],
@@ -57,6 +58,7 @@ _POPULATION = {
         "task": "classification",
         "encoder": {"type": "identity", "params": {"input_dim": _INPUTS}},
         "core": {
+            "biological_neuron": False,
             "type": "population_network",
             "population_network": {
                 "layers": [

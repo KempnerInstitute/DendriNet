@@ -16,10 +16,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from dendritic_modeling.config.biological import BIOLOGICAL_CORE_TYPES
+from dendritic_modeling.config.biological import (
+    BIOLOGICAL_CORE_TYPES,
+    resolve_biological_neuron,
+)
 from dendritic_modeling.config.conversion import to_plain_dict
 
-OPERATOR_CARD_SCHEMA_VERSION = "dendritic_operator_card_v2"
+OPERATOR_CARD_SCHEMA_VERSION = "dendritic_operator_card_v3"
 
 
 def _get(section: Any, key: str, default: Any = None) -> Any:
@@ -163,7 +166,10 @@ def _card_from_einet_config(core_config: Any) -> dict[str, Any]:
 
 def build_operator_card(core_config: Any, model: Any = None) -> dict[str, Any]:
     """Summarize the operator a core configuration (and its built model) used."""
-    from dendritic_modeling.config.recurrence import _STRUCTURED_EI_TYPES
+    from dendritic_modeling.config.recurrence import (
+        _STRUCTURED_EI_TYPES,
+        _UNIFIED_EI_TYPES,
+    )
 
     core_type = str(_get(core_config, "type", "einet") or "einet")
     structured = core_type.lower() in _STRUCTURED_EI_TYPES
@@ -173,7 +179,12 @@ def build_operator_card(core_config: Any, model: Any = None) -> dict[str, Any]:
     }
 
     if core_type.lower() in BIOLOGICAL_CORE_TYPES:
-        biological = {"declared": bool(_get(core_config, "biological_neuron", False))}
+        biological = {
+            "declared": resolve_biological_neuron(
+                core_type, _get(core_config, "biological_neuron", None)
+            ),
+            "scope": "neuronal_core",
+        }
         if model is not None:
             from dendritic_modeling.networks.architectures.biological_constraints import (
                 biological_violations,
@@ -181,6 +192,29 @@ def build_operator_card(core_config: Any, model: Any = None) -> dict[str, Any]:
 
             biological["violations"] = biological_violations(model)
         card["biological_neuron"] = biological
+        transfer = _get(core_config, "transfer", {})
+        if (
+            core_type.lower() == "population_network"
+            or core_type.lower() in _UNIFIED_EI_TYPES
+        ):
+            section = (
+                "population_network"
+                if core_type.lower() == "population_network"
+                else "unified_ei"
+            )
+            population = _get(core_config, section, {})
+            transfer = (
+                _get(population, "transfer_params", {})
+                if _get(population, "use_transfer", False)
+                else {}
+            )
+        built_core = getattr(model, "core_network", model)
+        if built_core is not None:
+            transfer = getattr(built_core, "transfer_fn", None)
+        card["external_afferents"] = {
+            "input_source_identity": _get(transfer, "input_source_identity", "shared"),
+            "independent_pathways": _get(transfer, "independent_pathways", False),
+        }
 
     spatial_types = {"hierarchical_dendritic_conv", "spatial_dendritic_conv"}
     if core_type.lower() in spatial_types:

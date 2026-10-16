@@ -1891,6 +1891,7 @@ def test_analytical_initializers_reject_branches_without_expected_contacts(
     from golden_cases import _full_model
 
     core = {
+        "biological_neuron": False,
         "type": "dendritic_shunting",
         "architecture": {
             "excitatory_layer_sizes": [4],

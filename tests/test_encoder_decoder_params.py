@@ -20,6 +20,7 @@ data: {dataset_name: mnist}
 model:
   encoder: {type: identity, params: {input_dim: 6}}
   core:
+    biological_neuron: false
     type: einet
     architecture: {excitatory_layer_sizes: [4], inhibitory_layer_sizes: []}
     connectivity:

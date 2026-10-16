@@ -8,7 +8,7 @@
 #   dendritic-train configs/examples/population_network_feedforward.yaml
 # ============================================================================
 
-config_version: 3
+config_version: 4
 
 experiment:
   seed: 42
@@ -27,8 +27,10 @@ model:
   encoder:
     type: "identity"
   core:
+    biological_neuron: true   # Enforce the neuronal-core constraint set.
     type: "population_network"
     population_network:
+      input_transform: nonnegative     # Check nonnegative data without changing values or gradients.
       layers:
         - name: "layer0"
           readout_population: "e"

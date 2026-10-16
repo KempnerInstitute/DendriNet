@@ -24,6 +24,7 @@ from dendritic_modeling.networks.architectures.factory import (
 from dendritic_modeling.scripts.script_utils.setup_utils import initialize_model
 
 _STRUCTURED = {
+    "biological_neuron": False,
     "architecture": {
         "excitatory_layer_sizes": [8, 4],
         "inhibitory_layer_sizes": [2, 1],
@@ -42,6 +43,7 @@ _INDEXED_SEED = {**_STRUCTURED, "sparsity": {"indexed": {"seed": 3}}}
 
 def _unified(branch_factors: list[int]) -> dict:
     return {
+        "biological_neuron": False,
         "unified_ei": {
             "output_mode": "last",
             "layers": [
@@ -59,11 +61,12 @@ def _unified(branch_factors: list[int]) -> dict:
                     "dt": 1.0,
                 }
             ],
-        }
+        },
     }
 
 
 _POPULATION = {
+    "biological_neuron": False,
     "population_network": {
         "layers": [
             {
@@ -84,7 +87,7 @@ _POPULATION = {
                 "connections": [{"source": "input", "target": "e0"}],
             }
         ]
-    }
+    },
 }
 _HETEROGENEOUS = {
     "heterogeneous_leak_ctrnn": {
@@ -120,7 +123,16 @@ _LEGENDRE = {
     }
 }
 _AFFINE = {"affine_mlp": {"dimensions": [16, 7, 5]}}
+_SHARED_PROJECTION = {
+    "shared_projection_shunting": {
+        "input_dim": 16,
+        "output_dim": 5,
+        "supports": [[0, 2], [3, 5]],
+        "nodes": [0.1, 1.0],
+    }
+}
 _ALEXNET = {
+    "biological_neuron": False,
     "architecture": {
         "excitatory_branch_factors": [2],
         "inhibitory_branch_factors": [1],
@@ -215,6 +227,7 @@ CORE_TYPES = {
     "population_network": (_POPULATION, 16),
     "legendre_memory": (_LEGENDRE, 3),
     "affine_mlp": (_AFFINE, 16),
+    "shared_projection_shunting": (_SHARED_PROJECTION, 16),
     "dendritic_alexnet": (_ALEXNET, [3, 16, 16]),
     "identity": ({}, 16),
     "none": ({}, 16),
@@ -299,6 +312,7 @@ def test_building_blocks_are_rejected_as_core_types(core_type):
         (
             "population_network",
             {
+                "biological_neuron": False,
                 "population_network": {
                     **_POPULATION["population_network"],
                     "layers": [
@@ -310,7 +324,7 @@ def test_building_blocks_are_rejected_as_core_types(core_type):
                             },
                         }
                     ],
-                }
+                },
             },
             "populations[e0]",
             "ff_excitatory_synapse",
@@ -318,6 +332,7 @@ def test_building_blocks_are_rejected_as_core_types(core_type):
         (
             "population_network",
             {
+                "biological_neuron": False,
                 "population_network": {
                     **_POPULATION["population_network"],
                     "layers": [
@@ -326,7 +341,7 @@ def test_building_blocks_are_rejected_as_core_types(core_type):
                             "readout": "e0",
                         }
                     ],
-                }
+                },
             },
             "population_network.layers[0]",
             "readout",
@@ -334,6 +349,7 @@ def test_building_blocks_are_rejected_as_core_types(core_type):
         (
             "unified_ei",
             {
+                "biological_neuron": False,
                 "unified_ei": {
                     "layers": [
                         {
@@ -341,7 +357,7 @@ def test_building_blocks_are_rejected_as_core_types(core_type):
                             "recurent": True,
                         }
                     ]
-                }
+                },
             },
             "unified_ei.layers[0]",
             "recurent",
@@ -361,6 +377,7 @@ def test_payload_typos_name_their_section(core_type, sections, path, typo):
 )
 def test_recurrent_structured_aliases_build_without_alias_warnings(core_type):
     sections = {
+        "biological_neuron": False,
         "architecture": {
             "excitatory_layer_sizes": [8],
             "inhibitory_layer_sizes": [],

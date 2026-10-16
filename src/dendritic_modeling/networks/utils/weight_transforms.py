@@ -18,7 +18,7 @@ NONNEGATIVE_WEIGHT_TRANSFORMS = {"exp", "relu", "softplus"}
 # Backward-compatible public name used by existing validation and model code.
 POSITIVE_WEIGHT_TRANSFORMS = NONNEGATIVE_WEIGHT_TRANSFORMS
 STRICTLY_POSITIVE_WEIGHT_TRANSFORMS = {"exp", "softplus"}
-NONNEGATIVE_TRANSFER_ACTIVATIONS = {"relu", "sigmoid", "softplus"}
+NONNEGATIVE_TRANSFER_ACTIVATIONS = {"relu", "sigmoid", "softplus", "nonnegative"}
 _SUPPORTED_WEIGHT_TRANSFORMS: tuple[WeightTransformType, ...] = (
     "identity",
     "exp",

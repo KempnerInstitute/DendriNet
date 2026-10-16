@@ -55,6 +55,7 @@ GUIDES = {
     "model.decoder": ":ref:`encoder-decoder-types`",
     "model.core": ":ref:`core-types`",
     "model.core.affine_mlp": ":ref:`baseline-models`",
+    "model.core.shared_projection_shunting": ":doc:`comparison_models`",
     "model.core.architecture": ":doc:`structured_ei_cores`",
     "model.core.connectivity": ":doc:`structured_ei_cores`",
     "model.core.connectivity.structured": ":ref:`structured-connectivity`",
@@ -200,6 +201,12 @@ def section(path: str, cls: type) -> tuple[list[str], list[tuple[str, type]]]:
             default = "mapping; keys below"
         else:
             default = literal(value)
+        if child_path == "model.core.biological_neuron":
+            default += (
+                ": resolves to true for standard dendritic E/I cores; false for "
+                "signed/MLP controls and other families "
+                "(:ref:`biological-constraints`)"
+            )
         rows.append((f"``{field.name}``", f"``{type_name(annotation)}``", default))
         if isinstance(value, dict) and value and not nested:
             for key, item in value.items():

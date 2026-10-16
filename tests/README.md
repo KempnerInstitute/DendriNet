@@ -40,3 +40,9 @@ every x86 CPU, with or without AVX-512.
 
 Warnings are shown, not hidden (`pytest.ini`). A test that expects a warning
 asserts it with `pytest.warns`.
+
+The format-4 biological default is tested in `test_biological_default.py`.
+Historical fixtures that exercise signed gates, shared E/I inputs or other
+unconstrained paths now explicitly set `biological_neuron: false`. This keeps
+their equations and numerical goldens unchanged. The stored golden outputs
+are not regenerated when only this validation declaration changes.

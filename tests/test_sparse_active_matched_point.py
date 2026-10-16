@@ -265,6 +265,7 @@ def test_autocast_prefix_forward_backward_matches_fp32_reference() -> None:
 
 def test_factory_builds_sparse_point_and_fails_closed_on_interface_or_seed() -> None:
     structured = {
+        "biological_neuron": False,
         "architecture": {
             "excitatory_layer_sizes": [8],
             "inhibitory_layer_sizes": [2],

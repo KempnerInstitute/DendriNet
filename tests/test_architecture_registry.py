@@ -56,6 +56,7 @@ FAMILIES = {
         "spatial_sparse_active_matched_point",
     ],
     "dendritic_alexnet": ["dendritic_alexnet"],
+    "shared_projection_shunting": ["shared_projection_shunting"],
     # Non-dendritic baselines and controls.
     "baseline_rnn": ["gru", "lstm", "rnn", "vanilla_rnn"],
     "heterogeneous_leak_ctrnn": ["heterogeneous_leak_ctrnn", "heterogeneous_ctrnn"],
@@ -145,6 +146,7 @@ ALIASES = [
 def _unified_parameters() -> dict:
     """The unified recurrent golden case's parameters, without its type."""
     return {
+        "biological_neuron": False,
         "unified_ei": {
             "output_mode": "last",
             "layers": [
@@ -160,7 +162,7 @@ def _unified_parameters() -> dict:
                     "dt": 1.0,
                 }
             ],
-        }
+        },
     }
 
 

@@ -104,6 +104,7 @@ def _legacy_masks(self, *, target, timing, pathway, level_dims, allow_self_recur
 
 def test_network_state_rng_forward_and_gradients_unchanged(monkeypatch):
     cfg = {
+        "biological_neuron": False,
         "population_network": {
             "layers": [
                 {
@@ -141,7 +142,7 @@ def test_network_state_rng_forward_and_gradients_unchanged(monkeypatch):
                     ],
                 }
             ]
-        }
+        },
     }
     torch.manual_seed(404)
     actual = get_architecture("population_network", cfg, input_dim=4)

@@ -118,7 +118,15 @@ column per input. On every forward pass it computes the weights
 
 ``weight_norm_order`` (default unset)
    When set to ``p``, every row of the selected weights is divided by its
-   L\ :sub:`p` norm.
+   L\ :sub:`p` norm, also when that norm lies below machine epsilon. Such
+   ``exp`` and ``softplus`` rows are normalized in log space from their raw
+   parameters, so they keep finite gradients when the weights become subnormal
+   or underflow; ``exp`` rows depend exactly on parameter differences, and
+   ``softplus`` rows use the raw parameter as the log weight, which changes
+   each weight by less than half of machine epsilon (relative) before the
+   usual floating-point rounding. Rows without selected weights stay zero.
+   Orders ``p <= 0``, which are not norms, divide every row by the larger of
+   its "norm" and machine epsilon, as before.
 
 ``gamma`` (default ``1.0``)
    Multiplies the normalized rows of the inhibitory banks (excitatory banks
@@ -310,6 +318,9 @@ such as auxiliary analysis passes, do not advance the schedule. The block
    model:
      core:
        type: dendritic_shunting
+       transfer:
+         output_activation: nonnegative
+         input_source_identity: paired_afferents  # Distinct E/I sources, matched tuning.
        architecture:
          excitatory_layer_sizes: [32]
          excitatory_branch_factors: [2, 2]
@@ -457,6 +468,9 @@ synapses:
    model:
      core:
        type: dendritic_shunting
+       transfer:
+         output_activation: nonnegative
+         input_source_identity: paired_afferents  # Distinct E/I sources, matched tuning.
        architecture:
          excitatory_layer_sizes: [64]
          inhibitory_layer_sizes: []
@@ -476,6 +490,9 @@ synapses:
    model:
      core:
        type: dendritic_shunting
+       transfer:
+         output_activation: nonnegative
+         input_source_identity: paired_afferents  # Distinct E/I sources, matched tuning.
        architecture:
          excitatory_layer_sizes: [64]
          excitatory_branch_factors: [2, 2]
@@ -671,6 +688,8 @@ population's ``population`` block).
    model:
      core:
        type: dendritic_shunting
+       transfer:
+         output_activation: nonnegative
        architecture:
          excitatory_layer_sizes: [64]
          inhibitory_layer_sizes: [16]
@@ -877,6 +896,9 @@ where the excitatory cells read the inhibitory stream directly:
    model:
      core:
        type: dendritic_shunting
+       transfer:
+         output_activation: nonnegative
+         input_source_identity: paired_afferents  # Distinct E/I sources, matched tuning.
        architecture:
          excitatory_layer_sizes: [32]
          inhibitory_layer_sizes: []
@@ -907,6 +929,7 @@ image geometry.
      core:
        type: population_network
        population_network:
+         input_transform: nonnegative
          layers:
            - name: hidden
              readout_population: pyr

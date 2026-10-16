@@ -328,7 +328,7 @@ filter_config:
 # each generated config.
 
 base_config:
-  config_version: 3
+  config_version: 4
 
   # ---------- Experiment ----------
   experiment:
@@ -360,6 +360,7 @@ base_config:
         latent_dim: null
 
     core:
+      biological_neuron: false  # Preserve this example's historical model contract.
       type: "population_network"
       population_network:
         use_transfer: false

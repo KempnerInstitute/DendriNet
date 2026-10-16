@@ -25,6 +25,7 @@ from dendritic_modeling.networks.architectures.factory import get_architecture
 
 def _spatial_config() -> dict:
     return {
+        "biological_neuron": False,
         "spatial": {"kernel_size": 3, "stride": 1, "padding": 1},
         "architecture": {
             "excitatory_layer_sizes": [8],

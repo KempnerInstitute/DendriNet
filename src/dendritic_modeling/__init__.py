@@ -38,7 +38,7 @@ logger_manager = LoggerManager()
 logger = logger_manager.get_logger()
 
 # Version information
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 _LAZY_SUBMODULES: set[str] = {
     "analysis",

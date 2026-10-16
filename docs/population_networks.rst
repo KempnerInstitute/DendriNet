@@ -51,6 +51,7 @@ excitatory one:
      core:
        type: population_network
        population_network:
+         input_transform: nonnegative
          layers:
            - name: layer0
              readout_population: e
@@ -228,6 +229,7 @@ This first layer reads independent excitatory and inhibitory halves of a
      core:
        type: population_network
        population_network:
+         input_transform: nonnegative
          use_transfer: true
          transfer_params:
            independent_pathways: true
@@ -249,13 +251,17 @@ The input passes through three optional stages before it reaches the first
 layer, in this order:
 
 1. ``input_transform`` adapts the encoder output: ``identity`` (default),
-   ``relu``, or ``signed_split``, which writes the positive and negative parts
+   ``nonnegative`` (checked identity), ``relu``, or ``signed_split``, which writes the positive and negative parts
    of each feature as separate non-negative channels and doubles the input
    width.
 2. The transfer layer (``use_transfer`` and ``transfer_params``).
 3. ``input_projection_dims`` adds linear layers, each followed by a ReLU. With
    a transfer layer they project ``input`` and ``input_e`` only; ``input_i``
-   keeps the width produced by the transfer layer.
+   keeps the width produced by the transfer layer. Set
+   ``input_projection_weight_transform: softplus`` for positive afferent weights;
+   the default ``identity`` retains the historical signed Linear layers.
+   Positive projections check that their inputs are nonnegative and change
+   the model and its initialization (see :ref:`biological-constraints`).
 
 Shunting populations with a positive weight transform treat their input as
 non-negative rates. When the first batch shows signed input reaching such a
@@ -465,6 +471,7 @@ give the three populations different dendritic time constants, and
      core:
        type: population_network
        population_network:
+         input_transform: nonnegative
          layers:
            - name: microcircuit
              recurrent: true
@@ -646,6 +653,12 @@ Fields of ``model.core.population_network``:
      - ``[]``
      - Widths of linear-plus-ReLU layers applied to the input (to ``input_e``
        when a transfer layer is used).
+   * - ``input_projection_weight_transform``
+     - str
+     - ``identity``
+     - ``identity`` builds signed Linear projections; ``softplus`` builds
+       positive projections with checked nonnegative inputs. Requires nonempty
+       ``input_projection_dims`` when set to ``softplus``.
    * - ``readout_layer``
      - str or null
      - last layer

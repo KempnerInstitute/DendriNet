@@ -14,7 +14,11 @@ from dendritic_modeling.networks.structure import inhibitory_branch_layer_ids
 
 def _model(core_type, core):
     torch.manual_seed(0)
-    return _wrap(get_architecture(core_type, core, input_dim=IN_DIM))
+    return _wrap(
+        get_architecture(
+            core_type, {**core, "biological_neuron": False}, input_dim=IN_DIM
+        )
+    )
 
 
 def _inhibitory_names(model):
@@ -117,6 +121,48 @@ def test_parameters_the_local_rules_never_update_are_reported(caplog):
         trainer.train(model, _data(), _data(seed=1))
     assert "unused_gain" in trainer.uncovered_parameters
     assert "receive no gradient from the local rules" in caplog.text
+
+
+@pytest.mark.parametrize("allow_unmodeled", [False, True])
+def test_local_rules_reject_a_trainable_positive_input_projection(allow_unmodeled):
+    core = _population(
+        input_transform="nonnegative",
+        input_projection_dims=[7],
+        input_projection_weight_transform="softplus",
+    )
+    model = _model("population_network", core)
+    trainer, _ = _make_trainer(
+        "local_ca",
+        model,
+        local_rule_config={"allow_unmodeled_forward_features": allow_unmodeled},
+    )
+    with pytest.raises(ValueError, match="do not train the positive input projection"):
+        trainer.train(model, _data(), _data(seed=1))
+
+
+def test_local_rules_can_use_a_frozen_positive_input_projection():
+    core = _population(
+        input_transform="nonnegative",
+        input_projection_dims=[7],
+        input_projection_weight_transform="softplus",
+    )
+    model = _model("population_network", core)
+    projection = model.core_network.input_projection
+    projection.requires_grad_(False)
+    before = _state(model)
+    trainer, _ = _make_trainer("local_ca", model, epochs=1, local_rule_config={})
+    trainer.train(model, _data(), _data(seed=1))
+    after = _state(model)
+    assert all(
+        torch.equal(before[key], after[key])
+        for key in before
+        if "input_projection" in key
+    )
+    assert any(
+        not torch.equal(before[key], after[key])
+        for key in before
+        if ".populations.e." in key
+    )
 
 
 def _equal_width_einet():

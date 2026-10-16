@@ -542,7 +542,9 @@ def _spatial_population_network(connection: dict, structured: dict):
         "connections": [{"source": "input", "target": "e", **connection}],
     }
     return get_architecture(
-        "population_network", {"population_network": {"layers": [layer]}}, input_dim=64
+        "population_network",
+        {"biological_neuron": False, "population_network": {"layers": [layer]}},
+        input_dim=64,
     )
 
 

@@ -13,6 +13,7 @@ from dendritic_modeling.networks.architectures.factory import get_architecture
 def einet_config():
     """Minimal EINet config with a small spatial block for testing."""
     return {
+        "biological_neuron": False,
         "spatial": {
             "kernel_size": 3,
             "stride": 1,
@@ -708,6 +709,7 @@ class TestSpatialContractValidation:
 
         # Build a matching core: C_out = suffix channels, same spatial size
         einet_config = {
+            "biological_neuron": False,
             "spatial": {"kernel_size": 3, "stride": 1, "padding": 1},
             "architecture": {
                 "excitatory_layer_sizes": [plan.suffix_input_spec.channels],

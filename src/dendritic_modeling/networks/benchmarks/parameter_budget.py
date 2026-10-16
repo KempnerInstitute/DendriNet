@@ -405,6 +405,9 @@ def _dendritic_config(spec: dict, contacts_e: int, contacts_i: int, seed: int) -
     signed = spec["family"] == "dendritic_signed"
     activation_init = spec.get("activation_init", {"gain": 1.5, "threshold": 0.5})
     return {
+        # These scaling controls include signed synapses and shared E/I
+        # feature streams; they make no biological-neuron declaration.
+        "biological_neuron": False,
         "architecture": {
             "excitatory_layer_sizes": [spec["width"]],
             "inhibitory_layer_sizes": [],

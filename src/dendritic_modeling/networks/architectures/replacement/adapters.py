@@ -7,7 +7,9 @@ import math
 import torch
 import torch.nn as nn
 
-_VALID_INPUT_TRANSFORMS = frozenset({"identity", "relu", "signed_split"})
+from dendritic_modeling.networks.utils.input_domain import require_nonnegative_input
+
+_VALID_INPUT_TRANSFORMS = frozenset({"identity", "nonnegative", "relu", "signed_split"})
 _VALID_POPULATION_REDUCTIONS = frozenset(
     {"one_to_one", "fixed_mean", "learned_positive"}
 )
@@ -35,7 +37,9 @@ def validate_input_transform(transform: str) -> str:
     """Return a normalized replacement input transform name."""
     normalized = str(transform)
     if normalized not in _VALID_INPUT_TRANSFORMS:
-        raise ValueError("input_transform must be identity, relu, or signed_split")
+        raise ValueError(
+            "input_transform must be identity, nonnegative, relu, or signed_split"
+        )
     return normalized
 
 
@@ -50,7 +54,8 @@ class NonNegativeInputAdapter(nn.Module):
     """Map signed features into the non-negative domain expected by dendrites.
 
     ``identity`` is available for callers that already guarantee non-negative
-    inputs.  ``relu`` keeps only positive activity.  ``signed_split`` preserves
+    inputs without a runtime check. ``nonnegative`` checks that guarantee on
+    every batch without changing values or derivatives. ``relu`` keeps only positive activity. ``signed_split`` preserves
     both polarities as ``[ReLU(x), ReLU(-x)]`` using non-negative channels.
     """
 
@@ -74,6 +79,8 @@ class NonNegativeInputAdapter(nn.Module):
             )
         if self.transform == "identity":
             return x
+        if self.transform == "nonnegative":
+            return require_nonnegative_input(x)
         if self.transform == "relu":
             return torch.relu(x)
         return torch.cat([torch.relu(x), torch.relu(-x)], dim=-1)
@@ -120,6 +127,8 @@ class SpatialNonNegativeInputAdapter(nn.Module):
             )
         if self.transform == "identity":
             return x
+        if self.transform == "nonnegative":
+            return require_nonnegative_input(x)
         if self.transform == "relu":
             return torch.relu(x)
         return torch.cat([torch.relu(x), torch.relu(-x)], dim=1)

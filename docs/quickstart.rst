@@ -38,6 +38,7 @@ options, is:
      core:
        type: population_network
        population_network:
+         input_transform: nonnegative
          layers:
            - name: layer0
              readout_population: e

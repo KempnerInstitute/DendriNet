@@ -177,7 +177,7 @@ def _state_hash(model) -> str:
 
 
 def _build(data: dict, *, topology_seed: int | None = None, torch_seed: int = 0):
-    config = config_from_mapping(deepcopy(data))
+    config = config_from_mapping(upgrade_mapping(deepcopy(data))[0])
     if topology_seed is not None:
         _apply_topology_seed_defaults(config.model, topology_seed)
     torch.manual_seed(torch_seed)
@@ -193,8 +193,8 @@ def _masks(model) -> list[torch.Tensor]:
     ]
 
 
-def test_the_current_format_is_version_3():
-    assert CONFIG_VERSION == 3
+def test_current_format_requires_upgrading_version_2():
+    assert CONFIG_VERSION == 4
     with pytest.raises(ValueError, match="dendritic-upgrade-config"):
         config_from_mapping(_V2_CASES["neither"][0])
 
@@ -204,7 +204,7 @@ def test_the_current_format_is_version_3():
 def test_the_upgrade_rebuilds_the_version_2_model_byte_for_byte(name, training):
     data, v2_hash = _V2_CASES[name]
     upgraded, _changes, unresolved = upgrade_mapping(deepcopy(data))
-    assert unresolved == [] and upgraded["config_version"] == 3
+    assert unresolved == [] and upgraded["config_version"] == CONFIG_VERSION
     model = _build(upgraded, topology_seed=17 if training else None)
     assert _state_hash(model) == v2_hash
     twice, again, still = upgrade_mapping(deepcopy(upgraded))
@@ -232,7 +232,10 @@ def test_the_upgrade_writes_the_version_2_values():
     assert rule("population_without_seed")["seed"] == "global_rng"
     assert rule("population_spatial_without_seed")["seed"] == 0
     assert "kernel" not in rule("population_shadowed_alias")["pathways"]["ee"]
-    assert core("neither") == _V2_CASES["neither"][0]["model"]["core"]
+    assert core("neither") == {
+        **_V2_CASES["neither"][0]["model"]["core"],
+        "biological_neuron": False,
+    }
 
 
 def test_version_3_reads_an_omitted_kernel_as_gaussian():
@@ -288,7 +291,7 @@ def test_a_layer_default_seed_is_inherited_and_a_null_override_is_filled():
     )
     layer["populations"].append(second)
     layer["connections"].append({"source": "input", "target": "f"})
-    config = config_from_mapping(data)
+    config = config_from_mapping(upgrade_mapping(data)[0])
     _apply_topology_seed_defaults(config.model, 17)
     layer = config.model.core.population_network["layers"][0]
     assert layer["population_defaults"]["structured_connectivity"]["seed"] == 17
@@ -306,7 +309,7 @@ def test_version_1_rules_leave_version_2_files_alone():
     data["model"]["core"]["sparsity"] = {"type": "stochastic"}
     upgraded, changes, unresolved = upgrade_mapping(deepcopy(data))
     assert "temperature" not in upgraded["model"]["core"]["sparsity"]
-    assert unresolved == [] and len(changes) == 1
+    assert unresolved == [] and len(changes) == 2
     legacy = deepcopy(data)
     del legacy["config_version"]
     upgraded, _changes, _unresolved = upgrade_mapping(legacy)
@@ -361,7 +364,7 @@ def test_unified_layers_get_their_own_filled_structured_seed():
             ]
         },
     }
-    config = config_from_mapping(deepcopy(data))
+    config = config_from_mapping(upgrade_mapping(deepcopy(data))[0])
     _apply_topology_seed_defaults(config.model, 17)
     layers = config.model.core.unified_ei["layers"]
     seeds = [layer["excitatory"]["structured_connectivity"]["seed"] for layer in layers]

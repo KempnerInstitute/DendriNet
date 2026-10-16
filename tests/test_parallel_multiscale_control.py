@@ -914,6 +914,7 @@ def test_soma_broadcast_is_rejected_in_a_stepped_population_layer() -> None:
         if key not in {"branch_factors", "level_taus"}
     }
     config = {
+        "biological_neuron": False,
         "population_network": {
             "layers": [
                 {
@@ -937,7 +938,7 @@ def test_soma_broadcast_is_rejected_in_a_stepped_population_layer() -> None:
                     "connections": [{"source": "input", "target": "e"}],
                 }
             ]
-        }
+        },
     }
     from dendritic_modeling.networks.architectures.factory import get_architecture
 

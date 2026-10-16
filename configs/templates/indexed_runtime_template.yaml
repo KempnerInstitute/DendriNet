@@ -6,10 +6,11 @@
 # shown at the end of this file. docs/performance_kernels.rst describes the
 # projection backends.
 
-config_version: 3
+config_version: 4
 
 model:
   core:
+    biological_neuron: false  # Preserve this example's historical model contract.
     sparsity:
       type: "indexed"                  # "indexed" | "indexed_dynamic" | "indexed_rewire" | "indexed_release" (default "standard")
       indexed:

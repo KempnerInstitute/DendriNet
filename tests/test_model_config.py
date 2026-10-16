@@ -177,6 +177,7 @@ def test_core_config_asdict_keys():
         "target_active_parameters",
         "biological_neuron",
         "affine_mlp",
+        "shared_projection_shunting",
         "initialization_seed",
         "architecture",
         "connectivity",
@@ -200,6 +201,7 @@ def test_core_config_asdict_keys():
         "vision",
     }
     assert expected_keys == set(d.keys())
+    assert d["shared_projection_shunting"] is None
 
 
 # ---------------------------------------------------------------------------

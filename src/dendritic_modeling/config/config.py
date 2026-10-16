@@ -29,7 +29,10 @@ from dendritic_modeling.config.base import BaseConfig
 from dendritic_modeling.config.biological import resolve_biological_neuron
 from dendritic_modeling.config.composition import apply_overrides, load_composed_yaml
 from dendritic_modeling.config.conversion import to_plain_dict as _to_plain_dict
-from dendritic_modeling.config.core_sections import reject_unread_core_sections
+from dendritic_modeling.config.core_sections import (
+    is_saved_core_record,
+    reject_unread_core_sections,
+)
 from dendritic_modeling.config.extensions import (
     apply_config_migrations,
     build_extension_section,
@@ -89,6 +92,7 @@ from dendritic_modeling.config.recurrence import (
 )
 from dendritic_modeling.config.recurrent_payloads import check_recurrent_payloads
 from dendritic_modeling.config.regularization import PruningConfig, RegularizationConfig
+from dendritic_modeling.config.shared_projection import SharedProjectionShuntingConfig
 from dendritic_modeling.config.structured_connectivity import canonical_rule
 from dendritic_modeling.config.training import (
     LOCAL_RULE_STRATEGIES,
@@ -382,18 +386,21 @@ class DistributedConfig(BaseConfig):
             )
 
 
-#: Version of the configuration format. Version 3 (2026-10-13) is the meaning
+#: Version of the configuration format. Version 4 (2026-10-15) is the meaning
 #: this library gives every key. Files without ``config_version`` load with
 #: that meaning; ``dendritic-upgrade-config`` rewrites files written for
 #: earlier versions, whose omitted keys could mean something else, and marks
-#: them ``config_version: 3``. Runs record the version in ``config.json``.
+#: them with the current version. Runs record the version in ``config.json``.
 #:
 #: Version 3 changed two omitted structured-connectivity keys: a ``distance``
 #: rule without ``distance_kernel`` is gaussian in structured E/I cores as it
 #: is in population rules (it was "none"), and training seeds an unseeded
 #: population or unified E/I rule from the topology seed (its masks drew from
 #: the global random stream).
-CONFIG_VERSION = 3
+#: Version 4 enables biological validation by default for standard dendritic
+#: E/I cores. The upgrader writes historical biological_neuron: false values;
+#: it never changes a model to make it pass the new validation contract.
+CONFIG_VERSION = 4
 
 #: Top-level key in which ``dendritic-upgrade-config`` lists what it could not
 #: rewrite. A file with it is only partly upgraded and does not load.
@@ -566,7 +573,7 @@ def _build_core_config(core_data: Any) -> CoreConfig:
     # (and recorded wrongly in config.json), so it raises; saved records from
     # versions that stored the dataclass default instead keep loading and get
     # the build-time alias warning.
-    saved_record = _field_names(CoreConfig) <= set(core_dict)
+    saved_record = is_saved_core_record(core_dict)
     if lower_core_type == "dendritic_alexnet" and not saved_record:
         written_sizes = [
             key
@@ -647,6 +654,11 @@ def _build_core_config(core_data: Any) -> CoreConfig:
     core = CoreConfig(
         type=core_type,
         affine_mlp=None if affine_mlp is None else typed("affine_mlp", AffineMLPConfig),
+        shared_projection_shunting=(
+            None
+            if core_dict.get("shared_projection_shunting") is None
+            else typed("shared_projection_shunting", SharedProjectionShuntingConfig)
+        ),
         target_active_parameters=(
             None
             if core_dict.get("target_active_parameters") is None

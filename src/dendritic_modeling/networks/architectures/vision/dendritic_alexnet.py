@@ -9,6 +9,7 @@ from typing import Any
 import torch
 import torch.nn as nn
 
+from dendritic_modeling.config.biological import reference_core_config
 from dendritic_modeling.config.keys import check_section_keys
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.spatial_dendritic import (
     HierarchicalDendriticConv,
@@ -121,7 +122,7 @@ def _block_config(
     structured_seed: int,
     keyed_initialization: bool,
 ) -> dict[str, Any]:
-    config = copy.deepcopy(reference)
+    config = reference_core_config(copy.deepcopy(reference))
     architecture = config.setdefault("architecture", {})
     architecture["excitatory_layer_sizes"] = [int(excitatory_size)]
     architecture["inhibitory_layer_sizes"] = [int(inhibitory_size)]

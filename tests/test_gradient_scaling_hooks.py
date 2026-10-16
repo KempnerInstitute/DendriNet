@@ -294,6 +294,7 @@ def test_recurrent_ei_layer_scales_blocklinear_gradients_per_step():
     from dendritic_modeling.networks.architectures.factory import get_architecture
 
     params = {
+        "biological_neuron": False,
         "architecture": {
             "excitatory_layer_sizes": [4],
             "inhibitory_layer_sizes": [],

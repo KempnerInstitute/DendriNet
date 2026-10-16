@@ -43,6 +43,7 @@ _SHUNTING_PILOT_MODEL_CFG = OmegaConf.create(
         "task": "classification",
         "encoder": {"type": "identity", "params": {"input_dim": None}},
         "core": {
+            "biological_neuron": False,
             "type": "dendritic_shunting",
             "architecture": {
                 "excitatory_layer_sizes": [64, 64],
@@ -92,6 +93,7 @@ def test_canonicalize_rnn_additive_alias_saved_config() -> None:
     payload = {
         "model": {
             "core": {
+                "biological_neuron": False,
                 "type": "rnn_dendritic_additive",
                 "unified_ei": {
                     "layers": [
@@ -127,6 +129,7 @@ def test_canonicalize_rnn_normalized_additive_alias_sets_normalization() -> None
     payload = {
         "model": {
             "core": {
+                "biological_neuron": False,
                 "type": "rnn_dendritic_normalized_additive",
                 "unified_ei": {
                     "layers": [
@@ -203,6 +206,7 @@ def test_canonicalize_rnn_flat_alias_overrides_branch_factors() -> None:
     payload = {
         "model": {
             "core": {
+                "biological_neuron": False,
                 "type": "rnn_flat_shunting",
                 "unified_ei": {
                     "layers": [
@@ -257,8 +261,9 @@ def test_initialize_model_accepts_structured_core_config() -> None:
     assert torch.isfinite(logits).all()
 
 
-def test_initialize_model_accepts_default_model_config() -> None:
+def test_initialize_model_accepts_historical_unconstrained_model_config() -> None:
     cfg_model = ModelConfig()
+    cfg_model.core.biological_neuron = False
     cfg_model.encoder.params.input_dim = 18
 
     model, _ = initialize_model(cfg_model)
@@ -269,6 +274,7 @@ def test_initialize_model_accepts_default_model_config() -> None:
 
 def test_initialize_model_accepts_typed_point_mlp_config() -> None:
     cfg_model = ModelConfig()
+    cfg_model.core.biological_neuron = False
     cfg_model.encoder.params.input_dim = 18
     cfg_model.core.type = "point_mlp"
     cfg_model.core.architecture.excitatory_layer_sizes = [32]
@@ -311,6 +317,7 @@ def test_population_feedforward_example_uses_modern_sparse_defaults() -> None:
 
 def test_initialize_model_rejects_transformer_replacement_with_builder_hint() -> None:
     cfg_model = ModelConfig()
+    cfg_model.core.biological_neuron = False
     cfg_model.transformer_replacement.enabled = True
     cfg_model.core.type = "dendritic_ffn"
 
@@ -326,6 +333,7 @@ def test_initialize_model_accepts_population_network_recurrent_core() -> None:
             "task": "classification",
             "encoder": {"type": "identity", "params": {"input_dim": 5}},
             "core": {
+                "biological_neuron": False,
                 "type": "population_network",
                 "population_network": {
                     "output_mode": "last",
@@ -387,6 +395,7 @@ def test_initialize_model_accepts_population_network_feedforward_core() -> None:
             "task": "classification",
             "encoder": {"type": "identity", "params": {"input_dim": 5}},
             "core": {
+                "biological_neuron": False,
                 "type": "population_network",
                 "population_network": {
                     "output_mode": "last",
@@ -433,6 +442,7 @@ def test_initialize_model_accepts_population_network_feedforward_core() -> None:
 
 def _typed_soma_feedback_core() -> CoreConfig:
     return CoreConfig(
+        biological_neuron=False,
         type="dendritic_shunting",
         architecture=ArchitectureConfig(
             excitatory_layer_sizes=[4],
@@ -458,6 +468,7 @@ def _typed_soma_feedback_core() -> CoreConfig:
 
 def _typed_stateful_feature_core(feature_name: str, payload: dict) -> CoreConfig:
     core = CoreConfig(
+        biological_neuron=False,
         type="dendritic_shunting",
         architecture=ArchitectureConfig(
             excitatory_layer_sizes=[4],
@@ -588,6 +599,7 @@ def _population_network_temporal_core(population_overrides: dict) -> CoreConfig:
         **population_overrides,
     }
     return CoreConfig(
+        biological_neuron=False,
         type="population_network",
         population_network={
             "output_mode": "last",

@@ -33,7 +33,7 @@ Explained in :doc:`configuration_guide`. Class ``dendritic_modeling.config.confi
      - Default
    * - ``config_version``
      - ``int``
-     - ``3``
+     - ``4``
    * - ``experiment``
      - ``ExperimentConfig``
      - :ref:`experiment <options-experiment>`
@@ -490,12 +490,15 @@ Explained in :ref:`core-types`. Class ``dendritic_modeling.config.model.CoreConf
    * - ``affine_mlp``
      - ``Optional[AffineMLPConfig]``
      - ``None``; :ref:`model.core.affine_mlp <options-model-core-affine-mlp>`
+   * - ``shared_projection_shunting``
+     - ``Optional[SharedProjectionShuntingConfig]``
+     - ``None``; :ref:`model.core.shared_projection_shunting <options-model-core-shared-projection-shunting>`
    * - ``target_active_parameters``
      - ``Optional[int]``
      - ``null``
    * - ``biological_neuron``
-     - ``bool``
-     - ``false``
+     - ``Optional[bool]``
+     - ``null``: resolves to true for standard dendritic E/I cores; false for signed/MLP controls and other families (:ref:`biological-constraints`)
    * - ``initialization_seed``
      - ``Optional[int]``
      - ``null``
@@ -1616,6 +1619,48 @@ Explained in :ref:`baseline-models`. Class ``dendritic_modeling.config.affine_ml
      - ``str``
      - ``int32``
 
+.. _options-model-core-shared-projection-shunting:
+
+``model.core.shared_projection_shunting``
+-----------------------------------------
+
+Explained in :doc:`comparison_models`. Class ``dendritic_modeling.config.shared_projection.SharedProjectionShuntingConfig``.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 33 33
+
+   * - Option
+     - Type
+     - Default
+   * - ``input_dim``
+     - ``int``
+     - ``1``
+   * - ``output_dim``
+     - ``int``
+     - ``1``
+   * - ``supports``
+     - ``list[list[int]]``
+     - ``[[0]]``
+   * - ``nodes``
+     - ``list[float]``
+     - ``[1.0]``
+   * - ``epsilon``
+     - ``float``
+     - ``1.0e-08``
+   * - ``dtype``
+     - ``str``
+     - ``float32``
+   * - ``train_projection``
+     - ``bool``
+     - ``true``
+   * - ``train_conductance``
+     - ``bool``
+     - ``true``
+   * - ``train_output``
+     - ``bool``
+     - ``true``
+
 .. _options-model-core-architecture:
 
 ``model.core.architecture``
@@ -1720,6 +1765,9 @@ Explained in :ref:`transfer-layer`. Class ``dendritic_modeling.config.model.Tran
    * - ``independent_pathways``
      - ``bool``
      - ``false``
+   * - ``input_source_identity``
+     - ``str``
+     - ``shared``
    * - ``excitatory_dim``
      - ``Optional[int]``
      - ``null``

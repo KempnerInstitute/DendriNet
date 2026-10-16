@@ -166,6 +166,7 @@ class TestHierarchicalDendriticTensorMap:
     def einet_config(self):
         """Minimal EINet config for testing."""
         return {
+            "biological_neuron": False,
             "architecture": {
                 "excitatory_layer_sizes": [64],
                 "inhibitory_layer_sizes": [16],
@@ -474,6 +475,7 @@ class TestSpatialEndToEnd:
 
         # Create tensor map core with small EINet
         einet_config = {
+            "biological_neuron": False,
             "architecture": {
                 "excitatory_layer_sizes": [256],
                 "inhibitory_layer_sizes": [64],

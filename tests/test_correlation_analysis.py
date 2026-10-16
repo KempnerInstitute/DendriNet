@@ -15,6 +15,7 @@ from dendritic_modeling.networks.architectures.factory import get_architecture
 
 def _direct_inhibitory_model() -> Classifier:
     config = {
+        "biological_neuron": False,
         "architecture": {
             "excitatory_layer_sizes": [4],
             "inhibitory_layer_sizes": [],

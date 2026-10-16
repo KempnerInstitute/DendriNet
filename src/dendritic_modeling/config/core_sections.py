@@ -51,6 +51,7 @@ OTHER_BUILTIN_CORE_TYPES = frozenset(
     {
         "active_param_mlp",
         "affine_mlp",
+        "shared_projection_shunting",
         "alexnet",
         "cnn",
         "cnn_down",
@@ -102,6 +103,11 @@ SPATIAL_OPTIONS_READ: dict[str, frozenset[str] | None] = {
 
 # Families that read only their own payload section.
 _PAYLOAD_FAMILIES: tuple[tuple[frozenset[str], str, str], ...] = (
+    (
+        frozenset({"shared_projection_shunting"}),
+        "shared_projection_shunting",
+        "shared_projection_shunting",
+    ),
     (frozenset(_POPULATION_NETWORK_TYPES), "population_network", "population_network"),
     (frozenset(_UNIFIED_EI_TYPES), "unified_ei", "unified_ei"),
     (frozenset(_BASELINE_RNN_TYPES), "baseline_rnn", "baseline_rnn"),
@@ -123,6 +129,7 @@ EINET_FOREIGN_PAYLOADS = frozenset(
         "heterogeneous_leak_ctrnn",
         "legendre_memory",
         "vision",
+        "shared_projection_shunting",
         "affine_mlp",
         "spatial",
     }
@@ -178,6 +185,13 @@ def unread_core_sections(core: Any, explicit: Iterable[str]) -> list[str]:
     are returned as ``spatial.<option>``.
     """
     lowered = str(getattr(core, "type", "") or "").strip().lower()
+    if (
+        lowered in BUILTIN_CORE_TYPES
+        and lowered != "shared_projection_shunting"
+        and "shared_projection_shunting" in explicit
+        and getattr(core, "shared_projection_shunting", None) is not None
+    ):
+        return ["shared_projection_shunting"]
     family = core_family(lowered)
     if family is None and lowered not in _STRUCTURED_EI_TYPES:
         # Other builders (MLP controls, spatial and vision cores) read sections
@@ -217,6 +231,23 @@ def _comparable(name: str, value: Any) -> Any:
     return value
 
 
+#: ``CoreConfig`` fields added after a release had written saved records, with
+#: the first release that has them. A record from an earlier release lacks them.
+CORE_FIELDS_ADDED = {"shared_projection_shunting": "0.3.0"}
+
+
+def is_saved_core_record(keys: Iterable[str]) -> bool:
+    """Whether a ``model.core`` mapping is a saved record (``config.json``).
+
+    A run records every ``CoreConfig`` field of the release that wrote it, so a
+    saved record lists every current field except those added since.
+    """
+    from dendritic_modeling.config.model import CoreConfig
+
+    current = {item.name for item in dataclasses.fields(CoreConfig)}
+    return current - set(CORE_FIELDS_ADDED) <= set(keys)
+
+
 def reject_unread_core_sections(core: Any, explicit: Iterable[str]) -> None:
     """Raise when explicit ``model.core`` sections would be ignored by the builder.
 
@@ -235,7 +266,7 @@ def reject_unread_core_sections(core: Any, explicit: Iterable[str]) -> None:
     message = f"model.core.type={core.type!r} does not read {paths}" + (
         f"; {hint}" if hint else ""
     )
-    if {item.name for item in dataclasses.fields(core)} <= explicit:
+    if is_saved_core_record(explicit):
         logger.warning("Ignoring sections of a saved config: %s.", message)
         return
     raise ValueError(message + ". Remove them.")
@@ -244,6 +275,7 @@ def reject_unread_core_sections(core: Any, explicit: Iterable[str]) -> None:
 __all__ = [
     "BUILTIN_CORE_TYPES",
     "COMMON_CORE_FIELDS",
+    "CORE_FIELDS_ADDED",
     "EINET_FOREIGN_PAYLOADS",
     "OTHER_BUILTIN_CORE_TYPES",
     "SPATIAL_DENDRITIC_CONV_TYPES",
@@ -251,6 +283,7 @@ __all__ = [
     "SPATIAL_OPTIONS_READ",
     "SPATIAL_PATCH_POINT_TYPES",
     "core_family",
+    "is_saved_core_record",
     "reject_unread_core_sections",
     "unread_core_sections",
 ]

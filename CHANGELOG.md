@@ -1,7 +1,117 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 (2026-10-16)
 
+Changes since 0.2.0. Configuration files carry ``config_version: 4``:
+standard dendritic E/I cores now validate as biological neurons unless they
+declare ``biological_neuron: false``, which remains available for
+exploratory models. ``dendritic-upgrade-config`` writes that historical
+declaration into files written for earlier versions, so they describe the
+same models and runs; a file without ``config_version`` is read as format 4.
+
+- The repository no longer names people: ``AUTHORS.md`` and the kernel
+  docstrings that pointed to it are removed, and CI commits its coverage-badge
+  pull requests as the GitHub Actions bot. The package author remains the
+  Kempner Institute.
+- A saved core record written before a ``CoreConfig`` field existed (such as
+  ``shared_projection_shunting``, new in 0.3.0) is still recognized as a
+  record, so an upgraded 0.2.0 ``dendritic_alexnet`` record no longer fails as
+  a hand-written recipe for its serialized layer sizes.
+- Biological validation accepts a unified E/I network's input adapter
+  (``nonnegative``, ``relu`` or ``signed_split``) also when a transfer layer
+  follows it; the transfer layer only divides and splits the adapted input.
+- A section-wrapped ``shared_projection_shunting`` mapping without ``type``
+  builds instead of being validated as an ``einet`` core.
+- Flat population-network and unified E/I payloads accept the core-level
+  ``biological_neuron: false`` opt-out instead of rejecting it as an unknown
+  network option.
+- Building a ``dendritic_alexnet`` from a dictionary recipe no longer changes
+  that recipe, whose nested sizes and topology seeds later builds reuse.
+- Biological recipe overrides whose last path element is a list index apply
+  instead of failing.
+- Synaptic weight normalization (``weight_norm_order``) normalizes rows whose
+  norm lies below machine epsilon to ``gamma``, instead of dividing them by
+  machine epsilon, and no longer skips rows whose L2 norm underflows. A
+  ``shared_projection_shunting`` projection therefore keeps unit-sum weights
+  when its raw weights are small. ``exp`` and ``softplus`` rows are
+  normalized in log space from their raw parameters, so their gradients stay
+  finite when the weights are subnormal or underflow: ``exp`` rows depend
+  exactly on differences of the raw parameters, and ``softplus`` rows, whose
+  weights are then below machine epsilon, use the raw parameter as the log
+  weight (an approximation below half of machine epsilon per weight, before
+  floating-point rounding). Rows of ``exp`` or
+  ``softplus`` weights that all underflowed were returned as zeros and are now
+  normalized, which can change the outputs of existing checkpoints. Indexed
+  sparse, Top-K and indexed dynamic layers, their dense views and the
+  effective-synapse snapshot share the new ``normalize_weight_rows``; rows
+  whose norm is at least machine epsilon, and every row of an order
+  ``p <= 0``, keep their previous values, gradients and forward-mode
+  derivatives bit for bit. The normalization traces as a single graph under
+  ``torch.compile``. The snapshot of an indexed dynamic layer now uses the
+  layer's own normalization.
+- Make native YAML documentation examples construct under the biological
+  default, with explicit input-rate and external-source contracts. Test model
+  construction as well as schema loading; the signed soma-feedback example
+  explicitly opts out.
+
+- Unified E/I networks also support explicit nonnegative/split input adapters
+  and positive input projections. Omitted options keep the historical signed
+  projection and identity input; biological adoption requires an explicit
+  encoding and retraining when those choices change the model.
+
+- Add explicit biological configuration preparation for expanded experiments.
+  It upgrades historical keys before applying caller-selected input/source
+  contracts, rejects ambiguous upgrades and leaves circuit choices to callers.
+  A source-pinned recipe runner validates study inventories and compares
+  diagnostic states, outputs and gradients before writing isolated new recipes.
+
+- Configuration format 4 enables ``biological_neuron`` by default for standard
+  dendritic E/I cores. Explicit ``false`` remains available for exploratory
+  models; signed/MLP controls and unrelated families retain their contracts.
+  The upgrader writes the historical ``false`` default in older files and
+  leaves explicit declarations intact. Shipped historical recipes preserve
+  their previous computation rather than silently adopting new circuitry.
+- Add checked-identity ``nonnegative`` inputs, preserving values and gradients
+  while rejecting negative or nonfinite rates. Transfer layers can explicitly
+  declare distinct, identically tuned external E/I ``paired_afferents``;
+  shared input channels still fail the Dale constraint when used with both signs.
+- Recurrent unrolls of population and unified E/I networks read their
+  nonnegative-input checks (the checked input, a ``nonnegative`` transfer
+  activation and each positive projection) once per sequence instead of at
+  every check and step, and each immediate check reduces in one pass: one
+  device synchronization replaces up to two per check and step. The checks
+  run on the same tensors at the same points, so outputs, recurrent states
+  and gradients are unchanged, and invalid input still raises before the
+  output is returned (``deferred_nonnegative_checks``).
+- Population networks support an opt-in positive input projection via
+  ``input_projection_weight_transform: softplus``. This is a new model with
+  positive weights and a rectified output; it requires retraining when replacing
+  a signed projection. The omitted option preserves the signed Linear path.
+  Analytic local updates reject trainable positive projections instead of
+  leaving their parameters without updates; frozen projections are supported.
+- Correct biological operator-card checks to cover the neuronal core, excluding
+  task encoders and decoders. Recognize a rectified internal projection when
+  checking the dendritic input domain, while still rejecting its signed weights.
+  Operator-card schema v3 records this scope and the external-source declaration.
+- Conventional parameter-budget benchmarks explicitly retain their historical
+  non-biological contract in generated configurations and reports. Their model
+  states, outputs and numerical report fields are unchanged.
+
+- The README coverage badge uses a relative image path so private-repository
+  readers can load it. CI proposes measured badge updates through a pull
+  request instead of pushing directly to ``develop`` and ignoring failures.
+  Refreshed the badge to 80.3% line coverage from the Python 3.11 report in
+  [CI run 195](https://github.com/KempnerInstitute/DendriNet/actions/runs/38682938459)
+  for ``fdf49d0a81aa039a873bbf538fabf1545fb9ee0e``.
+  The CI Python setup action now uses its supported Node 24 runtime.
+- Add opt-in ``shared_projection_shunting``: normalized sparse projections
+  reused across native flat DendriNet banks, signed block pooling and an affine
+  output. Its typed configuration declares supports, initial transition nodes,
+  precision and frozen parameter groups; epsilon is included in the node-to-
+  conductance mapping. It exposes native features and complete resource counts.
+  This composition supports standard backpropagation; it is not a new branch
+  integration rule or a qualification of nonlinear-soma dendritic trees.
+  Existing model defaults and initialization paths are unchanged.
 - ``dendritic-collect-reactivation --require-clean-analysis-source`` (or
   ``require_clean_analysis_source: true``) rejects runs whose analysis
   provenance records no Git checkout, tracked changes, untracked source files

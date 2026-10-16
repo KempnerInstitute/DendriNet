@@ -88,6 +88,9 @@ def _effective_weight_from_mask(
         IndexedReleaseLinear,
     )
     from dendritic_modeling.networks.utils.signal_rounding import round_signal
+    from dendritic_modeling.networks.utils.weight_normalization import (
+        normalize_weight_rows,
+    )
 
     if isinstance(module, IndexedReleaseLinear):
         if module.training:
@@ -112,15 +115,12 @@ def _effective_weight_from_mask(
     if norm_order is None:
         return effective
 
-    norm = torch.norm(effective, p=norm_order, dim=-1, keepdim=True)
-    safe_norm = norm.clamp_min(torch.finfo(effective.dtype).eps)
     gamma = torch.as_tensor(
         getattr(module, "gamma", 1.0),
         device=effective.device,
         dtype=effective.dtype,
     )
-    normalized = (effective / safe_norm) * gamma
-    return torch.where(norm > 0, normalized, effective)
+    return normalize_weight_rows(effective, norm_order, gamma)
 
 
 def effective_synapse_snapshot(

@@ -27,6 +27,7 @@ from dendritic_modeling.scripts.script_utils.setup_utils import initialize_model
 from dendritic_modeling.scripts.training.train_experiments import _build_main_trainer
 
 _CELL = {
+    "biological_neuron": False,
     "architecture": {
         "excitatory_layer_sizes": [8, 4],
         "inhibitory_layer_sizes": [2, 1],
@@ -42,6 +43,7 @@ _CELL = {
     "spatial": {"kernel_size": 3, "stride": 2, "padding": 1},
 }
 _ALEXNET = {
+    "biological_neuron": False,
     "architecture": {
         "excitatory_branch_factors": [2],
         "inhibitory_branch_factors": [1],

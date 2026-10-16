@@ -48,6 +48,7 @@ BATCH = 4
 def _minimal_config():
     """Return a minimal structured config dict for EI networks."""
     return {
+        "biological_neuron": False,
         "architecture": {
             "excitatory_layer_sizes": [OUTPUT_DIM],
             "inhibitory_layer_sizes": [],

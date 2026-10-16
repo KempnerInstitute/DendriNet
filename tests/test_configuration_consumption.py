@@ -604,6 +604,7 @@ def _unified(**top_level):
         "adaptive_initialization": False,
     }
     return {
+        "biological_neuron": False,
         "type": "unified_ei",
         "unified_ei": {
             "output_mode": "last",
