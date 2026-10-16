@@ -53,10 +53,6 @@ cast back to the caller's dtypes.
 Triton is an optional dependency: importing this module never fails. Query
 :data:`HAS_TRITON` (or call :func:`triton_gather_available`) before selecting
 this path; ``triton_sparse_gather`` raises a clear error if Triton is missing.
-
-The forward, ``grad_w`` and atomic ``grad_x`` kernels were contributed by
-Ryan Whalen (see ``AUTHORS.md``); the deterministic ``grad_x`` backward was
-added later.
 """
 
 from __future__ import annotations

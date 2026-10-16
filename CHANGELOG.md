@@ -9,6 +9,10 @@ exploratory models. ``dendritic-upgrade-config`` writes that historical
 declaration into files written for earlier versions, so they describe the
 same models and runs; a file without ``config_version`` is read as format 4.
 
+- The repository no longer names people: ``AUTHORS.md`` and the kernel
+  docstrings that pointed to it are removed, and CI commits its coverage-badge
+  pull requests as the GitHub Actions bot. The package author remains the
+  Kempner Institute.
 - Make native YAML documentation examples construct under the biological
   default, with explicit input-rate and external-source contracts. Test model
   construction as well as schema loading; the signed soma-feedback example

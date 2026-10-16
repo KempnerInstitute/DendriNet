@@ -204,8 +204,8 @@ jobs:
         base: develop
         branch: ci/coverage-badge
         add-paths: docs/_static/badges/coverage.svg
-        author: Houman Safaai <houman1359@yahoo.com>
-        committer: Houman Safaai <houman1359@yahoo.com>
+        author: github-actions[bot] <41898283+github-actions[bot]@users.noreply.github.com>
+        committer: github-actions[bot] <41898283+github-actions[bot]@users.noreply.github.com>
         commit-message: Update coverage badge from CI
         title: Update coverage badge from CI
         body: |
