@@ -361,7 +361,7 @@ def _build_shared_projection_architecture(
         # Direct structured construction must reject ignored options too.
         from dendritic_modeling.config.model import CoreConfig
 
-        core = CoreConfig(**raw)
+        core = CoreConfig(**{"type": type, **raw})
         reject_unread_core_sections(core, raw)
     config = SharedProjectionShuntingConfig(**payload)
     config.validate()

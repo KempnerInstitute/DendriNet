@@ -251,3 +251,16 @@ def test_joint_optimizer_matches_equivalent_circuit():
     for (name, p), other in zip(native.named_parameters(), ordinary.parameters()):
         torch.testing.assert_close(p, other, rtol=1e-10, atol=1e-12)
         assert torch.max(torch.abs(p - initial[name])) > 0
+
+
+def test_section_wrapped_mapping_builds_without_a_type():
+    config = spec()
+    direct = build_shared_projection_shunting(config)
+    via = get_architecture(
+        "shared_projection_shunting",
+        {"shared_projection_shunting": asdict(config)},
+        input_dim=7,
+        suffix_input_dim=1,
+    )
+    for name, value in direct.state_dict().items():
+        assert torch.equal(value, via.state_dict()[name])
