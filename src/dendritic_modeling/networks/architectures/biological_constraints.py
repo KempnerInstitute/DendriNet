@@ -310,13 +310,15 @@ def _input_violations(core: nn.Module) -> list[str]:
             f"output_activation {activation!r}); {unrectified}"
         ]
     if isinstance(core, EINetwork):
+        # The input adapter acts before the transfer layer, whose sign-preserving
+        # normalization and stream split keep a nonnegative input nonnegative.
+        if getattr(core, "input_transform", "identity") in {
+            "nonnegative",
+            "relu",
+            "signed_split",
+        }:
+            return []
         if core.transfer_fn is None:
-            if getattr(core, "input_transform", "identity") in {
-                "nonnegative",
-                "relu",
-                "signed_split",
-            }:
-                return []
             if _projection_rectifies(core):
                 return []
             return [

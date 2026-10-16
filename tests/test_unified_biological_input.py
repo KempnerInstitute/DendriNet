@@ -114,3 +114,28 @@ def test_old_pickled_unified_shape_keeps_identity_input():
     del model.input_adapter
     del model.input_transform
     assert torch.equal(model(x), expected)
+
+
+@pytest.mark.parametrize("input_transform", ["nonnegative", "relu", "signed_split"])
+def test_unified_input_adapter_rectifies_before_an_identity_transfer(input_transform):
+    from dendritic_modeling.networks.architectures.biological_constraints import (
+        biological_violations,
+    )
+
+    def build(transform):
+        data = recipe(False)
+        data["config_version"] = 4
+        core = data["model"]["core"]
+        core["biological_neuron"] = False
+        # Without the signed input projection only the input domain is tested.
+        core["unified_ei"].update(
+            input_projection_dims=[],
+            input_transform=transform,
+            use_transfer=True,
+            transfer_params={"output_activation": "none"},
+        )
+        config = config_from_mapping(data)
+        return get_architecture(config.model.core.type, config.model.core, input_dim=3)
+
+    assert biological_violations(build(input_transform)) == []
+    assert biological_violations(build("identity"))
