@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 (2026-10-16)
+
+Changes since 0.2.0. Configuration files carry ``config_version: 4``:
+standard dendritic E/I cores now validate as biological neurons unless they
+declare ``biological_neuron: false``, which remains available for
+exploratory models. ``dendritic-upgrade-config`` writes that historical
+declaration into files written for earlier versions, so they describe the
+same models and runs; a file without ``config_version`` is read as format 4.
 
 - Make native YAML documentation examples construct under the biological
   default, with explicit input-rate and external-source contracts. Test model
