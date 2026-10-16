@@ -170,6 +170,15 @@ def compare_models(original, prepared, input_dim, *, recurrent_steps=3):
     }
 
 
+def _set_dotted(mapping, dotted, value):
+    """Set a dotted configuration path; numeric parts index lists."""
+    node = mapping
+    parts = dotted.split(".")
+    for part in parts[:-1]:
+        node = node[int(part)] if isinstance(node, list) else node[part]
+    node[int(parts[-1]) if isinstance(node, list) else parts[-1]] = value
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", type=Path, required=True)
@@ -254,15 +263,7 @@ def main(argv=None):
                         new = prepare_biological_config(raw, **entry["adoption"])
                         # Study-specific explicit circuit revisions, if required.
                         for dotted, value in entry.get("overrides", {}).items():
-                            node = new
-                            parts = dotted.split(".")
-                            for part in parts[:-1]:
-                                node = (
-                                    node[int(part)]
-                                    if isinstance(node, list)
-                                    else node[part]
-                                )
-                            node[parts[-1]] = value
+                            _set_dotted(new, dotted, value)
                         config_from_mapping(new)
                     check = args.check_models == "all" or (
                         args.check_models == "representative"

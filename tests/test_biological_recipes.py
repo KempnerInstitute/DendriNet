@@ -51,3 +51,16 @@ def test_adoption_comparison_covers_state_and_gradients_at_zero():
     result = compare_models(old, new, 8)
     assert result["exact"] and result["tensors"] > 10
     assert result["biological_violations"] == []
+
+
+def test_dotted_overrides_index_lists_at_any_depth():
+    from dendritic_modeling.scripts.tools.biological_recipes import _set_dotted
+
+    layer = {"excitatory": {"branch_factors": [2, 3]}}
+    mapping = {"model": {"core": {"unified_ei": {"layers": [layer]}}}}
+    prefix = "model.core.unified_ei.layers.0.excitatory."
+    _set_dotted(mapping, prefix + "branch_factors.0", 4)
+    _set_dotted(mapping, prefix + "weight_transform", "softplus")
+    assert layer == {
+        "excitatory": {"branch_factors": [4, 3], "weight_transform": "softplus"}
+    }
