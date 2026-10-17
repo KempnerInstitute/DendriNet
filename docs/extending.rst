@@ -323,7 +323,10 @@ Sparse synapse layers
 ``register_sparse_layer(name, layer_class)`` adds a synapse layer that
 ``sparsity.type`` (``topk_type`` in the options of a population) selects, and
 ``sparsity.options`` (``topk_options``) holds the options of its constructor.
-The built-in types take no options and reject a non-empty mapping.
+The options must be a mapping; omitting them, or ``null``, means none. The
+built-in types take no options and reject a non-empty mapping. Population
+networks, the model builders and the transformer FFN and E/I-stack
+replacements all pass the options to the layer.
 
 A registered subclass of
 :class:`~dendritic_modeling.networks.architectures.excitation_inhibition.synapse.indexed_sparse.IndexedSparseLinear`

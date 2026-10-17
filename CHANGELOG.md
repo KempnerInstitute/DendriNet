@@ -12,9 +12,21 @@
     Such a type was built through the generic path before: without a seed or
     those options, on the eager projection, while the configured options
     counted as unread.
+  - Built-in types build exactly as before. A plugin subclass of
+    ``IndexedSparseLinear`` now takes its configured seed and execution
+    backend, so its connectivity and outputs can change: experiments with
+    such a type must record this change of source.
   - ``sparsity.options`` (``topk_options`` in the options of a population)
-    holds a plugin type's constructor options. The built-in types take none
-    and reject a non-empty mapping; omitting it changes nothing.
+    holds a plugin type's constructor options. It must be a mapping (omitted
+    or ``null`` means none; ``false``, ``0``, ``[]`` and ``""`` raise). The
+    built-in types take none and reject a non-empty mapping; omitting it
+    changes nothing.
+  - Population networks, the model builders and the transformer FFN and
+    E/I-stack replacements (``DendriticFFNReplacement``,
+    ``LayerwiseEIStackReplacement`` and their ``*_from_core_config``
+    translators) pass the options to the layer. The translators add
+    ``topk_options`` only when options are set, so replacement classes that
+    do not take it build every configuration without options as before.
   - ``BUILTIN_SPARSE_LAYER_TYPES`` and ``get_sparse_layer_class`` tell the
     library's types from plugin types.
   - "Extending DendriNet" describes plugin sparse layers.

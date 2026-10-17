@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -10,6 +10,7 @@ import torch
 import torch.nn as nn
 
 from dendritic_modeling.config.conversion import normalize_sparsity_type, to_plain_dict
+from dendritic_modeling.config.keys import to_mapping
 from dendritic_modeling.config.model_aliases import (
     get_core_morphology_alias_overrides,
     warn_alias_conflicts,
@@ -238,6 +239,7 @@ class DendriticFFNReplacement(nn.Module):
         topk_ultrafast: bool = False,
         topk_weight_norm_order: int | None = None,
         topk_gamma: float = 1.0,
+        topk_options: Mapping[str, Any] | None = None,
         dense_to_sparse_initial_density: float = 1.0,
         dense_to_sparse_initial_k: int | None = None,
         dense_to_sparse_start_step: int = 0,
@@ -302,6 +304,7 @@ class DendriticFFNReplacement(nn.Module):
             topk_ultrafast=topk_ultrafast,
             topk_weight_norm_order=topk_weight_norm_order,
             topk_gamma=topk_gamma,
+            topk_options=to_mapping(topk_options, section="topk_options"),
             dense_to_sparse_initial_density=dense_to_sparse_initial_density,
             dense_to_sparse_initial_k=dense_to_sparse_initial_k,
             dense_to_sparse_start_step=dense_to_sparse_start_step,
@@ -427,6 +430,7 @@ class LayerwiseEIStackReplacement(nn.Module):
         topk_temperature: float = 0.25,
         topk_weight_norm_order: int | None = None,
         topk_gamma: float = 1.0,
+        topk_options: Mapping[str, Any] | None = None,
         weight_transform: str = "softplus",
         indexed_seed: int | None = None,
         output_bias: bool = False,
@@ -467,6 +471,7 @@ class LayerwiseEIStackReplacement(nn.Module):
         self.layers = nn.ModuleList()
         self.output_projections = nn.ModuleList()
         extra_kwargs = dict(kwargs)
+        topk_options = to_mapping(topk_options, section="topk_options")
         for layer_idx in range(self.num_layers):
             layer_seed = (
                 None if indexed_seed is None else int(indexed_seed) + int(layer_idx)
@@ -495,6 +500,7 @@ class LayerwiseEIStackReplacement(nn.Module):
                     topk_temperature=float(topk_temperature),
                     topk_weight_norm_order=topk_weight_norm_order,
                     topk_gamma=float(topk_gamma),
+                    topk_options=topk_options,
                     weight_transform=str(weight_transform),
                     use_noise=bool(use_noise),
                     indexed_seed=layer_seed,
@@ -587,6 +593,17 @@ class ReplacementRecord:
     mlp_attr: str
     original_mlp: nn.Module
     replacement: nn.Module
+
+
+def _add_sparse_layer_options(kwargs: dict[str, Any], sparsity: Mapping) -> None:
+    """Pass a plugin sparse type's ``sparsity.options`` to the replacement.
+
+    The key is set only for a non-empty mapping, so replacement classes that do
+    not take ``topk_options`` still build every configuration without options.
+    """
+    options = to_mapping(sparsity.get("options"), section="model.core.sparsity.options")
+    if options:
+        kwargs["topk_options"] = options
 
 
 def build_dendritic_ffn_kwargs_from_core_config(
@@ -701,6 +718,7 @@ def build_dendritic_ffn_kwargs_from_core_config(
         "output_scale": float(tr.get("output_scale", 1.0)),
         "pre_norm": bool(tr.get("pre_norm", False)),
     }
+    _add_sparse_layer_options(kwargs, sparsity)
     replacement_overrides = _to_plain_mapping(tr.get("replacement_kwargs", {}))
     replacement_overrides.pop("kind", None)
     replacement_overrides.pop("type", None)
@@ -829,6 +847,7 @@ def build_ei_stack_kwargs_from_core_config(
         "output_scale": float(tr.get("output_scale", 1.0)),
         "pre_norm": bool(tr.get("pre_norm", False)),
     }
+    _add_sparse_layer_options(kwargs, sparsity)
     kwargs.update(replacement_overrides)
     if overrides:
         kwargs.update(overrides)

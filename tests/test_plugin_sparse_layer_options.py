@@ -5,6 +5,10 @@ from __future__ import annotations
 import pytest
 import torch
 
+from dendritic_modeling.config.model import SparsityConfig
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.synapse_config import (
+    TopKConfig,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse import (
     IndexedSparseLinear,
 )
@@ -18,8 +22,17 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.top
     TopKLinear,
 )
 from dendritic_modeling.networks.architectures.factory import get_architecture
+from dendritic_modeling.networks.architectures.recurrent.ei_config import (
+    PopulationConfig,
+)
 from dendritic_modeling.networks.architectures.recurrent.structured_population_kwargs import (
     _structured_population_sparsity_kwargs,
+)
+from dendritic_modeling.networks.architectures.transformer.dendritic_ffn import (
+    DendriticFFNReplacement,
+    LayerwiseEIStackReplacement,
+    build_dendritic_ffn_kwargs_from_core_config,
+    build_ei_stack_kwargs_from_core_config,
 )
 
 
@@ -157,3 +170,84 @@ def test_structured_sparsity_options_reach_the_population_options():
         )["topk_options"]
         == {}
     )
+
+
+def _transformer_core(**sparsity) -> dict:
+    return {
+        "architecture": {
+            "dendritic_units": 6,
+            "branch_factors": [2],
+            "excitatory_layer_sizes": [4],
+            "inhibitory_layer_sizes": [2],
+            "excitatory_branch_factors": [2],
+            "inhibitory_branch_factors": [2],
+        },
+        "connectivity": {
+            "synapses_per_branch": 3,
+            "ee_synapses_per_branch_per_layer": [3],
+            "ei_synapses_per_branch_per_layer": [2],
+            "ie_synapses_per_branch_per_layer": [2],
+            "ii_synapses_per_branch_per_layer": [2],
+        },
+        "sparsity": {"indexed": {"seed": 3}, **sparsity},
+        "morphology": {"use_shunting": False, "weight_transform": "identity"},
+        "reactivation": {"enabled": False},
+    }
+
+
+def _scales(module: torch.nn.Module) -> set[float]:
+    return {b.scale for b in module.modules() if isinstance(b, ScaledIndexed)}
+
+
+def test_the_transformer_ffn_builder_passes_plugin_options(plugin_types):
+    core = _transformer_core(type="test_scaled_indexed", options={"scale": 2.0})
+    kwargs = build_dendritic_ffn_kwargs_from_core_config(core)
+    assert kwargs["topk_options"] == {"scale": 2.0}
+    assert _scales(DendriticFFNReplacement(hidden_size=8, **kwargs)) == {2.0}
+    # Without options the key stays out, so replacement classes that do not
+    # take it build every configuration they built before.
+    assert "topk_options" not in build_dendritic_ffn_kwargs_from_core_config(
+        _transformer_core(type="indexed")
+    )
+
+
+def test_the_ei_stack_builder_passes_plugin_options(plugin_types):
+    core = _transformer_core(type="test_scaled_indexed", options={"scale": 3.0})
+    kwargs = build_ei_stack_kwargs_from_core_config(core, num_layers=2)
+    assert kwargs["topk_options"] == {"scale": 3.0}
+    assert _scales(LayerwiseEIStackReplacement(hidden_size=8, **kwargs)) == {3.0}
+    assert "topk_options" not in build_ei_stack_kwargs_from_core_config(
+        _transformer_core(type="indexed"), num_layers=1
+    )
+
+
+@pytest.mark.parametrize("value", [False, 0, [], ""])
+def test_options_that_are_not_a_mapping_are_rejected(plugin_types, value):
+    with pytest.raises(
+        ValueError, match=r"model\.core\.sparsity\.options must be a mapping"
+    ):
+        SparsityConfig(options=value)
+    with pytest.raises(ValueError, match="population topk_options must be a mapping"):
+        PopulationConfig(topk_options=value)
+    with pytest.raises(ValueError, match="must be a mapping"):
+        TopKConfig(options=value)
+    with pytest.raises(ValueError, match=r"sparsity\.options must be a mapping"):
+        _structured_population_sparsity_kwargs(
+            sparsity={"options": value}, dense_to_sparse={}, indexed={}
+        )
+    core = _transformer_core(type="test_scaled_indexed", options=value)
+    for build in (
+        build_dendritic_ffn_kwargs_from_core_config,
+        lambda core: build_ei_stack_kwargs_from_core_config(core, num_layers=1),
+    ):
+        with pytest.raises(ValueError, match=r"model\.core\.sparsity\.options"):
+            build(core)
+    with pytest.raises(ValueError, match="topk_options must be a mapping"):
+        _network("test_scaled_indexed", topk_options=value)
+
+
+def test_omitted_or_null_options_mean_none():
+    assert SparsityConfig().options == {}
+    assert SparsityConfig(options=None).options == {}
+    assert PopulationConfig(topk_options=None).topk_options == {}
+    assert TopKConfig(options=None).options == {}
