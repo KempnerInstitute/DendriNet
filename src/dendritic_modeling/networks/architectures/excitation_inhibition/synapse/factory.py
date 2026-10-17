@@ -46,11 +46,26 @@ SPARSE_LAYER_REGISTRY: dict[str, type[nn.Module]] = {
     "indexed_dynamic": IndexedDynamicTopKLinear,
     "indexed_rewire": IndexedRewireLinear,
 }
+#: The types DendriNet registers itself; any other registered type is a plugin's.
+BUILTIN_SPARSE_LAYER_TYPES = frozenset(SPARSE_LAYER_REGISTRY)
 
 
 def normalize_sparse_layer_type(layer_type: object) -> str:
     """Normalize public sparse-layer aliases to registry keys."""
     return normalize_sparsity_type(layer_type)
+
+
+def get_sparse_layer_class(layer_type: str) -> type[nn.Module]:
+    """The class registered under ``layer_type``, loading plugins for an unknown name."""
+    layer_type = normalize_sparse_layer_type(layer_type)
+    if layer_type not in SPARSE_LAYER_REGISTRY:
+        load_plugins()
+    if layer_type not in SPARSE_LAYER_REGISTRY:
+        available_types = list(SPARSE_LAYER_REGISTRY.keys())
+        raise ValueError(
+            f"Unknown sparse layer type '{layer_type}'. Available types: {available_types}"
+        )
+    return SPARSE_LAYER_REGISTRY[layer_type]
 
 
 def get_sparse_layer(
@@ -62,15 +77,7 @@ def get_sparse_layer(
 ) -> nn.Module:
     """Create a sparse synapse layer by registered type."""
     layer_type = normalize_sparse_layer_type(layer_type)
-    if layer_type not in SPARSE_LAYER_REGISTRY:
-        load_plugins()
-    if layer_type not in SPARSE_LAYER_REGISTRY:
-        available_types = list(SPARSE_LAYER_REGISTRY.keys())
-        raise ValueError(
-            f"Unknown sparse layer type '{layer_type}'. Available types: {available_types}"
-        )
-
-    layer_class = SPARSE_LAYER_REGISTRY[layer_type]
+    layer_class = get_sparse_layer_class(layer_type)
     if layer_type in {"deepst", "credit_deepst"}:
         return layer_class(in_features=in_features, out_features=out_features, **kwargs)
     return layer_class(
@@ -112,9 +119,11 @@ def get_available_sparse_types() -> list[str]:
 
 
 __all__ = [
+    "BUILTIN_SPARSE_LAYER_TYPES",
     "SPARSE_LAYER_REGISTRY",
     "get_available_sparse_types",
     "get_sparse_layer",
+    "get_sparse_layer_class",
     "normalize_sparse_layer_type",
     "register_sparse_layer",
     "unregister_sparse_layer",

@@ -486,6 +486,7 @@ class DendriticBranchLayer(nn.Module):
         self.topk_temperature = synapse_options["topk_temperature"]
         self.topk_ultrafast = synapse_options["topk_ultrafast"]
         self.topk_variance_score = synapse_options["topk_variance_score"]
+        self.topk_options = dict(synapse_options["topk_options"])
         self.topk_strategy = normalize_gradient_scaling(
             synapse_options["topk_strategy"], "topk"
         )

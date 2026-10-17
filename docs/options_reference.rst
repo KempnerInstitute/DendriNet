@@ -1885,6 +1885,9 @@ Explained in :ref:`synapse-variants`. Class ``dendritic_modeling.config.model.Sp
    * - ``variance_score``
      - ``str``
      - ``absolute``
+   * - ``options``
+     - ``dict``
+     - ``{}``
    * - ``deepst``
      - ``dict``
      - mapping; keys below

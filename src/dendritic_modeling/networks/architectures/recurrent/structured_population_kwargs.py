@@ -26,6 +26,7 @@ def _structured_population_sparsity_kwargs(
         "topk_temperature": float(sparsity.get("temperature", 0.5)),
         "topk_ultrafast": bool(sparsity.get("ultrafast", True)),
         "topk_variance_score": str(sparsity.get("variance_score", "absolute")),
+        "topk_options": dict(sparsity.get("options") or {}),
         "topk_gradient_scaling": str(sparsity.get("gradient_scaling", "none")),
         "dense_to_sparse_initial_density": float(
             dense_to_sparse.get("initial_density", 1.0)

@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+- Plugin sparse synapse layers get the construction of their kind and options
+  of their own:
+  - A type that a plugin registers with ``register_sparse_layer`` as a
+    subclass of ``IndexedSparseLinear`` is built like ``type: indexed``. It
+    receives the layer's seed, output chunk size and indexed storage and
+    execution options, among them ``indexed_projection_backend``, so the
+    accelerator kernels apply. It reads the options that ``indexed`` reads.
+    Such a type was built through the generic path before: without a seed or
+    those options, on the eager projection, while the configured options
+    counted as unread.
+  - ``sparsity.options`` (``topk_options`` in the options of a population)
+    holds a plugin type's constructor options. The built-in types take none
+    and reject a non-empty mapping; omitting it changes nothing.
+  - ``BUILTIN_SPARSE_LAYER_TYPES`` and ``get_sparse_layer_class`` tell the
+    library's types from plugin types.
+  - "Extending DendriNet" describes plugin sparse layers.
+
 ## 0.3.0 (2026-10-16)
 
 Changes since 0.2.0. Configuration files carry ``config_version: 4``:

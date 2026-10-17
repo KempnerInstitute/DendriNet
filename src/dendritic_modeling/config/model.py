@@ -203,6 +203,9 @@ class SparsityConfig(BaseConfig):
     gradient_scaling: str = "none"
     # Input statistic of type "variance": "absolute" or scale-free "relative".
     variance_score: str = "absolute"
+    # Constructor options of a plugin sparse layer type (``register_sparse_layer``).
+    # Built-in types take none and reject a non-empty mapping.
+    options: dict = field(default_factory=dict)
 
     deepst: dict = field(
         default_factory=lambda: {

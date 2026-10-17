@@ -28,6 +28,9 @@ class TopKConfig:
     )
     strategy: str = "none"
     variance_score: str = "absolute"
+    # Constructor options of a plugin sparse layer type; left out of the hash
+    # so the frozen config stays hashable.
+    options: dict[str, Any] = field(default_factory=dict, hash=False)
 
 
 @dataclass(frozen=True)
@@ -150,6 +153,7 @@ def _topk_config_from_kwargs(source: Mapping[str, Any]) -> TopKConfig:
         ultrafast=source.get("topk_ultrafast", True),
         strategy=source.get("topk_strategy", "none"),
         variance_score=source.get("topk_variance_score", "absolute"),
+        options=dict(source.get("topk_options") or {}),
     )
 
 
@@ -323,6 +327,7 @@ def _topk_kwargs(config: TopKConfig) -> dict[str, Any]:
         "topk_ultrafast": config.ultrafast,
         "topk_strategy": config.strategy,
         "topk_variance_score": config.variance_score,
+        "topk_options": dict(config.options),
     }
 
 

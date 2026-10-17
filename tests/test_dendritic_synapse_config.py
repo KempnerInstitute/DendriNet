@@ -100,6 +100,7 @@ def test_dendritic_synapse_config_round_trips_every_legacy_key():
         "topk_ultrafast": True,
         "topk_strategy": "conductance_dynamic",
         "topk_variance_score": "relative",
+        "topk_options": {"scale": 2.0},
         "dense_to_sparse_initial_density": 0.6,
         "dense_to_sparse_initial_k": 4,
         "dense_to_sparse_start_step": 3,
