@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- The Triton ELL kernels (``indexed_projection_backend: triton_ell``) run indexed
+  layers with more than 65,535 output rows, such as 16,384 cells with four
+  branches. They launched one CUDA grid-y block per output row, and grid y
+  allows at most 65,535 blocks, so such layers failed at their first forward
+  pass with ``Triton Error [CUDA]: invalid argument``. Such wide layers now put
+  output rows on grid x and spread the batch blocks over grid y and z. Every
+  layer with at most 65,535 output rows keeps the previous launch layout,
+  including batches of more than ``65,535 x block_m`` rows. Its forward outputs
+  and weight gradients are unchanged. Input gradients are accumulated with
+  atomic additions, whose order varies between runs as before, so training
+  trajectories are not bitwise reproducible on this backend.
 - Plugin sparse synapse layers get the construction of their kind and options
   of their own:
   - A type that a plugin registers with ``register_sparse_layer`` as a
