@@ -29,6 +29,18 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.b
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.dendrinet_config import (
     DendriNetConfig,
 )
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.level_overrides import (
+    contacts_mask,
+    declare_contacts,
+    level_synapse_config,
+    normalize_level_overrides,
+    overrides_by_depth,
+    remove_synaptic_pathway,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.reinitialization import (
+    LogNormalReinitialization,
+    apply_lognormal_reinitialization,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.synapse_config import (
     DendriticSynapseConfig,
 )
@@ -262,9 +274,18 @@ def _build_dendrinet_branch_layers(
     structured_inhibitory_pathway,
     synapse_config,
     branch_extra_kwargs,
+    level_overrides=(),
 ):
     """Build DendriNet branch layers in forward construction order."""
 
+    overrides = overrides_by_depth(
+        normalize_level_overrides(level_overrides), n_branch_layers
+    )
+    _validate_soma_override(
+        overrides.get(0),
+        somatic_synapses=somatic_synapses,
+        synapse_config=synapse_config,
+    )
     if n_branch_layers == 0 and not somatic_synapses:
         raise ValueError(
             "a DendriNet without dendritic levels (branch_factors: []) receives "
@@ -299,7 +320,13 @@ def _build_dendrinet_branch_layers(
     soma_synapse_config = config_at_depth(
         _soma_override_synapse_config(synapse_config), 0
     )
+    if 0 in overrides:
+        soma_synapse_config = level_synapse_config(
+            soma_synapse_config, overrides[0].activation
+        )
     for i in range(n_branch_layers):
+        depth = n_branch_layers - i
+        override = overrides.get(depth)
         (
             excitatory_connection_mask,
             inhibitory_connection_mask,
@@ -333,6 +360,14 @@ def _build_dendrinet_branch_layers(
             structured_layer_idx=structured_layer_idx,
             level_idx=i,
         )
+        _reject_structured_contacts(
+            override,
+            masks=(excitatory_connection_mask, inhibitory_connection_mask),
+            indices=(excitatory_connection_indices, inhibitory_connection_indices),
+        )
+        level_config = config_at_depth(synapse_config, depth)
+        if override is not None:
+            level_config = level_synapse_config(level_config, override.activation)
         lyr = _make_dendrinet_branch_layer(
             output_dim=layer_sizes[i],
             excitatory_input_dim=excitatory_input_dim,
@@ -344,10 +379,11 @@ def _build_dendrinet_branch_layers(
             excitatory_connection_mask=excitatory_connection_mask,
             inhibitory_connection_mask=inhibitory_connection_mask,
             input_branch_factor=input_branch_factors[i],
-            layer_idx=n_branch_layers - i,
-            synapse_config=config_at_depth(synapse_config, n_branch_layers - i),
+            layer_idx=depth,
+            synapse_config=level_config,
             branch_extra_kwargs=branch_extra_kwargs,
         )
+        _apply_level_override(lyr, override, n_soma=n_soma)
         branch_layers.append(lyr)
 
     if somatic_synapses:
@@ -385,6 +421,11 @@ def _build_dendrinet_branch_layers(
             structured_layer_idx=structured_layer_idx,
             level_idx=soma_level_idx,
         )
+        _reject_structured_contacts(
+            overrides.get(0),
+            masks=(excitatory_connection_mask, inhibitory_connection_mask),
+            indices=(excitatory_connection_indices, inhibitory_connection_indices),
+        )
         branch_layers.append(
             _make_dendrinet_branch_layer(
                 output_dim=n_soma,
@@ -419,7 +460,77 @@ def _build_dendrinet_branch_layers(
             )
         )
 
+    _apply_level_override(branch_layers[-1], overrides.get(0), n_soma=n_soma)
     return branch_layers
+
+
+def _validate_soma_override(override, *, somatic_synapses, synapse_config):
+    """Reject soma overrides that the soma's construction cannot honour."""
+    if override is None:
+        return
+    if override.activation is not None and getattr(
+        synapse_config.reactivation, "soma_type", None
+    ):
+        raise ValueError(
+            "the level override at depth 0 sets an activation and "
+            "reactivation.soma_type is set; use one of them"
+        )
+    changes_synapses = not (
+        override.excitatory
+        and override.inhibitory
+        and override.excitatory_contacts is None
+        and override.inhibitory_contacts is None
+    )
+    if changes_synapses and not somatic_synapses:
+        raise ValueError(
+            "the level override at depth 0 changes somatic synapses, but the soma "
+            "has none (somatic_synapses: false)"
+        )
+
+
+def _reject_structured_contacts(override, *, masks, indices):
+    """Declared contacts and structured connectivity may not both wire a pathway."""
+    if override is None:
+        return
+    for pathway, mask, index in zip(("excitatory", "inhibitory"), masks, indices):
+        declared = getattr(override, f"{pathway}_contacts") is not None
+        if declared and (mask is not None or index is not None):
+            raise ValueError(
+                f"level {override.depth} declares {pathway}_contacts and "
+                "structured_connectivity also wires that pathway; use one of them"
+            )
+
+
+def _apply_level_override(layer, override, *, n_soma):
+    """Declare a built level's contacts, then remove its disabled pathways."""
+    if override is None:
+        return
+    for pathway, attribute in (
+        ("excitatory", "branch_excitation"),
+        ("inhibitory", "branch_inhibition"),
+    ):
+        contacts = getattr(override, f"{pathway}_contacts")
+        if contacts is None:
+            continue
+        synapse = getattr(layer, attribute, None)
+        if synapse is None:
+            raise ValueError(
+                f"level {override.depth} declares {pathway}_contacts but has no "
+                f"{pathway} pathway"
+            )
+        declare_contacts(
+            synapse,
+            contacts_mask(
+                contacts,
+                rows=synapse.out_features,
+                in_features=synapse.in_features,
+                n_soma=n_soma,
+                name=f"level {override.depth} {pathway}_contacts",
+            ),
+        )
+    for pathway in ("excitatory", "inhibitory"):
+        if not getattr(override, pathway):
+            remove_synaptic_pathway(layer, pathway)
 
 
 def _soma_override_synapse_config(synapse_config):
@@ -515,6 +626,7 @@ class DendriNet(nn.Module):
         structured_inhibitory_pathway: str = "ie",
         synapse_config=None,
         config=None,
+        level_overrides=(),
         **kwargs,
     ):
         super().__init__()
@@ -562,6 +674,7 @@ class DendriNet(nn.Module):
                 "structured_inhibitory_pathway"
             ]
             synapse_config = dendrinet_config.synapse_config
+            level_overrides = dendrinet_config.level_overrides
             kwargs["additive_tangent_n0_by_depth"] = config_kwargs[
                 "additive_tangent_n0_by_depth"
             ]
@@ -624,7 +737,9 @@ class DendriNet(nn.Module):
             structured_inhibitory_pathway=structured_inhibitory_pathway,
             synapse_config=synapse_config,
             branch_extra_kwargs=branch_extra_kwargs,
+            level_overrides=level_overrides,
         )
+        self.level_overrides = normalize_level_overrides(level_overrides)
         self.branch_layers = nn.ModuleList(branch_layers)
         self.branch_configs = tuple(layer.branch_config for layer in branch_layers)
 
@@ -651,6 +766,54 @@ class DendriNet(nn.Module):
             # Every level receives the cell's inputs and its child outputs.
             output = layer(x, inhibitory_input, output)
         return output
+
+    def forward_levels(
+        self,
+        x,
+        inhibitory_input=None,
+        *,
+        detach_child_inputs=False,
+        interventions=None,
+    ):
+        """Return the output of every level, terminal level first, soma last.
+
+        The outputs stay connected to the autograd graph. With
+        ``detach_child_inputs`` each level receives its children's output
+        detached, so a level's own parameters are the only ones its output
+        depends on through the graph (local learning rules differentiate
+        these outputs). ``interventions`` maps a level's depth (0 = soma) to a
+        labelled intervention such as ``CurrentInjection``; the level's output
+        is replaced by the intervention's and passed on to its parent.
+        Without these options the last output equals ``forward``.
+        """
+        interventions = dict(interventions or {})
+        depths = {layer.layer_idx for layer in self.branch_layers}
+        unknown = sorted(set(interventions) - depths)
+        if unknown:
+            raise ValueError(f"interventions name levels that do not exist: {unknown}")
+        outputs = []
+        output = None
+        for layer in self.branch_layers:
+            child = output
+            if detach_child_inputs and child is not None:
+                child = child.detach()
+            output = layer(x, inhibitory_input, child)
+            intervention = interventions.get(layer.layer_idx)
+            if intervention is not None:
+                output = intervention.output(layer, x, inhibitory_input, child)
+            outputs.append(output)
+        return outputs
+
+    def reinitialize(self, recipe: LogNormalReinitialization) -> None:
+        """Redraw the log-conductances with an explicit recipe.
+
+        The draws come from the global random stream when this is called, in
+        the order the recipe documents, so a protocol decides where in its
+        stream they fall.
+        """
+        if not isinstance(recipe, LogNormalReinitialization):
+            raise TypeError("recipe must be a LogNormalReinitialization")
+        apply_lognormal_reinitialization(self.branch_layers, recipe)
 
     def sum_weights(self, pruned=False):
         exc_total = 0
@@ -713,6 +876,7 @@ _DENDRINET_CONFIG_ARGUMENTS = frozenset(
         "structured_layer_idx",
         "structured_excitatory_pathway",
         "structured_inhibitory_pathway",
+        "level_overrides",
     }
 )
 

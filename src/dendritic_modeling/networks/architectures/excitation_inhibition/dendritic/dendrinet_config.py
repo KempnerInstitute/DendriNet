@@ -6,6 +6,10 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.level_overrides import (
+    DendriticLevelOverride,
+    normalize_level_overrides,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.synapse_config import (
     DendriticSynapseConfig,
 )
@@ -26,7 +30,11 @@ def _normalize_branch_factors(branch_factors: Sequence[int]) -> tuple[int, ...]:
 
 @dataclass(frozen=True)
 class DendriNetConfig:
-    """Geometry, shared synapses, and structured-mask options for ``DendriNet``."""
+    """Geometry, shared synapses, and structured-mask options for ``DendriNet``.
+
+    ``level_overrides`` change single levels (see ``DendriticLevelOverride``);
+    the default, no overrides, builds every level from the shared settings.
+    """
 
     n_soma: int
     branch_factors: tuple[int, ...]
@@ -44,6 +52,12 @@ class DendriNetConfig:
     )
     additive_tangent_n0_by_depth: tuple[float, ...] = ()
     additive_tangent_t0_by_depth: tuple[float, ...] = ()
+    level_overrides: tuple[DendriticLevelOverride, ...] = ()
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "level_overrides", normalize_level_overrides(self.level_overrides)
+        )
 
     @classmethod
     def from_config(
@@ -118,6 +132,9 @@ class DendriNetConfig:
             additive_tangent_t0_by_depth=tuple(
                 source.get("additive_tangent_t0_by_depth", ())
             ),
+            level_overrides=normalize_level_overrides(
+                source.get("level_overrides", None)
+            ),
         )
 
     def to_kwargs(self) -> dict[str, Any]:
@@ -137,6 +154,7 @@ class DendriNetConfig:
             "structured_inhibitory_pathway": self.structured_inhibitory_pathway,
             "additive_tangent_n0_by_depth": list(self.additive_tangent_n0_by_depth),
             "additive_tangent_t0_by_depth": list(self.additive_tangent_t0_by_depth),
+            "level_overrides": self.level_overrides,
         }
 
 

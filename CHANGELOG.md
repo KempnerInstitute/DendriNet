@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+- ``DendriNet`` levels can differ from the shared settings through
+  ``level_overrides`` (constructor argument and ``DendriNetConfig`` field;
+  default none). An override names a level by depth (0 = soma) and removes a
+  feedforward pathway (built and initialized first, so the remaining
+  parameters keep the draws of the full model), declares the inputs each
+  compartment contacts (a configuration-derived connection mask that is not
+  stored in checkpoints; dense TopK synapses only, not together with
+  structured connectivity on the same pathway) or sets the level's
+  activation.
+- ``DendriNet.reinitialize(LogNormalReinitialization(...))`` redraws the
+  synaptic and coupling log-weights in a documented order, with optional
+  per-level offsets, at the point of the global random stream where it is
+  called.
+- ``DendriNet.forward_levels`` returns every level's output, optionally with
+  each level's child input detached, and applies labelled interventions to
+  single levels for that pass; ``CurrentInjection`` replaces a shunting
+  level's inhibition beyond a reference input by a current at a fixed voltage.
+  ``forward`` is unchanged.
+- ``dendritic_modeling.training.local_delivery`` provides the soma error, the
+  surrogate objective of delivered errors and the gain quantities (relative
+  resistance, coupling ratios, activation slope) for local rules trained with
+  autograd eligibilities; with exact gains the delivered errors equal the
+  backpropagated ones.
+
+  None of these change existing models or their outputs.
 - Two LocalCA options put credit-delivery controls into the typed
   configuration:
   - ``learning_strategy_config.path_transport_projection`` (default

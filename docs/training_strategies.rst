@@ -1176,6 +1176,39 @@ Under DDP, ``local_ca`` averages its assigned gradients across ranks before
 clipping and the optimizer step, because they do not come from a
 ``backward()`` call whose gradients DDP reduces.
 
+.. _local-delivery:
+
+Delivered errors with autograd eligibilities
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``dendritic_modeling.training.local_delivery`` provides building blocks for
+local rules that a training loop of its own computes with autograd, outside
+the ``local_ca`` trainer. Every level of a ``DendriNet`` is trained by the
+gradient of a surrogate objective, the sum over levels of the level's output
+times a delivered error, computed on
+``DendriNet.forward_levels(..., detach_child_inputs=True)``
+(:ref:`dendrinet-level-overrides`). Autograd then gives each level's
+parameters their exact local eligibility times the delivered error.
+
+- ``soma_error(loss, soma_output)``: the detached loss gradient at the somata;
+- ``delivered_error_objective(level_outputs, error, gains)``: the surrogate
+  objective; the error is repeated over each neuron's compartments and
+  multiplied by the level's gain (``None`` for none). Add it to the loss and
+  call ``backward()``;
+- gain quantities, computed without gradients: ``relative_resistance(layer,
+  inhibitory_input)`` (D0 / (D0 + I), with D0 the leak, coupling and, where
+  present, excitatory conductance), ``coupling_ratios(layer)`` (g_child / D0
+  for every child of every parent), ``activation_slope(layer)`` (the
+  activation derivative at the last forward voltage; needs branch
+  diagnostics; identity and tanh) and ``expand_to_children(values,
+  branch_factor)``.
+
+The delivered error equals the backpropagated one when each level's gain is
+the product, over its ancestors up to and including the soma, of activation
+slope, coupling ratio and relative resistance; the tests check this against
+autograd. Which products a rule uses, and any permutation, binning or noise
+applied to them, belongs to the protocol.
+
 Warm-up strategies
 ------------------
 
