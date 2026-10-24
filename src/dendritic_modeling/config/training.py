@@ -42,6 +42,8 @@ LOCAL_ERROR_BROADCAST_MODES = (
     "pathway_vector",
 )
 LOCAL_BROADCAST_BANDWIDTHS = ("full", "sign_only", "quantized", "sparse_topk")
+LOCAL_PATH_TRANSPORT_PROJECTIONS = ("none", "arbor_mean", "subtree_mean")
+LOCAL_CORE_UPDATE_MODES = ("local", "none")
 LOCAL_ENCODER_UPDATE_MODES = ("backprop", "none")
 LOCAL_DECODER_UPDATE_MODES = ("backprop", "local", "none")
 LOCAL_SCHEDULE_KEYS = {
@@ -874,6 +876,12 @@ class LocalRuleConfig(BaseConfig):
     error_broadcast_mode: str = (
         "scalar"  # "scalar", legacy "per_soma", "per_soma_shared", "per_soma_shuffled", "local_mismatch", "low_rank", "path_transport", "pathway_vector"
     )
+    # Projection of the path_transport error field before delivery: "none"
+    # keeps each compartment's transported error; "arbor_mean" gives every
+    # nonsomatic compartment of a neuron the mean of that neuron's errors;
+    # "subtree_mean" gives each compartment the mean over the subtree of the
+    # soma's child that contains it. Soma errors stay exact.
+    path_transport_projection: str = "none"
     # Seed of the randomized feedback controls (per_soma_shuffled, low_rank);
     # None derives it from the run seed, so replicates differ.
     broadcast_seed: Optional[int] = None
@@ -943,6 +951,10 @@ class LocalRuleConfig(BaseConfig):
     # Deprecated compatibility shim. If set by old YAMLs, it is converted to
     # explicit_inhibitory_update_mode in __post_init__.
     update_explicit_inhibitory_cells: Optional[bool] = None
+    # "local": the local rules update the dendritic core (synapses, gates).
+    # "none": no local-rule update reaches the core, which keeps its initial
+    # parameters while the encoder and decoder follow their update modes.
+    core_update_mode: str = "local"
     encoder_update_mode: str = "none"  # "backprop", "none"
     decoder_update_mode: str = "backprop"  # "backprop", "local", "none"
 
@@ -996,6 +1008,27 @@ class LocalRuleConfig(BaseConfig):
             LOCAL_ERROR_BROADCAST_MODES,
             field="error_broadcast_mode",
         )
+        self.path_transport_projection = normalize_choice(
+            self.path_transport_projection,
+            LOCAL_PATH_TRANSPORT_PROJECTIONS,
+            field="path_transport_projection",
+        )
+        if (
+            self.path_transport_projection != "none"
+            and self.error_broadcast_mode != "path_transport"
+        ):
+            raise ValueError(
+                "path_transport_projection="
+                f"{self.path_transport_projection!r} projects the path_transport "
+                "error field, but error_broadcast_mode is "
+                f"{self.error_broadcast_mode!r}; set error_broadcast_mode: "
+                "path_transport or path_transport_projection: none"
+            )
+        self.core_update_mode = normalize_choice(
+            self.core_update_mode,
+            LOCAL_CORE_UPDATE_MODES,
+            field="core_update_mode",
+        )
         self.broadcast_bandwidth = normalize_choice(
             self.broadcast_bandwidth,
             LOCAL_BROADCAST_BANDWIDTHS,
@@ -1017,6 +1050,16 @@ class LocalRuleConfig(BaseConfig):
             LOCAL_DECODER_UPDATE_MODES,
             field="decoder_update_mode",
         )
+        if (
+            self.core_update_mode == "none"
+            and self.encoder_update_mode == "none"
+            and self.decoder_update_mode == "none"
+            and not self.training_schedule
+        ):
+            raise ValueError(
+                "core_update_mode, encoder_update_mode and decoder_update_mode "
+                "are all 'none', so local_ca would train no parameter"
+            )
         if self.training_schedule is not None:
             self.training_schedule = [
                 _normalize_schedule_entry(entry, index)

@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- Two LocalCA options put credit-delivery controls into the typed
+  configuration:
+  - ``learning_strategy_config.path_transport_projection`` (default
+    ``none``) projects the ``path_transport`` error field before the rules
+    use it. ``arbor_mean`` gives every dendritic compartment the mean
+    transported error of its neuron; ``subtree_mean`` gives it the mean over
+    the subtree of the soma's child that contains it. Soma errors stay exact.
+    It requires ``error_broadcast_mode: path_transport`` and raises where a
+    compartment of the readout tree has no transported error.
+  - ``learning_strategy_config.core_update_mode`` (default ``local``) set to
+    ``none`` applies no local-rule update to the dendritic core, whose
+    synapses and gates keep their initial values while the encoder and
+    decoder follow their update modes. Setting all three update modes to
+    ``none`` without a ``training_schedule`` raises.
+
+  The defaults leave the training of every existing configuration unchanged.
+
 - The Triton ELL kernels (``indexed_projection_backend: triton_ell``) run indexed
   layers with more than 65,535 output rows, such as 16,384 cells with four
   branches. They launched one CUDA grid-y block per output row, and grid y

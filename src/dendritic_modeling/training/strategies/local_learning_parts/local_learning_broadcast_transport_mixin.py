@@ -232,6 +232,68 @@ def _iter_distal_parent_records(
         yield layer_idx, layer_records[layer_idx], layer_records[layer_idx + 1]
 
 
+def _project_transported_errors(
+    layer_records: list[dict[str, Any]],
+    transported: list[torch.Tensor | None],
+    projection: str,
+) -> list[torch.Tensor | None]:
+    """Replace each nonsomatic transported error by the mean of its group.
+
+    Records run from the most distal layer to the soma, and child ``c`` of a
+    parent block of size ``s`` belongs to parent ``c // s``. ``arbor_mean``
+    groups all nonsomatic compartments of one neuron; ``subtree_mean`` groups
+    each child of the soma with its descendants. Replacing errors by group
+    means is the Euclidean projection onto the groups' indicator vectors, so
+    each group keeps its summed error. The soma error is returned unchanged.
+    """
+    option = f"path_transport_projection={projection!r}"
+    depth = len(layer_records)
+    if depth < 2:
+        raise ValueError(
+            f"{option} averages errors over dendritic compartments, but the "
+            "readout tree records only its soma"
+        )
+    for layer_idx in range(depth - 1):
+        child = transported[layer_idx]
+        parent = transported[layer_idx + 1]
+        blk_module = layer_records[layer_idx + 1].get("blk_module")
+        if not (
+            isinstance(child, torch.Tensor)
+            and isinstance(parent, torch.Tensor)
+            and blk_module is not None
+        ):
+            raise ValueError(
+                f"{option} needs the exact transported error at every "
+                f"compartment, but recorded layer {layer_idx} has none"
+            )
+        if child.size(1) != parent.size(1) * _block_size(blk_module):
+            raise ValueError(
+                f"{option} needs {_block_size(blk_module)} children per parent "
+                f"compartment, but recorded layer {layer_idx} has {child.size(1)} "
+                f"compartments under {parent.size(1)} parents"
+            )
+    root = depth - 1 if projection == "arbor_mean" else depth - 2
+    n_groups = transported[root].size(1)
+    total = None
+    count = 0
+    for layer_idx in range(depth - 1):
+        error = transported[layer_idx]
+        members = error.size(1) // n_groups
+        summed = error.reshape(error.size(0), n_groups, members).sum(dim=-1)
+        total = summed if total is None else total + summed
+        count += members
+    mean = total / count
+    projected = list(transported)
+    for layer_idx in range(depth - 1):
+        width = transported[layer_idx].size(1)
+        projected[layer_idx] = (
+            mean.unsqueeze(-1)
+            .expand(-1, n_groups, width // n_groups)
+            .reshape(-1, width)
+        )
+    return projected
+
+
 class LocalLearningPathTransportBroadcastMixin:
     """Recursive transport of local-rule feedback through dendritic trees."""
 
@@ -568,6 +630,7 @@ __all__ = [
     "_feedback_child_seed",
     "_iter_distal_parent_records",
     "_path_branch_factor",
+    "_project_transported_errors",
     "_scalar_edge_mean_factor",
     "_soma_seed_from_delta",
     "_transport_child_error",

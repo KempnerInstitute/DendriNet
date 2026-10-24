@@ -379,15 +379,17 @@ class LocalCreditAssignment(
             # Zero gradients (we will set param.grads directly)
             _zero_optimizer_gradients(self.optimizer)
 
-            # Apply local learning updates as gradients on parameters
-            self._apply_local_rule_gradients(
-                model,
-                layer_records,
-                v0=v0_local,
-                delta=delta_local,
-                y_target=y_target,
-                update_reactivation=update_reactivation,
-            )
+            # Apply local learning updates as gradients on parameters; with
+            # core_update_mode "none" the core keeps its parameters.
+            if getattr(self.local_cfg, "core_update_mode", "local") == "local":
+                self._apply_local_rule_gradients(
+                    model,
+                    layer_records,
+                    v0=v0_local,
+                    delta=delta_local,
+                    y_target=y_target,
+                    update_reactivation=update_reactivation,
+                )
 
             _accumulate_backprop_update_gradients(
                 loss=loss,

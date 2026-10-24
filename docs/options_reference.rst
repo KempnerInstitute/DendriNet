@@ -2605,6 +2605,9 @@ Explained in :ref:`local-credit-assignment`. Class ``dendritic_modeling.config.t
    * - ``error_broadcast_mode``
      - ``str``
      - ``scalar``
+   * - ``path_transport_projection``
+     - ``str``
+     - ``none``
    * - ``broadcast_seed``
      - ``Optional[int]``
      - ``null``
@@ -2671,6 +2674,9 @@ Explained in :ref:`local-credit-assignment`. Class ``dendritic_modeling.config.t
    * - ``update_explicit_inhibitory_cells``
      - ``Optional[bool]``
      - ``null``
+   * - ``core_update_mode``
+     - ``str``
+     - ``local``
    * - ``encoder_update_mode``
      - ``str``
      - ``none``

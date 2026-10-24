@@ -962,6 +962,27 @@ cells or several populations raise, unless
 ``learning_strategy_config.allow_scalar_fallback`` is true: compartments
 without a path then receive the scalar error (and a unit path factor).
 
+``path_transport_projection`` (default ``none``) replaces the transported
+error of every dendritic compartment by a group mean before the rules use it.
+``arbor_mean`` takes the mean over all dendritic compartments of a neuron,
+one coefficient per neuron. ``subtree_mean`` takes the mean over the subtree
+of each child of the soma, so a soma with three children receives three
+coefficients. Soma errors stay exact, and each group keeps the sum of its
+transported errors. The coefficients are computed from the exact field, so
+these settings limit what the delivered error can express rather than what
+the feedback pathway must know. They require ``error_broadcast_mode:
+path_transport`` and a transported error at every compartment of the readout
+tree, and raise otherwise.
+
+.. code-block:: yaml
+
+   training:
+     main:
+       strategy: local_ca
+       learning_strategy_config:
+         error_broadcast_mode: path_transport
+         path_transport_projection: subtree_mean
+
 ``broadcast_bandwidth`` limits what the broadcast carries: ``full``
 (default), ``sign_only``, ``quantized`` (``broadcast_bits``, default 8) or
 ``sparse_topk`` (the largest ``broadcast_topk_fraction`` of the values,
@@ -1075,6 +1096,12 @@ What the rules update
   and the inhibitory-polarity populations of population networks; I-to-E
   synapses on excitatory dendrites are always updated. The deprecated boolean
   ``update_explicit_inhibitory_cells`` still loads.
+- ``core_update_mode``: ``local`` (default) updates the dendritic core with
+  the rules above; ``none`` applies no local-rule update, so the core keeps
+  its initial synapses and gates while the encoder and decoder follow their
+  update modes, for example a decoder trained on fixed dendritic features.
+  Setting it, ``encoder_update_mode`` and ``decoder_update_mode`` all to
+  ``none`` without a ``training_schedule`` raises.
 - ``encoder_update_mode``: ``none`` (default) or ``backprop``;
   ``decoder_update_mode``: ``backprop`` (default), ``local`` or ``none``.
 - ``freeze_encoder_epochs``, ``freeze_reactivation_epochs`` and
