@@ -952,8 +952,9 @@ class LocalRuleConfig(BaseConfig):
     # explicit_inhibitory_update_mode in __post_init__.
     update_explicit_inhibitory_cells: Optional[bool] = None
     # "local": the local rules update the dendritic core (synapses, gates).
-    # "none": no local-rule update reaches the core, which keeps its initial
-    # parameters while the encoder and decoder follow their update modes.
+    # "none": the core is held fixed (no local-rule update, no sparse
+    # maintenance, no change of sparse selection state) while the encoder and
+    # decoder follow their update modes.
     core_update_mode: str = "local"
     encoder_update_mode: str = "none"  # "backprop", "none"
     decoder_update_mode: str = "backprop"  # "backprop", "local", "none"

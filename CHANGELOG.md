@@ -12,10 +12,14 @@
     It requires ``error_broadcast_mode: path_transport`` and raises where a
     compartment of the readout tree has no transported error.
   - ``learning_strategy_config.core_update_mode`` (default ``local``) set to
-    ``none`` applies no local-rule update to the dendritic core, whose
-    synapses and gates keep their initial values while the encoder and
-    decoder follow their update modes. Setting all three update modes to
-    ``none`` without a ``training_schedule`` raises.
+    ``none`` holds the dendritic core fixed while the encoder and decoder
+    follow their update modes: no local-rule update, no sparse maintenance,
+    rewiring or topology-controller replacement (the core's parameters stop
+    requiring gradients for the run and are restored afterwards) and no
+    change of sparse selection state in training forwards. It raises with
+    periodic reactivation recalibration, batch normalization in the core,
+    stateful sparse layers outside the core, multi-process training, and
+    when all three update modes are ``none`` without a ``training_schedule``.
 
   The defaults leave the training of every existing configuration unchanged.
 

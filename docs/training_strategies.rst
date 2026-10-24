@@ -968,9 +968,10 @@ error of every dendritic compartment by a group mean before the rules use it.
 one coefficient per neuron. ``subtree_mean`` takes the mean over the subtree
 of each child of the soma, so a soma with three children receives three
 coefficients. Soma errors stay exact, and each group keeps the sum of its
-transported errors. The coefficients are computed from the exact field, so
-these settings limit what the delivered error can express rather than what
-the feedback pathway must know. They require ``error_broadcast_mode:
+transported errors. These are oracle-informed delivery controls: the
+coefficients are computed from the exact field, so the settings limit what
+the delivered error can express and say nothing about how a neuron could
+acquire the coefficients locally. They require ``error_broadcast_mode:
 path_transport`` and a transported error at every compartment of the readout
 tree, and raise otherwise.
 
@@ -1097,11 +1098,17 @@ What the rules update
   synapses on excitatory dendrites are always updated. The deprecated boolean
   ``update_explicit_inhibitory_cells`` still loads.
 - ``core_update_mode``: ``local`` (default) updates the dendritic core with
-  the rules above; ``none`` applies no local-rule update, so the core keeps
-  its initial synapses and gates while the encoder and decoder follow their
-  update modes, for example a decoder trained on fixed dendritic features.
-  Setting it, ``encoder_update_mode`` and ``decoder_update_mode`` all to
-  ``none`` without a ``training_schedule`` raises.
+  the rules above; ``none`` holds the core fixed while the encoder and
+  decoder follow their update modes, for example a decoder trained on fixed
+  dendritic features. The core then receives no local-rule update, its
+  parameters stop requiring gradients for the run (so sparse maintenance,
+  rewiring and topology controllers skip them) and training forwards do not
+  change sparse selection state (variance Top-K statistics, release
+  tracking, dense-to-sparse schedules); trainability is restored when
+  training ends. It raises with periodic reactivation recalibration,
+  batch normalization in the core, such stateful sparse layers outside the
+  core and multi-process training, and when it, ``encoder_update_mode`` and
+  ``decoder_update_mode`` are all ``none`` without a ``training_schedule``.
 - ``encoder_update_mode``: ``none`` (default) or ``backprop``;
   ``decoder_update_mode``: ``backprop`` (default), ``local`` or ``none``.
 - ``freeze_encoder_epochs``, ``freeze_reactivation_epochs`` and

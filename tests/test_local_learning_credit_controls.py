@@ -291,10 +291,28 @@ def test_a_projection_changes_the_trained_core():
     assert any(not torch.equal(exact[name], projected[name]) for name in core)
 
 
+def _trainability(model):
+    return {name: value.requires_grad for name, value in model.named_parameters()}
+
+
+def _core_state(model):
+    return {
+        name: value.detach().clone()
+        for name, value in model.core_network.state_dict().items()
+    }
+
+
+def _same(first, second):
+    return first.keys() == second.keys() and all(
+        torch.equal(first[name], second[name]) for name in first
+    )
+
+
 @pytest.mark.parametrize("decoder_update_mode", ["backprop", "local"])
 def test_core_update_mode_none_trains_only_the_decoder(decoder_update_mode):
     model = _tree_model()
     initial = _parameters(model)
+    trainability = _trainability(model)
     trainer, _ = _make_trainer(
         "local_ca",
         model,
@@ -312,4 +330,194 @@ def test_core_update_mode_none_trains_only_the_decoder(decoder_update_mode):
     assert core and decoder
     assert all(torch.equal(initial[name], final[name]) for name in core)
     assert any(not torch.equal(initial[name], final[name]) for name in decoder)
-    assert set(core) <= set(trainer.uncovered_parameters)
+    assert not set(core) & set(trainer.uncovered_parameters)
+    assert _trainability(model) == trainability
+
+
+def test_sparse_maintenance_changes_synapses_that_received_no_gradient():
+    model = _tree_model()
+    before = _core_state(model)
+    optimizer = _optimizer(model, synapse_decay_rate=0.05, weight_boosting=True)
+    optimizer.zero_grad(set_to_none=True)
+    optimizer.step()
+    assert not _same(before, _core_state(model))
+
+
+def test_training_forwards_change_variance_top_k_statistics():
+    model = _variance_tree_model()
+    before = _core_state(model)
+    model.train()
+    model(torch.rand(8, IN_DIM))
+    assert not _same(before, _core_state(model))
+
+
+def _variance_tree_model():
+    return _model(
+        "einet",
+        _einet(
+            **{
+                "architecture.excitatory_branch_factors": [2, 2],
+                "sparsity.type": "variance",
+            }
+        ),
+    )
+
+
+@pytest.mark.parametrize("build", [_tree_model, _variance_tree_model])
+def test_core_update_mode_none_holds_the_whole_core_state(build):
+    model = build()
+    before = _core_state(model)
+    trainability = _trainability(model)
+    optimizer = _optimizer(model, synapse_decay_rate=0.05, weight_boosting=True)
+    trainer, _ = _make_trainer(
+        "local_ca",
+        model,
+        optimizer,
+        epochs=2,
+        load_best_state_dict=True,
+        local_rule_config={"core_update_mode": "none"},
+    )
+    trainer.train(model, _data(), _data(seed=1))
+    assert _same(before, _core_state(model))
+    assert _trainability(model) == trainability
+
+
+def test_core_update_mode_none_rejects_settings_that_change_the_core():
+    from torch import nn
+
+    from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.variance import (
+        VarianceTopKLinear,
+    )
+
+    frozen = {"core_update_mode": "none"}
+    model = _tree_model()
+    trainer, _ = _make_trainer(
+        "local_ca",
+        model,
+        local_rule_config=frozen,
+        reactivation_update_mode="quantile",
+        recalibrate_reactivation_every=1,
+    )
+    with pytest.raises(ValueError, match="recalibrate_reactivation_every=1"):
+        trainer.train(model, _data(), _data(seed=1))
+
+    model = _tree_model()
+    model.core_network.norm = nn.BatchNorm1d(6)
+    trainer, _ = _make_trainer("local_ca", model, local_rule_config=frozen)
+    with pytest.raises(ValueError, match="batch normalization"):
+        trainer.train(model, _data(), _data(seed=1))
+
+    model = _tree_model()
+    model.decoder_network = nn.Sequential(
+        VarianceTopKLinear(6, 6, K=2), model.decoder_network
+    )
+    trainer, _ = _make_trainer("local_ca", model, local_rule_config=frozen)
+    with pytest.raises(ValueError, match=r"outside the core: decoder_network\.0"):
+        trainer.train(model, _data(), _data(seed=1))
+    assert all(p.requires_grad for p in model.core_network.parameters())
+
+
+def _launcher_experiment(results_dir):
+    return {
+        "experiment": {"seed": 0},
+        "data": {"dataset_name": "mnist"},
+        "model": {
+            "task": "classification",
+            "encoder": {"type": "identity", "params": {"input_dim": 12}},
+            "core": {
+                "biological_neuron": False,
+                "type": "einet",
+                "architecture": {
+                    "excitatory_layer_sizes": [6],
+                    "excitatory_branch_factors": [2, 2],
+                },
+                "connectivity": {"ee_synapses_per_branch_per_layer": [2]},
+                "sparsity": {"type": "variance"},
+            },
+            "decoder": {"type": "MLP", "params": {"hidden_dims": [], "output_dim": 3}},
+        },
+        "training": {
+            "main": {
+                "strategy": "local_ca",
+                "common": {
+                    "epochs": 2,
+                    "batch_size": 16,
+                    "loss_function": "ce",
+                    "early_stopping": False,
+                    "load_best_state_dict": True,
+                    "synapse_decay_rate": 0.05,
+                    "weight_boosting": True,
+                },
+                "optimizer": {"name": "adam"},
+                "learning_strategy_config": {"core_update_mode": "none"},
+            }
+        },
+        "outputs": {"results_dir": str(results_dir), "run_name": "frozen_core"},
+    }
+
+
+def test_the_launcher_saves_a_model_whose_core_is_the_initial_core(
+    monkeypatch, tmp_path
+):
+    import yaml
+    from torch.utils.data import TensorDataset
+
+    from dendritic_modeling.config import config_from_mapping
+    from dendritic_modeling.scripts.script_utils import setup_utils
+    from dendritic_modeling.scripts.training import train_experiments
+
+    monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "")
+    generator = torch.Generator().manual_seed(0)
+    data = TensorDataset(torch.rand(48, 12, generator=generator), torch.arange(48) % 3)
+    monkeypatch.setattr(
+        setup_utils, "get_unified_datasets", lambda *, task_cfg: (data, data, data)
+    )
+    monkeypatch.setattr(
+        setup_utils.logger_manager, "set_log_directory", lambda *_: None
+    )
+    experiment = _launcher_experiment(tmp_path / "results")
+    path = tmp_path / "config.yaml"
+    path.write_text(yaml.safe_dump(experiment))
+    train_experiments.main(str(path), args=None)
+    saved = list((tmp_path / "results").rglob("final_model.pt"))
+    assert len(saved) == 1
+    trained = torch.load(saved[0], map_location="cpu", weights_only=False)
+    trained = trained.get("model_state_dict", trained)
+
+    config = config_from_mapping(_launcher_experiment(tmp_path / "fresh"))
+    *_, initial, _ = setup_utils.setup_environment(
+        model_config=config.model,
+        training_config=config.training,
+        data_config=config.data,
+        outputs_config=config.outputs,
+        experiment_config=config.experiment,
+        is_main=True,
+    )
+    initial = initial.state_dict()
+    core = [name for name in initial if name.startswith("core_network.")]
+    decoder = [name for name in initial if name.startswith("decoder_network.")]
+    assert core and decoder
+    assert all(torch.equal(initial[name].cpu(), trained[name]) for name in core)
+    assert any(not torch.equal(initial[name].cpu(), trained[name]) for name in decoder)
+
+
+def test_a_local_stage_with_core_update_mode_none_holds_the_core(tmp_path):
+    main = {
+        "strategy": "multi_stage",
+        "learning_strategy_config": {"core_update_mode": "none"},
+        "strategies": {
+            "multi_stage": {"stages": [{"learning_strategy": "local_ca", "epochs": 1}]}
+        },
+    }
+    config = _typed_config(tmp_path, main)
+    model = _einet_model()
+    before = _core_state(model)
+    trainability = _trainability(model)
+    optimizer = _optimizer(model, synapse_decay_rate=0.05, weight_boosting=True)
+    trainer = get_trainer(
+        "multi_stage", optimizer, _trainer_kwargs_from_typed(config, tmp_path)
+    )
+    trainer.device = "cpu"
+    trainer.train(model, _data(), _data(seed=1))
+    assert _same(before, _core_state(model))
+    assert _trainability(model) == trainability
