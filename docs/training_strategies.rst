@@ -886,10 +886,15 @@ Rule variants
    z-score couples the outputs: the error at the voltage before it is
    :math:`(e - \bar e - z\,\overline{e z})/\sigma` per sample, which needs the
    layer means :math:`\bar e` and :math:`\overline{e z}`.
-   ``additive_gain_mode: normalization_jacobian`` applies this derivative to
-   the layer's own updates and to path transport through it, which makes the
-   updates exact; the other modes omit it, so on normalized layers they
-   approximate the gradient, and training warns. ``use_driving_force: false``
+   ``additive_gain_mode: normalization_jacobian`` applies this exact
+   derivative to the layer's own updates and to path transport through it.
+   The updates equal backpropagation's only where the rest of the rule is
+   gradient-consistent as well, for example with ``error_broadcast_mode:
+   path_transport`` and no projection, modulators or bandwidth limits;
+   scalar or per-soma broadcasts and projected errors remain
+   approximations. Because the derivative uses layer-wide means, it is not
+   local to a synapse. The other modes omit it, so on normalized layers they
+   approximate the derivative, and training warns. ``use_driving_force: false``
    replaces the driving forces with the threshold factors
    :math:`(V - \theta)` and :math:`(\theta - V)` (``three_factor.theta``), and
    ``use_conductance_scaling: false`` drops :math:`1/g_\mathrm{tot}`; both are

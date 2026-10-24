@@ -105,8 +105,10 @@ def _tree(normalized):
     return _model("einet", core).double()
 
 
-def _readout_tree_error(normalized, mode):
-    model = _tree(normalized)
+def _readout_tree_error(normalized, mode, *, device="cpu", dtype=torch.float64):
+    """Largest local-minus-autograd difference over the readout tree, and the
+    largest autograd gradient there."""
+    model = _tree(normalized).to(device=device, dtype=dtype)
     trainer, _ = _make_trainer(
         "local_ca",
         model,
@@ -117,13 +119,13 @@ def _readout_tree_error(normalized, mode):
         },
     )
     generator = torch.Generator().manual_seed(4)
-    x = torch.rand(5, IN_DIM, generator=generator, dtype=torch.float64)
+    x = torch.rand(5, IN_DIM, generator=generator, dtype=dtype).to(device)
     records, handles = trainer._attach_local_recorders(model)
     try:
         soma = model.core_network(x)
     finally:
         trainer.remove_forward_hooks(handles)
-    delta = torch.randn(soma.shape, generator=generator, dtype=torch.float64)
+    delta = torch.randn(soma.shape, generator=generator, dtype=dtype).to(device)
     groups, readout = _records_by_tree(model, records)
     assert len(groups[readout]) == 3
     model.zero_grad(set_to_none=True)
@@ -138,19 +140,29 @@ def _readout_tree_error(normalized, mode):
     local = {name: value.grad for name, value in model.named_parameters()}
     model.zero_grad(set_to_none=True)
     (model.core_network(x) * delta).sum().div(len(x)).backward()
-    errors = [
-        float((local[name] - value.grad).abs().max())
+    tree = [
+        (local[name], value.grad)
         for name, value in model.named_parameters()
         if ".excitatory_cells." in name and local[name] is not None
     ]
-    assert len(errors) == 14
-    return max(errors)
+    assert len(tree) == 14
+    error = max(float((a - b).abs().max()) for a, b in tree)
+    scale = max(float(b.abs().max()) for _, b in tree)
+    return error, scale
 
 
 def test_path_transport_through_z_scored_parents_is_exact_in_the_exact_mode():
-    assert _readout_tree_error(True, EXACT) < 1e-12
-    assert _readout_tree_error(True, "none") > 1e-3
-    assert _readout_tree_error(False, EXACT) < 1e-12
+    assert _readout_tree_error(True, EXACT)[0] < 1e-12
+    assert _readout_tree_error(True, "none")[0] > 1e-3
+    assert _readout_tree_error(False, EXACT)[0] < 1e-12
+
+
+@pytest.mark.requires_gpu
+def test_the_exact_mode_holds_in_float32_on_cuda():
+    error, scale = _readout_tree_error(True, EXACT, device="cuda", dtype=torch.float32)
+    assert error < 1e-5 * scale
+    error, scale = _readout_tree_error(True, "none", device="cuda", dtype=torch.float32)
+    assert error > 1e-3 * scale
 
 
 def test_recording_the_scale_leaves_the_forward_unchanged():

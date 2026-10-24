@@ -294,9 +294,8 @@ class LocalCreditAssignment(
         if normalized and three_factor.additive_gain_mode != "normalization_jacobian":
             logger.warning(
                 "%slocal_ca omits the derivative of use_additive_normalization at "
-                "%s, so its updates there approximate the gradient; set "
-                "three_factor.additive_gain_mode: normalization_jacobian for the "
-                "exact update",
+                "%s; three_factor.additive_gain_mode: normalization_jacobian "
+                "supplies it (exact gradients also need exact delivered errors)",
                 self.logger_info_prefix,
                 ", ".join(normalized[:4]) + (" ..." if len(normalized) > 4 else ""),
             )
