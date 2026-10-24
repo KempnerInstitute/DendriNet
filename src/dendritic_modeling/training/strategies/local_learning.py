@@ -23,6 +23,7 @@ from dendritic_modeling.config.local_learning import (
 )
 from dendritic_modeling.config.training import CommonTrainerConfig
 from dendritic_modeling.models import BaseModel
+from dendritic_modeling.networks import DendriticBranchLayer
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.dense_to_sparse import (
     DenseToSparseLinear,
 )
@@ -96,6 +97,7 @@ from dendritic_modeling.training.strategies.trainability import (
     restore_requires_grad,
     snapshot_requires_grad,
 )
+from dendritic_modeling.utils.hooks import iter_named_modules_of_type
 
 logger = logging.getLogger(__name__)
 
@@ -282,6 +284,22 @@ class LocalCreditAssignment(
             three_factor.dynamics_mode,
             allow_mismatch=three_factor.allow_mismatched_dynamics_mode,
         )
+        normalized = [
+            name
+            for name, layer in iter_named_modules_of_type(
+                self._unwrap_model(model), DendriticBranchLayer
+            )
+            if getattr(layer, "use_additive_normalization", False)
+        ]
+        if normalized and three_factor.additive_gain_mode != "normalization_jacobian":
+            logger.warning(
+                "%slocal_ca omits the derivative of use_additive_normalization at "
+                "%s, so its updates there approximate the gradient; set "
+                "three_factor.additive_gain_mode: normalization_jacobian for the "
+                "exact update",
+                self.logger_info_prefix,
+                ", ".join(normalized[:4]) + (" ..." if len(normalized) > 4 else ""),
+            )
         reject_unsupported_synapses(
             self._unwrap_model(model),
             stdp_pathways={

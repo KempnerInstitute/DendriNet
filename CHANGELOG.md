@@ -22,6 +22,20 @@
     when all three update modes are ``none`` without a ``training_schedule``.
 
   The defaults leave the training of every existing configuration unchanged.
+- LocalCA can follow the exact derivative of ``use_additive_normalization``,
+  the per-sample z-score of an additive layer's voltages across its outputs.
+  With ``learning_strategy_config.three_factor.additive_gain_mode:
+  normalization_jacobian`` the layer records the scale of its z-score during
+  the local-rule forward, and the rules map the voltage error back through
+  the z-score (which couples the layer's outputs) for the layer's own
+  synapses and coupling weights and for path transport through it. The
+  local updates of synapses, coupling weights and gates then equal
+  backpropagation's, in float64 to about 1e-17 on a single layer and through
+  two transported levels. The other modes,
+  including the default ``none``, still omit that derivative: on normalized
+  layers their updates approximate the gradient (a 0.115 maximum error on the
+  test layer), and LocalCA now warns when it trains such layers without the
+  exact mode. The forward pass is unchanged.
 
 - The Triton ELL kernels (``indexed_projection_backend: triton_ell``) run indexed
   layers with more than 65,535 output rows, such as 16,384 cells with four

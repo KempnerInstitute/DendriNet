@@ -881,7 +881,15 @@ Rule variants
    it is :math:`+x` for excitation and :math:`-x` for inhibition, with
    optional gain control (``three_factor.additive_gain_mode``: ``none``,
    ``input_dependent`` or ``running_stats``, whose moving-average rate is
-   ``additive_stats_ema_alpha``). ``use_driving_force: false``
+   ``additive_stats_ema_alpha``). A layer with ``use_additive_normalization``
+   z-scores its voltages across its outputs, and the derivative of that
+   z-score couples the outputs: the error at the voltage before it is
+   :math:`(e - \bar e - z\,\overline{e z})/\sigma` per sample, which needs the
+   layer means :math:`\bar e` and :math:`\overline{e z}`.
+   ``additive_gain_mode: normalization_jacobian`` applies this derivative to
+   the layer's own updates and to path transport through it, which makes the
+   updates exact; the other modes omit it, so on normalized layers they
+   approximate the gradient, and training warns. ``use_driving_force: false``
    replaces the driving forces with the threshold factors
    :math:`(V - \theta)` and :math:`(\theta - V)` (``three_factor.theta``), and
    ``use_conductance_scaling: false`` drops :math:`1/g_\mathrm{tot}`; both are

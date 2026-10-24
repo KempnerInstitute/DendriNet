@@ -9,6 +9,7 @@ from typing import Any
 import torch
 
 from dendritic_modeling.training.strategies.local_learning_parts.local_learning_broadcast import (
+    additive_zscore_vjp,
     expand_parent_signal_to_children,
 )
 
@@ -550,6 +551,19 @@ class LocalLearningPathTransportBroadcastMixin:
             )
 
             parent_r_tot = self._parent_resistance_total(parent_rec, parent_v)
+
+            scale = parent_rec.get("additive_scale")
+            if scale is not None:
+                # Through a z-scored additive parent the voltage error couples
+                # the parent's outputs (additive_gain_mode: normalization_jacobian).
+                parent_error = additive_zscore_vjp(
+                    parent_error.to(device=parent_v.device, dtype=parent_v.dtype)
+                    * parent_act_deriv,
+                    parent_v,
+                    scale,
+                    parent_rec["additive_epsilon"],
+                )
+                parent_act_deriv = torch.ones_like(parent_v)
 
             transported[layer_idx] = _transport_child_error(
                 parent_error=parent_error,

@@ -293,13 +293,15 @@ class LocalLearningRecorderMixin(ForwardHookRemovalMixin):
             def _register_hook_group(hook_group: str):
                 if hook_group == "reactivation":
                     return [self._register_reactivation_hook(module, rec)]
+                if hook_group == "additive_scale":
+                    return self._register_additive_scale_hook(module)
                 if hook_group == "topk":
                     return self._register_topk_hooks(module, rec)
                 block_hook = self._register_block_output_hook(module, rec)
                 return [] if block_hook is None else [block_hook]
 
             return register_hook_groups(
-                ("reactivation", "topk", "block"),
+                ("reactivation", "additive_scale", "topk", "block"),
                 _register_hook_group,
             )
 
@@ -326,8 +328,37 @@ class LocalLearningRecorderMixin(ForwardHookRemovalMixin):
             except Exception:
                 rec["v_n"] = outputs.detach() if torch.is_tensor(outputs) else None
             rec["v_out"] = outputs.detach() if torch.is_tensor(outputs) else None
+            module.__dict__.pop("_record_additive_scale", None)
+            scale = module.__dict__.pop("_last_additive_scale", None)
+            if scale is not None:
+                rec["additive_scale"] = scale
+                rec["additive_epsilon"] = float(module.epsilon)
 
         return module.reactivation.register_forward_hook(_react_hook)
+
+    def _register_additive_scale_hook(
+        self,
+        module: DendriticBranchLayer,
+    ) -> list[torch.utils.hooks.RemovableHandle]:
+        """Ask a z-scored additive layer for the per-sample scale of its z-score.
+
+        ``three_factor.additive_gain_mode: normalization_jacobian`` needs it for
+        the exact derivative of ``use_additive_normalization``; the reactivation
+        hook moves it into the layer's record.
+        """
+        if not getattr(module, "use_additive_normalization", False):
+            return []
+        three_factor = getattr(getattr(self, "local_cfg", None), "three_factor", None)
+        if (
+            getattr(three_factor, "additive_gain_mode", "none")
+            != "normalization_jacobian"
+        ):
+            return []
+
+        def _request_scale(mod, args):
+            mod._record_additive_scale = True
+
+        return [module.register_forward_pre_hook(_request_scale)]
 
     def _register_topk_hooks(
         self,

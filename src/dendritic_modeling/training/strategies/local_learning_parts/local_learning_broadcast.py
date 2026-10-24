@@ -168,6 +168,29 @@ def compute_layer_total_conductance(
     return g_tot
 
 
+def additive_zscore_vjp(
+    error: torch.Tensor,
+    z: torch.Tensor,
+    scale: torch.Tensor,
+    epsilon: float,
+) -> torch.Tensor:
+    """Pull an error at a z-scored additive voltage back to the voltage before it.
+
+    ``use_additive_normalization`` maps each sample's voltages to
+    ``z = (v - mean(v)) / max(std(v), epsilon)`` across a layer's outputs
+    (population std). Its Jacobian couples the outputs, so the exact error at
+    ``v`` is ``(e - mean(e) - z * mean(e * z)) / std``, or
+    ``(e - mean(e)) / epsilon`` where the scale was clamped. ``scale`` is the
+    unclamped per-sample std, shaped ``[batch, 1]``.
+    """
+    scale = scale.to(device=error.device, dtype=error.dtype)
+    z = z.to(device=error.device, dtype=error.dtype)
+    centered = error - error.mean(dim=-1, keepdim=True)
+    coupled = centered - z * (error * z).mean(dim=-1, keepdim=True)
+    clamped = scale < epsilon
+    return torch.where(clamped, centered, coupled) / scale.clamp_min(epsilon)
+
+
 def expand_parent_signal_to_children(
     signal: torch.Tensor, block_size: int, child_out_features: int
 ) -> torch.Tensor:
@@ -338,6 +361,7 @@ def compute_pathway_seed_projection(
 
 
 __all__ = [
+    "additive_zscore_vjp",
     "apply_broadcast_bandwidth",
     "compute_layer_total_conductance",
     "compute_local_mismatch_broadcast",

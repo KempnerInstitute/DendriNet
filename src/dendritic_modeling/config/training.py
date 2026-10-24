@@ -553,6 +553,11 @@ class ThreeFactorConfig(BaseConfig):
     # "input_dependent" : post_factor = e_n * pseudo_R * pseudo_drive
     #                     pseudo_R = 1/(1 + |activations|), pseudo_drive = (v_mean - v_n + 1)
     # "running_stats"   : post_factor = e_n * (1 / running_std_n)
+    # "normalization_jacobian": the exact derivative of a layer's
+    #                     use_additive_normalization z-score, which couples
+    #                     its outputs; layers without it are unchanged. The
+    #                     other modes omit that Jacobian (an approximation on
+    #                     normalized layers).
     additive_gain_mode: str = "none"
     additive_stats_ema_alpha: float = 0.01  # EMA rate for running_stats mode
 
@@ -584,7 +589,7 @@ class ThreeFactorConfig(BaseConfig):
             )
         self.additive_gain_mode = normalize_choice(
             self.additive_gain_mode,
-            ("none", "input_dependent", "running_stats"),
+            ("none", "input_dependent", "running_stats", "normalization_jacobian"),
             field="three_factor.additive_gain_mode",
         )
 
