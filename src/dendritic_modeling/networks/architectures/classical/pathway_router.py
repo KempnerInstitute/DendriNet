@@ -240,10 +240,12 @@ class PathwayRouter(BaseNetwork):
         return full
 
     def routing_statistics(self):
-        """Optional regularization statistics of learned, nonshared sources only."""
+        """Optional regularization statistics of learned, nonshared sources only.
+
+        Returns ``None`` for a fixed router, which has nothing to learn.
+        """
         if self.assignment_logits is None:
-            zero = next(self.parameters()).new_zeros(())
-            return zero, zero
+            return None
         return assignment_statistics(self._learned_assignments(), destination_dim=-1)
 
     def get_output_slices(self) -> list[slice]:

@@ -22,7 +22,9 @@
   arithmetic with this control.
 - Add optional routing-entropy and balance penalties to the existing
   regularization manager. Both default to zero and do no routing work unless
-  requested. No existing model, initialization stream or checkpoint changes.
+  requested; a requested penalty needs a learned router, since fixed routers
+  return no statistics. No existing model, initialization stream or checkpoint
+  changes.
 
 - Public `networks.functional.shunting_voltage` and `additive_voltage` evaluate
   pre-gate voltages from explicit currents without a layer-owner stand-in.

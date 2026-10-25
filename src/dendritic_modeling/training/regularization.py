@@ -263,15 +263,19 @@ class RegularizationManager:
                 statistics = getattr(module, "routing_statistics", None)
                 if not callable(statistics):
                     continue
+                values = statistics()
+                if values is None:  # A fixed router has nothing to regularize.
+                    continue
                 found = True
-                entropy, balance = statistics()
+                entropy, balance = values
                 total_reg_loss = total_reg_loss + (
                     self.routing_entropy_weight * entropy
                     + self.routing_balance_weight * balance
                 )
             if not found:
                 raise ValueError(
-                    "routing regularization needs a module exposing routing_statistics"
+                    "routing regularization needs a learned router exposing "
+                    "routing_statistics"
                 )
 
         return total_reg_loss

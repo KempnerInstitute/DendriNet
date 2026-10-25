@@ -542,9 +542,11 @@ mean source-assignment entropy; ``routing_balance_weight`` penalizes mean
 squared deviation from equal branch mass. The regularization manager applies
 these terms to modules exposing ``routing_statistics()``, currently the paired
 E/I and pathway routers. Positive weights request minimization of those
-statistics; fixed routing contributes zero. Both weights default to zero,
-which performs no routing discovery or computation in existing runs. Requesting
-a routing penalty on a model with no routing statistics raises.
+statistics. Fixed routers return no statistics, and requesting a routing
+penalty on a model without a learned router raises. Both weights default to
+zero, which performs no routing discovery or computation in existing runs.
+``routing_regularizer(entropy_weight=..., balance_weight=...)`` evaluates the
+same term for a direct training loop; its weights have no defaults.
 
 Parameter-budget model families
 -------------------------------

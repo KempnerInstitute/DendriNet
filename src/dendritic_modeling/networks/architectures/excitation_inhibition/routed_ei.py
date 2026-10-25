@@ -96,16 +96,25 @@ class RoutedEIReadout(nn.Module):
         return self.config.hard_routing if hard is None else hard
 
     def routing_statistics(self):
-        """Mean assignment entropy and squared deviation from equal branch mass."""
+        """Mean assignment entropy and squared deviation from equal branch mass.
+
+        Returns ``None`` for a fixed assignment, which has nothing to learn.
+        """
         if self.fixed_assignment.numel():
-            zero = self.route_logits.new_zeros(())
-            return zero, zero
+            return None
         soft = routing_assignments(self.route_logits, self.temperature, dim=0)
         return assignment_statistics(soft, destination_dim=0)
 
-    def routing_regularizer(self, *, entropy_weight=0.002, balance_weight=0.25):
-        """Explicit objective term; forward never adds or backpropagates a loss."""
-        entropy, balance = self.routing_statistics()
+    def routing_regularizer(self, *, entropy_weight, balance_weight):
+        """Weighted routing statistics as an explicit objective term.
+
+        The forward never adds this term. Training runs set the weights under
+        ``training.main.regularization``; a fixed assignment contributes zero.
+        """
+        statistics = self.routing_statistics()
+        if statistics is None:
+            return self.route_logits.new_zeros(())
+        entropy, balance = statistics
         return entropy_weight * entropy + balance_weight * balance
 
     def inferred_assignment(self):

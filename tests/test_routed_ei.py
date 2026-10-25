@@ -502,6 +502,29 @@ def test_regularization_manager_uses_shared_observables(router):
     assert any(p.grad is not None for p in model.parameters())
     with pytest.raises(ValueError, match="routing_statistics"):
         manager.compute_regularization_loss(nn.Linear(2, 2))
+    if router == "paired":
+        assert torch.equal(
+            model.routing_regularizer(entropy_weight=0.002, balance_weight=0.25),
+            0.002 * entropy + 0.25 * balance,
+        )
+        with pytest.raises(TypeError):
+            model.routing_regularizer()  # The weights are the caller's choice.
+
+
+@pytest.mark.parametrize("router", ["paired", "pathway"])
+def test_routing_penalty_requires_a_learned_router(router):
+    model = (
+        build_routed_ei(spec(fixed=True))
+        if router == "paired"
+        else PathwayRouter(8, router_mode="fixed")
+    )
+    assert model.routing_statistics() is None
+    manager = RegularizationManager(RegularizationConfig(routing_entropy_weight=0.002))
+    with pytest.raises(ValueError, match="learned router"):
+        manager.compute_regularization_loss(model)
+    if router == "paired":
+        zero = model.routing_regularizer(entropy_weight=0.002, balance_weight=0.25)
+        assert zero.item() == 0 and not zero.requires_grad
 
 
 def test_default_regularization_never_calls_routing_observables():
@@ -680,7 +703,7 @@ def test_default_row_sum_keeps_empty_branches_at_zero_and_round_trips(tmp_path):
     assert torch.equal(model(x), restored(x))
 
 
-def test_standard_training_uses_configured_routing_penalty(tmp_path):
+def _train_one_epoch(run_path, regularization):
     from torch.utils.data import TensorDataset
 
     from dendritic_modeling.scripts.training.train_experiments import (
@@ -697,28 +720,38 @@ def test_standard_training_uses_configured_routing_penalty(tmp_path):
         "synapse_decay_rate": 0.0,
         "weight_boosting": False,
     }
-    value["training"]["main"]["regularization"] = {
-        "routing_entropy_weight": 0.002,
-        "routing_balance_weight": 0.25,
-    }
+    value["training"]["main"]["regularization"] = regularization
     cfg = config_from_mapping(value)
+    torch.manual_seed(61)
     model, _ = initialize_model(cfg.model)
     inputs = torch.linspace(0.1, 2.0, 128).reshape(8, 16)
     dataset = TensorDataset(inputs, torch.arange(8) % 2)
+    run_path.mkdir()
     setup = _build_main_trainer(
         unwrapped_model=model,
         training_config=cfg.training,
         model_config=cfg.model,
         experiment_config=cfg.experiment,
-        run_save_path=str(tmp_path),
+        run_save_path=str(run_path),
         encoded_train_ds=dataset,
         analysis_manager=None,
     )
-    assert setup.trainer.regularization_manager.routing_balance_weight == 0.25
-    before = model.core_network.route_logits.detach().cpu().clone()
+    torch.manual_seed(62)
     results = setup.trainer.train(model, dataset, dataset)
     assert len(results["train_losses"]) == 1
-    assert not torch.equal(before, model.core_network.route_logits.detach().cpu())
+    manager = setup.trainer.regularization_manager
+    return manager, model.core_network.route_logits.detach().cpu()
+
+
+def test_standard_training_adds_the_configured_routing_penalty(tmp_path):
+    penalty = {"routing_entropy_weight": 0.002, "routing_balance_weight": 0.25}
+    manager, penalized = _train_one_epoch(tmp_path / "penalized", penalty)
+    assert manager.routing_balance_weight == 0.25
+    _, plain = _train_one_epoch(tmp_path / "plain", {})
+    _, repeated = _train_one_epoch(tmp_path / "repeated", {})
+    # Training repeats exactly, so only the penalty changes the learned routing.
+    assert torch.equal(plain, repeated)
+    assert not torch.equal(plain, penalized)
 
 
 @pytest.mark.parametrize("value", [-1, float("nan"), True])
