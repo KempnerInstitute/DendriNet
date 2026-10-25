@@ -24,7 +24,9 @@
   surrogate objective of delivered errors and the gain quantities (relative
   resistance, coupling ratios, activation slope) for local rules trained with
   autograd eligibilities; with exact gains the delivered errors equal the
-  backpropagated ones.
+  backpropagated ones (the factors include each level's ``epsilon``, as the
+  forward denominator does). The objective rejects graph-connected errors and
+  gains.
 
   None of these change existing models or their outputs.
 - Two LocalCA options put credit-delivery controls into the typed

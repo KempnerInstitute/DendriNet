@@ -1193,15 +1193,18 @@ parameters their exact local eligibility times the delivered error.
 - ``soma_error(loss, soma_output)``: the detached loss gradient at the somata;
 - ``delivered_error_objective(level_outputs, error, gains)``: the surrogate
   objective; the error is repeated over each neuron's compartments and
-  multiplied by the level's gain (``None`` for none). Add it to the loss and
+  multiplied by the level's gain (``None`` for none). The error and the gains
+  are supplied signals and must be detached; a graph-connected one raises,
+  because it would add its own derivative. Add the objective to the loss and
   call ``backward()``;
 - gain quantities, computed without gradients: ``relative_resistance(layer,
-  inhibitory_input)`` (D0 / (D0 + I), with D0 the leak, coupling and, where
-  present, excitatory conductance), ``coupling_ratios(layer)`` (g_child / D0
-  for every child of every parent), ``activation_slope(layer)`` (the
-  activation derivative at the last forward voltage; needs branch
-  diagnostics; identity and tanh) and ``expand_to_children(values,
-  branch_factor)``.
+  inhibitory_input)`` ((D0 + eps) / (D0 + I + eps), with D0 the leak,
+  coupling and, where present, excitatory conductance and eps the level's
+  ``epsilon``, which the forward pass adds to its denominator),
+  ``coupling_ratios(layer)`` (g_child / (D0 + eps) for every child of every
+  parent), ``activation_slope(layer)`` (the activation derivative at the
+  last forward voltage; needs branch diagnostics; identity and tanh) and
+  ``expand_to_children(values, branch_factor)``.
 
 The delivered error equals the backpropagated one when each level's gain is
 the product, over its ancestors up to and including the soma, of activation

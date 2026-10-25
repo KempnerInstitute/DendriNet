@@ -6,8 +6,10 @@ times a delivered error, with each level's child input detached
 (``DendriNet.forward_levels(..., detach_child_inputs=True)``). Autograd then
 gives each level's parameters their exact local eligibility times the
 delivered error. The delivered error is the soma error repeated over each
-neuron's compartments, times a gain built from the quantities below. Gains are
-detached signals: they are computed without gradients.
+neuron's compartments, times a gain built from the quantities below. The
+delivered error and its gains are supplied signals, not differentiated:
+``delivered_error_objective`` rejects graph-connected ones, and the gain
+quantities are computed without gradients.
 
 The functions here compute those quantities for one level; which products
 form a rule, and any permutation or noise applied to them, belongs to the
@@ -36,21 +38,13 @@ def _require_shunting(layer: Any, name: str) -> None:
         raise ValueError(f"{name} is defined for shunting levels")
 
 
-@torch.no_grad()
-def relative_resistance(
-    layer: Any, inhibitory_input: torch.Tensor, excitatory_input=None
-) -> torch.Tensor:
-    """D0 / (D0 + I) for every compartment of a shunting level.
+def _uninhibited_denominator(layer: Any, excitatory_input) -> torch.Tensor:
+    """D0 + epsilon: the level's forward denominator without inhibition.
 
-    ``I`` is the level's inhibitory conductance for ``inhibitory_input`` and
-    ``D0`` its total conductance without inhibition: leak plus coupling
-    conductance, plus the excitatory conductance at levels with an excitatory
-    pathway (pass ``excitatory_input`` there). This is the input resistance
-    left by inhibition relative to the uninhibited compartment.
+    Leak, the excitatory conductance where the level has that pathway, the
+    coupling conductance, and the level's ``epsilon``, which the forward pass
+    adds to its denominator (``V = N / (D + epsilon)``).
     """
-    _require_shunting(layer, "relative_resistance")
-    if layer.branch_inhibition is None:
-        raise ValueError(f"level {layer.layer_idx} has no inhibitory pathway")
     base = layer.effective_leak
     if layer.branch_excitation is not None:
         if excitatory_input is None:
@@ -61,6 +55,28 @@ def relative_resistance(
         base = base + layer.branch_excitation(excitatory_input)
     if layer.input_branches:
         base = base + layer.branches_to_output.sum_conductances()
+    if layer.epsilon:
+        base = base + layer.epsilon
+    return base
+
+
+@torch.no_grad()
+def relative_resistance(
+    layer: Any, inhibitory_input: torch.Tensor, excitatory_input=None
+) -> torch.Tensor:
+    """(D0 + eps) / (D0 + I + eps) for every compartment of a shunting level.
+
+    ``I`` is the level's inhibitory conductance for ``inhibitory_input`` and
+    ``D0`` its total conductance without inhibition: leak plus coupling
+    conductance, plus the excitatory conductance at levels with an excitatory
+    pathway (pass ``excitatory_input`` there). ``eps`` is the level's
+    ``epsilon``, which the forward pass adds to the denominator. This is the
+    input resistance left by inhibition relative to the uninhibited compartment.
+    """
+    _require_shunting(layer, "relative_resistance")
+    if layer.branch_inhibition is None:
+        raise ValueError(f"level {layer.layer_idx} has no inhibitory pathway")
+    base = _uninhibited_denominator(layer, excitatory_input)
     inhibition = layer.branch_inhibition(inhibitory_input)
     return base / (base + inhibition)
 
@@ -90,28 +106,21 @@ def activation_slope(layer: Any) -> torch.Tensor:
 
 @torch.no_grad()
 def coupling_ratios(layer: Any, excitatory_input=None) -> torch.Tensor:
-    """g_child / D0 for every child of every parent compartment.
+    """g_child / (D0 + eps) for every child of every parent compartment.
 
-    ``D0`` is the parent's conductance without inhibition, as in
-    ``relative_resistance``: leak plus coupling conductance, plus the
-    excitatory conductance at levels with an excitatory pathway (pass
-    ``excitatory_input`` there). Shape ``[parents, children per parent]``, or
-    ``[batch, parents, children per parent]`` when the excitatory
-    conductance enters. Times ``relative_resistance`` it is the exact ratio
-    g_child / D by which a child's output moves its parent's voltage.
+    ``D0`` and ``eps`` are as in ``relative_resistance``: the parent's
+    conductance without inhibition (leak plus coupling conductance, plus the
+    excitatory conductance at levels with an excitatory pathway; pass
+    ``excitatory_input`` there) and its ``epsilon``. Shape
+    ``[parents, children per parent]``, or ``[batch, parents, children per
+    parent]`` when the excitatory conductance enters. Times
+    ``relative_resistance`` it is the exact ratio g_child / (D + eps) by which a
+    child's output moves its parent's voltage.
     """
     _require_shunting(layer, "coupling_ratios")
     if not layer.input_branches:
         raise ValueError(f"level {layer.layer_idx} has no child branches")
-    base = layer.effective_leak
-    if layer.branch_excitation is not None:
-        if excitatory_input is None:
-            raise ValueError(
-                f"level {layer.layer_idx} has an excitatory pathway; pass "
-                "excitatory_input"
-            )
-        base = base + layer.branch_excitation(excitatory_input)
-    base = base + layer.branches_to_output.sum_conductances()
+    base = _uninhibited_denominator(layer, excitatory_input)
     return layer.branches_to_output.weight() / base[..., None]
 
 
@@ -130,10 +139,21 @@ def delivered_error_objective(
     ``error`` has one column per neuron; each level's outputs are ordered
     neuron by neuron, so the error is repeated over each neuron's
     compartments. A gain of ``None`` delivers the repeated error unchanged.
-    Add the result to the loss and backpropagate.
+    The error and the gains must be detached: a graph-connected one would add
+    its own derivative to the update, so it raises. Add the result to the
+    loss and backpropagate.
     """
     if len(level_outputs) != len(gains):
         raise ValueError("give one gain (or None) per level output")
+    if error.requires_grad:
+        raise ValueError(
+            "the delivered error must be detached; soma_error returns it detached"
+        )
+    if any(gain is not None and gain.requires_grad for gain in gains):
+        raise ValueError(
+            "gains must be detached (compute them under torch.no_grad() or detach "
+            "them); a graph-connected gain would add its own derivative"
+        )
     n_soma = error.shape[-1]
     total = 0
     for output, gain in zip(level_outputs, gains):

@@ -12,6 +12,7 @@ from test_dendrinet_level_overrides import (
     SOMA,
     STREAMS,
     _inputs,
+    _overrides,
     _typed,
 )
 from torch import nn
@@ -22,8 +23,9 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.d
 from dendritic_modeling.training import local_delivery as ld
 
 
-def _network(seed=21):
-    net, _ = _typed(seed)
+def _network(seed=21, epsilon=0.0):
+    torch.manual_seed(seed)
+    net = DendriNet(**BASE, epsilon=epsilon, level_overrides=_overrides())
     net.reinitialize(RECIPE)
     net = net.double()
     for layer in net.branch_layers:
@@ -45,8 +47,10 @@ def _full_chain_gains(net, inhibition):
     return [terminal, soma_ratio.expand(inhibition.shape[0], -1)]
 
 
-def test_full_chain_delivery_equals_backpropagation():
-    net = _network()
+@pytest.mark.parametrize("epsilon", [0.0, 1e-8, 0.5])
+def test_full_chain_delivery_equals_backpropagation(epsilon):
+    # The factors include each level's epsilon, as the forward denominator does.
+    net = _network(epsilon=epsilon)
     excitation, inhibition = _inputs(3, batch=7)
     target = torch.linspace(-1, 1, 7, dtype=torch.float64)
     parameters = dict(net.named_parameters())
@@ -164,3 +168,30 @@ def test_soma_error_is_the_detached_loss_gradient():
     )
     assert not error.requires_grad
     loss.backward()  # the graph is retained for the caller
+
+
+def test_relative_resistance_and_coupling_ratios_include_epsilon():
+    net = _network(4, epsilon=0.5)
+    _, proximal, soma = net.branch_layers
+    excitation, inhibition = _inputs(5)
+    net(excitation, inhibition)
+    base = 1 + proximal.branches_to_output.sum_conductances() + 0.5
+    inhibitory = proximal.branch_inhibition(inhibition)
+    assert torch.equal(
+        ld.relative_resistance(proximal, inhibition), base / (base + inhibitory)
+    )
+    soma_base = 1 + soma.branches_to_output.sum_conductances() + 0.5
+    assert torch.equal(
+        ld.coupling_ratios(soma), soma.branches_to_output.weight() / soma_base[:, None]
+    )
+
+
+def test_delivered_signals_must_be_detached():
+    outputs = [torch.randn(2, SOMA * LEAVES, dtype=torch.float64, requires_grad=True)]
+    error = torch.randn(2, SOMA, dtype=torch.float64)
+    connected = torch.rand(2, SOMA * LEAVES, dtype=torch.float64, requires_grad=True)
+    with pytest.raises(ValueError, match="gains must be detached"):
+        ld.delivered_error_objective(outputs, error, [connected * 2])
+    with pytest.raises(ValueError, match="error must be detached"):
+        ld.delivered_error_objective(outputs, error.requires_grad_(), [None])
+    ld.delivered_error_objective(outputs, error.detach(), [connected.detach()])
