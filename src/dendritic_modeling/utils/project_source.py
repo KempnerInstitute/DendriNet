@@ -296,8 +296,17 @@ def verify_contract(
     if not package.is_file():
         raise SourceContractError(f"No maintained package at {package}")
     _clean(root, ["src", "configs", "pyproject.toml", "setup.py", "requirements.txt"])
-    paper_paths = [*contract["source_paths"], str(contract_path.relative_to(paper))]
+    contract_relative = str(contract_path.relative_to(paper))
+    paper_paths = [*contract["source_paths"], contract_relative]
     _clean(paper, paper_paths)
+    # Status cannot see into an embedded repository, so require the contract to
+    # be a file the paper repository itself has committed.
+    try:
+        _git(paper, "ls-files", "--error-unmatch", "--", contract_relative)
+    except SourceContractError as error:
+        raise SourceContractError(
+            f"The contract is not a committed file of {paper}: {contract_relative}"
+        ) from error
     for relative in paper_paths:
         if not _inside(paper, relative).exists():
             raise SourceContractError(f"Declared paper source is missing: {relative}")

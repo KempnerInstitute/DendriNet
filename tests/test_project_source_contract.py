@@ -168,6 +168,19 @@ def test_nested_contract_cli_preserves_numerical_execution(project, tmp_path):
     assert not (paper / "forbidden.json").exists()
 
 
+def test_nested_contract_must_be_committed_by_the_paper_repository(project):
+    # A contract committed only in an embedded repository is invisible to the
+    # paper repository's status, so the cleanliness check alone cannot catch it.
+    library, paper, contract = project
+    embedded = paper / "vendored"
+    initialize(embedded)
+    inside = embedded / contract.name
+    inside.write_bytes(contract.read_bytes())
+    commit(embedded, contract.name)
+    with pytest.raises(source.SourceContractError, match="not a committed file"):
+        source.verify_contract(inside, library, paper_root=paper)
+
+
 def test_nested_contract_rejects_symlink_escape(project, tmp_path):
     library, paper, contract = project
     outside = tmp_path / "outside.json"
