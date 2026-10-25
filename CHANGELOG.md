@@ -15,8 +15,9 @@
   precision, unused sections and options that fixed routing ignores raise.
   Fixed/learned routing, a global-mean inhibitory control and an explicit
   clamped-sum normalization floor support historical reduced-model replay.
-  Dividing by the sum keeps the normalization's derivative at the zero entries
-  of hard-routed rows. Parameters a configuration never reads keep their
+  Dividing by the sum (`networks.utils.weight_normalization.divide_rows_by_sum`,
+  shared with `normalize_weight_rows(sum_floor=...)`) keeps the normalization's
+  derivative at the zero entries of hard-routed rows. Parameters a configuration never reads keep their
   checkpoint keys but do not require gradients, so distributed training does
   not wait for them. Training initializes the control from the global stream;
   an explicit `core.initialization_seed` selects a stream keyed by the seed and
