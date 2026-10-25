@@ -19,6 +19,11 @@ PYTHONPATH=$PWD/src python -m pytest -m "not slow" -n auto
   policies and data out of the tests (temporary data root, no site policy).
 - `fixtures/`: reference data for tests, including the default-path goldens.
 - `golden_cases.py`: the small models of the default-path goldens.
+- `distributed_test_utils.py`: bounded spawning for distributed contract tests.
+  Workers dump their stacks after two minutes, and the parent stops and reaps
+  them on a five-minute deadline or a pytest interruption. Worker exceptions
+  still fail the test. This also prevents timed-out children from keeping the
+  pytest process alive during interpreter shutdown.
 
 ## Default-path goldens
 
