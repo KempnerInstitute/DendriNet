@@ -450,9 +450,12 @@ It differs from ``pathway_router``, which applies signed projections, and from
 Top-K synapses, which select contacts within a branch rather than assign each
 source to a destination. Both routers share the same soft-assignment utility.
 
-``configs/examples/routed_ei.yaml`` is a model/trainer template. Its dataset
-must supply finite nonnegative concatenated inputs ``[E, I]`` of width
-``2 * features``. Direct callers can supply the streams separately:
+``configs/examples/routed_ei.yaml`` runs with ``dendritic-train`` and reuses
+the existing ``branch_local_gain_load`` dataset. Validation uses the training
+gain distribution; only the test set has the larger gain fluctuations. This
+binary example is not a replay of a paper's multiclass routing task. Other
+datasets must supply finite nonnegative concatenated inputs ``[E, I]`` of
+width ``2 * features``. Direct callers can supply the streams separately:
 
 .. code-block:: python
 

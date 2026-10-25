@@ -1,7 +1,20 @@
-# Model/trainer template for paired, finite nonnegative input streams.
-# Supply [E_1,...,E_8,I_1,...,I_8] and two-class labels from your dataset.
-# This does not define a dataset or a gain/noise-generating protocol.
+# Small runnable example using the existing branch-local gain/load dataset.
+# This binary task is not the historical multiclass routing-paper protocol.
+# dendritic-train configs/examples/routed_ei.yaml
 config_version: 4
+experiment:
+  seed: 17
+  checkpointing: {enabled: false}
+data:
+  dataset_name: branch_local_gain_load
+  dataset_params:
+    branch_local_gain_load:
+      n_samples: 256
+      stream_dim: 8
+      n_gain_groups: 2
+      train_gain_sigma: 0.4
+      test_gain_sigma: 0.8
+      valid_split_mode: train
 model:
   task: classification
   output_scale_mode: fixed
@@ -33,3 +46,6 @@ training:
       routing_entropy_weight: 0.0
       routing_balance_weight: 0.0
     optimizer: {name: adam}
+outputs:
+  run_name: routed_ei_example
+  results_dir: outputs/examples

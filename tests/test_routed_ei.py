@@ -1,6 +1,7 @@
 """Config isolation, shared primitives and numerical contracts of paired routing."""
 
 from dataclasses import asdict
+from pathlib import Path
 
 import pytest
 import torch
@@ -432,3 +433,26 @@ def test_standard_training_uses_configured_routing_penalty(tmp_path):
 def test_invalid_routing_regularization_is_rejected(value):
     with pytest.raises(ValueError):
         RegularizationConfig(routing_entropy_weight=value)
+
+
+def test_example_reuses_existing_dataset_loader():
+    from dendritic_modeling.datasets import get_unified_datasets
+
+    path = Path(__file__).resolve().parents[1] / "configs/examples/routed_ei.yaml"
+    cfg = load_config(str(path))
+    params = cfg.data.dataset_params[cfg.data.dataset_name]
+    train, valid, test = get_unified_datasets(
+        {
+            "dataset": cfg.data.dataset_name,
+            "train_valid_split": cfg.experiment.train_valid_split,
+            "parameters": {**params, "seed": cfg.experiment.seed},
+        }
+    )
+    assert params["valid_split_mode"] == "train"
+    model, _ = initialize_model(cfg.model)
+    for dataset in (train, valid, test):
+        x, labels = dataset.tensors
+        assert x.shape[1] == 2 * cfg.model.core.routed_ei.features
+        assert x.min() >= 0 and labels.max() < cfg.model.core.routed_ei.output_dim
+        logits = model(x[:4])
+        assert logits.shape == (4, 2) and torch.isfinite(logits).all()
