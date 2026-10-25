@@ -11,6 +11,7 @@ from dendritic_modeling.config.biological import (
 from dendritic_modeling.config.choices import normalize_gradient_scaling
 from dendritic_modeling.config.conversion import to_plain_dict
 from dendritic_modeling.config.extensions import extension_default
+from dendritic_modeling.config.feature_readout import FeatureReadoutConfig
 from dendritic_modeling.config.keys import check_section_keys, to_mapping
 from dendritic_modeling.config.routed_ei import RoutedEIConfig
 from dendritic_modeling.config.shared_projection import SharedProjectionShuntingConfig
@@ -519,6 +520,7 @@ class CoreConfig(BaseConfig):
     shared_projection_shunting: Optional[SharedProjectionShuntingConfig] = None
     # No routing behavior is enabled on existing cores by this optional section.
     routed_ei: Optional[RoutedEIConfig] = None
+    feature_readout: Optional[FeatureReadoutConfig] = None
     # Optional explicit learned-scalar budget for fixed-output sparse point
     # controls.  Structured dendritic configurations normally leave this
     # unset, in which case ``sparse_active_matched_point`` derives its budget

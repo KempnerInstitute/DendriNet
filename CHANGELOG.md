@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Add the opt-in `feature_readout` conventional control. It composes the
+  existing dense affine builder with PyTorch LayerNorm/GroupNorm or explicit
+  group-mean division, retaining constructor order and checkpoint keys.
+  Normalization, groups and divisor offset are typed configuration; noise is
+  an explicit runtime input. It does not change physical shunting, L1 input
+  normalization, existing cores or their default random streams.
+
 - Add opt-in `affine_mlp.initialization: pytorch_default` for dense controls.
   It retains the original Linear constructor weights, biases and RNG draws;
   no reinitialization or implicit bias centering occurs. Existing initialization

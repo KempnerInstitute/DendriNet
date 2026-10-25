@@ -104,6 +104,7 @@ from dendritic_modeling.config.conversion import (
     normalize_sparsity_type,
     to_plain_dict,
 )
+from dendritic_modeling.config.feature_readout import FeatureReadoutConfig
 from dendritic_modeling.config.keys import UnknownConfigKeyError
 from dendritic_modeling.config.model import (
     ArchitectureConfig,

@@ -39,6 +39,7 @@ from dendritic_modeling.config.extensions import (
     config_section_builder,
     registered_named_sections,
 )
+from dendritic_modeling.config.feature_readout import FeatureReadoutConfig
 from dendritic_modeling.config.inhibitory_wiring import check_retired_inhibitory_routing
 from dendritic_modeling.config.io_params import (
     IDENTITY_TYPES,
@@ -655,6 +656,11 @@ def _build_core_config(core_data: Any) -> CoreConfig:
     core = CoreConfig(
         type=core_type,
         affine_mlp=None if affine_mlp is None else typed("affine_mlp", AffineMLPConfig),
+        feature_readout=(
+            None
+            if core_dict.get("feature_readout") is None
+            else typed("feature_readout", FeatureReadoutConfig)
+        ),
         routed_ei=(
             None
             if core_dict.get("routed_ei") is None

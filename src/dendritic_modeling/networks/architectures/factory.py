@@ -348,6 +348,47 @@ def _ensure_flat_parameters(
     return parameters
 
 
+def _build_feature_readout_architecture(type, parameters, input_dim, suffix_input_dim):
+    from dendritic_modeling.config.core_sections import reject_unread_core_sections
+    from dendritic_modeling.config.feature_readout import FeatureReadoutConfig
+    from dendritic_modeling.config.keys import build_section
+    from dendritic_modeling.config.model import CoreConfig
+    from dendritic_modeling.networks.architectures.classical.feature_readout import (
+        build_feature_readout,
+    )
+
+    raw = _to_plain_mapping(parameters)
+    if "feature_readout" in raw:
+        if str(raw.get("type", type)).strip().lower() != type:
+            raise ValueError(
+                "feature_readout builder and configured core type disagree"
+            )
+        core = (
+            parameters
+            if isinstance(parameters, CoreConfig)
+            else CoreConfig(**{"type": type, **raw})
+        )
+        reject_unread_core_sections(core, raw)
+    payload = raw.get("feature_readout", raw)
+    if payload is None:
+        raise ValueError("feature_readout requires its configuration section")
+    config = build_section(FeatureReadoutConfig, payload, section="feature_readout")
+    config.validate()
+    if input_dim is not None and input_dim != math.prod(config.input_shape):
+        raise ValueError("feature_readout input dimension does not match the encoder")
+    if (
+        suffix_input_dim is not None
+        and suffix_input_dim != config.readout.dimensions[-1]
+    ):
+        raise ValueError("feature_readout output dimension does not match the decoder")
+    seed = raw.get("initialization_seed")
+    if seed is None:
+        return build_feature_readout(config)
+    with torch.random.fork_rng(devices=[]):
+        torch.random.default_generator.manual_seed(int(seed))
+        return build_feature_readout(config)
+
+
 def _build_affine_mlp_architecture(type, parameters, input_dim, suffix_input_dim):
     del type
     raw = _to_plain_mapping(parameters)
@@ -634,6 +675,7 @@ def _build_builtin_architecture_registry() -> dict[str, ArchitectureBuilder]:
             "point_mlp": _build_point_mlp_architecture,
             "mlp": _build_flat_mlp_architecture,
             "affine_mlp": _build_affine_mlp_architecture,
+            "feature_readout": _build_feature_readout_architecture,
             "shared_projection_shunting": _build_shared_projection_architecture,
             "routed_ei": _build_routed_ei_architecture,
             "total_param_mlp": _build_total_param_mlp,

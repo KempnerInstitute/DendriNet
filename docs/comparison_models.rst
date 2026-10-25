@@ -442,6 +442,49 @@ remove its stored projection and outer weights. Arithmetic counts describe
 sparse MACs and shunting divisions, excluding weight transforms, normalization,
 checks and training overhead; they are not measured FLOPs or latency.
 
+Feature normalization readouts
+------------------------------
+
+``core.type: feature_readout`` composes the existing dense affine builder
+with an explicit normalization of fixed feature maps. This is a conventional
+control, not a biological E/I neuron. The optional ``core.feature_readout``
+section defaults to ``None`` in all other cores.
+
+The ``input_shape`` excludes the batch and starts with channels. Inputs may
+have this shape or be flattened; the latter are reshaped before normalization.
+``readout`` is an :class:`~dendritic_modeling.config.affine_mlp.AffineMLPConfig`.
+Its first dimension must equal the product of ``input_shape``. The readout is
+constructed before the normalizer. A single unactivated Linear uses
+``readout.weight`` and ``readout.bias`` checkpoint keys; an MLP retains the
+builder's numeric module keys under ``readout``.
+
+Four normalization choices are supported:
+
+* ``none`` leaves features unchanged.
+* ``layer_norm`` uses PyTorch LayerNorm across the entire feature map.
+* ``group_norm`` uses PyTorch GroupNorm across contiguous channel groups and
+  spatial sites.
+* ``group_mean`` divides each feature by ``divisor_offset + max(group_mean, 0)``.
+  The mean includes channels within its group and every spatial site. This
+  operation does not center features or use their absolute values. It is
+  distinct from the existing L1 input normalizer and from the E/I shunting rule.
+
+Grouped modes require ``groups`` to divide the channel count. Only group-mean
+division accepts ``divisor_offset``, which must be positive. LayerNorm and
+GroupNorm use ``normalization_epsilon`` (default ``1e-5``) and
+``normalization_affine`` (default true). Irrelevant non-default options raise.
+For group-mean division, ``forward`` and ``representation`` also accept an
+explicit ``divisor_noise`` multiplier of shape ``[batch, groups]``. It multiplies
+the mean before clamping; it must be finite, nonnegative and match the input's
+dtype and device. No noise is sampled by the model.
+
+``configs/examples/feature_readout.yaml`` is a runnable example. It uses the
+standard backpropagation trainer and existing synthetic data; it does not
+reproduce an image-feature experiment. Other training strategies and sparse
+readouts are currently rejected. Existing affine initialization defaults remain
+unchanged; select ``readout.initialization: pytorch_default`` explicitly when
+reproducing plain PyTorch Linear initialization, including its random biases.
+
 Paired E/I routing controls
 ---------------------------
 

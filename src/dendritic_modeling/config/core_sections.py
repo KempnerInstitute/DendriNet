@@ -51,6 +51,7 @@ OTHER_BUILTIN_CORE_TYPES = frozenset(
     {
         "active_param_mlp",
         "affine_mlp",
+        "feature_readout",
         "routed_ei",
         "shared_projection_shunting",
         "alexnet",
@@ -104,6 +105,7 @@ SPATIAL_OPTIONS_READ: dict[str, frozenset[str] | None] = {
 
 # Families that read only their own payload section.
 _PAYLOAD_FAMILIES: tuple[tuple[frozenset[str], str, str], ...] = (
+    (frozenset({"feature_readout"}), "feature_readout", "feature_readout"),
     (frozenset({"routed_ei"}), "routed_ei", "routed_ei"),
     (
         frozenset({"shared_projection_shunting"}),
@@ -133,6 +135,7 @@ EINET_FOREIGN_PAYLOADS = frozenset(
         "vision",
         "shared_projection_shunting",
         "affine_mlp",
+        "feature_readout",
         "routed_ei",
         "spatial",
     }
@@ -190,6 +193,13 @@ def unread_core_sections(core: Any, explicit: Iterable[str]) -> list[str]:
     lowered = str(getattr(core, "type", "") or "").strip().lower()
     if (
         lowered in BUILTIN_CORE_TYPES
+        and lowered != "feature_readout"
+        and "feature_readout" in explicit
+        and getattr(core, "feature_readout", None) is not None
+    ):
+        return ["feature_readout"]
+    if (
+        lowered in BUILTIN_CORE_TYPES
         and lowered != "routed_ei"
         and "routed_ei" in explicit
         and getattr(core, "routed_ei", None) is not None
@@ -243,7 +253,11 @@ def _comparable(name: str, value: Any) -> Any:
 
 #: ``CoreConfig`` fields added after a release had written saved records, with
 #: the first release that has them. A record from an earlier release lacks them.
-CORE_FIELDS_ADDED = {"shared_projection_shunting": "0.3.0", "routed_ei": "unreleased"}
+CORE_FIELDS_ADDED = {
+    "shared_projection_shunting": "0.3.0",
+    "routed_ei": "unreleased",
+    "feature_readout": "unreleased",
+}
 
 
 def is_saved_core_record(keys: Iterable[str]) -> bool:
