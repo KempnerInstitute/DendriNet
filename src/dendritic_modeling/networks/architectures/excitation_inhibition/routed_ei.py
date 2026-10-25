@@ -118,10 +118,17 @@ class RoutedEIReadout(nn.Module):
         return entropy_weight * entropy + balance_weight * balance
 
     def inferred_assignment(self):
-        """Branch per source as a detached tensor on the model's device."""
+        """Branch of each source under hard routing, detached, on the model's device.
+
+        Learned routing takes the argmax of the tempered softmax, as the hard
+        forward does, so near-ties resolve the same way in both.
+        """
         if self.fixed_assignment.numel():
             return self.fixed_assignment.detach().clone()
-        return self.route_logits.argmax(dim=0).detach()
+        with torch.no_grad():
+            return routing_assignments(
+                self.route_logits, self.temperature, dim=0, hard=True
+            ).argmax(dim=0)
 
     def _inputs(self, excitation, inhibition):
         if inhibition is None:

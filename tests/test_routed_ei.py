@@ -24,7 +24,10 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.routed_ei i
 )
 from dendritic_modeling.networks.architectures.factory import get_architecture
 from dendritic_modeling.networks.functional import additive_voltage, shunting_voltage
-from dendritic_modeling.networks.utils.routing import routing_assignments
+from dendritic_modeling.networks.utils.routing import (
+    assignment_statistics,
+    routing_assignments,
+)
 from dendritic_modeling.networks.utils.weight_normalization import normalize_weight_rows
 from dendritic_modeling.scripts.script_utils.setup_utils import initialize_model
 from dendritic_modeling.training.regularization import RegularizationManager
@@ -344,6 +347,35 @@ def test_shared_assignment_forward_and_surrogate_gradient():
     assert torch.equal(a, b)
     exact = routing_assignments(x, 0.8, dim=0, hard=True, training=False)
     assert torch.equal(exact.sum(0), torch.ones(3, dtype=x.dtype))
+
+
+def test_inferred_assignment_resolves_near_ties_like_the_hard_forward():
+    model = build_routed_ei(RoutedEIConfig(features=2, branches=2, output_dim=2))
+    with torch.no_grad():
+        model.route_logits.fill_(0.25)
+        # The next float after 0.25: the softmax rounds both probabilities of
+        # source 0 to one half, so the forward picks branch 0.
+        model.route_logits[1, 0] = torch.nextafter(
+            torch.tensor(0.25), torch.tensor(1.0)
+        )
+    assert model.route_logits.argmax(dim=0).tolist() == [1, 0]
+    hard = model.eval().assignment(hard=True)
+    assert model.inferred_assignment().tolist() == hard.argmax(dim=0).tolist()
+    assert model.inferred_assignment().tolist() == [0, 0]
+
+
+def test_assignment_entropy_is_finite_when_float16_probabilities_underflow():
+    logits = torch.tensor(
+        [[0.0, 20.0], [20.0, 0.0], [-20.0, -20.0]], dtype=torch.float16
+    )
+    soft = routing_assignments(logits, 0.5, dim=0)
+    assert bool((soft == 0).any())
+    entropy, balance = assignment_statistics(soft, destination_dim=0)
+    assert torch.isfinite(entropy) and torch.isfinite(balance)
+    # Other dtypes keep the 1e-8 floor.
+    small = torch.tensor([[1e-12, 0.5], [1.0 - 1e-12, 0.5]], dtype=torch.float64)
+    expected = -(small * torch.log(small.clamp_min(1e-8))).sum(dim=0).mean()
+    assert torch.equal(assignment_statistics(small, destination_dim=0)[0], expected)
 
 
 def test_clamped_sum_is_explicit_and_default_normalization_is_unchanged():

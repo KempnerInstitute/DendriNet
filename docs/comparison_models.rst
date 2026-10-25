@@ -470,8 +470,12 @@ width ``2 * features``. Direct callers can supply the streams separately:
 
 ``routing: learned`` uses a softmax over branch destinations. With
 ``hard_routing: true`` (the default), training uses one-hot assignments with
-the softmax surrogate derivative; evaluation uses exact one-hot assignments.
-With ``hard_routing: false``, both use soft assignments. ``routing: fixed``
+the softmax surrogate derivative, computed as ``one_hot + soft -
+soft.detach()`` like the reduced models this control replays (a selected
+entry can differ from one in its last bit); evaluation uses exact one-hot
+assignments. With ``hard_routing: false``, both use soft assignments.
+``inferred_assignment()`` returns each source's branch under hard routing and
+resolves near-ties as the forward does. ``routing: fixed``
 requires a ``fixed_assignment`` list containing one branch index per feature;
 it does not read ``temperature``, ``hard_routing`` or ``route_init_std``, so
 their non-default values raise. Assigning ``model.temperature`` re-validates

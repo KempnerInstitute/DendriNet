@@ -9,8 +9,11 @@ def routing_assignments(logits, temperature, *, dim=-1, hard=False, training=Fal
 
     Callers validate their configuration. The default is the original pathway
     router's soft assignment, with unchanged arithmetic and no random draws.
-    Hard training uses ``discrete + soft - soft.detach()``; evaluation uses
-    exact one-hot entries. This is not Top-K contact selection within a row.
+    Hard training uses ``discrete + soft - soft.detach()``, the expression of
+    the reduced models it replays; a selected entry can then differ from one in
+    its last bit (``discrete + (soft - soft.detach())`` would be exact).
+    Evaluation uses exact one-hot entries. This is not Top-K contact selection
+    within a row.
     """
     soft = torch.softmax(logits / temperature, dim=dim)
     if not hard:
@@ -23,7 +26,10 @@ def routing_assignments(logits, temperature, *, dim=-1, hard=False, training=Fal
 def assignment_statistics(assignment, *, destination_dim):
     """Mean source entropy and mean squared departure from equal destination mass."""
     matrix = assignment.movedim(destination_dim, 0)
-    entropy = -(matrix * torch.log(matrix.clamp_min(1e-8))).sum(dim=0).mean()
+    # 1e-8 rounds to zero in float16, whose smallest normal number then serves
+    # as the floor; other dtypes keep 1e-8.
+    floor = max(1e-8, torch.finfo(matrix.dtype).tiny)
+    entropy = -(matrix * torch.log(matrix.clamp_min(floor))).sum(dim=0).mean()
     mass = matrix.sum(dim=1) / matrix.shape[1]
     balance = ((mass - 1.0 / matrix.shape[0]) ** 2).mean()
     return entropy, balance
