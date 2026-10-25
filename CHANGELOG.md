@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- Branch layers expose their graph-connected forward currents for analyses:
+  ``DendriticBranchLayer.set_analysis_currents``, ``get_analysis_currents``,
+  ``clear_analysis_currents`` and the context manager
+  ``capture_analysis_currents(layers)`` (``dendritic_modeling.networks``)
+  keep the pre-gate currents, the pre-gate voltage and the post-gate output
+  attached to the autograd graph, which the detached branch diagnostics do
+  not. The information, branch-activation and input-region analyses now use
+  them. Capture is off by default and does not change forward outputs.
+- ``LocalCreditAssignment.assign_gradients(model, inputs, targets, epoch=None)``
+  assigns one batch's training update to ``.grad`` without the optimizer step,
+  for example to compare it with backpropagated gradients; ``epoch`` (from 1)
+  selects the epoch whose update modes apply. Training runs the same code for
+  every batch and is unchanged.
+
 - Paper-code exports accept explicitly allow-listed, committed `LICENSE`
   and `Makefile` files. Other extensionless inputs and copied library paths
   remain rejected; manuscript export rules are unchanged.
