@@ -140,7 +140,7 @@ class BranchActivationAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
             excitatory_input,
             inhibitory_input,
             output,
-            getattr(module, "_last_analysis_currents", None),
+            module.get_analysis_currents() or None,
         )
 
         # Collect excitatory synapse activations

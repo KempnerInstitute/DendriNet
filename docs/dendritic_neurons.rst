@@ -501,6 +501,29 @@ of active synapses per compartment of each pathway (``E``, ``I``, ``E_rec``,
 configured count when a connectivity mask or a dynamic synapse type leaves
 fewer active contacts.
 
+``layer.set_analysis_currents(True)`` instead keeps the forward's pre-gate
+excitatory, inhibitory and upstream currents, the pre-gate voltage and the
+post-gate output attached to the autograd graph (``pre_gate_excitation_current``,
+``pre_gate_inhibition_current``, ``pre_gate_upstream_current``,
+``pre_gate_voltage``, ``post_gate_output``), so an analysis can differentiate a
+loss with respect to compartment voltages or outputs; ``get_analysis_currents()``
+returns them. ``capture_analysis_currents(layers)`` enables the capture inside
+a ``with`` block, then restores each layer's setting and discards the tensors.
+While capturing, a shunting layer forms its voltage explicitly instead of
+through the fused gate; the forward output is the same.
+
+.. code-block:: python
+
+   import torch
+   from dendritic_modeling.networks import capture_analysis_currents
+
+   layers = list(neuron.branch_layers)
+   with capture_analysis_currents(layers):
+       loss = torch.nn.functional.cross_entropy(model(x), y)
+       captured = [layer.get_analysis_currents() for layer in layers]
+       voltages = [currents["pre_gate_voltage"] for currents in captured]
+       credit = torch.autograd.grad(loss, voltages)
+
 Analysis-only rule overrides
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
