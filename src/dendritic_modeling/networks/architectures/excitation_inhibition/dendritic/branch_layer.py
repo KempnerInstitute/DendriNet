@@ -1546,7 +1546,7 @@ def capture_analysis_currents(layers):
     for layer in layers:
         if not isinstance(layer, DendriticBranchLayer):
             raise TypeError(
-                f"capture_analysis_currents takes DendriticBranchLayer modules, "
+                "capture_analysis_currents takes DendriticBranchLayer modules, "
                 f"got {type(layer).__name__}"
             )
     previous = [layer.analysis_currents_enabled for layer in layers]
