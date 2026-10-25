@@ -44,6 +44,9 @@ def commit(root, *paths):
 def project(tmp_path):
     library = tmp_path / "library"
     initialize(library)
+    # Like real checkouts, ignore bytecode: running an entry imports the package
+    # and writes __pycache__, which a later run must not see as uncommitted.
+    (library / ".gitignore").write_text("__pycache__/\n")
     package = library / "src/dendritic_modeling"
     package.mkdir(parents=True)
     (package / "__init__.py").write_text(
@@ -51,11 +54,12 @@ def project(tmp_path):
     )
     (library / "configs").mkdir()
     (library / "configs/default.json").write_text('{"gain": 0.125}\n')
-    sha = commit(library, "src", "configs")
+    sha = commit(library, ".gitignore", "src", "configs")
     git(library, "tag", "paper/test/v1")
     git(library, "branch", "develop")
     paper = tmp_path / "paper"
     initialize(paper)
+    (paper / ".gitignore").write_text("__pycache__/\n")
     (paper / "scripts").mkdir()
     (paper / "scripts/evaluate.py").write_text(
         "import json, random\n"
@@ -80,7 +84,7 @@ def project(tmp_path):
             }
         )
     )
-    commit(paper, "scripts", contract.name)
+    commit(paper, ".gitignore", "scripts", contract.name)
     return library, paper, contract
 
 
