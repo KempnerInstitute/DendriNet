@@ -1188,7 +1188,10 @@ in training) selects whose update modes apply (freeze windows,
 ``training_schedule``); by default the trainer's current epoch, or the first
 before ``train`` has run, in which case the trainer first prepares the model as
 ``train`` does. The model keeps its mode; in ``train()`` mode the forward also
-updates sparse synapse statistics, as in training. With the trainer built from a run's configuration, as the training
+updates sparse synapse statistics, as in training. Under ``core_update_mode:
+none`` the core is held fixed as training holds it: during the call its
+parameters do not require gradients and the forward leaves its Top-K
+statistics, release tracking and dense-to-sparse schedules unchanged. With the trainer built from a run's configuration, as the training
 script builds it (``get_trainer``), the gradients are the update that
 configuration trains with, for example for a comparison with backpropagation:
 

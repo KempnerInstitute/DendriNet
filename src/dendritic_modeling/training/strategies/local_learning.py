@@ -445,9 +445,12 @@ class LocalCreditAssignment(
         first before :meth:`train` has run. The optimizer's gradients are
         reset first, as in training. The model keeps its mode: in ``train()``
         mode this is a training step's update, including the forward's
-        updates of sparse synapse statistics. Before ``train`` has run, the
-        trainer first prepares ``model`` as ``train`` does, without copying a
-        best state. Returns the batch loss.
+        updates of sparse synapse statistics. Under ``core_update_mode:
+        none`` the core is held fixed as in training: its parameters do not
+        require gradients during the call and the forward leaves its sparse
+        state unchanged. Before ``train`` has run, the trainer first prepares
+        ``model`` as ``train`` does, without copying a best state. Returns the
+        batch loss.
         """
         if not hasattr(self, "epoch_counter"):
             self._check_local_model(model)
@@ -456,9 +459,15 @@ class LocalCreditAssignment(
             epoch = max(int(self.epoch_counter), 1)
         elif int(epoch) < 1:
             raise ValueError(f"epoch counts from 1, as in training; got {epoch}")
-        return self._assign_batch_gradients(
-            model, inputs.to(self.device), targets.to(self.device), int(epoch)
-        )
+        frozen_core = self._freeze_core(model)
+        try:
+            with frozen_sparse_state() if frozen_core is not None else nullcontext():
+                return self._assign_batch_gradients(
+                    model, inputs.to(self.device), targets.to(self.device), int(epoch)
+                )
+        finally:
+            if frozen_core is not None:
+                restore_requires_grad(frozen_core)
 
     def _assign_batch_gradients(
         self,

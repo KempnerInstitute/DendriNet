@@ -13,7 +13,9 @@
 - ``LocalCreditAssignment.assign_gradients(model, inputs, targets, epoch=None)``
   assigns one batch's training update to ``.grad`` without the optimizer step,
   for example to compare it with backpropagated gradients; ``epoch`` (from 1)
-  selects the epoch whose update modes apply. Training runs the same code for
+  selects the epoch whose update modes apply. Under ``core_update_mode: none``
+  it holds the core fixed as training does (core parameters without gradients,
+  forward under ``frozen_sparse_state``). Training runs the same code for
   every batch and is unchanged.
 
 - Paper-code exports accept explicitly allow-listed, committed `LICENSE`
