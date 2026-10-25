@@ -17,12 +17,13 @@
   clamped-sum normalization floor support historical reduced-model replay.
   Dividing by the sum (`networks.utils.weight_normalization.divide_rows_by_sum`,
   shared with `normalize_weight_rows(sum_floor=...)`) keeps the normalization's
-  derivative at the zero entries of hard-routed rows. Parameters a configuration never reads keep their
-  checkpoint keys but do not require gradients, so distributed training does
-  not wait for them. Training initializes the control from the global stream;
-  an explicit `core.initialization_seed` selects a stream keyed by the seed and
-  core type. Pathway routing now shares its unchanged soft-assignment
-  arithmetic with this control.
+  derivative at the zero entries of hard-routed rows. Parameters a
+  configuration never reads keep their checkpoint keys but do not require
+  gradients, so distributed training does not wait for them. Training
+  initializes the control from the global stream; an explicit
+  `core.initialization_seed` selects a stream keyed by the seed and core type.
+  Pathway routing now shares its unchanged soft-assignment arithmetic with this
+  control.
 - Add optional routing-entropy and balance penalties to the existing
   regularization manager. Both default to zero and do no routing work unless
   requested; a requested penalty needs a learned router, since fixed routers
