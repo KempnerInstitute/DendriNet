@@ -4,6 +4,7 @@ import math
 from collections.abc import Callable
 from typing import Any, Optional, Union
 
+import torch
 import torch.nn as nn
 from omegaconf import DictConfig
 
@@ -376,6 +377,37 @@ def _build_shared_projection_architecture(
     return build_shared_projection_shunting(config)
 
 
+def _build_routed_ei_architecture(type, parameters, input_dim, suffix_input_dim):
+    from dendritic_modeling.config.core_sections import reject_unread_core_sections
+    from dendritic_modeling.config.routed_ei import RoutedEIConfig
+    from dendritic_modeling.networks.architectures.excitation_inhibition.routed_ei import (
+        build_routed_ei,
+    )
+
+    raw = _to_plain_mapping(parameters)
+    if "routed_ei" in raw:
+        from dendritic_modeling.config.model import CoreConfig
+
+        if raw.get("type", type) != type:
+            raise ValueError("routed_ei builder and configured core type disagree")
+        reject_unread_core_sections(CoreConfig(**{"type": type, **raw}), raw)
+    payload = raw.get("routed_ei", raw)
+    if payload is None:
+        raise ValueError("routed_ei requires its configuration section")
+    config = RoutedEIConfig(**payload)
+    config.validate()
+    if input_dim is not None and input_dim != 2 * config.features:
+        raise ValueError("routed_ei encoder output must contain concatenated [E, I]")
+    if suffix_input_dim is not None and suffix_input_dim != config.output_dim:
+        raise ValueError("routed_ei output dimension does not match the decoder")
+    seed = raw.get("initialization_seed")
+    if seed is None:
+        return build_routed_ei(config)
+    with torch.random.fork_rng(devices=[]):
+        torch.random.default_generator.manual_seed(int(seed))
+        return build_routed_ei(config)
+
+
 def _build_flat_mlp_architecture(
     type: str,
     parameters: Union[dict[str, Any], DictConfig],
@@ -579,6 +611,7 @@ def _build_builtin_architecture_registry() -> dict[str, ArchitectureBuilder]:
             "mlp": _build_flat_mlp_architecture,
             "affine_mlp": _build_affine_mlp_architecture,
             "shared_projection_shunting": _build_shared_projection_architecture,
+            "routed_ei": _build_routed_ei_architecture,
             "total_param_mlp": _build_total_param_mlp,
             "active_param_mlp": _build_active_param_mlp,
             "ss_mlp": _build_sparse_structured_mlp,

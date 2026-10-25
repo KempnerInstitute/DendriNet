@@ -20,6 +20,10 @@ from torch import nn
 
 from dendritic_modeling.networks.activations.factory import ActivationFactory
 from dendritic_modeling.networks.base import BaseNetwork
+from dendritic_modeling.networks.utils.routing import (
+    assignment_statistics,
+    routing_assignments,
+)
 
 
 def _normalize_indices(indices: Sequence[int] | None) -> list[int]:
@@ -210,8 +214,8 @@ class PathwayRouter(BaseNetwork):
     def _learned_assignments(self) -> torch.Tensor:
         if self.assignment_logits is None:
             raise RuntimeError("Learned assignments requested in fixed router mode")
-        return torch.softmax(
-            self.assignment_logits / self.learned_router_temperature, dim=-1
+        return routing_assignments(
+            self.assignment_logits, self.learned_router_temperature, dim=-1
         )
 
     def get_assignment_matrix(self) -> torch.Tensor:
@@ -234,6 +238,13 @@ class PathwayRouter(BaseNetwork):
 
         full[self._routed_indices] = self._learned_assignments()
         return full
+
+    def routing_statistics(self):
+        """Optional regularization statistics of learned, nonshared sources only."""
+        if self.assignment_logits is None:
+            zero = next(self.parameters()).new_zeros(())
+            return zero, zero
+        return assignment_statistics(self._learned_assignments(), destination_dim=-1)
 
     def get_output_slices(self) -> list[slice]:
         """Return output slices for each latent pathway chunk."""

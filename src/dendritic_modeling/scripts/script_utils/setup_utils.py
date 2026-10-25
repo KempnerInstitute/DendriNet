@@ -229,7 +229,7 @@ _GLOBAL_STREAM_FEEDFORWARD_CORE_TYPES = frozenset(
     set(_EINET_TYPES)
     | set(SPATIAL_DENDRITIC_TYPES)
     | set(SPATIAL_DENDRITIC_CONV_TYPES)
-    | {"ss_mlp", "ss_mlp_flat"}
+    | {"ss_mlp", "ss_mlp_flat", "routed_ei"}
 )
 
 

@@ -493,6 +493,9 @@ Explained in :ref:`core-types`. Class ``dendritic_modeling.config.model.CoreConf
    * - ``shared_projection_shunting``
      - ``Optional[SharedProjectionShuntingConfig]``
      - ``None``; :ref:`model.core.shared_projection_shunting <options-model-core-shared-projection-shunting>`
+   * - ``routed_ei``
+     - ``Optional[RoutedEIConfig]``
+     - ``None``; :ref:`model.core.routed_ei <options-model-core-routed-ei>`
    * - ``target_active_parameters``
      - ``Optional[int]``
      - ``null``
@@ -1661,6 +1664,72 @@ Explained in :doc:`comparison_models`. Class ``dendritic_modeling.config.shared_
      - ``bool``
      - ``true``
 
+.. _options-model-core-routed-ei:
+
+``model.core.routed_ei``
+------------------------
+
+Explained in :doc:`comparison_models`. Class ``dendritic_modeling.config.routed_ei.RoutedEIConfig``.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 33 33
+
+   * - Option
+     - Type
+     - Default
+   * - ``features``
+     - ``int``
+     - ``1``
+   * - ``branches``
+     - ``int``
+     - ``1``
+   * - ``output_dim``
+     - ``int``
+     - ``1``
+   * - ``mechanism``
+     - ``str``
+     - ``shunting``
+   * - ``routing``
+     - ``str``
+     - ``learned``
+   * - ``fixed_assignment``
+     - ``list[int]``
+     - ``[]``
+   * - ``inhibitory_support``
+     - ``str``
+     - ``matched``
+   * - ``temperature``
+     - ``float``
+     - ``1.0``
+   * - ``hard_routing``
+     - ``bool``
+     - ``true``
+   * - ``leak_conductance``
+     - ``float``
+     - ``1.0``
+   * - ``epsilon``
+     - ``float``
+     - ``1.0e-08``
+   * - ``weight_normalization_floor``
+     - ``float | None``
+     - ``null``
+   * - ``route_init_std``
+     - ``float``
+     - ``0.05``
+   * - ``weight_init_std``
+     - ``float``
+     - ``0.04``
+   * - ``branch_center``
+     - ``float``
+     - ``0.0``
+   * - ``branch_scale``
+     - ``float``
+     - ``1.0``
+   * - ``branch_divisor``
+     - ``float``
+     - ``1.0``
+
 .. _options-model-core-architecture:
 
 ``model.core.architecture``
@@ -2441,6 +2510,12 @@ Explained in :ref:`regularization-pruning`. Class ``dendritic_modeling.config.re
      - ``float``
      - ``0.0``
    * - ``l2_weight``
+     - ``float``
+     - ``0.0``
+   * - ``routing_entropy_weight``
+     - ``float``
+     - ``0.0``
+   * - ``routing_balance_weight``
      - ``float``
      - ``0.0``
    * - ``selective``

@@ -179,6 +179,8 @@ class RegularizationManager:
         self.selective = config.selective
         self.split_params = config.split_params
         self.param_group_weights = config.param_group_weights
+        self.routing_entropy_weight = getattr(config, "routing_entropy_weight", 0.0)
+        self.routing_balance_weight = getattr(config, "routing_balance_weight", 0.0)
 
         # E/I Weight Ratio Regularization
         self.enforce_ei_weight_ratio = getattr(config, "enforce_ei_weight_ratio", False)
@@ -197,6 +199,8 @@ class RegularizationManager:
 
     def _check_has_regularization(self) -> bool:
         """Check if any form of regularization is enabled."""
+        if self.routing_entropy_weight > 0 or self.routing_balance_weight > 0:
+            return True
         # Check L1/L2 regularization
         if self.l1_weight > 0 or self.l2_weight > 0:
             return True
@@ -252,6 +256,23 @@ class RegularizationManager:
         if self.enforce_ei_weight_ratio and self.ei_ratio_loss is not None:
             ei_ratio_loss = self.ei_ratio_loss(model, x, y)
             total_reg_loss += ei_ratio_loss
+
+        if self.routing_entropy_weight > 0 or self.routing_balance_weight > 0:
+            found = False
+            for module in model.modules():
+                statistics = getattr(module, "routing_statistics", None)
+                if not callable(statistics):
+                    continue
+                found = True
+                entropy, balance = statistics()
+                total_reg_loss = total_reg_loss + (
+                    self.routing_entropy_weight * entropy
+                    + self.routing_balance_weight * balance
+                )
+            if not found:
+                raise ValueError(
+                    "routing regularization needs a module exposing routing_statistics"
+                )
 
         return total_reg_loss
 

@@ -432,6 +432,80 @@ remove its stored projection and outer weights. Arithmetic counts describe
 sparse MACs and shunting divisions, excluding weight transforms, normalization,
 checks and training overhead; they are not measured FLOPs or latency.
 
+Paired E/I routing controls
+---------------------------
+
+``core.type: routed_ei`` builds a reduced rate-model control from
+``core.routed_ei``. Each source has an excitatory and an inhibitory channel;
+one assignment sends both channels to the same branch. Positive E and I
+weights are normalized separately within each branch. The branches use
+``networks.functional.shunting_voltage`` or ``additive_voltage``, followed by
+a fixed affine rescaling and a learned affine decoder. The decoder has signed
+weights: this control is not a biological population network or a multilevel
+dendritic tree.
+
+This composition reuses the library's softplus weight transform, row
+normalization, current integration, architecture factory and standard trainer.
+It differs from ``pathway_router``, which applies signed projections, and from
+Top-K synapses, which select contacts within a branch rather than assign each
+source to a destination. Both routers share the same soft-assignment utility.
+
+``configs/examples/routed_ei.yaml`` is a model/trainer template. Its dataset
+must supply finite nonnegative concatenated inputs ``[E, I]`` of width
+``2 * features``. Direct callers can supply the streams separately:
+
+.. code-block:: python
+
+   from dendritic_modeling.config import RoutedEIConfig
+   from dendritic_modeling.networks.architectures.excitation_inhibition.routed_ei import (
+       build_routed_ei,
+   )
+
+   config = RoutedEIConfig(features=8, branches=3, output_dim=2)
+   model = build_routed_ei(config)
+   logits = model(excitation, inhibition)  # Each input: [batch, 8].
+
+``routing: learned`` uses a softmax over branch destinations. With
+``hard_routing: true`` (the default), training uses one-hot assignments with
+the softmax surrogate derivative; evaluation uses exact one-hot assignments.
+With ``hard_routing: false``, both use soft assignments. ``routing: fixed``
+requires a ``fixed_assignment`` list containing one branch index per feature.
+Empty branches have zero drive; no implicit balancing or reassignment occurs.
+``inhibitory_support: global_mean`` is a shunting-only control that replaces
+each branch's inhibitory drive by the unweighted mean of the input I channels.
+
+Shunting defaults to positive unit leak and epsilon ``1e-8``. Raw addition is
+``E - I``; nondefault leak/epsilon values and global-mean support are rejected
+because this comparator does not use them. The optional output transformation is
+``branch_scale * (voltage - branch_center) / branch_divisor``; its default is
+the identity. No gate, across-feature normalization or learned output scale is
+implicit in this core. Set the outer model's ``output_scale_mode: fixed``
+and use identity encoder/decoder modules to retain that contract.
+
+``weight_normalization_floor: null`` reuses the existing robust L1 row
+normalization. An explicit positive floor selects division by
+``max(sum(weights), floor)``. These conventions differ for tiny rows: replaying
+an older clamped-sum model requires its original floor, not a silent switch
+to the robust default. The fixed-assignment and global-mean controls retain
+the unused routing or I-weight parameters and initialization draws; those
+parameters receive no gradients. Store the resolved configuration alongside
+the state dict, including any scheduled temperature changes.
+
+Only ordinary backpropagation with the standard trainer is qualified.
+LocalCA, feedback alignment and recurrent configurations raise during loading.
+The affine readout prevents a ``biological_neuron: true`` declaration.
+No production paper pin is changed merely by selecting this architecture.
+
+Routing regularization is opt-in under
+``training.main.regularization``. ``routing_entropy_weight`` penalizes
+mean source-assignment entropy; ``routing_balance_weight`` penalizes mean
+squared deviation from equal branch mass. The regularization manager applies
+these terms to modules exposing ``routing_statistics()``, currently the paired
+E/I and pathway routers. Positive weights request minimization of those
+statistics; fixed routing contributes zero. Both weights default to zero,
+which performs no routing discovery or computation in existing runs. Requesting
+a routing penalty on a model with no routing statistics raises.
+
 Parameter-budget model families
 -------------------------------
 

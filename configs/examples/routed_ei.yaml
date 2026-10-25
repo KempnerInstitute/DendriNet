@@ -1,0 +1,35 @@
+# Model/trainer template for paired, finite nonnegative input streams.
+# Supply [E_1,...,E_8,I_1,...,I_8] and two-class labels from your dataset.
+# This does not define a dataset or a gain/noise-generating protocol.
+config_version: 4
+model:
+  task: classification
+  output_scale_mode: fixed
+  encoder: {type: identity, params: {input_dim: 16}}
+  core:
+    type: routed_ei
+    biological_neuron: false
+    routed_ei:
+      features: 8
+      branches: 3
+      output_dim: 2
+      mechanism: shunting
+      routing: learned
+      hard_routing: true
+      temperature: 1.0
+      leak_conductance: 1.0
+  decoder: {type: identity}
+training:
+  main:
+    strategy: standard
+    common:
+      epochs: 10
+      batch_size: 32
+      loss_function: ce
+      synapse_decay_rate: 0.0
+      weight_boosting: false
+      plot_losses: false
+    regularization:
+      routing_entropy_weight: 0.0
+      routing_balance_weight: 0.0
+    optimizer: {name: adam}

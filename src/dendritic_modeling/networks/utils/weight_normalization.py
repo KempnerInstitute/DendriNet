@@ -26,6 +26,9 @@ expression for every row.
 
 from __future__ import annotations
 
+import math
+from numbers import Real
+
 import torch
 
 from dendritic_modeling.networks.utils.weight_transforms import (
@@ -84,6 +87,7 @@ def normalize_weight_rows(
     pre_weight: torch.Tensor | None = None,
     transform: str | None = None,
     contacts: torch.Tensor | None = None,
+    sum_floor: float | None = None,
 ) -> torch.Tensor:
     """Scale each row of ``weight`` (its last dimension) to p-norm ``gamma``.
 
@@ -98,10 +102,27 @@ def normalize_weight_rows(
             ``softplus``, rows below machine epsilon normalize in log space.
         contacts: Boolean mask of the contacts in ``weight`` for the log-space
             rows; ``None`` means every entry is a contact.
+        sum_floor: Explicit clamped-sum convention for nonnegative, order-1
+            weights: ``weight / clamp(sum(weight), min=sum_floor) * gamma``.
+            Small rows then shrink rather than have unit norm. This opt-in
+            convention preserves reduced-model replays; ``None`` retains the
+            existing robust p-norm algorithm, including every default call.
 
     Returns:
         The normalized weights.
     """
+    if sum_floor is not None:
+        if (
+            order != 1
+            or isinstance(sum_floor, bool)
+            or not isinstance(sum_floor, Real)
+            or not math.isfinite(sum_floor)
+            or sum_floor <= 0
+        ):
+            raise ValueError("sum_floor requires order=1 and a finite positive floor")
+        if not bool(torch.isfinite(weight).all()) or bool((weight < 0).any()):
+            raise ValueError("clamped-sum weights must be finite and nonnegative")
+        return (weight / weight.sum(dim=-1, keepdim=True).clamp_min(sum_floor)) * gamma
     norm = torch.norm(weight, p=order, dim=-1, keepdim=True)
     eps = torch.finfo(weight.dtype).eps
     # The historical expression, kept for every row whose norm is >= eps.

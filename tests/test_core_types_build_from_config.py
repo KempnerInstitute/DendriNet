@@ -227,6 +227,7 @@ CORE_TYPES = {
     "population_network": (_POPULATION, 16),
     "legendre_memory": (_LEGENDRE, 3),
     "affine_mlp": (_AFFINE, 16),
+    "routed_ei": ({"routed_ei": {"features": 8, "branches": 3, "output_dim": 5}}, 16),
     "shared_projection_shunting": (_SHARED_PROJECTION, 16),
     "dendritic_alexnet": (_ALEXNET, [3, 16, 16]),
     "identity": ({}, 16),
