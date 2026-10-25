@@ -57,6 +57,93 @@ def test_current_api_matches_real_layer_exactly(dtype, shunting, children, recur
         torch.testing.assert_close(a, b, rtol=0, atol=0)
 
 
+def _literal_shunting(e, er, i, ir, c, g, leak, epsilon):
+    # The layer expression before the shared helper existed (63f0d6f8c),
+    # copied rather than imported so a regrouped sum in the helper is caught.
+    numerator = e + er
+    if torch.is_tensor(c) or c:
+        numerator = numerator + c
+    denominator = leak + e
+    for term in (er, i, ir):
+        if torch.is_tensor(term) or term:
+            denominator = denominator + term
+    if g is not None:
+        denominator = denominator + g
+    return numerator / (denominator + epsilon)
+
+
+def _literal_additive(e, er, i, ir, c):
+    voltage = e + er - i - ir
+    if torch.is_tensor(c) or c:
+        voltage = voltage + c
+    return voltage
+
+
+@pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
+@pytest.mark.parametrize("shunting", [False, True])
+@pytest.mark.parametrize("children", [False, True])
+@pytest.mark.parametrize("recurrent", [False, True])
+def test_layer_and_api_match_the_literal_expression_with_a_learnable_leak(
+    dtype, shunting, children, recurrent
+):
+    torch.manual_seed(274)
+    layer = DendriticBranchLayer(
+        output_dim=3,
+        excitatory_input_dim=4,
+        excitatory_synapses_per_branch=2,
+        use_shunting=shunting,
+        leak_conductance=0.25 if shunting else 1.0,
+        learnable_leak=shunting,
+    ).to(dtype=dtype)
+    e, i = [torch.rand(5, 3, dtype=dtype, requires_grad=True) for _ in range(2)]
+    er = torch.rand_like(e, requires_grad=True) if recurrent else 0
+    ir = torch.rand_like(i, requires_grad=True) if recurrent else 0
+    c = torch.randn_like(e, requires_grad=True) if children else 0
+    g = torch.rand(3, dtype=dtype, requires_grad=True) if children else None
+    if shunting:
+        computations = [
+            lambda: _literal_shunting(
+                e, er, i, ir, c, g, layer.effective_leak, layer.epsilon
+            ),
+            lambda: layer.voltage_from_currents(e, er, i, ir, c, g)[0],
+            lambda: shunting_voltage(
+                e,
+                i,
+                recurrent_excitation=er,
+                recurrent_inhibition=ir,
+                child_current=c,
+                child_conductance=g,
+                leak=layer.effective_leak,
+                epsilon=layer.epsilon,
+            ),
+        ]
+    else:
+        computations = [
+            lambda: _literal_additive(e, er, i, ir, c),
+            lambda: layer.voltage_from_currents(e, er, i, ir, c, g)[0],
+            lambda: additive_voltage(
+                e, i, recurrent_excitation=er, recurrent_inhibition=ir, child_current=c
+            ),
+        ]
+    variables = [
+        x
+        for x in (e, i, er, ir, c, g if shunting else None, layer.log_leak)
+        if isinstance(x, torch.Tensor)
+    ]
+    assert (layer.log_leak is not None) is shunting
+    results = []
+    for compute in computations:
+        voltage = compute()
+        results.append(
+            (voltage, torch.autograd.grad(voltage.square().sum(), variables))
+        )
+    expected, expected_gradients = results[0]
+    for voltage, gradients in results[1:]:
+        torch.testing.assert_close(voltage, expected, rtol=0, atol=0)
+        for actual, wanted in zip(gradients, expected_gradients, strict=True):
+            torch.testing.assert_close(actual, wanted, rtol=0, atol=0)
+
+
 def test_shunting_gradcheck_includes_shared_sensor_leak_and_coupling():
     generator = torch.Generator().manual_seed(27)
     values = [
@@ -123,6 +210,58 @@ def test_api_has_no_parameters_state_or_random_draws():
 def test_invalid_shunting_inputs_fail_explicitly(kwargs):
     with pytest.raises((ValueError, TypeError)):
         shunting_voltage(torch.ones(2, 3), **kwargs)
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"inhibition": -torch.ones(2, 3)},
+        {"inhibition": torch.full((2, 3), float("nan"))},
+        {"recurrent_excitation": -torch.ones(2, 3)},
+        {"recurrent_inhibition": torch.full((2, 3), float("inf"))},
+        {"leak": torch.tensor([1.0, 0.0, 1.0])},
+        {"leak": torch.tensor([1.0, -1.0, 1.0])},
+        {"child_current": torch.ones(2, 3)},
+        {
+            "child_current": torch.full((2, 3), float("nan")),
+            "child_conductance": torch.ones(3),
+        },
+        {"child_conductance": -torch.ones(3)},
+        {"child_conductance": torch.full((3,), float("nan"))},
+    ],
+)
+def test_invalid_shunting_tensor_operands_fail_explicitly(kwargs):
+    with pytest.raises(ValueError):
+        shunting_voltage(torch.ones(2, 3), **kwargs)
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"inhibition": -torch.ones(2, 3)},
+        {"inhibition": torch.full((2, 3), float("nan"))},
+        {"recurrent_excitation": -1.0},
+        {"recurrent_inhibition": torch.full((2, 3), float("inf"))},
+        {"child_current": torch.full((2, 3), float("nan"))},
+        {"inhibition": torch.ones(4)},
+        {"inhibition": torch.ones(2, 1, 3)},
+        {"inhibition": torch.ones(3, dtype=torch.float64)},
+    ],
+)
+def test_invalid_additive_operands_fail_explicitly(kwargs):
+    with pytest.raises(ValueError):
+        additive_voltage(torch.ones(2, 3), **kwargs)
+
+
+def test_signed_child_current_and_zero_current_without_coupling_are_valid():
+    e = torch.ones(2, 3)
+    torch.testing.assert_close(
+        additive_voltage(e, child_current=-torch.ones(2, 3)), torch.zeros(2, 3)
+    )
+    torch.testing.assert_close(
+        shunting_voltage(e, child_current=torch.zeros(2, 3), epsilon=0),
+        torch.full((2, 3), 0.5),
+    )
 
 
 @pytest.mark.parametrize("operator", [shunting_voltage, additive_voltage])

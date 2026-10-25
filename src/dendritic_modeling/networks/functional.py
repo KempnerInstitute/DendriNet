@@ -65,9 +65,10 @@ def _check_operand(value, reference, name, *, nonnegative=True, positive=False):
             raise ValueError(f"{name} must broadcast to excitation's shape") from error
         if shape != reference.shape:
             raise ValueError(f"{name} must not expand excitation's shape")
+        # Each test synchronizes with the host; run only those that apply.
         finite = bool(torch.isfinite(value).all())
-        below_zero = bool((value < 0).any())
-        at_or_below_zero = bool((value <= 0).any())
+        below_zero = nonnegative and not positive and bool((value < 0).any())
+        at_or_below_zero = positive and bool((value <= 0).any())
     elif isinstance(value, Real) and not isinstance(value, bool):
         finite = math.isfinite(value)
         below_zero = value < 0
@@ -106,7 +107,9 @@ def shunting_voltage(
     shape without expanding it. Autograd is preserved for every tensor input.
     The returned shape, dtype and device match excitation. Validation reads
     tensor values, so this checked API is intended for explicit-current models
-    and analyses, not as a replacement for the fused layer training path.
+    and analyses, not as a replacement for the fused layer training path; for
+    the same reason it does not run under ``torch.func`` transforms such as
+    ``vmap``.
     """
     reference = _reference(excitation)
     for name, value in (

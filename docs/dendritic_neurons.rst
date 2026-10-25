@@ -407,8 +407,9 @@ return negative values and has no implicit leak division or z-score.
 These are functional components, not newly configured network architectures or
 learning strategies. They do not perform routing, synapse sampling, integration
 over time, plasticity, or gating. They validate tensor values and may therefore
-synchronize the device; native layers keep their existing unchecked arithmetic
-and fused training path. Use ``DendriNet`` or ``DendriticBranchLayer`` when
+synchronize the device, and for the same reason they do not run under
+``torch.func`` transforms such as ``vmap``; native layers keep their existing
+unchecked arithmetic and fused training path. Use ``DendriNet`` or ``DendriticBranchLayer`` when
 synapses, state, training rules or checkpoint interventions are required.
 
 Selecting the rule
