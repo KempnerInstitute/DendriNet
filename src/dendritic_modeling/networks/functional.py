@@ -81,6 +81,10 @@ def _check_operand(value, reference, name, *, nonnegative=True, positive=False):
         raise ValueError(f"{name} must be positive")
     if nonnegative and below_zero:
         raise ValueError(f"{name} must be nonnegative")
+    # A positive scalar can still round to zero in a low-precision dtype.
+    if positive and not isinstance(value, torch.Tensor):
+        if not torch.tensor(value, dtype=reference.dtype).item() > 0:
+            raise ValueError(f"{name} rounds to zero in {reference.dtype}")
 
 
 def shunting_voltage(

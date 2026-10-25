@@ -253,6 +253,14 @@ def test_invalid_additive_operands_fail_explicitly(kwargs):
         additive_voltage(torch.ones(2, 3), **kwargs)
 
 
+def test_scalar_leak_must_stay_positive_in_the_excitation_dtype():
+    e = torch.ones(2, dtype=torch.float16)
+    with pytest.raises(ValueError, match="rounds to zero"):
+        shunting_voltage(e, leak=1e-8)
+    assert torch.isfinite(shunting_voltage(e, leak=1e-4)).all()
+    assert torch.isfinite(shunting_voltage(e.double(), leak=1e-8)).all()
+
+
 def test_signed_child_current_and_zero_current_without_coupling_are_valid():
     e = torch.ones(2, 3)
     torch.testing.assert_close(
