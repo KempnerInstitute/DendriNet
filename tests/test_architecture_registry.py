@@ -57,6 +57,7 @@ FAMILIES = {
     ],
     "dendritic_alexnet": ["dendritic_alexnet"],
     "shared_projection_shunting": ["shared_projection_shunting"],
+    "routed_ei": ["routed_ei"],
     # Non-dendritic baselines and controls.
     "baseline_rnn": ["gru", "lstm", "rnn", "vanilla_rnn"],
     "heterogeneous_leak_ctrnn": ["heterogeneous_leak_ctrnn", "heterogeneous_ctrnn"],

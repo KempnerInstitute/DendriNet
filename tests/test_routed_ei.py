@@ -562,10 +562,10 @@ def test_standard_training_uses_configured_routing_penalty(tmp_path):
         analysis_manager=None,
     )
     assert setup.trainer.regularization_manager.routing_balance_weight == 0.25
-    before = model.core_network.route_logits.detach().clone()
+    before = model.core_network.route_logits.detach().cpu().clone()
     results = setup.trainer.train(model, dataset, dataset)
     assert len(results["train_losses"]) == 1
-    assert not torch.equal(before, model.core_network.route_logits)
+    assert not torch.equal(before, model.core_network.route_logits.detach().cpu())
 
 
 @pytest.mark.parametrize("value", [-1, float("nan"), True])
