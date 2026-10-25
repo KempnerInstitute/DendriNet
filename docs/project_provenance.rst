@@ -244,10 +244,11 @@ The manifest is read from that commit, not from the working tree:
 suffixes ``.tex``, ``.bib``, ``.bst``, ``.cls``, ``.sty``, ``.pdf``, ``.eps``,
 ``.png`` or ``.jpg``. Paper-code files have the suffixes ``.py``, ``.sh``,
 ``.sbatch``, ``.slurm``, ``.yaml``, ``.yml``, ``.json``, ``.md``, ``.txt``,
-``.tsv``, ``.csv``, ``.toml``, ``.ini``, ``.cpp`` or ``.h``, no path component
-among ``src``, ``dendritic_modeling``, ``runtime``, ``historical_runtimes``,
+``.tsv``, ``.csv``, ``.toml``, ``.ini``, ``.cpp`` or ``.h``; explicitly
+listed files named ``LICENSE`` or ``Makefile`` are also allowed. Paper-code paths
+cannot contain ``src``, ``dendritic_modeling``, ``runtime``, ``historical_runtimes``,
 ``source_snapshots``, ``frozen_sources``, ``.git``, ``outputs``, ``results``
-and ``logs`` (library source is never exported with a project), and a
+or ``logs`` (library source is never exported with a project). A
 paper-code manifest also declares ``publication_status: internal_candidate``,
 a ``library_dependency`` object and optionally ``reproduction_status``. Every
 listed file must be a regular file committed at that commit; absolute paths,

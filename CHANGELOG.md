@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Paper-code exports accept explicitly allow-listed, committed `LICENSE`
+  and `Makefile` files. Other extensionless inputs and copied library paths
+  remain rejected; manuscript export rules are unchanged.
+
 - ``DendriNet`` levels can differ from the shared settings through
   ``level_overrides`` (constructor argument and ``DendriNetConfig`` field;
   default none). An override names a level by depth (0 = soma) and removes a
