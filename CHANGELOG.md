@@ -9,13 +9,14 @@
   substituting that gate would change both outputs and optimization dynamics.
 
 - Add the opt-in `routed_ei` comparison core: one source-to-branch assignment
-  shared by paired E/I channels, positive row-normalized weights, existing
-  shunting/additive current integration and an affine readout. Its typed payload
-  is `None` in other cores; unsupported training and unused sections raise.
-  Fixed/learned routing, a global-mean inhibitory control and an explicit
-  clamped-sum normalization floor support historical reduced-model replay.
-  The existing robust normalization remains the default. Pathway routing now
-  shares its unchanged soft-assignment arithmetic with this control.
+  shared by paired E/I channels, positive weights divided by their branch sums,
+  existing shunting/additive current integration and an affine readout. Its
+  typed payload is `None` in other cores; unsupported training and unused
+  sections raise. Fixed/learned routing, a global-mean inhibitory control and
+  an explicit clamped-sum normalization floor support historical reduced-model
+  replay. Dividing by the sum keeps the normalization's derivative at the zero
+  entries of hard-routed rows. Pathway routing now shares its unchanged
+  soft-assignment arithmetic with this control.
 - Add optional routing-entropy and balance penalties to the existing
   regularization manager. Both default to zero and do no routing work unless
   requested. No existing model, initialization stream or checkpoint changes.

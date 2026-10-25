@@ -444,8 +444,8 @@ a fixed affine rescaling and a learned affine decoder. The decoder has signed
 weights: this control is not a biological population network or a multilevel
 dendritic tree.
 
-This composition reuses the library's softplus weight transform, row
-normalization, current integration, architecture factory and standard trainer.
+This composition reuses the library's softplus weight transform,
+current-integration arithmetic, architecture factory and standard trainer.
 It differs from ``pathway_router``, which applies signed projections, and from
 Top-K synapses, which select contacts within a branch rather than assign each
 source to a destination. Both routers share the same soft-assignment utility.
@@ -505,11 +505,17 @@ interventions without reimplementing its arithmetic. The original resolved
 configuration and a strict state-dict round trip recover fixed or learned
 gates, including their initial parameterization.
 
-``weight_normalization_floor: null`` reuses the existing robust L1 row
-normalization. An explicit positive floor selects division by
-``max(sum(weights), floor)``. These conventions differ for tiny rows: replaying
-an older clamped-sum model requires its original floor, not a silent switch
-to the robust default. The fixed-assignment and global-mean controls retain
+``weight_normalization_floor: null`` divides each branch's E and I weights by
+their sum; an empty branch keeps zero weights. Unlike the robust p-norm
+normalization of dendritic layers, the sum is also differentiated at the zero
+entries of hard-routed rows, so the surrogate routing gradient keeps each
+branch's normalization (competition) term. An explicit positive floor selects
+division by ``max(sum(weights), floor)``, the clamped-sum convention of earlier
+reduced-model runs. The two conventions agree exactly, in values and
+gradients, while every branch's weight sum exceeds the floor; below it,
+including at empty branches, the floor convention divides by the floor instead.
+Replaying a clamped-sum model therefore requires its original floor. The
+fixed-assignment and global-mean controls retain
 the unused routing or I-weight parameters and initialization draws; those
 parameters receive no gradients. Store the resolved configuration alongside
 the state dict, including any scheduled temperature changes.

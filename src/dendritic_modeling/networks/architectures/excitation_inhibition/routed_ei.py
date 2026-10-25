@@ -17,7 +17,6 @@ from dendritic_modeling.networks.utils.routing import (
     assignment_statistics,
     routing_assignments,
 )
-from dendritic_modeling.networks.utils.weight_normalization import normalize_weight_rows
 from dendritic_modeling.networks.utils.weight_transforms import apply_weight_transform
 
 
@@ -134,17 +133,28 @@ class RoutedEIReadout(nn.Module):
 
     def _drives(self, excitation, inhibition, *, hard):
         assignment = self.assignment(hard=self._hard(hard))
-        floor = self.config.weight_normalization_floor
         ew, iw = (
-            normalize_weight_rows(
-                apply_weight_transform(raw, "softplus") * assignment,
-                1,
-                1.0,
-                sum_floor=floor,
-            )
+            self._normalized(raw, assignment)
             for raw in (self.e_weight_raw, self.i_weight_raw)
         )
         return excitation @ ew.T, inhibition @ iw.T
+
+    def _normalized(self, raw, assignment):
+        """Positive routed weights divided by their branch sums.
+
+        Unlike the robust p-norm normalization of dendritic layers, the sum is
+        also differentiated at the zero entries of hard-routed rows, so the
+        straight-through routing gradient keeps the normalization's competition
+        term. An empty branch keeps zero weights. A configured floor divides by
+        ``max(sum, floor)`` instead, the clamped-sum convention of earlier
+        reduced-model runs.
+        """
+        weight = apply_weight_transform(raw, "softplus") * assignment
+        total = weight.sum(dim=-1, keepdim=True)
+        floor = self.config.weight_normalization_floor
+        if floor is None:
+            return weight / torch.where(total > 0, total, torch.ones_like(total))
+        return weight / total.clamp_min(floor)
 
     def activate_branches(self, preactivation):
         """Apply the configured control gate to explicit branch preactivations.

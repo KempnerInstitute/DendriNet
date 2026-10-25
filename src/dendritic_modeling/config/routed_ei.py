@@ -28,8 +28,9 @@ class RoutedEIConfig(BaseConfig):
     hard_routing: bool = True
     leak_conductance: float = 1.0
     epsilon: float = 1e-8
-    # None uses the existing robust L1 normalization. A floor explicitly selects
-    # the clamped-sum convention used by some reduced-model historical runs.
+    # None divides each branch's weights by their sum (an empty branch keeps
+    # zero weights). A floor divides by max(sum, floor), the clamped-sum
+    # convention of some historical reduced-model runs.
     weight_normalization_floor: float | None = None
     route_init_std: float = 0.05
     weight_init_std: float = 0.04

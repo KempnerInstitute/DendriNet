@@ -332,6 +332,49 @@ def test_clamped_sum_is_explicit_and_default_normalization_is_unchanged():
         normalize_weight_rows(w, 2, 1.0, sum_floor=1e-6)
 
 
+def test_default_normalization_keeps_the_competition_term_at_unselected_entries():
+    # d drive_b / d a_bk = softplus(r_bk) (x_k - drive_b) / S_b for every k,
+    # including the zero entries of a hard-routed row. The straight-through
+    # estimator passes it to the logits through the tempered softmax.
+    model = build_routed_ei(
+        RoutedEIConfig(features=4, branches=2, output_dim=2, temperature=0.7)
+    ).double()
+    with torch.no_grad():
+        model.route_logits.copy_(
+            torch.tensor([[0.3, -0.2, 0.1, 0.4], [-0.1, 0.2, -0.3, 0.0]])
+        )
+    x = torch.tensor([[0.3, 0.8, 0.5, 0.7], [1.1, 0.2, 0.4, 0.9]], dtype=torch.float64)
+    excitation, _ = model.drives(x, x, hard=True)
+    excitation.sum().backward()
+    with torch.no_grad():
+        soft = torch.softmax(model.route_logits / 0.7, dim=0)
+        positive = F.softplus(model.e_weight_raw)
+        weights = positive * F.one_hot(soft.argmax(0), 2).T
+        total = weights.sum(1, keepdim=True)
+        drive = x @ (weights / total).T
+        upstream = positive * ((x[:, None] - drive[:, :, None]) / total).sum(0)
+        expected = soft * (upstream - (soft * upstream).sum(0)) / 0.7
+    torch.testing.assert_close(
+        model.route_logits.grad, expected, rtol=1e-12, atol=1e-15
+    )
+
+
+@pytest.mark.parametrize("hard", [False, True])
+def test_default_and_clamped_sum_agree_while_branch_sums_exceed_the_floor(hard):
+    torch.manual_seed(5)
+    clamped = build_routed_ei(spec())
+    default = build_routed_ei(replace(spec(), weight_normalization_floor=None))
+    default.load_state_dict(clamped.state_dict())
+    assert clamped.inferred_assignment().unique().numel() == 3  # No empty branch.
+    e = torch.linspace(0.1, 8.0, 40).reshape(5, 8)
+    outputs = [model(e, e.flip(0) * 0.7, hard=hard) for model in (clamped, default)]
+    assert torch.equal(outputs[0], outputs[1])
+    for output in outputs:
+        output.square().mean().backward()
+    for a, b in zip(clamped.parameters(), default.parameters(), strict=True):
+        assert torch.equal(a.grad, b.grad)
+
+
 @pytest.mark.parametrize("router", ["paired", "pathway"])
 def test_regularization_manager_uses_shared_observables(router):
     model = (
@@ -508,13 +551,16 @@ def test_soft_forward_has_exact_input_derivative(fixed, mechanism):
     assert torch.autograd.gradcheck(lambda a, b: model(a, b, hard=False), (e, i))
 
 
-def test_robust_default_empty_branch_and_config_checkpoint_roundtrip(tmp_path):
+def test_default_row_sum_keeps_empty_branches_at_zero_and_round_trips(tmp_path):
     config = RoutedEIConfig(features=4, branches=3, output_dim=2)
     model = build_routed_ei(config)
     with torch.no_grad():
         model.route_logits[0].fill_(4)
         model.route_logits[1:].zero_()
     x = torch.ones(3, 8)
+    for drive in model.drives(x):
+        assert torch.equal(drive[:, 1:], torch.zeros(3, 2))
+        torch.testing.assert_close(drive[:, 0], torch.ones(3))  # Unit weight sum.
     model(x).square().sum().backward()
     assert all(
         torch.isfinite(p.grad).all() for p in model.parameters() if p.grad is not None
