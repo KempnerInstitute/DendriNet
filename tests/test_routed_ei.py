@@ -23,6 +23,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.routed_ei i
     build_routed_ei,
 )
 from dendritic_modeling.networks.architectures.factory import get_architecture
+from dendritic_modeling.networks.functional import additive_voltage, shunting_voltage
 from dendritic_modeling.networks.utils.routing import routing_assignments
 from dendritic_modeling.networks.utils.weight_normalization import normalize_weight_rows
 from dendritic_modeling.scripts.script_utils.setup_utils import initialize_model
@@ -373,6 +374,83 @@ def test_default_and_clamped_sum_agree_while_branch_sums_exceed_the_floor(hard):
         output.square().mean().backward()
     for a, b in zip(clamped.parameters(), default.parameters(), strict=True):
         assert torch.equal(a.grad, b.grad)
+
+
+@pytest.mark.parametrize("fixed", [False, True])
+@pytest.mark.parametrize("support", ["matched", "global_mean"])
+def test_only_parameters_the_forward_reads_require_gradients(fixed, support):
+    model = build_routed_ei(spec(support=support, fixed=fixed))
+    assert list(model.state_dict()) == list(build_routed_ei(spec()).state_dict())
+    assert model.route_logits.requires_grad is not fixed
+    assert model.i_weight_raw.requires_grad is (support == "matched")
+    x = torch.linspace(0.1, 2.0, 48).reshape(3, 16)
+    for hard in (False, True):
+        model.zero_grad(set_to_none=True)
+        model(x, hard=hard).square().mean().backward()
+        trainable = {name for name, p in model.named_parameters() if p.requires_grad}
+        updated = {name for name, p in model.named_parameters() if p.grad is not None}
+        assert trainable == updated
+    restored = build_routed_ei(RoutedEIConfig(**asdict(model.config))).double()
+    restored.load_state_dict(model.state_dict(), strict=True)
+    assert [p.requires_grad for p in restored.parameters()] == [
+        p.requires_grad for p in model.parameters()
+    ]
+
+
+@pytest.mark.parametrize("fixed,support", [(True, "matched"), (False, "global_mean")])
+def test_distributed_data_parallel_trains_controls_with_unused_parameters(
+    tmp_path, fixed, support
+):
+    import torch.distributed as dist
+    from torch.nn.parallel import DistributedDataParallel
+
+    dist.init_process_group(
+        "gloo", init_method=f"file://{tmp_path / 'group'}", rank=0, world_size=1
+    )
+    try:
+        model = DistributedDataParallel(
+            build_routed_ei(spec(support=support, fixed=fixed))
+        )
+        optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
+        x = torch.linspace(0.1, 2.0, 48).reshape(3, 16)
+        for _ in range(3):  # A parameter without a gradient raises on step two.
+            optimizer.zero_grad()
+            model(x).square().mean().backward()
+            optimizer.step()
+    finally:
+        dist.destroy_process_group()
+
+
+@pytest.mark.parametrize("fixed", [False, True])
+@pytest.mark.parametrize("hard", [False, True])
+@pytest.mark.parametrize(
+    "mechanism,support",
+    [("shunting", "matched"), ("shunting", "global_mean"), ("additive", "matched")],
+)
+def test_drives_are_the_currents_the_forward_integrates(
+    fixed, hard, mechanism, support
+):
+    config = spec(mechanism, support, fixed)
+    model = build_routed_ei(config)
+    e = torch.linspace(0.1, 8.0, 40).reshape(5, 8)
+    i = e.flip(0) * 0.7
+    e_drive, i_drive = model.drives(e, i, hard=hard)
+    response = model.branch_response(e, i, hard=hard)
+    assert torch.equal(e_drive, response["e_drive"])
+    assert torch.equal(i_drive, response["i_drive"])
+    if support == "global_mean":
+        assert torch.equal(i_drive, i.mean(dim=1, keepdim=True))
+    voltage = (
+        additive_voltage(e_drive, i_drive)
+        if mechanism == "additive"
+        else shunting_voltage(
+            e_drive, i_drive, leak=config.leak_conductance, epsilon=config.epsilon
+        )
+    )
+    assert torch.equal(
+        response["preactivation"],
+        config.branch_scale * (voltage - config.branch_center) / config.branch_divisor,
+    )
 
 
 @pytest.mark.parametrize("router", ["paired", "pathway"])

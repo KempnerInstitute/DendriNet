@@ -514,11 +514,16 @@ division by ``max(sum(weights), floor)``, the clamped-sum convention of earlier
 reduced-model runs. The two conventions agree exactly, in values and
 gradients, while every branch's weight sum exceeds the floor; below it,
 including at empty branches, the floor convention divides by the floor instead.
-Replaying a clamped-sum model therefore requires its original floor. The
-fixed-assignment and global-mean controls retain
-the unused routing or I-weight parameters and initialization draws; those
-parameters receive no gradients. Store the resolved configuration alongside
-the state dict, including any scheduled temperature changes.
+Replaying a clamped-sum model therefore requires its original floor.
+
+The fixed-assignment and global-mean controls keep the unused route-logit or
+I-weight parameters and their initialization draws, so all variants share one
+checkpoint layout. These parameters do not require gradients: optimizers leave
+them unchanged, and distributed data-parallel training does not wait for their
+gradients. ``drives(E, I)`` returns the currents the forward integrates; under
+global-mean inhibition its I current is the single shared mean, of shape
+``[batch, 1]``. Store the resolved configuration alongside the state dict,
+including any scheduled temperature changes.
 
 Only ordinary backpropagation with the standard trainer is qualified.
 LocalCA, feedback alignment and recurrent configurations raise during loading.

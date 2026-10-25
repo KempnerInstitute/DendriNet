@@ -24,9 +24,12 @@ class RoutedEIReadout(nn.Module):
     """Routed branch currents, integration and an affine decoder.
 
     A fixed assignment keeps the same initialization draws and parameter names
-    as learned routing. Its unused route logits (and the local I weights for
-    global-mean inhibition) receive no gradients. Empty hard-routed branches
-    carry zero drive; no undisclosed balancing/reassignment step is applied.
+    as learned routing. Parameters the configured forward never reads (the
+    route logits of a fixed assignment, the I weights of global-mean
+    inhibition) do not require gradients, so optimizers and distributed
+    data-parallel training see only the parameters in use. Empty hard-routed
+    branches carry zero drive; no undisclosed balancing/reassignment step is
+    applied.
     """
 
     def __init__(self, config: RoutedEIConfig):
@@ -44,6 +47,10 @@ class RoutedEIReadout(nn.Module):
         self.i_weight_raw = nn.Parameter(torch.zeros(self.branches, self.features))
         nn.init.normal_(self.e_weight_raw, mean=0.0, std=config.weight_init_std)
         nn.init.normal_(self.i_weight_raw, mean=0.0, std=config.weight_init_std)
+        if config.routing == "fixed":
+            self.route_logits.requires_grad_(False)
+        if config.inhibitory_support == "global_mean":
+            self.i_weight_raw.requires_grad_(False)
         if config.branch_activation != "none":
             for name in ("activation_slope_raw", "activation_offset"):
                 value = torch.full((self.branches,), float(getattr(config, name)))
@@ -128,16 +135,20 @@ class RoutedEIReadout(nn.Module):
         return excitation, inhibition
 
     def drives(self, excitation, inhibition=None, *, hard=None):
+        """Return the E and I currents the forward integrates.
+
+        Each is ``[batch, branches]``, except that global-mean inhibition
+        returns its one current shared by every branch, ``[batch, 1]``.
+        """
         excitation, inhibition = self._inputs(excitation, inhibition)
         return self._drives(excitation, inhibition, hard=hard)
 
     def _drives(self, excitation, inhibition, *, hard):
         assignment = self.assignment(hard=self._hard(hard))
-        ew, iw = (
-            self._normalized(raw, assignment)
-            for raw in (self.e_weight_raw, self.i_weight_raw)
-        )
-        return excitation @ ew.T, inhibition @ iw.T
+        e = excitation @ self._normalized(self.e_weight_raw, assignment).T
+        if self.config.inhibitory_support == "global_mean":
+            return e, inhibition.mean(dim=1, keepdim=True)
+        return e, inhibition @ self._normalized(self.i_weight_raw, assignment).T
 
     def _normalized(self, raw, assignment):
         """Positive routed weights divided by their branch sums.
@@ -173,8 +184,6 @@ class RoutedEIReadout(nn.Module):
     def _branch_preactivation(self, excitation, inhibition, *, hard):
         excitation, inhibition = self._inputs(excitation, inhibition)
         e, i = self._drives(excitation, inhibition, hard=hard)
-        if self.config.inhibitory_support == "global_mean":
-            i = inhibition.mean(dim=1, keepdim=True)
         if self.config.mechanism == "additive":
             voltage = additive_voltage(e, i)
         else:
