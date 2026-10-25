@@ -266,6 +266,16 @@ class LocalCreditAssignment(
     def _pretrain(self, *args, **kwargs):  # type: ignore[override]
         return [], []
 
+    def _check_local_model(self, model: BaseModel) -> None:
+        """Reject a model without branch layers or with unapplied options."""
+        if not _has_dendritic_branch_layers(model):
+            raise ValueError(
+                "strategy 'local_ca' updates dendritic branch layers with local "
+                "rules, but this model has none; use 'standard' (backpropagation) "
+                "or 'dfa' for this core"
+            )
+        self._validate_local_rule_options(model)
+
     def _validate_local_rule_options(self, model: BaseModel) -> None:
         """Reject common options that the local-rule loop does not apply.
 
@@ -416,6 +426,123 @@ class LocalCreditAssignment(
         )
 
     # ----------------------- Core training overrides -----------------------
+    def assign_gradients(
+        self,
+        model: BaseModel,
+        inputs: torch.Tensor,
+        targets: torch.Tensor,
+        *,
+        epoch: int | None = None,
+    ) -> torch.Tensor:
+        """Assign one batch's update to the parameters' ``.grad``; no step.
+
+        Runs the forward, local signals and gradient assignment of a training
+        step and stops where the step calls ``optimizer.step()``: the local
+        rule's gradients, the encoder and decoder updates, the distributed
+        average and clipping. ``epoch`` (counted from 1, as in training)
+        selects the update modes of that epoch (freeze windows and
+        ``training_schedule``); by default the trainer's current epoch, the
+        first before :meth:`train` has run. The optimizer's gradients are
+        reset first, as in training. The model keeps its mode: in ``train()``
+        mode this is a training step's update, including the forward's
+        updates of sparse synapse statistics. Before ``train`` has run, the
+        trainer first prepares ``model`` as ``train`` does, without copying a
+        best state. Returns the batch loss.
+        """
+        if not hasattr(self, "epoch_counter"):
+            self._check_local_model(model)
+            self._initialize_attributes(model, self.epochs, snapshot_best=False)
+        if epoch is None:
+            epoch = max(int(self.epoch_counter), 1)
+        elif int(epoch) < 1:
+            raise ValueError(f"epoch counts from 1, as in training; got {epoch}")
+        return self._assign_batch_gradients(
+            model, inputs.to(self.device), targets.to(self.device), int(epoch)
+        )
+
+    def _assign_batch_gradients(
+        self,
+        model: BaseModel,
+        inputs: torch.Tensor,
+        targets: torch.Tensor,
+        epoch: int,
+    ) -> torch.Tensor:
+        """The gradient assignment of one training step at ``epoch``."""
+        # Resolve per-epoch schedule for reactivation/decoder behavior
+        update_reactivation, encoder_update_mode, decoder_update_mode = (
+            _resolve_local_epoch_update_modes(
+                self.local_cfg,
+                epoch,
+                self._normalize_reactivation_update_mode(),
+            )
+        )
+
+        # Forward once to obtain outputs and local signals.
+        y_hat, layer_records = _forward_with_local_recorders(self, model, inputs)
+
+        # Reuse the recorded forward for pointwise losses. Model-dependent
+        # losses retain the compatibility fallback to a separate evaluation.
+        loss = self._compute_logging_loss(
+            model,
+            inputs,
+            targets,
+            predictions=y_hat,
+        )
+
+        # Compute output-space error (dL/dy_hat) then resolve local soma-space
+        # signals for local dendritic updates.
+        delta_out: torch.Tensor = self._compute_soma_error(y_hat, targets)
+        v0_local, delta_local = self._resolve_local_soma_signals(
+            model=model,
+            y_hat=y_hat,
+            delta_out=delta_out.detach(),
+        )
+
+        # Prepare HSIC targets if needed
+        y_target = _prepare_hsic_target(self.local_cfg, targets, y_hat)
+
+        # Zero gradients (we will set param.grads directly)
+        _zero_optimizer_gradients(self.optimizer)
+
+        # Apply local learning updates as gradients on parameters; with
+        # core_update_mode "none" the core keeps its parameters.
+        if getattr(self.local_cfg, "core_update_mode", "local") == "local":
+            self._apply_local_rule_gradients(
+                model,
+                layer_records,
+                v0=v0_local,
+                delta=delta_local,
+                y_target=y_target,
+                update_reactivation=update_reactivation,
+            )
+
+        _accumulate_backprop_update_gradients(
+            loss=loss,
+            model=model,
+            encoder_update_mode=encoder_update_mode,
+            decoder_update_mode=decoder_update_mode,
+        )
+
+        _apply_local_decoder_update(
+            model=model,
+            decoder_update_mode=decoder_update_mode,
+            decoder_cache=self._decoder_cache,
+            delta_out=delta_out,
+            normalize_by_batch=self.local_cfg.normalize_by_batch,
+        )
+
+        if self.uncovered_parameters is None:
+            self._report_uncovered_parameters(model)
+
+        # LocalCA assigns gradients directly rather than calling
+        # ``loss.backward()``. DDP therefore cannot reduce them through
+        # autograd hooks; average them explicitly before clipping.
+        _average_distributed_gradients(model)
+
+        # Optional gradient clipping (value-wise)
+        _clip_model_gradients(model, self.local_cfg.clip_grad_value)
+        return loss
+
     def _epoch_train(
         self, model: BaseModel, train_loader
     ) -> tuple[float, float, float]:  # type: ignore[override]
@@ -441,84 +568,14 @@ class LocalCreditAssignment(
                 max_data_wait = max(max_data_wait, data_wait)
                 step_start = time.perf_counter()
 
-            # Resolve per-epoch schedule for reactivation/decoder behavior
-            update_reactivation, encoder_update_mode, decoder_update_mode = (
-                _resolve_local_epoch_update_modes(
-                    self.local_cfg,
-                    self.epoch_counter,
-                    self._normalize_reactivation_update_mode(),
-                )
-            )
             x_batch, y_batch = self._move_training_batch_to_device(
                 batch,
                 train_loader,
             )
-
-            # Forward once to obtain outputs and local signals.
-            y_hat, layer_records = _forward_with_local_recorders(self, model, x_batch)
-
-            # Reuse the recorded forward for pointwise losses. Model-dependent
-            # losses retain the compatibility fallback to a separate evaluation.
-            loss = self._compute_logging_loss(
-                model,
-                x_batch,
-                y_batch,
-                predictions=y_hat,
+            loss = self._assign_batch_gradients(
+                model, x_batch, y_batch, self.epoch_counter
             )
             _accumulate_local_logging_loss(loss_sum, loss)
-
-            # Compute output-space error (dL/dy_hat) then resolve local soma-space
-            # signals for local dendritic updates.
-            delta_out: torch.Tensor = self._compute_soma_error(y_hat, y_batch)
-            v0_local, delta_local = self._resolve_local_soma_signals(
-                model=model,
-                y_hat=y_hat,
-                delta_out=delta_out.detach(),
-            )
-
-            # Prepare HSIC targets if needed
-            y_target = _prepare_hsic_target(self.local_cfg, y_batch, y_hat)
-
-            # Zero gradients (we will set param.grads directly)
-            _zero_optimizer_gradients(self.optimizer)
-
-            # Apply local learning updates as gradients on parameters; with
-            # core_update_mode "none" the core keeps its parameters.
-            if getattr(self.local_cfg, "core_update_mode", "local") == "local":
-                self._apply_local_rule_gradients(
-                    model,
-                    layer_records,
-                    v0=v0_local,
-                    delta=delta_local,
-                    y_target=y_target,
-                    update_reactivation=update_reactivation,
-                )
-
-            _accumulate_backprop_update_gradients(
-                loss=loss,
-                model=model,
-                encoder_update_mode=encoder_update_mode,
-                decoder_update_mode=decoder_update_mode,
-            )
-
-            _apply_local_decoder_update(
-                model=model,
-                decoder_update_mode=decoder_update_mode,
-                decoder_cache=self._decoder_cache,
-                delta_out=delta_out,
-                normalize_by_batch=self.local_cfg.normalize_by_batch,
-            )
-
-            if self.uncovered_parameters is None:
-                self._report_uncovered_parameters(model)
-
-            # LocalCA assigns gradients directly rather than calling
-            # ``loss.backward()``. DDP therefore cannot reduce them through
-            # autograd hooks; average them explicitly before clipping.
-            _average_distributed_gradients(model)
-
-            # Optional gradient clipping (value-wise)
-            _clip_model_gradients(model, self.local_cfg.clip_grad_value)
 
             # Step optimizer
             self.optimizer.step()
@@ -545,13 +602,7 @@ class LocalCreditAssignment(
         # The local-rule loop never builds the per-epoch LR scheduler.
         self._resolve_lr_schedule()
         # Standard training loop but with local rule gradient computation
-        if not _has_dendritic_branch_layers(model):
-            raise ValueError(
-                "strategy 'local_ca' updates dendritic branch layers with local "
-                "rules, but this model has none; use 'standard' (backpropagation) "
-                "or 'dfa' for this core"
-            )
-        self._validate_local_rule_options(model)
+        self._check_local_model(model)
 
         train_loader, valid_loader = self._dataloaders(train_data, valid_data)
         self._initialize_attributes(model, self.epochs)
