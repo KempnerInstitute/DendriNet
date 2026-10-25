@@ -5,7 +5,7 @@ from datetime import timedelta
 import pytest
 import torch
 import torch.distributed as dist
-import torch.multiprocessing as mp
+from distributed_test_utils import spawn_workers
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 
@@ -119,7 +119,7 @@ def _worker(rank, backend, protocol, rendezvous, checkpoint, kind):
 def test_rewiring_matches_across_ddp_replicas(tmp_path, backend, policy):
     if backend == "nccl" and torch.cuda.device_count() < 2:
         pytest.skip("requires two CUDA devices")
-    mp.spawn(
+    spawn_workers(
         _worker,
         args=(
             backend,
@@ -139,7 +139,7 @@ def test_rewiring_matches_across_ddp_replicas(tmp_path, backend, policy):
 def test_fsdp_checkpoint_restores_optimizer_continuation(tmp_path, kind):
     if torch.cuda.device_count() < 2:
         pytest.skip("requires two CUDA devices")
-    mp.spawn(
+    spawn_workers(
         _worker,
         args=("nccl", "fsdp", str(tmp_path / "init"), str(tmp_path / "state.pt"), kind),
         nprocs=2,
