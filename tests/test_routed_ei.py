@@ -29,7 +29,10 @@ from dendritic_modeling.networks.utils.routing import (
     assignment_statistics,
     routing_assignments,
 )
-from dendritic_modeling.networks.utils.weight_normalization import normalize_weight_rows
+from dendritic_modeling.networks.utils.weight_normalization import (
+    divide_rows_by_sum,
+    normalize_weight_rows,
+)
 from dendritic_modeling.scripts.script_utils.setup_utils import initialize_model
 from dendritic_modeling.training.regularization import RegularizationManager
 
@@ -400,6 +403,28 @@ def test_clamped_sum_is_explicit_and_default_normalization_is_unchanged():
             normalize_weight_rows(w, 1, 1.0, **kwargs)
     with pytest.raises(ValueError):
         normalize_weight_rows(w, 2, 1.0, sum_floor=1e-6)
+
+
+def test_row_sum_division_differentiates_zero_entries_and_keeps_zero_rows():
+    w = torch.tensor(
+        [[1.0, 2.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]],
+        dtype=torch.float64,
+        requires_grad=True,
+    )
+    upstream = torch.tensor(
+        [[0.3, -0.2, 0.5, 0.7], [0.1, 0.2, 0.3, 0.4]], dtype=torch.float64
+    )
+    rows = divide_rows_by_sum(w)
+    assert torch.equal(rows[1], torch.zeros(4, dtype=torch.float64))
+    (gradient,) = torch.autograd.grad((rows * upstream).sum(), w)
+    # d(w_j / S)/d w_k = (delta_jk - w_j / S) / S, at zero entries as well.
+    expected = (upstream[0] - (rows[0] * upstream[0]).sum()) / 3.0
+    torch.testing.assert_close(gradient[0], expected.detach(), rtol=1e-15, atol=0)
+    assert torch.equal(gradient[1], upstream[1])  # A zero row divides by one.
+    assert torch.equal(divide_rows_by_sum(w, 10.0), w / 10.0)  # Below the floor.
+    assert torch.equal(
+        normalize_weight_rows(w, 1, 1.0, sum_floor=1e-6), divide_rows_by_sum(w, 1e-6)
+    )
 
 
 def test_default_normalization_keeps_the_competition_term_at_unselected_entries():

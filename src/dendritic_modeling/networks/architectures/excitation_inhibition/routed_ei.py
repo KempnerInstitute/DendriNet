@@ -20,6 +20,7 @@ from dendritic_modeling.networks.utils.routing import (
     assignment_statistics,
     routing_assignments,
 )
+from dendritic_modeling.networks.utils.weight_normalization import divide_rows_by_sum
 from dendritic_modeling.networks.utils.weight_transforms import apply_weight_transform
 
 
@@ -188,12 +189,10 @@ class RoutedEIReadout(nn.Module):
         ``max(sum, floor)`` instead, the clamped-sum convention of earlier
         reduced-model runs.
         """
-        weight = apply_weight_transform(raw, "softplus") * assignment
-        total = weight.sum(dim=-1, keepdim=True)
-        floor = self.config.weight_normalization_floor
-        if floor is None:
-            return weight / torch.where(total > 0, total, torch.ones_like(total))
-        return weight / total.clamp_min(floor)
+        return divide_rows_by_sum(
+            apply_weight_transform(raw, "softplus") * assignment,
+            self.config.weight_normalization_floor,
+        )
 
     def activate_branches(self, preactivation):
         """Apply the configured control gate to explicit branch preactivations.

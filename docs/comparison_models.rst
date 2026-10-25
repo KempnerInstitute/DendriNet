@@ -444,8 +444,9 @@ a fixed affine rescaling and a learned affine decoder. The decoder has signed
 weights: this control is not a biological population network or a multilevel
 dendritic tree.
 
-This composition reuses the library's softplus weight transform,
-current-integration arithmetic, architecture factory and standard trainer.
+This composition reuses the library's softplus weight transform, row-sum
+division, current-integration arithmetic, architecture factory and standard
+trainer.
 It differs from ``pathway_router``, which applies signed projections, and from
 Top-K synapses, which select contacts within a branch rather than assign each
 source to a destination. Both routers share the same soft-assignment utility.

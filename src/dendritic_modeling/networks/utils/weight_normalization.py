@@ -122,7 +122,7 @@ def normalize_weight_rows(
             raise ValueError("sum_floor requires order=1 and a finite positive floor")
         if not bool(torch.isfinite(weight).all()) or bool((weight < 0).any()):
             raise ValueError("clamped-sum weights must be finite and nonnegative")
-        return (weight / weight.sum(dim=-1, keepdim=True).clamp_min(sum_floor)) * gamma
+        return divide_rows_by_sum(weight, sum_floor) * gamma
     norm = torch.norm(weight, p=order, dim=-1, keepdim=True)
     eps = torch.finfo(weight.dtype).eps
     # The historical expression, kept for every row whose norm is >= eps.
@@ -150,6 +150,25 @@ def normalize_weight_rows(
     return torch.where(small, unit * scale, historical)
 
 
+def divide_rows_by_sum(
+    weight: torch.Tensor, floor: float | None = None
+) -> torch.Tensor:
+    """Divide each row of nonnegative ``weight`` by its sum, without checks.
+
+    With ``floor=None`` every row with a positive sum sums to one and all-zero
+    rows stay zero. Unlike the p-norm path of :func:`normalize_weight_rows`,
+    the sum is differentiated at zero entries too, as straight-through routing
+    needs. A positive ``floor`` divides by ``max(sum, floor)``, the clamped-sum
+    convention, so rows below the floor shrink. Callers guarantee finite,
+    nonnegative weights; ``normalize_weight_rows(..., sum_floor=...)`` checks
+    them first.
+    """
+    total = weight.sum(dim=-1, keepdim=True)
+    if floor is None:
+        return weight / torch.where(total > 0, total, torch.ones_like(total))
+    return weight / total.clamp_min(floor)
+
+
 def _log_space_unit_rows(
     pre_weight: torch.Tensor,
     small: torch.Tensor,
@@ -167,4 +186,4 @@ def _log_space_unit_rows(
     return torch.where(active, (log_weight - shift).exp_(), 0.0)
 
 
-__all__ = ["normalize_weight_rows"]
+__all__ = ["divide_rows_by_sum", "normalize_weight_rows"]
