@@ -201,6 +201,7 @@ __all__ = [
     "EvaluationRuntimeConfig",
     "ExperimentConfig",
     "FSDPConfig",
+    "FeatureReadoutConfig",
     "FreezeBranchKLStrategyConfig",
     "FreezeBranchesStrategyConfig",
     "FreezeLayersStrategyConfig",

@@ -5,6 +5,7 @@ from dataclasses import asdict, replace
 import pytest
 import torch
 from torch import nn
+from torch.nn import functional as F
 
 from dendritic_modeling.config import (
     AffineMLPConfig,
@@ -168,6 +169,15 @@ def test_config_factory_and_full_builder_are_exact():
         {"normalization": "group_mean", "groups": 2, "divisor_offset": 0},
         {"normalization": "group_mean", "groups": 2, "divisor_offset": float("nan")},
         {"normalization": "layer_norm", "normalization_epsilon": float("inf")},
+        {
+            "readout": AffineMLPConfig(
+                dimensions=[32, 3],
+                mode="fixed",
+                fanin=[4],
+                connectivity_seeds=[1],
+                activate_output=False,
+            )
+        },
     ],
 )
 def test_invalid_and_ignored_options_rejected(changes):
@@ -262,6 +272,34 @@ def test_training_initializes_the_readout_like_the_affine_mlp_control():
             assert cfg.model.core.initialization_seed is None
     assert len(states[0]) == len(states[1])
     assert all(torch.equal(a, b) for a, b in zip(*states))
+
+
+def test_group_mean_divisor_clamps_negative_means_at_the_offset():
+    model = build_feature_readout(spec("group_mean")).double()
+    x = torch.linspace(-2.0, 1.0, 64, dtype=torch.float64).reshape(2, 8, 2, 2)
+    groups = x.reshape(2, 2, 4, 2, 2)
+    means = groups.mean(dim=(2, 3, 4), keepdim=True)
+    assert (means < 0).any() and (means > 0).any()
+    divisor = 0.05 + torch.where(means > 0, means, torch.zeros_like(means))
+    assert torch.equal(model.representation(x), (groups / divisor).reshape(2, 32))
+
+
+@pytest.mark.parametrize("normalization", ["layer_norm", "group_norm"])
+def test_normalization_epsilon_and_affine_options_reach_the_torch_module(
+    normalization,
+):
+    config = replace(
+        spec(normalization), normalization_epsilon=1e-3, normalization_affine=False
+    )
+    model = build_feature_readout(config).double()
+    assert not any(name.startswith("normalizer.") for name in model.state_dict())
+    x = torch.linspace(-0.2, 2.4, 96, dtype=torch.float64).reshape(3, 8, 2, 2)
+    normalized = (
+        F.layer_norm(x, (8, 2, 2), eps=1e-3)
+        if normalization == "layer_norm"
+        else F.group_norm(x, 2, eps=1e-3)
+    )
+    assert torch.equal(model(x), model.readout(normalized.flatten(1)))
 
 
 def test_group_divisor_noise_validation_and_gradient():

@@ -238,7 +238,8 @@ For a conventional readout initialized by ``torch.nn.Linear``, explicitly select
 ``initialization: pytorch_default``. This skips reinitialization, preserving the
 constructors' bias values and random draw order. With ``output_weight_scale: 1``
 it makes no further weight mutation; another scale still rescales the last
-weight matrix. Sparse modes reject this policy. For a Linear--ReLU--Linear
+weight matrix but not its bias, which this policy leaves nonzero, so the
+initial output is not scaled uniformly. Sparse modes reject this policy. For a Linear--ReLU--Linear
 classifier, set ``dimensions`` to the three layer widths, ``activation: relu``,
 ``activate_output: false`` and ``dropout: null``. This reuses the affine builder;
 it does not add feature normalization or a dendritic computation.
