@@ -29,6 +29,8 @@ from dendritic_modeling.networks.utils.weight_normalization import normalize_wei
 from dendritic_modeling.scripts.script_utils.setup_utils import initialize_model
 from dendritic_modeling.training.regularization import RegularizationManager
 
+FIXED = [0, 1, 2, 0, 1, 2, 0, 1]
+
 
 def spec(mechanism="shunting", support="matched", fixed=False):
     return RoutedEIConfig(
@@ -36,10 +38,10 @@ def spec(mechanism="shunting", support="matched", fixed=False):
         branches=3,
         output_dim=2,
         routing="fixed" if fixed else "learned",
-        fixed_assignment=[0, 1, 2, 0, 1, 2, 0, 1] if fixed else [],
+        fixed_assignment=FIXED if fixed else [],
         mechanism=mechanism,
         inhibitory_support=support,
-        temperature=0.8,
+        temperature=1.0 if fixed else 0.8,
         leak_conductance=0.25 if mechanism == "shunting" else 1.0,
         epsilon=0.0 if mechanism == "shunting" else 1e-8,
         weight_normalization_floor=1e-6,
@@ -217,6 +219,9 @@ def test_loader_factory_wrapper_and_state_roundtrip(tmp_path):
         {"branch_activation": "tanh", "trainable_activation": 1},
         {"branch_activation": "tanh", "activation_slope_raw": float("inf")},
         {"branch_activation": "tanh", "activation_offset": float("nan")},
+        {"routing": "fixed", "fixed_assignment": FIXED, "temperature": 0.8},
+        {"routing": "fixed", "fixed_assignment": FIXED, "hard_routing": False},
+        {"routing": "fixed", "fixed_assignment": FIXED, "route_init_std": 0.1},
     ],
 )
 def test_invalid_config_fails_before_rng_changes(change):
@@ -259,6 +264,29 @@ def test_unknown_keys_unsupported_training_and_ignored_fields_rejected():
             "routed_ei",
             {"routed_ei": asdict(spec()), "morphology": {"leak_conductance": 2.0}},
         )
+
+
+def test_mixed_precision_is_rejected_in_configs_and_under_autocast():
+    value = mapping()
+    value["training"]["main"]["common"] = {"use_amp": True}
+    with pytest.raises(ValueError, match="use_amp"):
+        config_from_mapping(value)
+    model = build_routed_ei(spec())
+    x = torch.ones(2, 16)
+    with torch.autocast("cpu", dtype=torch.bfloat16):
+        with pytest.raises(RuntimeError, match="autocast"):
+            model(x)
+    assert torch.isfinite(model(x)).all()
+
+
+def test_temperature_schedules_apply_to_learned_routing_only():
+    learned = build_routed_ei(spec())
+    learned.temperature = 0.5
+    assert learned.temperature == learned.config.temperature == 0.5
+    fixed = build_routed_ei(spec(fixed=True))
+    with pytest.raises(ValueError, match="fixed"):
+        fixed.temperature = 0.5
+    assert fixed.temperature == 1.0
 
 
 def test_new_section_is_none_and_old_models_are_identical():

@@ -133,6 +133,11 @@ class RoutedEIReadout(nn.Module):
                 or value.device != self.route_logits.device
             ):
                 raise ValueError("inputs must match the model dtype and device")
+        if torch.is_autocast_enabled(excitation.device.type):
+            raise RuntimeError(
+                "routed_ei computes in its parameter dtype; run it outside autocast "
+                "(training.main.common.use_amp: false)"
+            )
         # One host synchronization checks both streams.
         valid = ((excitation >= 0) & torch.isfinite(excitation)).all() & (
             (inhibition >= 0) & torch.isfinite(inhibition)

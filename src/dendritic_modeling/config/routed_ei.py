@@ -105,6 +105,15 @@ class RoutedEIConfig(BaseConfig):
                 raise ValueError(
                     "additive does not read leak_conductance or epsilon; leave their defaults"
                 )
+        if self.routing == "fixed" and (
+            self.temperature != 1.0
+            or not self.hard_routing
+            or self.route_init_std != 0.05
+        ):
+            raise ValueError(
+                "routing: fixed does not read temperature, hard_routing or "
+                "route_init_std; leave their defaults"
+            )
 
 
 __all__ = ["RoutedEIConfig"]

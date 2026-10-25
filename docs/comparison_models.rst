@@ -472,7 +472,10 @@ width ``2 * features``. Direct callers can supply the streams separately:
 ``hard_routing: true`` (the default), training uses one-hot assignments with
 the softmax surrogate derivative; evaluation uses exact one-hot assignments.
 With ``hard_routing: false``, both use soft assignments. ``routing: fixed``
-requires a ``fixed_assignment`` list containing one branch index per feature.
+requires a ``fixed_assignment`` list containing one branch index per feature;
+it does not read ``temperature``, ``hard_routing`` or ``route_init_std``, so
+their non-default values raise. Assigning ``model.temperature`` re-validates
+the configuration, so a temperature schedule applies to learned routing only.
 Empty branches have zero drive; no implicit balancing or reassignment occurs.
 ``inhibitory_support: global_mean`` is a shunting-only control that replaces
 each branch's inhibitory drive by the unweighted mean of the input I channels.
@@ -483,7 +486,10 @@ because this comparator does not use them. The optional output transformation is
 ``branch_scale * (voltage - branch_center) / branch_divisor``; its default is
 the identity. No gate, across-feature normalization or learned output scale is
 implicit in this core. Set the outer model's ``output_scale_mode: fixed``
-and use identity encoder/decoder modules to retain that contract.
+and use identity encoder/decoder modules to retain that contract. The control
+computes in its parameter dtype: ``training.main.common.use_amp: true`` raises
+when the configuration loads, and so does a forward call under
+``torch.autocast``.
 
 An explicit ``branch_activation: tanh`` applies
 ``tanh(softplus(activation_slope_raw) * preactivation + activation_offset)``

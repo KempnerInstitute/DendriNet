@@ -670,6 +670,11 @@ def validate_loaded_config(config: Any) -> None:
             errors.append(
                 "routed_ei supports only the standard backpropagation trainer"
             )
+        if _get(_get(main, "common", {}), "use_amp", False):
+            errors.append(
+                "routed_ei computes in its parameter dtype; set "
+                "training.main.common.use_amp: false"
+            )
     elif core_type == "shared_projection_shunting":
         from dendritic_modeling.config.shared_projection import (
             SharedProjectionShuntingConfig,
