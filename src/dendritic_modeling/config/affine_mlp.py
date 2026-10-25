@@ -40,10 +40,11 @@ class AffineMLPConfig(BaseConfig):
         if self.initialization not in {
             "kaiming_normal",
             "kaiming_uniform_xavier_readout",
+            "pytorch_default",
         }:
             raise ValueError("unknown affine MLP initialization")
         if self.initialization != "kaiming_normal" and self.mode != "dense":
-            raise ValueError("kaiming_uniform_xavier_readout requires dense mode")
+            raise ValueError(f"{self.initialization} requires dense mode")
         count = len(self.dimensions) - 1
         if self.mode == "dense":
             if self.fanin or self.connectivity_seeds:

@@ -1,6 +1,7 @@
 """Numerical and configuration contracts for ordinary affine MLP controls."""
 
 from dataclasses import asdict
+from itertools import pairwise
 
 import pytest
 import torch
@@ -150,6 +151,13 @@ def test_typed_yaml_and_factory_have_identical_state_and_rng(mode):
         {"workspace_mb": 0},
         {"index_dtype": "int16"},
         {"negative_slope": -0.1},
+        {"mode": "topk", "initialization": "pytorch_default", "fanin": [4, 3]},
+        {
+            "mode": "fixed",
+            "initialization": "pytorch_default",
+            "fanin": [4, 3],
+            "connectivity_seeds": [1, 2],
+        },
     ],
 )
 def test_invalid_config_fails_before_rng_consumption(changes):
@@ -188,3 +196,62 @@ def test_structured_core_config_with_mlp_type_raises():
     }
     with pytest.raises(ValueError, match="point_mlp"):
         get_architecture("mlp", params, input_dim=6)
+
+
+@pytest.mark.parametrize("dimensions", [[13, 5], [13, 7, 5]])
+@pytest.mark.parametrize("scale", [1.0, 0.2])
+def test_pytorch_default_policy_preserves_constructor_rng_states_and_updates(
+    dimensions, scale
+):
+    modules = []
+    torch.manual_seed(4101)
+    for index, (nin, nout) in enumerate(pairwise(dimensions)):
+        modules.append(nn.Linear(nin, nout))
+        if index < len(dimensions) - 2:
+            modules.append(nn.ReLU())
+    expected = nn.Sequential(*modules)
+    if scale != 1.0:
+        with torch.no_grad():
+            expected[-1].weight.mul_(scale)
+    expected_rng = torch.get_rng_state()
+    config = AffineMLPConfig(
+        dimensions=dimensions,
+        initialization="pytorch_default",
+        activate_output=False,
+        output_weight_scale=scale,
+    )
+    structured = OmegaConf.create(
+        OmegaConf.to_yaml(
+            OmegaConf.structured(CoreConfig(type="affine_mlp", affine_mlp=config))
+        )
+    )
+    torch.manual_seed(4101)
+    actual = get_architecture(
+        "affine_mlp", structured, input_dim=13, suffix_input_dim=5
+    )
+    assert torch.equal(torch.get_rng_state(), expected_rng)
+    assert list(actual.state_dict()) == list(expected.state_dict())
+    for a, b in zip(actual.parameters(), expected.parameters()):
+        assert torch.equal(a, b)
+        assert a._version == b._version
+    optimizer_a = torch.optim.AdamW(actual.parameters(), lr=0.001)
+    optimizer_b = torch.optim.AdamW(expected.parameters(), lr=0.001)
+    for step in range(3):
+        inputs = torch.linspace(-1, 1, 52).reshape(4, 13) + 0.1 * step
+        xa, xb = inputs.clone().requires_grad_(), inputs.clone().requires_grad_()
+        optimizer_a.zero_grad()
+        optimizer_b.zero_grad()
+        ya, yb = actual(xa), expected(xb)
+        assert torch.equal(ya, yb)
+        ya.square().mean().backward()
+        yb.square().mean().backward()
+        assert torch.equal(xa.grad, xb.grad)
+        for a, b in zip(actual.parameters(), expected.parameters()):
+            assert torch.equal(a.grad, b.grad)
+        optimizer_a.step()
+        optimizer_b.step()
+        for a, b in zip(actual.parameters(), expected.parameters()):
+            assert torch.equal(a, b)
+    restored = build_affine_mlp(config)
+    restored.load_state_dict(actual.state_dict(), strict=True)
+    assert torch.equal(restored(inputs), actual(inputs))

@@ -198,8 +198,9 @@ The options of ``model.core.affine_mlp``:
        other modes.
    * - ``initialization``
      - ``kaiming_normal``
-     - ``kaiming_normal``, or ``kaiming_uniform_xavier_readout`` (``dense``
-       only: Kaiming-uniform hidden layers and a Xavier-uniform last layer).
+     - ``kaiming_normal``; ``kaiming_uniform_xavier_readout`` (dense hidden
+       layers Kaiming-uniform, last layer Xavier-uniform); or ``pytorch_default``
+       (dense only, retain the Linear constructors' weights and biases).
    * - ``activation``
      - ``relu``
      - ``relu`` or ``leaky_relu``.
@@ -223,7 +224,7 @@ The options of ``model.core.affine_mlp``:
      - Execution settings of ``fixed`` layers (see :ref:`indexed-backends`);
        the other modes do not read them.
 
-Initialization: ``dense`` mode constructs all layers, then draws every weight
+By default, ``dense`` mode constructs all layers, then draws every weight
 with Kaiming-normal initialization (the ReLU gain, also for ``leaky_relu``)
 and sets the biases to zero. ``fixed`` layers draw normal weights with
 standard deviation ``sqrt(2 / fanin)``. ``topk`` layers draw standard-normal
@@ -232,6 +233,15 @@ have squared norm 2. All modes then multiply the last layer's weights by
 ``output_weight_scale``. The weights come from the global PyTorch random
 stream, which the builder does not reseed; ``connectivity_seeds`` fix only the
 support of ``fixed`` layers.
+
+For a conventional readout initialized by ``torch.nn.Linear``, explicitly select
+``initialization: pytorch_default``. This skips reinitialization, preserving the
+constructors' bias values and random draw order. With ``output_weight_scale: 1``
+it makes no further weight mutation; another scale still rescales the last
+weight matrix. Sparse modes reject this policy. For a Linear--ReLU--Linear
+classifier, set ``dimensions`` to the three layer widths, ``activation: relu``,
+``activate_output: false`` and ``dropout: null``. This reuses the affine builder;
+it does not add feature normalization or a dendritic computation.
 
 The built model is a flat ``nn.Sequential`` (numeric checkpoint keys) that
 also forwards the weight decay, weight boosting and rewiring steps of the

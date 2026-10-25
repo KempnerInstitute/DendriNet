@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Add opt-in `affine_mlp.initialization: pytorch_default` for dense controls.
+  It retains the original Linear constructor weights, biases and RNG draws;
+  no reinitialization or implicit bias centering occurs. Existing initialization
+  defaults and sparse controls are unchanged. This permits conventional
+  readouts to reuse the affine builder without a second MLP implementation.
+
 - Extend the opt-in routed E/I control with a signed tanh gate, fixed or learned
   softplus slopes and offsets, and explicit branch-response diagnostics. The
   gate defaults to absent: no new parameters, buffers, random draws or diagnostic
