@@ -67,16 +67,20 @@ def _git(root: Path, *args: str) -> bytes:
     )
 
 
-def export_project(manifest: Path, commit: str, output: Path) -> dict:
-    """Write exact allow-listed Git blobs and their provenance to a new ZIP."""
+def export_project(
+    manifest: Path, commit: str, output: Path, *, paper_root: Path | None = None
+) -> dict:
+    """Write committed Git blobs; ``paper_root`` opts into a nested manifest."""
     manifest = manifest.resolve()
-    root = manifest.parent
+    root = manifest.parent if paper_root is None else paper_root.resolve()
+    if not manifest.is_relative_to(root):
+        raise ValueError("The manifest must be inside the paper root")
     output = output.resolve()
     if (
         Path(_git(root, "rev-parse", "--show-toplevel").decode().strip()).resolve()
         != root
     ):
-        raise ValueError("The export manifest must live at its repository root")
+        raise ValueError("The declared paper root must be a Git repository root")
     if output.is_relative_to(root) or output.is_relative_to(
         Path(__file__).resolve().parents[3]
     ):
@@ -84,7 +88,7 @@ def export_project(manifest: Path, commit: str, output: Path) -> dict:
             "Export archives belong outside paper and library repositories"
         )
     sha = _git(root, "rev-parse", "--verify", commit + "^{commit}").decode().strip()
-    raw_manifest = _git(root, "show", f"{sha}:{manifest.name}")
+    raw_manifest = _git(root, "show", f"{sha}:{manifest.relative_to(root).as_posix()}")
     data = json.loads(raw_manifest)
     kind = data.get("kind")
     if data.get("schema_version") != 1 or kind not in {"manuscript", "paper-code"}:
@@ -168,10 +172,17 @@ def export_project(manifest: Path, commit: str, output: Path) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", type=Path, required=True)
+    parser.add_argument(
+        "--paper-root",
+        type=Path,
+        help="explicit Git repository root for a manifest stored in a subdirectory",
+    )
     parser.add_argument("--commit", required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    receipt = export_project(args.manifest, args.commit, args.output)
+    receipt = export_project(
+        args.manifest, args.commit, args.output, paper_root=args.paper_root
+    )
     print(
         json.dumps(
             {

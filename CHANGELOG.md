@@ -6,6 +6,13 @@
   and `Makefile` files. Other extensionless inputs and copied library paths
   remain rejected; manuscript export rules are unchanged.
 
+- Project source verification and export accept an optional explicit
+  ``paper_root`` (CLI ``--paper-root``), allowing contracts and manifests in
+  subdirectories without changing root-relative source paths or library pins.
+  Existing root-level calls retain their behavior and source-receipt fields;
+  exported payloads are unchanged (the exporter hash records the new tool).
+  Nested contracts remain subject to the same source-cleanliness checks.
+
 - ``DendriNet`` levels can differ from the shared settings through
   ``level_overrides`` (constructor argument and ``DendriNetConfig`` field;
   default none). An override names a level by depth (0 = soma) and removes a

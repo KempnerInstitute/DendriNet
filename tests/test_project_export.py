@@ -135,8 +135,12 @@ def test_refuses_copied_library_even_when_allowlisted(paper, tmp_path):
         export.export_project(manifest, git("rev-parse", "HEAD"), tmp_path / "bad.zip")
 
 
-def test_paper_code_preserves_committed_license_and_makefile(paper, tmp_path):
+@pytest.mark.parametrize("nested", [False, True])
+def test_paper_code_preserves_committed_license_and_makefile(paper, tmp_path, nested):
     root, manifest, git = paper
+    if nested:
+        manifest = root / "reproducibility/paper_release.json"
+        manifest.parent.mkdir()
     files = {
         "LICENSE": b"Paper license\n",
         "journal/Makefile": b"test:\n\tpython -m pytest\n",
@@ -156,12 +160,15 @@ def test_paper_code_preserves_committed_license_and_makefile(paper, tmp_path):
             }
         )
     )
-    git("add", "--", *files)
-    git("commit", "-qm", "Record license and build inputs", "--", *files, manifest.name)
+    relative = str(manifest.relative_to(root))
+    git("add", "--", *files, relative)
+    git("commit", "-qm", "Record license and build inputs", "--", *files, relative)
     commit = git("rev-parse", "HEAD")
     (root / "LICENSE").write_text("Uncommitted edit\n")
     output = tmp_path / "code.zip"
-    export.export_project(manifest, commit, output)
+    export.export_project(
+        manifest, commit, output, **({"paper_root": root} if nested else {})
+    )
     with zipfile.ZipFile(output) as archive:
         for name, content in files.items():
             assert archive.read(name) == content
@@ -199,3 +206,40 @@ def test_named_export_exception_keeps_existing_boundaries(paper, tmp_path, kind,
     with pytest.raises(ValueError, match="Not an allowed"):
         export.export_project(manifest, git("rev-parse", "HEAD"), output)
     assert not output.exists()
+
+
+def test_nested_manifest_preserves_archive_and_committed_input_checks(paper, tmp_path):
+    root, manifest, git = paper
+    nested = root / "reproducibility/manuscript_export.json"
+    nested.parent.mkdir()
+    nested.write_bytes(manifest.read_bytes())
+    git("add", "--", str(nested.relative_to(root)))
+    git("commit", "-qm", "Add nested manifest", "--", str(nested.relative_to(root)))
+    sha = git("rev-parse", "HEAD")
+    old = tmp_path / "root.zip"
+    new = tmp_path / "nested.zip"
+    export.export_project(manifest, sha, old)
+    nested.write_text('{"invalid_worktree": true}')
+    export.export_project(nested, sha, new, paper_root=root)
+    assert old.read_bytes() == new.read_bytes()
+    with pytest.raises(ValueError, match="outside"):
+        export.export_project(nested, sha, root / "build/out.zip", paper_root=root)
+
+
+def test_nested_manifest_rejects_wrong_root_and_symlink_escape(paper, tmp_path):
+    root, manifest, git = paper
+    with pytest.raises(ValueError, match="inside"):
+        export.export_project(
+            manifest,
+            git("rev-parse", "HEAD"),
+            tmp_path / "bad.zip",
+            paper_root=root / "elsewhere",
+        )
+    outside = tmp_path / "outside.json"
+    outside.write_bytes(manifest.read_bytes())
+    link = root / "alias.json"
+    link.symlink_to(outside)
+    with pytest.raises(ValueError, match="inside"):
+        export.export_project(
+            link, git("rev-parse", "HEAD"), tmp_path / "bad.zip", paper_root=root
+        )

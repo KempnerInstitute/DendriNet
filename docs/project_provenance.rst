@@ -109,6 +109,13 @@ checkout the contract pins:
 fallback to an installed copy. A tool from a newer checkout can verify an
 older library commit that predates the utility.
 
+To keep the contract in a subdirectory, pass ``--paper-root <project>`` (or
+``paper_root=Path(...)`` to ``verify_contract``). Source paths and entry points
+still resolve from that explicit Git root, and the nested contract is checked
+for uncommitted changes. Without this option the contract must remain at the
+root, preserving existing calls and receipts. The contract cannot be outside
+the declared repository, including through a symlink.
+
 ``check`` verifies, and fails with ``SourceContractError`` at the first
 problem:
 
@@ -231,6 +238,14 @@ archive:
        --commit <project commit> --output <exports>/manuscript.zip
 
 The manifest is read from that commit, not from the working tree:
+
+An optional ``--paper-root <project>`` (``paper_root=Path(...)`` in the Python
+API) allows the manifest itself to live in a subdirectory. Its listed file
+paths remain relative to the explicit repository root. Containment, committed
+input checks and exclusive creation are unchanged. Existing root-level calls
+retain their default behavior. At the same exporter revision, equivalent root
+and nested manifests produce byte-identical archives; changing exporter
+revisions changes the recorded exporter hash, not the exported file contents.
 
 .. code-block:: json
 

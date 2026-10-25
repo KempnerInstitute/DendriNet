@@ -92,6 +92,88 @@ def test_verifies_exact_library_and_paper_source(project):
     assert receipt["scientific_equivalence"] == "not assessed by source verification"
 
 
+def test_explicit_root_preserves_default_receipt(project):
+    library, paper, contract = project
+    assert source.verify_contract(contract, library) == source.verify_contract(
+        contract, library, paper_root=paper
+    )
+
+
+def test_nested_contract_checks_sources_and_its_own_cleanliness(project):
+    library, paper, contract = project
+    nested = paper / "reproducibility" / contract.name
+    nested.parent.mkdir()
+    nested.write_bytes(contract.read_bytes())
+    commit(paper, str(nested.relative_to(paper)))
+    old = source.verify_contract(contract, library)
+    new = source.verify_contract(nested, library, paper_root=paper)
+    assert {k: v for k, v in old.items() if k != "contract"} == {
+        k: v for k, v in new.items() if k != "contract"
+    }
+    nested.write_text(nested.read_text() + "\n")
+    with pytest.raises(source.SourceContractError, match="Uncommitted source"):
+        source.verify_contract(nested, library, paper_root=paper)
+
+
+def test_nested_contract_cli_preserves_numerical_execution(project, tmp_path):
+    library, paper, contract = project
+    nested = paper / "reproducibility" / contract.name
+    nested.parent.mkdir()
+    nested.write_bytes(contract.read_bytes())
+    commit(paper, str(nested.relative_to(paper)))
+    cmd = [
+        sys.executable,
+        str(TOOL),
+        "run",
+        "--library-root",
+        str(library),
+        "--entry",
+        "evaluate",
+    ]
+    outputs = []
+    for name, path, extra in (
+        ("root", contract, []),
+        ("nested", nested, ["--paper-root", str(paper)]),
+    ):
+        outputs.append(
+            subprocess.check_output(
+                [
+                    *cmd,
+                    "--contract",
+                    str(path),
+                    "--receipt",
+                    str(tmp_path / (name + ".json")),
+                    *extra,
+                ],
+                text=True,
+            )
+        )
+    assert outputs[0] == outputs[1]
+    with pytest.raises(subprocess.CalledProcessError):
+        subprocess.check_output(
+            [
+                *cmd,
+                "--contract",
+                str(nested),
+                "--paper-root",
+                str(paper),
+                "--receipt",
+                str(paper / "forbidden.json"),
+            ]
+        )
+    assert not (paper / "forbidden.json").exists()
+
+
+def test_nested_contract_rejects_symlink_escape(project, tmp_path):
+    library, paper, contract = project
+    outside = tmp_path / "outside.json"
+    outside.write_bytes(contract.read_bytes())
+    alias = paper / "alias.json"
+    alias.symlink_to(outside)
+    with pytest.raises(source.SourceContractError, match="inside"):
+        source.verify_contract(alias, library, paper_root=paper)
+
+
 @pytest.mark.parametrize("location", ["library", "paper"])
 def test_rejects_modified_source(project, location):
     library, paper, contract = project

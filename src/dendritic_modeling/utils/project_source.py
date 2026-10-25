@@ -227,7 +227,9 @@ def _verify_release_bridge(
     return {"source_commit": source, "release_commit": release, "tree": source_tree}
 
 
-def verify_contract(contract_path: Path, library_root: Path) -> dict[str, Any]:
+def verify_contract(
+    contract_path: Path, library_root: Path, *, paper_root: Path | None = None
+) -> dict[str, Any]:
     """Check exact source identity and cleanliness without running paper code.
 
     The library checkout must be clean, its ``HEAD`` and ``library.ref`` must
@@ -240,13 +242,19 @@ def verify_contract(contract_path: Path, library_root: Path) -> dict[str, Any]:
     ancestors, and that both commits have the same tree. The paper checkout
     must be clean and hold every declared source path and entry point.
 
+    ``paper_root`` permits a contract in a subdirectory of that explicit Git
+    root. Omitting it retains the contract-directory default. All declared
+    source paths remain relative to the paper root.
+
     Returns the receipt: contract, paper and library identities, the
     maintained ref and its commit, the verified bridge with its tree (only
     when one is declared), the package and configuration roots and the
     interpreter. Raises :class:`SourceContractError` when a check fails.
     """
     contract_path = contract_path.resolve()
-    paper = contract_path.parent
+    paper = contract_path.parent if paper_root is None else paper_root.resolve()
+    if not contract_path.is_relative_to(paper):
+        raise SourceContractError("The contract must be inside the paper root")
     root = library_root.resolve()
     contract = read_contract(contract_path)
     for checkout in (paper, root):
@@ -288,7 +296,7 @@ def verify_contract(contract_path: Path, library_root: Path) -> dict[str, Any]:
     if not package.is_file():
         raise SourceContractError(f"No maintained package at {package}")
     _clean(root, ["src", "configs", "pyproject.toml", "setup.py", "requirements.txt"])
-    paper_paths = [*contract["source_paths"], contract_path.name]
+    paper_paths = [*contract["source_paths"], str(contract_path.relative_to(paper))]
     _clean(paper, paper_paths)
     for relative in paper_paths:
         if not _inside(paper, relative).exists():
@@ -366,7 +374,12 @@ def main(argv: list[str] | None = None) -> int:
         "--contract",
         type=Path,
         required=True,
-        help="the paper's dendrinet.project.json, at its repository root",
+        help="the paper's source contract (root-level unless --paper-root is set)",
+    )
+    parser.add_argument(
+        "--paper-root",
+        type=Path,
+        help="explicit Git repository root for a contract stored in a subdirectory",
     )
     parser.add_argument(
         "--library-root",
@@ -389,7 +402,9 @@ def main(argv: list[str] | None = None) -> int:
         parser.error(
             "Set --library-root or DENDRINET_LIBRARY_ROOT; no editable-install fallback"
         )
-    receipt = verify_contract(args.contract, args.library_root)
+    receipt = verify_contract(
+        args.contract, args.library_root, paper_root=args.paper_root
+    )
     if args.action == "check":
         print(json.dumps(receipt, indent=2))
         return 0
@@ -398,7 +413,11 @@ def main(argv: list[str] | None = None) -> int:
         parser.error(
             "run requires a declared --entry and a new external --receipt path"
         )
-    paper = args.contract.resolve().parent
+    paper = (
+        args.contract.resolve().parent
+        if args.paper_root is None
+        else args.paper_root.resolve()
+    )
     receipt_path = args.receipt.resolve()
     if receipt_path.is_relative_to(paper) or receipt_path.is_relative_to(
         Path(receipt["library_root"])
