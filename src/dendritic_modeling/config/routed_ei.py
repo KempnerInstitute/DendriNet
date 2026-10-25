@@ -36,6 +36,11 @@ class RoutedEIConfig(BaseConfig):
     branch_center: float = 0.0
     branch_scale: float = 1.0
     branch_divisor: float = 1.0
+    # A signed control gate, not the unit-range neuronal ParametricTanh.
+    branch_activation: str = "none"
+    trainable_activation: bool = False
+    activation_slope_raw: float = 0.5413249
+    activation_offset: float = 0.0
 
     def validate(self) -> None:
         for name in ("features", "branches", "output_dim"):
@@ -57,6 +62,16 @@ class RoutedEIConfig(BaseConfig):
             raise ValueError("fixed_assignment requires routing: fixed")
         if type(self.hard_routing) is not bool:
             raise ValueError("hard_routing must be a bool")
+        if self.branch_activation not in {"none", "tanh"}:
+            raise ValueError("branch_activation must be none or tanh")
+        if type(self.trainable_activation) is not bool:
+            raise ValueError("trainable_activation must be a bool")
+        if self.branch_activation == "none" and (
+            self.trainable_activation
+            or self.activation_slope_raw != 0.5413249
+            or self.activation_offset != 0.0
+        ):
+            raise ValueError("activation parameters require branch_activation: tanh")
         positive = {
             "temperature",
             "leak_conductance",
@@ -66,7 +81,11 @@ class RoutedEIConfig(BaseConfig):
         nonnegative = {"epsilon", "route_init_std", "weight_init_std"}
         if self.weight_normalization_floor is not None:
             positive.add("weight_normalization_floor")
-        for name in positive | nonnegative | {"branch_center"}:
+        for name in (
+            positive
+            | nonnegative
+            | {"branch_center", "activation_slope_raw", "activation_offset"}
+        ):
             value = getattr(self, name)
             if (
                 isinstance(value, bool)

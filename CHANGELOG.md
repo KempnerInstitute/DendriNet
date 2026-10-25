@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Extend the opt-in routed E/I control with a signed tanh gate, fixed or learned
+  softplus slopes and offsets, and explicit branch-response diagnostics. The
+  gate defaults to absent: no new parameters, buffers, random draws or diagnostic
+  work in existing forwards. This is not the unit-range neuronal reactivation;
+  substituting that gate would change both outputs and optimization dynamics.
+
 - Add the opt-in `routed_ei` comparison core: one source-to-branch assignment
   shared by paired E/I channels, positive row-normalized weights, existing
   shunting/additive current integration and an affine readout. Its typed payload

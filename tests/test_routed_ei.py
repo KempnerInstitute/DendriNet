@@ -1,6 +1,6 @@
 """Config isolation, shared primitives and numerical contracts of paired routing."""
 
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 
 import pytest
@@ -61,6 +61,13 @@ class ReferenceReadout(nn.Module):
         self.i_weight_raw = nn.Parameter(torch.zeros(b, f))
         nn.init.normal_(self.e_weight_raw, std=0.04)
         nn.init.normal_(self.i_weight_raw, std=0.04)
+        if config.branch_activation == "tanh":
+            for name in ("activation_slope_raw", "activation_offset"):
+                value = torch.full((b,), float(getattr(config, name)))
+                if config.trainable_activation:
+                    self.register_parameter(name, nn.Parameter(value))
+                else:
+                    self.register_buffer(name, value)
         self.decoder = nn.Linear(b, config.output_dim)
         self.register_buffer(
             "fixed_assignment", torch.tensor(config.fixed_assignment, dtype=torch.long)
@@ -86,6 +93,10 @@ class ReferenceReadout(nn.Module):
             if c.inhibitory_support == "global_mean":
                 id = i.mean(1, keepdim=True)
             result = 20.0 * (ed / (0.25 + ed + id) - 4.0 / 8.25)
+        if c.branch_activation == "tanh":
+            result = torch.tanh(
+                F.softplus(self.activation_slope_raw) * result + self.activation_offset
+            )
         return self.decoder(result)
 
 
@@ -198,6 +209,13 @@ def test_loader_factory_wrapper_and_state_roundtrip(tmp_path):
         {"weight_normalization_floor": 0},
         {"mechanism": "additive", "leak_conductance": 0.25},
         {"mechanism": "additive", "inhibitory_support": "global_mean"},
+        {"branch_activation": "param_tanh"},
+        {"trainable_activation": True},
+        {"activation_slope_raw": 1.0},
+        {"activation_offset": 0.5},
+        {"branch_activation": "tanh", "trainable_activation": 1},
+        {"branch_activation": "tanh", "activation_slope_raw": float("inf")},
+        {"branch_activation": "tanh", "activation_offset": float("nan")},
     ],
 )
 def test_invalid_config_fails_before_rng_changes(change):
@@ -358,6 +376,127 @@ def test_default_regularization_never_calls_routing_observables():
 def test_input_contract(x):
     with pytest.raises(ValueError):
         build_routed_ei(spec())(x)
+
+
+@pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
+@pytest.mark.parametrize("mechanism", ["shunting", "additive"])
+@pytest.mark.parametrize("trainable", [False, True])
+@pytest.mark.parametrize("hard", [False, True])
+def test_optional_gate_equations_training_diagnostics_and_state(
+    dtype, mechanism, trainable, hard
+):
+    config = replace(
+        spec(mechanism), branch_activation="tanh", trainable_activation=trainable
+    )
+    torch.manual_seed(128)
+    expected = ReferenceReadout(config).to(dtype)
+    rng = torch.get_rng_state().clone()
+    torch.manual_seed(128)
+    actual = build_routed_ei(config).to(dtype)
+    assert torch.equal(rng, torch.get_rng_state())
+    assert list(expected.state_dict()) == list(actual.state_dict())
+    assert list(dict(expected.named_parameters())) == list(
+        dict(actual.named_parameters())
+    )
+    inputs = torch.linspace(0.2, 7.0, 40, dtype=dtype).reshape(5, 8)
+    histories = []
+    for model in (expected, actual):
+        optimizer = torch.optim.AdamW(model.parameters(), lr=0.003, weight_decay=1e-4)
+        history = []
+        for _ in range(4):
+            optimizer.zero_grad()
+            e, i = (x.clone().requires_grad_() for x in (inputs, inputs.flip(0)))
+            output = model(e, i, hard=hard)
+            output.square().mean().backward()
+            history.extend([output.detach().clone(), e.grad.clone(), i.grad.clone()])
+            history.extend(
+                p.grad.clone() for p in model.parameters() if p.grad is not None
+            )
+            optimizer.step()
+        histories.append(history)
+    for a, b in zip(*histories, strict=True):
+        assert torch.equal(a, b)
+    for key, value in expected.state_dict().items():
+        assert torch.equal(value, actual.state_dict()[key])
+    response = actual.branch_response(inputs, inputs.flip(0), hard=hard)
+    assert torch.equal(
+        actual(inputs, inputs.flip(0), hard=hard),
+        actual.decoder(response["activation"]),
+    )
+    assert torch.equal(
+        actual.branch_values(inputs, inputs.flip(0), hard=hard), response["activation"]
+    )
+    assert torch.equal(
+        response["path_slope"],
+        F.softplus(actual.activation_slope_raw) * (1 - response["activation"].square()),
+    )
+    restored = build_routed_ei(RoutedEIConfig(**asdict(actual.config))).to(dtype)
+    restored.load_state_dict(actual.state_dict(), strict=True)
+    assert torch.equal(
+        actual(inputs, inputs, hard=hard), restored(inputs, inputs, hard=hard)
+    )
+
+
+@pytest.mark.parametrize("trainable", [False, True])
+def test_gate_config_reaches_all_routed_builders(trainable):
+    value = mapping()
+    value["model"]["core"]["routed_ei"].update(
+        branch_activation="tanh",
+        trainable_activation=trainable,
+        activation_offset=-0.25,
+    )
+    cfg = config_from_mapping(value)
+    models = [
+        build_routed_ei(cfg.model.core.routed_ei),
+        get_architecture("routed_ei", cfg.model.core, input_dim=16, suffix_input_dim=2),
+        initialize_model(cfg.model)[0].core_network,
+    ]
+    for model in models:
+        assert model.config.trainable_activation is trainable
+        assert isinstance(model.activation_slope_raw, nn.Parameter) is trainable
+        assert torch.equal(model.activation_offset, torch.full((3,), -0.25))
+
+
+def test_gate_default_registers_no_state_and_does_not_evaluate_diagnostics():
+    raw = asdict(spec())
+    for key in (
+        "branch_activation",
+        "trainable_activation",
+        "activation_slope_raw",
+        "activation_offset",
+    ):
+        raw.pop(key)
+    torch.manual_seed(84)
+    omitted = build_routed_ei(RoutedEIConfig(**raw))
+    rng = torch.get_rng_state().clone()
+    torch.manual_seed(84)
+    explicit = build_routed_ei(spec())
+    assert torch.equal(rng, torch.get_rng_state())
+    assert all("activation" not in name for name in explicit.state_dict())
+    assert list(omitted.state_dict()) == list(explicit.state_dict())
+    explicit.branch_response = lambda *args, **kwargs: pytest.fail(
+        "forward evaluated diagnostics"
+    )
+    x = torch.ones(3, 16)
+    assert torch.equal(omitted(x), explicit(x))
+
+
+def test_optional_gate_input_and_parameter_derivatives():
+    model = build_routed_ei(
+        replace(spec(), branch_activation="tanh", trainable_activation=True)
+    ).double()
+    e = torch.linspace(0.3, 2.0, 16, dtype=torch.float64).reshape(2, 8).requires_grad_()
+    i = (e.detach() * 0.4).requires_grad_()
+    assert torch.autograd.gradcheck(lambda a, b: model(a, b, hard=False), (e, i))
+    assert torch.autograd.gradcheck(
+        lambda a, slope, offset: torch.func.functional_call(
+            model,
+            {"activation_slope_raw": slope, "activation_offset": offset},
+            (a, i),
+            {"hard": False},
+        ),
+        (e, model.activation_slope_raw, model.activation_offset),
+    )
 
 
 @pytest.mark.parametrize("fixed", [False, True])

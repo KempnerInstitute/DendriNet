@@ -1729,6 +1729,18 @@ Explained in :doc:`comparison_models`. Class ``dendritic_modeling.config.routed_
    * - ``branch_divisor``
      - ``float``
      - ``1.0``
+   * - ``branch_activation``
+     - ``str``
+     - ``none``
+   * - ``trainable_activation``
+     - ``bool``
+     - ``false``
+   * - ``activation_slope_raw``
+     - ``float``
+     - ``0.5413249``
+   * - ``activation_offset``
+     - ``float``
+     - ``0.0``
 
 .. _options-model-core-architecture:
 

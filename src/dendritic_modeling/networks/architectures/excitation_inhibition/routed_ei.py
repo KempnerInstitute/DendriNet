@@ -45,6 +45,13 @@ class RoutedEIReadout(nn.Module):
         self.i_weight_raw = nn.Parameter(torch.zeros(self.branches, self.features))
         nn.init.normal_(self.e_weight_raw, mean=0.0, std=config.weight_init_std)
         nn.init.normal_(self.i_weight_raw, mean=0.0, std=config.weight_init_std)
+        if config.branch_activation != "none":
+            for name in ("activation_slope_raw", "activation_offset"):
+                value = torch.full((self.branches,), float(getattr(config, name)))
+                if config.trainable_activation:
+                    self.register_parameter(name, nn.Parameter(value))
+                else:
+                    self.register_buffer(name, value)
         self.decoder = nn.Linear(self.branches, self.output_dim)
         self.register_buffer(
             "fixed_assignment", torch.tensor(config.fixed_assignment, dtype=torch.long)
@@ -139,7 +146,21 @@ class RoutedEIReadout(nn.Module):
         )
         return excitation @ ew.T, inhibition @ iw.T
 
-    def branch_values(self, excitation, inhibition=None, *, hard=None):
+    def activate_branches(self, preactivation):
+        """Apply the configured control gate to explicit branch preactivations.
+
+        Exposes the same gate to analysis-only current interventions without
+        rebuilding routing or duplicating gate arithmetic. The gate is signed
+        ``tanh(softplus(raw_slope) * x + offset)``, not the unit-range
+        ``ParametricTanh`` gate used by neuronal trees. Softplus versus an
+        exponential slope parameterization also changes optimizer dynamics.
+        """
+        if self.config.branch_activation == "none":
+            return preactivation
+        slope = apply_weight_transform(self.activation_slope_raw, "softplus")
+        return torch.tanh(slope * preactivation + self.activation_offset)
+
+    def _branch_preactivation(self, excitation, inhibition, *, hard):
         excitation, inhibition = self._inputs(excitation, inhibition)
         e, i = self._drives(excitation, inhibition, hard=hard)
         if self.config.inhibitory_support == "global_mean":
@@ -150,11 +171,44 @@ class RoutedEIReadout(nn.Module):
             voltage = shunting_voltage(
                 e, i, leak=self.config.leak_conductance, epsilon=self.config.epsilon
             )
-        return (
+        preactivation = (
             self.config.branch_scale
             * (voltage - self.config.branch_center)
             / self.config.branch_divisor
         )
+        return e, i, preactivation
+
+    def branch_response(self, excitation, inhibition=None, *, hard=None):
+        """Return currents, preactivation, activation and the local gate slope.
+
+        ``path_slope`` is the derivative with respect to the affine branch
+        preactivation, not with respect to either current or the raw inputs.
+        Values retain their computation graph for backpropagation and audits.
+        This diagnostic is never computed by the ordinary forward path.
+        """
+        e, i, preactivation = self._branch_preactivation(
+            excitation, inhibition, hard=hard
+        )
+        activation = self.activate_branches(preactivation)
+        path_slope = (
+            torch.ones_like(activation)
+            if self.config.branch_activation == "none"
+            else apply_weight_transform(self.activation_slope_raw, "softplus")
+            * (1.0 - activation.square())
+        )
+        return {
+            "e_drive": e,
+            "i_drive": i,
+            "preactivation": preactivation,
+            "activation": activation,
+            "path_slope": path_slope,
+        }
+
+    def branch_values(self, excitation, inhibition=None, *, hard=None):
+        _, _, preactivation = self._branch_preactivation(
+            excitation, inhibition, hard=hard
+        )
+        return self.activate_branches(preactivation)
 
     def forward(self, excitation, inhibition=None, *, hard=None):
         return self.decoder(self.branch_values(excitation, inhibition, hard=hard))

@@ -485,6 +485,26 @@ the identity. No gate, across-feature normalization or learned output scale is
 implicit in this core. Set the outer model's ``output_scale_mode: fixed``
 and use identity encoder/decoder modules to retain that contract.
 
+An explicit ``branch_activation: tanh`` applies
+``tanh(softplus(activation_slope_raw) * preactivation + activation_offset)``
+before the affine readout. The initial raw slope defaults to ``0.5413249``
+(approximately unit softplus slope) and the offset to zero. These per-branch
+values are fixed buffers unless ``trainable_activation: true`` is requested.
+This signed gate is not the neuronal ``ParametricTanh``: that gate has a
+unit-range output, an exponential slope and a voltage midpoint. Substituting
+one for the other changes optimization even when an operating-point response
+matches. Only the routed backpropagation control supports these new fields.
+
+The default ``branch_activation: none`` registers no gate state and draws no
+random numbers. Nondefault gate parameters with this setting raise rather
+than being ignored. ``branch_response(E, I)`` explicitly returns currents,
+preactivation, activation and the derivative of the gate with respect to its
+preactivation. Ordinary forward calls do not calculate this diagnostic.
+``activate_branches(x)`` exposes the same configured gate to analysis-only
+interventions without reimplementing its arithmetic. The original resolved
+configuration and a strict state-dict round trip recover fixed or learned
+gates, including their initial parameterization.
+
 ``weight_normalization_floor: null`` reuses the existing robust L1 row
 normalization. An explicit positive floor selects division by
 ``max(sum(weights), floor)``. These conventions differ for tiny rows: replaying
