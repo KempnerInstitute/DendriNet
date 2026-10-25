@@ -374,6 +374,43 @@ Plugins can register further additive rules; ``additive_mode`` names one and
 ``additive_options`` sets its options (:ref:`plugin-additive-rules`). The
 built-in rules take no ``additive_options``.
 
+Explicit-current computations
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Use ``dendritic_modeling.networks.functional.shunting_voltage`` and
+``additive_voltage`` when the currents are already known. These public functions
+need no layer object and share arithmetic with the native
+``voltage_from_currents`` path. They return voltages before reactivation and
+preserve autograd through currents, coupling conductance and tensor-valued leak.
+
+.. code-block:: python
+
+   import torch
+   from dendritic_modeling.networks.functional import shunting_voltage
+
+   e = torch.tensor([[0.4, 0.8]], requires_grad=True)
+   i = torch.tensor([[0.2]])  # a shared inhibitory sensor broadcasts over branches
+   v = shunting_voltage(e, i, leak=0.25, epsilon=0.0)
+   soma = shunting_voltage(
+       torch.zeros(1), child_current=2.0 * v.sum(-1),
+       child_conductance=4.0, leak=1.0, epsilon=0.0,
+   )
+
+All tensor operands share excitation's dtype and device and broadcast to its
+shape without expanding it. Excitatory and inhibitory currents and child
+conductance must be nonnegative; child current can be signed. Shunting requires
+positive leak and an explicit coupling conductance when child current is
+nonzero. Zero-leak quotients belong to mathematical analyses, not this neuronal
+API. The raw additive function computes ``E + E_rec - I - I_rec + C``: it can
+return negative values and has no implicit leak division or z-score.
+
+These are functional components, not newly configured network architectures or
+learning strategies. They do not perform routing, synapse sampling, integration
+over time, plasticity, or gating. They validate tensor values and may therefore
+synchronize the device; native layers keep their existing unchecked arithmetic
+and fused training path. Use ``DendriNet`` or ``DendriticBranchLayer`` when
+synapses, state, training rules or checkpoint interventions are required.
+
 Selecting the rule
 ~~~~~~~~~~~~~~~~~~
 

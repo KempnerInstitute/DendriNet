@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Public `networks.functional.shunting_voltage` and `additive_voltage` evaluate
+  pre-gate voltages from explicit currents without a layer-owner stand-in.
+  They share arithmetic with the existing current-substitution/recurrent path,
+  preserve autograd and validate current units, shape and sign constraints.
+  Shunting leak stays strictly positive; raw addition is not divided by leak.
+  Existing layer defaults, checkpoint layouts and fused forwards are unchanged.
+
 - Paper-code exports accept explicitly allow-listed, committed `LICENSE`
   and `Makefile` files. Other extensionless inputs and copied library paths
   remain rejected; manuscript export rules are unchanged.
