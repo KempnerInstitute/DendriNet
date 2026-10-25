@@ -191,6 +191,7 @@ def test_structured_population_sparsity_kwargs_preserve_all_sparse_fields():
         "topk_ultrafast": True,
         "topk_gradient_scaling": "conductance_dynamic",
         "topk_variance_score": "absolute",
+        "topk_options": {},
         "dense_to_sparse_initial_density": 0.6,
         "dense_to_sparse_initial_k": 3,
         "dense_to_sparse_start_step": 2,

@@ -23,6 +23,7 @@ from dendritic_modeling.training.strategies.local_learning_parts.local_learning_
 )
 from dendritic_modeling.training.strategies.local_learning_parts.local_learning_broadcast_transport_mixin import (
     LocalLearningPathTransportBroadcastMixin,
+    _project_transported_errors,
 )
 from dendritic_modeling.training.strategies.local_learning_parts.local_learning_state import (
     _BroadcastState,
@@ -205,12 +206,18 @@ class LocalLearningBroadcastMixin(
 
         transported_errors: list[torch.Tensor | None] = []
         if bmode == "path_transport":
+            readout_errors = self._precompute_path_transport_errors(
+                layer_records=readout_records,
+                delta=delta,
+                delta_scalar=delta_scalar,
+            )
+            projection = getattr(self.local_cfg, "path_transport_projection", "none")
+            if projection != "none":
+                readout_errors = _project_transported_errors(
+                    readout_records, readout_errors, projection
+                )
             transported_errors = _scatter(
-                self._precompute_path_transport_errors(
-                    layer_records=readout_records,
-                    delta=delta,
-                    delta_scalar=delta_scalar,
-                ),
+                readout_errors,
                 readout_indices,
                 len(layer_records),
             )

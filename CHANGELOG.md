@@ -1,5 +1,115 @@
 # Changelog
 
+## Unreleased
+
+- Paper-code exports accept explicitly allow-listed, committed `LICENSE`
+  and `Makefile` files. Other extensionless inputs and copied library paths
+  remain rejected; manuscript export rules are unchanged.
+
+- ``DendriNet`` levels can differ from the shared settings through
+  ``level_overrides`` (constructor argument and ``DendriNetConfig`` field;
+  default none). An override names a level by depth (0 = soma) and removes a
+  feedforward pathway (built and initialized first, so the remaining
+  parameters keep the draws of the full model), declares the inputs each
+  compartment contacts (a configuration-derived connection mask that is not
+  stored in checkpoints; dense TopK synapses only, not together with
+  structured connectivity on the same pathway) or sets the level's
+  activation.
+- ``DendriNet.reinitialize(LogNormalReinitialization(...))`` redraws the
+  synaptic and coupling log-weights in a documented order, with optional
+  per-level offsets, at the point of the global random stream where it is
+  called.
+- ``DendriNet.forward_levels`` returns every level's output, optionally with
+  each level's child input detached, and applies labelled interventions to
+  single levels for that pass; ``CurrentInjection`` replaces a shunting
+  level's inhibition beyond a reference input by a current at a fixed voltage.
+  ``forward`` is unchanged.
+- ``dendritic_modeling.training.local_delivery`` provides the soma error, the
+  surrogate objective of delivered errors and the gain quantities (relative
+  resistance, coupling ratios, activation slope) for local rules trained with
+  autograd eligibilities; with exact gains the delivered errors equal the
+  backpropagated ones (the factors include each level's ``epsilon``, as the
+  forward denominator does). The objective rejects graph-connected errors and
+  gains.
+
+  None of these change existing models or their outputs.
+- Two LocalCA options put credit-delivery controls into the typed
+  configuration:
+  - ``learning_strategy_config.path_transport_projection`` (default
+    ``none``) projects the ``path_transport`` error field before the rules
+    use it. ``arbor_mean`` gives every dendritic compartment the mean
+    transported error of its neuron; ``subtree_mean`` gives it the mean over
+    the subtree of the soma's child that contains it. Soma errors stay exact.
+    It requires ``error_broadcast_mode: path_transport`` and raises where a
+    compartment of the readout tree has no transported error.
+  - ``learning_strategy_config.core_update_mode`` (default ``local``) set to
+    ``none`` holds the dendritic core fixed while the encoder and decoder
+    follow their update modes: no local-rule update, no sparse maintenance,
+    rewiring or topology-controller replacement (the core's parameters stop
+    requiring gradients for the run and are restored afterwards) and no
+    change of sparse selection state in training forwards. It raises with
+    periodic reactivation recalibration, batch normalization in the core,
+    stateful sparse layers outside the core, multi-process training, and
+    when all three update modes are ``none`` without a ``training_schedule``.
+
+  The defaults leave the training of every existing configuration unchanged.
+- LocalCA can follow the exact derivative of ``use_additive_normalization``,
+  the per-sample z-score of an additive layer's voltages across its outputs.
+  With ``learning_strategy_config.three_factor.additive_gain_mode:
+  normalization_jacobian`` the layer records the scale of its z-score during
+  the local-rule forward, and the rules map the voltage error back through
+  the z-score (which couples the layer's outputs) for the layer's own
+  synapses and coupling weights and for path transport through it. With
+  exact delivered errors (path transport, no projection or modulators) the
+  local updates of synapses, coupling weights and gates then equal
+  backpropagation's, in float64 to about 1e-17 on a single layer and through
+  two transported levels; scalar or per-soma broadcasts and projected errors
+  remain approximations. The derivative uses layer-wide means, so it is not
+  local to a synapse. The other modes, including the default ``none``, still
+  omit it: on normalized layers they approximate the derivative (a 0.115
+  maximum error on the test layer), and LocalCA now warns when it trains such
+  layers without this mode. The forward pass is unchanged.
+
+- The Triton ELL kernels (``indexed_projection_backend: triton_ell``) run indexed
+  layers with more than 65,535 output rows, such as 16,384 cells with four
+  branches. They launched one CUDA grid-y block per output row, and grid y
+  allows at most 65,535 blocks, so such layers failed at their first forward
+  pass with ``Triton Error [CUDA]: invalid argument``. Such wide layers now put
+  output rows on grid x and spread the batch blocks over grid y and z. Every
+  layer with at most 65,535 output rows keeps the previous launch layout,
+  including batches of more than ``65,535 x block_m`` rows. Its forward outputs
+  and weight gradients are unchanged. Input gradients are accumulated with
+  atomic additions, whose order varies between runs as before, so training
+  trajectories are not bitwise reproducible on this backend.
+- Plugin sparse synapse layers get the construction of their kind and options
+  of their own:
+  - A type that a plugin registers with ``register_sparse_layer`` as a
+    subclass of ``IndexedSparseLinear`` is built like ``type: indexed``. It
+    receives the layer's seed, output chunk size and indexed storage and
+    execution options, among them ``indexed_projection_backend``, so the
+    accelerator kernels apply. It reads the options that ``indexed`` reads.
+    Such a type was built through the generic path before: without a seed or
+    those options, on the eager projection, while the configured options
+    counted as unread.
+  - Built-in types build exactly as before. A plugin subclass of
+    ``IndexedSparseLinear`` now takes its configured seed and execution
+    backend, so its connectivity and outputs can change: experiments with
+    such a type must record this change of source.
+  - ``sparsity.options`` (``topk_options`` in the options of a population)
+    holds a plugin type's constructor options. It must be a mapping (omitted
+    or ``null`` means none; ``false``, ``0``, ``[]`` and ``""`` raise). The
+    built-in types take none and reject a non-empty mapping; omitting it
+    changes nothing.
+  - Population networks, the model builders and the transformer FFN and
+    E/I-stack replacements (``DendriticFFNReplacement``,
+    ``LayerwiseEIStackReplacement`` and their ``*_from_core_config``
+    translators) pass the options to the layer. The translators add
+    ``topk_options`` only when options are set, so replacement classes that
+    do not take it build every configuration without options as before.
+  - ``BUILTIN_SPARSE_LAYER_TYPES`` and ``get_sparse_layer_class`` tell the
+    library's types from plugin types.
+  - "Extending DendriNet" describes plugin sparse layers.
+
 ## 0.3.0 (2026-10-16)
 
 Changes since 0.2.0. Configuration files carry ``config_version: 4``:

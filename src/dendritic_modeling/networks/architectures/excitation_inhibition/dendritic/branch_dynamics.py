@@ -542,6 +542,10 @@ def normalize_branch_additive_voltage(owner: Any, voltage):
         return voltage
     centered = voltage - voltage.mean(dim=-1, keepdim=True)
     std = voltage.std(dim=-1, keepdim=True, unbiased=False)
+    if getattr(owner, "_record_additive_scale", False):
+        # Local learning rules that need this z-score's derivative read the
+        # per-sample scale back (see LocalCA's additive_gain_mode).
+        owner._last_additive_scale = std.detach()
     return centered / std.clamp_min(owner.epsilon)
 
 

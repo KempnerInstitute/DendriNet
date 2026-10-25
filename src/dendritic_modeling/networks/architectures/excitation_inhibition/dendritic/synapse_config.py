@@ -6,7 +6,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from typing import Any
 
-from dendritic_modeling.config.keys import field_default
+from dendritic_modeling.config.keys import field_default, to_mapping
 from dendritic_modeling.config.sparse_backends import (
     normalize_indexed_projection_backend,
 )
@@ -28,6 +28,14 @@ class TopKConfig:
     )
     strategy: str = "none"
     variance_score: str = "absolute"
+    # Constructor options of a plugin sparse layer type; left out of the hash
+    # so the frozen config stays hashable.
+    options: dict[str, Any] = field(default_factory=dict, hash=False)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "options", to_mapping(self.options, section="topk options")
+        )
 
 
 @dataclass(frozen=True)
@@ -150,6 +158,7 @@ def _topk_config_from_kwargs(source: Mapping[str, Any]) -> TopKConfig:
         ultrafast=source.get("topk_ultrafast", True),
         strategy=source.get("topk_strategy", "none"),
         variance_score=source.get("topk_variance_score", "absolute"),
+        options=to_mapping(source.get("topk_options"), section="topk_options"),
     )
 
 
@@ -323,6 +332,7 @@ def _topk_kwargs(config: TopKConfig) -> dict[str, Any]:
         "topk_ultrafast": config.ultrafast,
         "topk_strategy": config.strategy,
         "topk_variance_score": config.variance_score,
+        "topk_options": dict(config.options),
     }
 
 

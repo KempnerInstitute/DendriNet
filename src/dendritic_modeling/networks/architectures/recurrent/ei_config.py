@@ -12,6 +12,7 @@ from dendritic_modeling.config.choices import (
     normalize_choice,
     normalize_gradient_scaling,
 )
+from dendritic_modeling.config.keys import to_mapping
 from dendritic_modeling.config.reactivation import normalize_reactivation_init_policy
 from dendritic_modeling.config.structured_connectivity import (
     validate_structured_connectivity,
@@ -240,10 +241,17 @@ class PopulationConfig(BaseConfig):
     indexed_init_mode: str = "per_rank"
     indexed_projection_backend: str = "eager"
     reactivation_memory_efficient: bool = False
+    # Appended: constructor options of a plugin sparse layer type
+    # (``register_sparse_layer``). Built-in types take none and reject a
+    # non-empty mapping.
+    topk_options: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
         validate_structured_connectivity(
             self.structured_connectivity, section="population structured_connectivity"
+        )
+        self.topk_options = to_mapping(
+            self.topk_options, section="population topk_options"
         )
         self.topk_gradient_scaling = normalize_gradient_scaling(
             self.topk_gradient_scaling, "topk"

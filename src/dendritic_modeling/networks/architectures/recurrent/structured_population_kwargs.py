@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from dendritic_modeling.config.conversion import normalize_sparsity_type
+from dendritic_modeling.config.keys import to_mapping
 from dendritic_modeling.networks.architectures.recurrent.structured_recurrent_types import (
     _RecurrentReactivationOptions,
 )
@@ -26,6 +27,7 @@ def _structured_population_sparsity_kwargs(
         "topk_temperature": float(sparsity.get("temperature", 0.5)),
         "topk_ultrafast": bool(sparsity.get("ultrafast", True)),
         "topk_variance_score": str(sparsity.get("variance_score", "absolute")),
+        "topk_options": to_mapping(sparsity.get("options"), section="sparsity.options"),
         "topk_gradient_scaling": str(sparsity.get("gradient_scaling", "none")),
         "dense_to_sparse_initial_density": float(
             dense_to_sparse.get("initial_density", 1.0)

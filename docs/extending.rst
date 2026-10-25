@@ -316,3 +316,36 @@ For example,
 ``layer.branch_excitation.project_with_weights(x.abs(), w.abs())``, with
 ``w = layer.branch_excitation.effective_sparse_weight()``, sums the magnitudes
 of the excitatory drives of each branch.
+
+Sparse synapse layers
+---------------------
+
+``register_sparse_layer(name, layer_class)`` adds a synapse layer that
+``sparsity.type`` (``topk_type`` in the options of a population) selects, and
+``sparsity.options`` (``topk_options``) holds the options of its constructor.
+The options must be a mapping; omitting them, or ``null``, means none. The
+built-in types take no options and reject a non-empty mapping. Population
+networks, the model builders and the transformer FFN and E/I-stack
+replacements all pass the options to the layer.
+
+A registered subclass of
+:class:`~dendritic_modeling.networks.architectures.excitation_inhibition.synapse.indexed_sparse.IndexedSparseLinear`
+is built like ``type: indexed``: it receives the layer's seed, output chunk size
+and indexed storage and execution options (among them
+``indexed_projection_backend``, so the accelerator kernels apply), and it reads
+the options that ``indexed`` reads. The forward projection applies
+``sparse_weight()``, so a subclass that overrides it changes the weights every
+backend uses. Any other registered type receives the generic sparse options
+(``init_method``, ``noise_level``, ``weight_transform``, ``weight_norm_order``,
+``gamma`` and the connection mask) and its own options.
+
+.. code-block:: yaml
+
+   model:
+     core:
+       sparsity:
+         type: scaled_indexed
+         options:
+           scale: 2.0
+         indexed:
+           projection_backend: auto

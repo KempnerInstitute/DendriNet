@@ -234,3 +234,115 @@ def test_glu_train_cpu_fallback_is_differentiable() -> None:
     w_u.requires_grad_(True)
     ell_glu_train(x, idx_g, w_g, idx_u, w_u).sum().backward()
     assert x.grad is not None and w_g.grad is not None and w_u.grad is not None
+
+
+def test_rows_grid_keeps_the_historical_layout_unless_outputs_exceed_grid_y() -> None:
+    from dendritic_modeling.kernels.triton_ell import _MAX_GRID_Y, _rows_grid
+
+    # every shape that ran before keeps batch blocks on grid x and output rows on grid y
+    assert _rows_grid(100, 64, 1000) == ((2, 1000), False)
+    assert _rows_grid(_MAX_GRID_Y * 64 + 1, 64, 1) == ((_MAX_GRID_Y + 1, 1), False)
+    # wider layers put output rows on grid x and spread batch blocks over grid y and z
+    assert _rows_grid(100, 64, 70_000) == ((70_000, 2, 1), True)
+    assert _rows_grid(_MAX_GRID_Y * 64 + 1, 64, 70_000) == (
+        (70_000, _MAX_GRID_Y, 2),
+        True,
+    )
+    with pytest.raises(ValueError, match="batch rows per call"):
+        _rows_grid(_MAX_GRID_Y**2 * 64 + 1, 64, 70_000)
+
+
+def _check_train_against_reference(fused_fn, reference_fn, x, weights, args_of):
+    """Forward, input-gradient and weight-gradient agreement of a fused train op."""
+    x_ref, x_fused = x.clone().requires_grad_(True), x.clone().requires_grad_(True)
+    w_ref = [w.clone().requires_grad_(True) for w in weights]
+    w_fused = [w.clone().requires_grad_(True) for w in weights]
+    reference = reference_fn(x_ref, *args_of(w_ref))
+    fused = fused_fn(x_fused, *args_of(w_fused))
+    torch.testing.assert_close(fused, reference, rtol=1e-4, atol=1e-4)
+    upstream = torch.randn_like(reference)
+    reference.backward(upstream)
+    fused.backward(upstream)
+    torch.testing.assert_close(x_fused.grad, x_ref.grad, rtol=1e-3, atol=1e-3)
+    for got, want in zip(w_fused, w_ref):
+        torch.testing.assert_close(got.grad, want.grad, rtol=1e-3, atol=1e-3)
+
+
+def _check_all_operators(x, indices, pre_w, idx_b, w_b, block_m=64) -> None:
+    from dendritic_modeling.kernels import (
+        ell_glu_forward,
+        ell_glu_train,
+        reference_glu_forward,
+    )
+    from dendritic_modeling.kernels.triton_ell import ell_gather_gemm_train
+
+    torch.testing.assert_close(
+        ell_gather_gemm(x, indices, pre_w, "softplus", block_m=block_m),
+        reference_gather_gemm(x, indices, pre_w, "softplus"),
+        rtol=1e-4,
+        atol=1e-4,
+    )
+    torch.testing.assert_close(
+        ell_shunting_forward(
+            x, indices, pre_w, idx_b, w_b, somatic=0.3, conductance=0.1, block_m=block_m
+        ),
+        reference_shunting_forward(
+            x, indices, pre_w, idx_b, w_b, somatic=0.3, conductance=0.1
+        ),
+        rtol=1e-4,
+        atol=1e-4,
+    )
+    torch.testing.assert_close(
+        ell_glu_forward(x, indices, pre_w, idx_b, w_b, "identity", block_m=block_m),
+        reference_glu_forward(x, indices, pre_w, idx_b, w_b, "identity"),
+        rtol=1e-4,
+        atol=1e-4,
+    )
+    _check_train_against_reference(
+        lambda x_, w_: ell_gather_gemm_train(x_, indices, w_, "softplus", block_m),
+        lambda x_, w_: reference_gather_gemm(x_, indices, w_, "softplus"),
+        x,
+        [pre_w],
+        lambda ws: ws,
+    )
+    _check_train_against_reference(
+        lambda x_, wg, wu: ell_glu_train(
+            x_, indices, wg, idx_b, wu, "identity", block_m
+        ),
+        lambda x_, wg, wu: reference_glu_forward(
+            x_, indices, wg, idx_b, wu, "identity"
+        ),
+        x,
+        [pre_w, w_b],
+        lambda ws: ws,
+    )
+
+
+@CUDA
+def test_more_output_rows_than_grid_y_allows() -> None:
+    """Layers with more than 65,535 output rows (e.g. 16,384 cells x 4 branches) used to fail
+    at launch with 'Triton Error [CUDA]: invalid argument'."""
+    x, indices, pre_w = _case(m=9, d=16, o=65_537, k=4, device="cuda")
+    _, idx_b, w_b = _case(m=9, d=16, o=65_537, k=3, device="cuda")
+    _check_all_operators(x, indices, pre_w, idx_b, w_b)
+
+
+@CUDA
+def test_batches_beyond_grid_y_keep_running() -> None:
+    """More than 65,535 * block_m batch rows ran before on the historical layout and still do."""
+    x, indices, pre_w = _case(m=65_535 * 64 + 1, d=1, o=1, k=1, device="cuda")
+    _, idx_b, w_b = _case(m=1, d=1, o=1, k=1, device="cuda")
+    _check_all_operators(x, indices, pre_w, idx_b, w_b)
+
+
+@CUDA
+def test_wide_layers_tile_batch_blocks_over_grid_y_and_z(monkeypatch) -> None:
+    """The wide-layer layout with batch blocks spread over grid y and z, exercised on small
+    shapes by lowering the grid-y limit."""
+    from dendritic_modeling.kernels import triton_ell
+
+    monkeypatch.setattr(triton_ell, "_MAX_GRID_Y", 4)
+    assert triton_ell._rows_grid(200, 16, 5) == ((5, 4, 4), True)
+    x, indices, pre_w = _case(m=200, d=40, o=5, k=7, device="cuda")
+    _, idx_b, w_b = _case(m=200, d=40, o=5, k=6, device="cuda")
+    _check_all_operators(x, indices, pre_w, idx_b, w_b, block_m=16)

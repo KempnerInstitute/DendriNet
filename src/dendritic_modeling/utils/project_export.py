@@ -43,6 +43,7 @@ CODE_SUFFIXES = {
     ".cpp",
     ".h",
 }
+CODE_FILENAMES = {"LICENSE", "Makefile"}
 FORBIDDEN_CODE_PARTS = {
     "src",
     "dendritic_modeling",
@@ -116,8 +117,11 @@ def export_project(manifest: Path, commit: str, output: Path) -> dict:
             path.is_absolute()
             or ".." in path.parts
             or "\\" in name
-            or path.suffix
-            not in (MANUSCRIPT_SUFFIXES if kind == "manuscript" else CODE_SUFFIXES)
+            or (
+                path.suffix
+                not in (MANUSCRIPT_SUFFIXES if kind == "manuscript" else CODE_SUFFIXES)
+                and not (kind == "paper-code" and path.name in CODE_FILENAMES)
+            )
             or (kind == "paper-code" and bool(set(path.parts) & FORBIDDEN_CODE_PARTS))
         ):
             raise ValueError(f"Not an allowed {kind} input: {name}")

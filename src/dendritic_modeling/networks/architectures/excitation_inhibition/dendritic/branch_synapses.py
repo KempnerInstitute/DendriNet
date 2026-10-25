@@ -7,8 +7,13 @@ import logging
 from typing import Any
 
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.factory import (
+    BUILTIN_SPARSE_LAYER_TYPES,
     get_sparse_layer,
+    get_sparse_layer_class,
     normalize_sparse_layer_type,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.indexed_sparse import (
+    IndexedSparseLinear,
 )
 from dendritic_modeling.utils.stable_hash import stable_seed_offset
 
@@ -112,6 +117,22 @@ _DENSE_TO_SPARSE_TYPES = frozenset({"dense_to_sparse", "annealed_topk"})
 _REPORTED_EXECUTION_OPTIONS: set[tuple[str, str]] = set()
 
 
+def _is_plugin_indexed_type(layer_type: str) -> bool:
+    """Whether a plugin registered ``layer_type`` as a fixed-index layer subclass.
+
+    Such a layer is built like ``indexed`` (seed, chunk size, storage and
+    execution options) and reads the indexed options that ``indexed`` reads.
+    """
+    return layer_type not in BUILTIN_SPARSE_LAYER_TYPES and issubclass(
+        get_sparse_layer_class(layer_type), IndexedSparseLinear
+    )
+
+
+def _option_reader_type(layer_type: str) -> str:
+    """The layer type whose option set ``layer_type`` reads."""
+    return "indexed" if _is_plugin_indexed_type(layer_type) else layer_type
+
+
 def _unread_family_options(owner: Any, layer_type: str) -> tuple[list[str], list[str]]:
     """Non-default indexed and dense-to-sparse options ``layer_type`` does not read.
 
@@ -192,6 +213,14 @@ def _reject_unapplied_sparse_options(
     ``weight_threshold``; only ``null`` (uniform regrowth) differs.
     """
     unapplied = []
+    options = getattr(owner, "topk_options", None) or {}
+    if options and layer_type in BUILTIN_SPARSE_LAYER_TYPES:
+        unapplied.append(
+            f"sparsity.options={dict(options)!r} (only plugin sparse layer types "
+            "take constructor options)"
+        )
+    requested = layer_type
+    layer_type = _option_reader_type(layer_type)
     unread_budget = _unread_synapses_per_branch(owner, layer_type=layer_type, K=K)
     if unread_budget is not None:
         unapplied.append(unread_budget)
@@ -221,14 +250,14 @@ def _reject_unapplied_sparse_options(
     unapplied.extend(behavior)
     if unapplied:
         raise ValueError(
-            f"sparsity type {layer_type!r} does not apply " + "; ".join(unapplied)
+            f"sparsity type {requested!r} does not apply " + "; ".join(unapplied)
         )
     for option in execution:
-        if (layer_type, option) not in _REPORTED_EXECUTION_OPTIONS:
-            _REPORTED_EXECUTION_OPTIONS.add((layer_type, option))
+        if (requested, option) not in _REPORTED_EXECUTION_OPTIONS:
+            _REPORTED_EXECUTION_OPTIONS.add((requested, option))
             logger.info(
                 "sparsity type %r does not read the indexed execution option %s",
-                layer_type,
+                requested,
                 option,
             )
 
@@ -459,6 +488,27 @@ def create_branch_sparse_layer(
             **_indexed_runtime_kwargs(owner),
         )
 
+    # Plugin types: a fixed-index subclass is built like ``indexed``; any other
+    # type receives the generic sparse options. Both receive their own options.
+    options = dict(getattr(owner, "topk_options", None) or {})
+    if _is_plugin_indexed_type(layer_type):
+        return get_sparse_layer(
+            layer_type,
+            in_features,
+            out_features,
+            K,
+            param_space="log",
+            init_method=init_method,
+            weight_transform=owner.weight_transform,
+            weight_norm_order=owner.topk_weight_norm_order,
+            gamma=_pathway_gamma(owner, synapse_type),
+            connection_mask=connection_mask,
+            forbidden_input_index_per_output=forbidden_input_index_per_output,
+            seed=_indexed_synapse_seed(owner, pathway=pathway),
+            output_chunk_size=owner.indexed_output_chunk_size,
+            **_indexed_runtime_kwargs(owner),
+            **options,
+        )
     return get_sparse_layer(
         layer_type,
         in_features,
@@ -472,6 +522,7 @@ def create_branch_sparse_layer(
         gamma=_pathway_gamma(owner, synapse_type),
         forbidden_input_index_per_output=forbidden_input_index_per_output,
         connection_mask=connection_mask,
+        **options,
     )
 
 

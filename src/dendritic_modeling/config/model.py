@@ -11,7 +11,7 @@ from dendritic_modeling.config.biological import (
 from dendritic_modeling.config.choices import normalize_gradient_scaling
 from dendritic_modeling.config.conversion import to_plain_dict
 from dendritic_modeling.config.extensions import extension_default
-from dendritic_modeling.config.keys import check_section_keys
+from dendritic_modeling.config.keys import check_section_keys, to_mapping
 from dendritic_modeling.config.shared_projection import SharedProjectionShuntingConfig
 from dendritic_modeling.config.sparse_backends import (
     normalize_indexed_projection_options,
@@ -203,6 +203,9 @@ class SparsityConfig(BaseConfig):
     gradient_scaling: str = "none"
     # Input statistic of type "variance": "absolute" or scale-free "relative".
     variance_score: str = "absolute"
+    # Constructor options of a plugin sparse layer type (``register_sparse_layer``).
+    # Built-in types take none and reject a non-empty mapping.
+    options: dict = field(default_factory=dict)
 
     deepst: dict = field(
         default_factory=lambda: {
@@ -276,6 +279,7 @@ class SparsityConfig(BaseConfig):
         )
         if not isinstance(self.indexed, Mapping):
             raise TypeError("model.core.sparsity.indexed must be a mapping")
+        self.options = to_mapping(self.options, section="model.core.sparsity.options")
 
         indexed = dict(self.indexed)
         allowed = {

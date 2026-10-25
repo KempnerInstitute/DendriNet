@@ -6,6 +6,9 @@ from typing import Any
 
 import torch
 
+from dendritic_modeling.training.strategies.local_learning_parts.local_learning_broadcast import (
+    additive_zscore_vjp,
+)
 from dendritic_modeling.training.strategies.local_learning_parts.local_learning_homeostasis_mixin import (
     LocalLearningHomeostasisMixin,
 )
@@ -72,7 +75,12 @@ class LocalLearningPostFactorsMixin(LocalLearningHomeostasisMixin):
         e_n: torch.Tensor,
         v_n: torch.Tensor,
     ) -> torch.Tensor:
-        """Map neuron errors through the cached activation derivative."""
+        """Map neuron errors through the cached activation derivative.
+
+        A record carrying ``additive_scale`` (``additive_gain_mode:
+        normalization_jacobian`` on a z-scored additive layer) also maps the
+        error back through the z-score, to the voltage the synapses drive.
+        """
         activation_derivative = self._get_layer_activation_derivative(
             rec=rec,
             v_n=v_n,
@@ -81,7 +89,11 @@ class LocalLearningPostFactorsMixin(LocalLearningHomeostasisMixin):
         activation_derivative = _activation_derivative_tensor(
             activation_derivative, v_n
         )
-        return e_n * activation_derivative
+        e_v = e_n * activation_derivative
+        scale = rec.get("additive_scale")
+        if scale is not None:
+            e_v = additive_zscore_vjp(e_v, v_n, scale, rec["additive_epsilon"])
+        return e_v
 
     def _compute_additive_post_factor(
         self,

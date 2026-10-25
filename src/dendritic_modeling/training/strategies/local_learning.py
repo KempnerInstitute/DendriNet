@@ -10,9 +10,11 @@ by a broadcast soma error and optional morphology/information factors.
 
 import logging
 import time
+from contextlib import nullcontext
 from typing import Any
 
 import torch
+from torch import nn
 
 from dendritic_modeling.config.local_learning import (
     build_local_rule_config,
@@ -21,7 +23,18 @@ from dendritic_modeling.config.local_learning import (
 )
 from dendritic_modeling.config.training import CommonTrainerConfig
 from dendritic_modeling.models import BaseModel
+from dendritic_modeling.networks import DendriticBranchLayer
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.dense_to_sparse import (
+    DenseToSparseLinear,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.indexed_release import (
+    IndexedReleaseLinear,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.variance import (
+    VarianceTopKLinear,
+)
 from dendritic_modeling.networks.structure import inhibitory_branch_layer_ids
+from dendritic_modeling.networks.utils.sparse_maintenance import frozen_sparse_state
 from dendritic_modeling.training.strategies.local_learning_parts.local_learning_broadcast_mixin import (
     LocalLearningBroadcastMixin,
 )
@@ -79,12 +92,25 @@ from dendritic_modeling.training.strategies.local_learning_parts.local_learning_
     LocalLearningSTDPMixin,
 )
 from dendritic_modeling.training.strategies.standard import Trainer, _step_seconds
+from dendritic_modeling.training.strategies.trainability import (
+    TrainabilitySnapshot,
+    restore_requires_grad,
+    snapshot_requires_grad,
+)
+from dendritic_modeling.utils.hooks import iter_named_modules_of_type
 
 logger = logging.getLogger(__name__)
 
 _COMMON_GRAD_CLIP_DEFAULT = CommonTrainerConfig.__dataclass_fields__[
     "grad_clip_value"
 ].default
+
+# Sparse layers whose training forwards change their selection state.
+_FORWARD_STATE_SPARSE_LAYERS = (
+    DenseToSparseLinear,
+    IndexedReleaseLinear,
+    VarianceTopKLinear,
+)
 
 
 def _same_clip_value(first: Any, second: Any) -> bool:
@@ -258,6 +284,21 @@ class LocalCreditAssignment(
             three_factor.dynamics_mode,
             allow_mismatch=three_factor.allow_mismatched_dynamics_mode,
         )
+        normalized = [
+            name
+            for name, layer in iter_named_modules_of_type(
+                self._unwrap_model(model), DendriticBranchLayer
+            )
+            if getattr(layer, "use_additive_normalization", False)
+        ]
+        if normalized and three_factor.additive_gain_mode != "normalization_jacobian":
+            logger.warning(
+                "%slocal_ca omits the derivative of use_additive_normalization at "
+                "%s; three_factor.additive_gain_mode: normalization_jacobian "
+                "supplies it (exact gradients also need exact delivered errors)",
+                self.logger_info_prefix,
+                ", ".join(normalized[:4]) + (" ..." if len(normalized) > 4 else ""),
+            )
         reject_unsupported_synapses(
             self._unwrap_model(model),
             stdp_pathways={
@@ -302,6 +343,68 @@ class LocalCreditAssignment(
             f"leave common.grad_clip_value at its default "
             f"{_COMMON_GRAD_CLIP_DEFAULT}."
         )
+
+    def _freeze_core(self, model: BaseModel) -> TrainabilitySnapshot | None:
+        """Hold the core fixed under ``core_update_mode: none``.
+
+        The training step already skips the local-rule gradients. Here the
+        core's parameters stop requiring gradients, which also keeps sparse
+        maintenance (decay, boosting, rewiring, topology controllers) off
+        them, and ``train`` runs the epochs under ``frozen_sparse_state`` so
+        that Top-K statistics, release tracking and dense-to-sparse schedules
+        do not change. Settings that would still change the core raise.
+        Returns the trainability to restore afterwards, or ``None``.
+        """
+        if getattr(self.local_cfg, "core_update_mode", "local") != "none":
+            return None
+        component = self._unwrap_model(model)
+        core = getattr(component, "core_network", None)
+        if core is None:
+            raise ValueError(
+                "core_update_mode 'none' holds the core network fixed, but this "
+                "model has no core_network"
+            )
+        if torch.distributed.is_available() and torch.distributed.is_initialized():
+            if torch.distributed.get_world_size() > 1:
+                raise ValueError(
+                    "core_update_mode 'none' supports single-process training only"
+                )
+        every = int(getattr(self, "recalibrate_reactivation_every", 0) or 0)
+        if every > 0:
+            raise ValueError(
+                "core_update_mode 'none' keeps the core's gates fixed, but "
+                f"recalibrate_reactivation_every={every} recalibrates them during "
+                "training; set it to 0"
+            )
+        batch_norms = [
+            name
+            for name, module in core.named_modules()
+            if isinstance(module, nn.modules.batchnorm._BatchNorm)
+        ]
+        if batch_norms:
+            raise ValueError(
+                "core_update_mode 'none' keeps the core fixed, but these batch "
+                "normalization layers update running statistics in training: "
+                + ", ".join(batch_norms)
+            )
+        core_modules = {id(module) for module in core.modules()}
+        outside = [
+            name
+            for name, module in component.named_modules()
+            if isinstance(module, _FORWARD_STATE_SPARSE_LAYERS)
+            and id(module) not in core_modules
+        ]
+        if outside:
+            raise ValueError(
+                "core_update_mode 'none' freezes the sparse state that training "
+                "forwards update (Top-K statistics, release tracking, dense-to-"
+                "sparse schedules), which would also freeze these layers outside "
+                "the core: " + ", ".join(outside)
+            )
+        snapshot = snapshot_requires_grad(component)
+        for parameter in core.parameters():
+            parameter.requires_grad = False
+        return snapshot
 
     def _resolve_local_reactivation_update_flag(
         self, update_reactivation: bool
@@ -379,15 +482,17 @@ class LocalCreditAssignment(
             # Zero gradients (we will set param.grads directly)
             _zero_optimizer_gradients(self.optimizer)
 
-            # Apply local learning updates as gradients on parameters
-            self._apply_local_rule_gradients(
-                model,
-                layer_records,
-                v0=v0_local,
-                delta=delta_local,
-                y_target=y_target,
-                update_reactivation=update_reactivation,
-            )
+            # Apply local learning updates as gradients on parameters; with
+            # core_update_mode "none" the core keeps its parameters.
+            if getattr(self.local_cfg, "core_update_mode", "local") == "local":
+                self._apply_local_rule_gradients(
+                    model,
+                    layer_records,
+                    v0=v0_local,
+                    delta=delta_local,
+                    y_target=y_target,
+                    update_reactivation=update_reactivation,
+                )
 
             _accumulate_backprop_update_gradients(
                 loss=loss,
@@ -457,19 +562,25 @@ class LocalCreditAssignment(
         valid_losses: list[float] = []
         train_losses_base: list[float] = []
         train_losses_reg: list[float] = []
-        train_losses, valid_losses, train_losses_base, train_losses_reg = (
-            self._run_training_loop(
-                n_epochs=self.epochs,
-                model=model,
-                train_loader=train_loader,
-                valid_loader=valid_loader,
-                train_losses=train_losses,
-                valid_losses=valid_losses,
-                train_losses_base=train_losses_base,
-                train_losses_reg=train_losses_reg,
-                logger_info=self.logger_info_prefix,
-            )
-        )
+        frozen_core = self._freeze_core(model)
+        try:
+            with frozen_sparse_state() if frozen_core is not None else nullcontext():
+                train_losses, valid_losses, train_losses_base, train_losses_reg = (
+                    self._run_training_loop(
+                        n_epochs=self.epochs,
+                        model=model,
+                        train_loader=train_loader,
+                        valid_loader=valid_loader,
+                        train_losses=train_losses,
+                        valid_losses=valid_losses,
+                        train_losses_base=train_losses_base,
+                        train_losses_reg=train_losses_reg,
+                        logger_info=self.logger_info_prefix,
+                    )
+                )
+        finally:
+            if frozen_core is not None:
+                restore_requires_grad(frozen_core)
 
         if self._is_main_process:
             logger.info(

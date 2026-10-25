@@ -103,6 +103,37 @@ an epoch boundary.
 
 .. autofunction:: dendritic_modeling.training.state.restore_random_state
 
+Dendritic levels and delivered errors
+-------------------------------------
+
+:ref:`dendrinet-level-overrides` describes per-level overrides,
+re-initialization recipes and level outputs; :ref:`local-delivery` the
+delivered-error building blocks.
+
+.. autoclass:: dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.level_overrides.DendriticLevelOverride
+
+.. automethod:: dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.dendrinet.DendriNet.forward_levels
+
+.. automethod:: dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.dendrinet.DendriNet.reinitialize
+
+.. autoclass:: dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.reinitialization.LogNormalReinitialization
+
+.. autoclass:: dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.reinitialization.LogOffset
+
+.. autoclass:: dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.level_interventions.CurrentInjection
+
+.. autofunction:: dendritic_modeling.training.local_delivery.soma_error
+
+.. autofunction:: dendritic_modeling.training.local_delivery.delivered_error_objective
+
+.. autofunction:: dendritic_modeling.training.local_delivery.relative_resistance
+
+.. autofunction:: dendritic_modeling.training.local_delivery.coupling_ratios
+
+.. autofunction:: dendritic_modeling.training.local_delivery.activation_slope
+
+.. autofunction:: dendritic_modeling.training.local_delivery.expand_to_children
+
 Comparison models
 -----------------
 

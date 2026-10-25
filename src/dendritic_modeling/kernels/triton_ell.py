@@ -37,6 +37,29 @@ except Exception:  # pragma: no cover - CPU-only environments
     _TRITON = False
 
 TRANSFORMS = {"identity": 0, "softplus": 1, "exp": 2}
+# CUDA caps grid y and z at 65,535 blocks; grid x allows 2**31 - 1.
+_MAX_GRID_Y = 65_535
+
+
+def _rows_grid(m: int, block_m: int, out_features: int):
+    """Launch grid of the row-parallel kernels and whether output rows are on grid x.
+
+    Layers with at most 65,535 output rows keep the historical layout: batch blocks on grid x,
+    output rows on grid y. Wider layers put output rows on grid x and spread the batch blocks over
+    grid y and z.
+    """
+    blocks = -(-m // block_m)
+    if out_features <= _MAX_GRID_Y:
+        return (blocks, out_features), False
+    y = max(1, min(blocks, _MAX_GRID_Y))
+    z = -(-blocks // y)
+    if z > _MAX_GRID_Y:
+        raise ValueError(
+            f"Triton ELL kernels take at most {_MAX_GRID_Y ** 2 * block_m} batch rows per call for "
+            f"layers with more than {_MAX_GRID_Y} output rows (got {m}); use the eager or recompute backend"
+        )
+    return (out_features, y, z), True
+
 
 __all__ = [
     "ell_gather_gemm",
@@ -116,9 +139,14 @@ if _TRITON:
         TRANSFORM: tl.constexpr,
         BLOCK_M: tl.constexpr,
         BLOCK_K: tl.constexpr,
+        ROWS_ON_X: tl.constexpr,
     ):
-        pid_m = tl.program_id(0)
-        o = tl.program_id(1)
+        if ROWS_ON_X:  # wide layers: output rows on grid x, batch blocks over y and z
+            o = tl.program_id(0)
+            pid_m = tl.program_id(1) + tl.program_id(2) * tl.num_programs(1)
+        else:  # historical layout: batch blocks on grid x, output rows on grid y
+            pid_m = tl.program_id(0)
+            o = tl.program_id(1)
         m_offs = pid_m * BLOCK_M + tl.arange(0, BLOCK_M)
         m_mask = m_offs < M
         acc = tl.zeros((BLOCK_M,), dtype=tl.float32)
@@ -169,9 +197,14 @@ if _TRITON:
         TRANSFORM: tl.constexpr,
         BLOCK_M: tl.constexpr,
         BLOCK_K: tl.constexpr,
+        ROWS_ON_X: tl.constexpr,
     ):
-        pid_m = tl.program_id(0)
-        o = tl.program_id(1)
+        if ROWS_ON_X:  # wide layers: output rows on grid x, batch blocks over y and z
+            o = tl.program_id(0)
+            pid_m = tl.program_id(1) + tl.program_id(2) * tl.num_programs(1)
+        else:  # historical layout: batch blocks on grid x, output rows on grid y
+            pid_m = tl.program_id(0)
+            o = tl.program_id(1)
         m_offs = pid_m * BLOCK_M + tl.arange(0, BLOCK_M)
         m_mask = m_offs < M
         excitation = tl.zeros((BLOCK_M,), dtype=tl.float32)
@@ -237,9 +270,14 @@ if _TRITON:
         TRANSFORM: tl.constexpr,
         BLOCK_M: tl.constexpr,
         BLOCK_K: tl.constexpr,
+        ROWS_ON_X: tl.constexpr,
     ):
-        pid_m = tl.program_id(0)
-        o = tl.program_id(1)
+        if ROWS_ON_X:  # wide layers: output rows on grid x, batch blocks over y and z
+            o = tl.program_id(0)
+            pid_m = tl.program_id(1) + tl.program_id(2) * tl.num_programs(1)
+        else:  # historical layout: batch blocks on grid x, output rows on grid y
+            pid_m = tl.program_id(0)
+            o = tl.program_id(1)
         m_offs = pid_m * BLOCK_M + tl.arange(0, BLOCK_M)
         m_mask = m_offs < M
         gate = tl.zeros((BLOCK_M,), dtype=tl.float32)
@@ -356,9 +394,14 @@ if _TRITON:
         TRANSFORM: tl.constexpr,
         BLOCK_M: tl.constexpr,
         BLOCK_K: tl.constexpr,
+        ROWS_ON_X: tl.constexpr,
     ):
-        pid_m = tl.program_id(0)
-        o = tl.program_id(1)
+        if ROWS_ON_X:  # wide layers: output rows on grid x, batch blocks over y and z
+            o = tl.program_id(0)
+            pid_m = tl.program_id(1) + tl.program_id(2) * tl.num_programs(1)
+        else:  # historical layout: batch blocks on grid x, output rows on grid y
+            pid_m = tl.program_id(0)
+            o = tl.program_id(1)
         m_offs = pid_m * BLOCK_M + tl.arange(0, BLOCK_M)
         m_mask = m_offs < M
         grad = tl.load(
@@ -398,7 +441,7 @@ def ell_gather_gemm(
     m, _ = x.shape
     out_features, k = indices.shape
     out = torch.empty((m, out_features), device=x.device, dtype=torch.float32)
-    grid = (triton.cdiv(m, block_m), out_features)
+    grid, rows_on_x = _rows_grid(m, block_m, out_features)
     # Launch on the tensors' device, not the process-current one
     # (Triton cross-device race, 2026-08-20).
     with torch.cuda.device(x.device):
@@ -420,6 +463,7 @@ def ell_gather_gemm(
             TRANSFORM=TRANSFORMS[transform],
             BLOCK_M=block_m,
             BLOCK_K=block_k,
+            ROWS_ON_X=rows_on_x,
             num_warps=num_warps,
         )
     return out
@@ -448,7 +492,7 @@ def ell_shunting_forward(
     out_features, k_exc = idx_exc.shape
     _, k_inh = idx_inh.shape
     out = torch.empty((m, out_features), device=x.device, dtype=torch.float32)
-    grid = (triton.cdiv(m, block_m), out_features)
+    grid, rows_on_x = _rows_grid(m, block_m, out_features)
     # Launch on the tensors' device, not the process-current one
     # (Triton cross-device race, 2026-08-20).
     with torch.cuda.device(x.device):
@@ -479,6 +523,7 @@ def ell_shunting_forward(
             TRANSFORM=TRANSFORMS[transform],
             BLOCK_M=block_m,
             BLOCK_K=block_k,
+            ROWS_ON_X=rows_on_x,
         )
     return out
 
@@ -522,7 +567,7 @@ def ell_glu_forward(
     out_features, k_gate = idx_gate.shape
     _, k_up = idx_up.shape
     out = torch.empty((m, out_features), device=x.device, dtype=torch.float32)
-    grid = (triton.cdiv(m, block_m), out_features)
+    grid, rows_on_x = _rows_grid(m, block_m, out_features)
     # Launch on the tensors' device, not the process-current one
     # (Triton cross-device race, 2026-08-20).
     with torch.cuda.device(x.device):
@@ -551,6 +596,7 @@ def ell_glu_forward(
             TRANSFORM=TRANSFORMS[transform],
             BLOCK_M=block_m,
             BLOCK_K=block_k,
+            ROWS_ON_X=rows_on_x,
         )
     return out
 
@@ -630,7 +676,7 @@ class _EllGluFunction(torch.autograd.Function):
                 (idx_up, w_up, grad_up),
             ):
                 out_features, k = indices.shape
-                grid = (triton.cdiv(m, block_m), out_features)
+                grid, rows_on_x = _rows_grid(m, block_m, out_features)
                 # Launch on the tensors' device, not the process-current one
                 # (Triton cross-device race, 2026-08-20).
                 with torch.cuda.device(indices.device):
@@ -652,6 +698,7 @@ class _EllGluFunction(torch.autograd.Function):
                         TRANSFORM=TRANSFORMS[transform],
                         BLOCK_M=block_m,
                         BLOCK_K=block_k,
+                        ROWS_ON_X=rows_on_x,
                     )
             grad_x = grad_x.to(x.dtype)
         return grad_x, None, grad_w_gate, None, grad_w_up, None, None, None
@@ -732,7 +779,7 @@ class _EllGatherGemmFunction(torch.autograd.Function):
             grad_w = grad_w.to(pre_w.dtype)
         if ctx.needs_input_grad[0]:
             grad_x = torch.zeros(x.shape, device=x.device, dtype=torch.float32)
-            grid = (triton.cdiv(m, block_m), out_features)
+            grid, rows_on_x = _rows_grid(m, block_m, out_features)
             # Launch on the tensors' device, not the process-current one
             # (Triton cross-device race, 2026-08-20).
             with torch.cuda.device(indices.device):
@@ -754,6 +801,7 @@ class _EllGatherGemmFunction(torch.autograd.Function):
                     TRANSFORM=TRANSFORMS[transform],
                     BLOCK_M=block_m,
                     BLOCK_K=block_k,
+                    ROWS_ON_X=rows_on_x,
                 )
             grad_x = grad_x.to(x.dtype)
         return grad_x, None, grad_w, None, None, None

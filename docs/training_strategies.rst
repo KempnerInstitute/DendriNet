@@ -881,7 +881,20 @@ Rule variants
    it is :math:`+x` for excitation and :math:`-x` for inhibition, with
    optional gain control (``three_factor.additive_gain_mode``: ``none``,
    ``input_dependent`` or ``running_stats``, whose moving-average rate is
-   ``additive_stats_ema_alpha``). ``use_driving_force: false``
+   ``additive_stats_ema_alpha``). A layer with ``use_additive_normalization``
+   z-scores its voltages across its outputs, and the derivative of that
+   z-score couples the outputs: the error at the voltage before it is
+   :math:`(e - \bar e - z\,\overline{e z})/\sigma` per sample, which needs the
+   layer means :math:`\bar e` and :math:`\overline{e z}`.
+   ``additive_gain_mode: normalization_jacobian`` applies this exact
+   derivative to the layer's own updates and to path transport through it.
+   The updates equal backpropagation's only where the rest of the rule is
+   gradient-consistent as well, for example with ``error_broadcast_mode:
+   path_transport`` and no projection, modulators or bandwidth limits;
+   scalar or per-soma broadcasts and projected errors remain
+   approximations. Because the derivative uses layer-wide means, it is not
+   local to a synapse. The other modes omit it, so on normalized layers they
+   approximate the derivative, and training warns. ``use_driving_force: false``
    replaces the driving forces with the threshold factors
    :math:`(V - \theta)` and :math:`(\theta - V)` (``three_factor.theta``), and
    ``use_conductance_scaling: false`` drops :math:`1/g_\mathrm{tot}`; both are
@@ -961,6 +974,28 @@ whose soma feeds the readout; models with several trees, explicit inhibitory
 cells or several populations raise, unless
 ``learning_strategy_config.allow_scalar_fallback`` is true: compartments
 without a path then receive the scalar error (and a unit path factor).
+
+``path_transport_projection`` (default ``none``) replaces the transported
+error of every dendritic compartment by a group mean before the rules use it.
+``arbor_mean`` takes the mean over all dendritic compartments of a neuron,
+one coefficient per neuron. ``subtree_mean`` takes the mean over the subtree
+of each child of the soma, so a soma with three children receives three
+coefficients. Soma errors stay exact, and each group keeps the sum of its
+transported errors. These are oracle-informed delivery controls: the
+coefficients are computed from the exact field, so the settings limit what
+the delivered error can express and say nothing about how a neuron could
+acquire the coefficients locally. They require ``error_broadcast_mode:
+path_transport`` and a transported error at every compartment of the readout
+tree, and raise otherwise.
+
+.. code-block:: yaml
+
+   training:
+     main:
+       strategy: local_ca
+       learning_strategy_config:
+         error_broadcast_mode: path_transport
+         path_transport_projection: subtree_mean
 
 ``broadcast_bandwidth`` limits what the broadcast carries: ``full``
 (default), ``sign_only``, ``quantized`` (``broadcast_bits``, default 8) or
@@ -1075,6 +1110,18 @@ What the rules update
   and the inhibitory-polarity populations of population networks; I-to-E
   synapses on excitatory dendrites are always updated. The deprecated boolean
   ``update_explicit_inhibitory_cells`` still loads.
+- ``core_update_mode``: ``local`` (default) updates the dendritic core with
+  the rules above; ``none`` holds the core fixed while the encoder and
+  decoder follow their update modes, for example a decoder trained on fixed
+  dendritic features. The core then receives no local-rule update, its
+  parameters stop requiring gradients for the run (so sparse maintenance,
+  rewiring and topology controllers skip them) and training forwards do not
+  change sparse selection state (variance Top-K statistics, release
+  tracking, dense-to-sparse schedules); trainability is restored when
+  training ends. It raises with periodic reactivation recalibration,
+  batch normalization in the core, such stateful sparse layers outside the
+  core and multi-process training, and when it, ``encoder_update_mode`` and
+  ``decoder_update_mode`` are all ``none`` without a ``training_schedule``.
 - ``encoder_update_mode``: ``none`` (default) or ``backprop``;
   ``decoder_update_mode``: ``backprop`` (default), ``local`` or ``none``.
 - ``freeze_encoder_epochs``, ``freeze_reactivation_epochs`` and
@@ -1128,6 +1175,42 @@ The recorder captures the Top-K pathways of every ``DendriticBranchLayer``:
 Under DDP, ``local_ca`` averages its assigned gradients across ranks before
 clipping and the optimizer step, because they do not come from a
 ``backward()`` call whose gradients DDP reduces.
+
+.. _local-delivery:
+
+Delivered errors with autograd eligibilities
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``dendritic_modeling.training.local_delivery`` provides building blocks for
+local rules that a training loop of its own computes with autograd, outside
+the ``local_ca`` trainer. Every level of a ``DendriNet`` is trained by the
+gradient of a surrogate objective, the sum over levels of the level's output
+times a delivered error, computed on
+``DendriNet.forward_levels(..., detach_child_inputs=True)``
+(:ref:`dendrinet-level-overrides`). Autograd then gives each level's
+parameters their exact local eligibility times the delivered error.
+
+- ``soma_error(loss, soma_output)``: the detached loss gradient at the somata;
+- ``delivered_error_objective(level_outputs, error, gains)``: the surrogate
+  objective; the error is repeated over each neuron's compartments and
+  multiplied by the level's gain (``None`` for none). The error and the gains
+  are supplied signals and must be detached; a graph-connected one raises,
+  because it would add its own derivative. Add the objective to the loss and
+  call ``backward()``;
+- gain quantities, computed without gradients: ``relative_resistance(layer,
+  inhibitory_input)`` ((D0 + eps) / (D0 + I + eps), with D0 the leak,
+  coupling and, where present, excitatory conductance and eps the level's
+  ``epsilon``, which the forward pass adds to its denominator),
+  ``coupling_ratios(layer)`` (g_child / (D0 + eps) for every child of every
+  parent), ``activation_slope(layer)`` (the activation derivative at the
+  last forward voltage; needs branch diagnostics; identity and tanh) and
+  ``expand_to_children(values, branch_factor)``.
+
+The delivered error equals the backpropagated one when each level's gain is
+the product, over its ancestors up to and including the soma, of activation
+slope, coupling ratio and relative resistance; the tests check this against
+autograd. Which products a rule uses, and any permutation, binning or noise
+applied to them, belongs to the protocol.
 
 Warm-up strategies
 ------------------

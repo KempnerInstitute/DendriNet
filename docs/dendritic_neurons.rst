@@ -198,6 +198,83 @@ optional structured connectivity and the shared synapse settings
 config must agree with it; a contradicting value raises, and an argument passed
 with its default value counts as omitted.
 
+.. _dendrinet-level-overrides:
+
+Levels that differ
+~~~~~~~~~~~~~~~~~~
+
+``level_overrides`` (a ``DendriNet`` argument and a ``DendriNetConfig`` field)
+changes single levels; without it every level is built from the shared
+settings. Each override names a level by ``depth`` (``0`` is the soma) and can:
+
+- remove a feedforward pathway (``excitatory: false``, ``inhibitory:
+  false``). The pathway is built and initialized with the others and removed
+  afterwards, so every remaining parameter has the same random draws and
+  initial values as in the model with the pathway: ablating a pathway does
+  not re-draw the rest of the network;
+- declare the inputs each compartment contacts (``excitatory_contacts``,
+  ``inhibitory_contacts``): a list of input indices per compartment, for every
+  compartment of the level or once for one neuron's compartments, repeated
+  for every neuron. The lists become the pathway's connection mask, which is
+  rebuilt from the configuration and not stored in checkpoints. They need a
+  dense synapse layer (the ``TopKLinear`` family) and exclude structured
+  connectivity on the same pathway; selection by the synapse count still
+  applies among the declared contacts;
+- give the level its own ``activation`` (any registered activation type, or
+  ``identity``). At the soma it excludes ``reactivation.soma_type``.
+
+.. code-block:: python
+
+   from dendritic_modeling.networks import DendriNet
+
+   cells = DendriNet(
+       n_soma=16,
+       branch_factors=[4, 2],
+       excitatory_input_dim=20,
+       excitatory_synapses_per_branch=20,
+       inhibitory_input_dim=20,
+       inhibitory_synapses_per_branch=20,
+       somatic_synapses=False,
+       epsilon=0.0,
+       level_overrides=[
+           {   # terminal level: one feature pair per compartment
+               "depth": 2,
+               "inhibitory_contacts": [[f, f + 8] for f in range(8)],
+           },
+           {   # proximal level: no excitation, one cue each, tanh output
+               "depth": 1,
+               "excitatory": False,
+               "inhibitory_contacts": [[16 + r] for r in range(4)],
+               "activation": "tanh",
+           },
+       ],
+   )
+
+``DendriNet.reinitialize(recipe)`` redraws the log-conductances with an
+explicit ``LogNormalReinitialization``: level by level from the terminal
+level to the soma, the excitatory and then the inhibitory synaptic
+log-weights from N(``synapse_log_mean``, ``synapse_log_sd``) over the full
+dense tensors, then the level's coupling log-weights from
+N(``coupling_log_mean``, ``coupling_log_sd``), and finally the ``log_offsets``
+(``LogOffset(depth, target, value)`` with target ``excitatory``,
+``inhibitory`` or ``coupling``). The draws come from the global random stream
+when the method is called, so a protocol places them in its stream (for
+example after building a readout). It needs ``weight_transform: exp``.
+
+``DendriNet.forward_levels(x, inhibitory_input, detach_child_inputs=False,
+interventions=None)`` returns the output of every level, terminal level first,
+connected to the autograd graph; its last entry equals ``forward``. With
+``detach_child_inputs`` every level receives its children's output detached,
+so differentiating a level's output reaches only that level's own parameters
+(local learning rules, :ref:`local-delivery`). ``interventions`` maps a depth
+to a labelled intervention that replaces that level's output in this pass
+only. ``CurrentInjection(reference_inhibitory_input, anchor)`` turns the
+inhibition beyond a reference input into a current at a fixed voltage:
+``V = (E + C - (I - I_ref) anchor) / (leak + E + G + I_ref)``, followed by the
+level's activation; the level's ordinary forward still runs, so its
+diagnostics describe the unperturbed conductances. ``forward`` never applies
+interventions.
+
 .. _dendritic-branch-layer:
 
 Branch layers
