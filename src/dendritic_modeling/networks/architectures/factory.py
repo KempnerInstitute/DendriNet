@@ -388,9 +388,17 @@ def _build_routed_ei_architecture(type, parameters, input_dim, suffix_input_dim)
     if "routed_ei" in raw:
         from dendritic_modeling.config.model import CoreConfig
 
-        if raw.get("type", type) != type:
+        if str(raw.get("type", type)).strip().lower() != type:
             raise ValueError("routed_ei builder and configured core type disagree")
-        reject_unread_core_sections(CoreConfig(**{"type": type, **raw}), raw)
+        # Keep typed nested sections so the shared validator recognizes the
+        # topology seeds filled by training setup, rather than warning that
+        # those default-only sections were explicitly requested by the user.
+        core = (
+            parameters
+            if isinstance(parameters, CoreConfig)
+            else CoreConfig(**{"type": type, **raw})
+        )
+        reject_unread_core_sections(core, raw)
     payload = raw.get("routed_ei", raw)
     if payload is None:
         raise ValueError("routed_ei requires its configuration section")

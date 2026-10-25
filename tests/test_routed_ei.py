@@ -456,3 +456,18 @@ def test_example_reuses_existing_dataset_loader():
         assert x.min() >= 0 and labels.max() < cfg.model.core.routed_ei.output_dim
         logits = model(x[:4])
         assert logits.shape == (4, 2) and torch.isfinite(logits).all()
+
+
+def test_training_filled_seeds_do_not_warn_about_unused_sections(caplog):
+    from dendritic_modeling.scripts.script_utils.setup_utils import (
+        _apply_topology_seed_defaults,
+    )
+
+    cfg = config_from_mapping(mapping())
+    _apply_topology_seed_defaults(cfg.model, 17)
+    initialize_model(cfg.model)
+    assert "Ignoring sections" not in caplog.text
+    direct = get_architecture(
+        "ROUTED_EI", {"type": "ROUTED_EI", "routed_ei": asdict(spec())}
+    )
+    assert direct.input_dim == 16
