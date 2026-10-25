@@ -54,7 +54,10 @@
 <li class="toctree-l1"><a class="reference internal" href="network_architectures.html">Model architecture</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Dendritic neurons</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#configuration-keys">Configuration keys</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#the-dendritic-tree">The dendritic tree</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#the-dendritic-tree">The dendritic tree</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#levels-that-differ">Levels that differ</a></li>
+</ul>
+</li>
 <li class="toctree-l2"><a class="reference internal" href="#branch-layers">Branch layers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#integration-modes">Integration modes</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#selecting-the-rule">Selecting the rule</a></li>
@@ -373,6 +376,78 @@ optional structured connectivity and the shared synapse settings
 (<code class="docutils literal notranslate"><span class="pre">DendriticSynapseConfig</span></code>). Keyword arguments passed together with a typed
 config must agree with it; a contradicting value raises, and an argument passed
 with its default value counts as omitted.</p>
+<section id="levels-that-differ">
+<span id="dendrinet-level-overrides"></span><h3>Levels that differ<a class="headerlink" href="#levels-that-differ" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">level_overrides</span></code> (a <code class="docutils literal notranslate"><span class="pre">DendriNet</span></code> argument and a <code class="docutils literal notranslate"><span class="pre">DendriNetConfig</span></code> field)
+changes single levels; without it every level is built from the shared
+settings. Each override names a level by <code class="docutils literal notranslate"><span class="pre">depth</span></code> (<code class="docutils literal notranslate"><span class="pre">0</span></code> is the soma) and can:</p>
+<ul class="simple">
+<li><p>remove a feedforward pathway (<code class="docutils literal notranslate"><span class="pre">excitatory:</span> <span class="pre">false</span></code>, <code class="docutils literal notranslate"><span class="pre">inhibitory:</span>
+<span class="pre">false</span></code>). The pathway is built and initialized with the others and removed
+afterwards, so every remaining parameter has the same random draws and
+initial values as in the model with the pathway: ablating a pathway does
+not re-draw the rest of the network;</p></li>
+<li><p>declare the inputs each compartment contacts (<code class="docutils literal notranslate"><span class="pre">excitatory_contacts</span></code>,
+<code class="docutils literal notranslate"><span class="pre">inhibitory_contacts</span></code>): a list of input indices per compartment, for every
+compartment of the level or once for one neuron’s compartments, repeated
+for every neuron. The lists become the pathway’s connection mask, which is
+rebuilt from the configuration and not stored in checkpoints. They need a
+dense synapse layer (the <code class="docutils literal notranslate"><span class="pre">TopKLinear</span></code> family) and exclude structured
+connectivity on the same pathway; selection by the synapse count still
+applies among the declared contacts;</p></li>
+<li><p>give the level its own <code class="docutils literal notranslate"><span class="pre">activation</span></code> (any registered activation type, or
+<code class="docutils literal notranslate"><span class="pre">identity</span></code>). At the soma it excludes <code class="docutils literal notranslate"><span class="pre">reactivation.soma_type</span></code>.</p></li>
+</ul>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks</span><span class="w"> </span><span class="kn">import</span> <span class="n">DendriNet</span>
+
+<span class="n">cells</span> <span class="o">=</span> <span class="n">DendriNet</span><span class="p">(</span>
+    <span class="n">n_soma</span><span class="o">=</span><span class="mi">16</span><span class="p">,</span>
+    <span class="n">branch_factors</span><span class="o">=</span><span class="p">[</span><span class="mi">4</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span>
+    <span class="n">excitatory_input_dim</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>
+    <span class="n">excitatory_synapses_per_branch</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>
+    <span class="n">inhibitory_input_dim</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>
+    <span class="n">inhibitory_synapses_per_branch</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>
+    <span class="n">somatic_synapses</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="n">epsilon</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+    <span class="n">level_overrides</span><span class="o">=</span><span class="p">[</span>
+        <span class="p">{</span>   <span class="c1"># terminal level: one feature pair per compartment</span>
+            <span class="s2">"depth"</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+            <span class="s2">"inhibitory_contacts"</span><span class="p">:</span> <span class="p">[[</span><span class="n">f</span><span class="p">,</span> <span class="n">f</span> <span class="o">+</span> <span class="mi">8</span><span class="p">]</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">8</span><span class="p">)],</span>
+        <span class="p">},</span>
+        <span class="p">{</span>   <span class="c1"># proximal level: no excitation, one cue each, tanh output</span>
+            <span class="s2">"depth"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+            <span class="s2">"excitatory"</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+            <span class="s2">"inhibitory_contacts"</span><span class="p">:</span> <span class="p">[[</span><span class="mi">16</span> <span class="o">+</span> <span class="n">r</span><span class="p">]</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">4</span><span class="p">)],</span>
+            <span class="s2">"activation"</span><span class="p">:</span> <span class="s2">"tanh"</span><span class="p">,</span>
+        <span class="p">},</span>
+    <span class="p">],</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">DendriNet.reinitialize(recipe)</span></code> redraws the log-conductances with an
+explicit <code class="docutils literal notranslate"><span class="pre">LogNormalReinitialization</span></code>: level by level from the terminal
+level to the soma, the excitatory and then the inhibitory synaptic
+log-weights from N(<code class="docutils literal notranslate"><span class="pre">synapse_log_mean</span></code>, <code class="docutils literal notranslate"><span class="pre">synapse_log_sd</span></code>) over the full
+dense tensors, then the level’s coupling log-weights from
+N(<code class="docutils literal notranslate"><span class="pre">coupling_log_mean</span></code>, <code class="docutils literal notranslate"><span class="pre">coupling_log_sd</span></code>), and finally the <code class="docutils literal notranslate"><span class="pre">log_offsets</span></code>
+(<code class="docutils literal notranslate"><span class="pre">LogOffset(depth,</span> <span class="pre">target,</span> <span class="pre">value)</span></code> with target <code class="docutils literal notranslate"><span class="pre">excitatory</span></code>,
+<code class="docutils literal notranslate"><span class="pre">inhibitory</span></code> or <code class="docutils literal notranslate"><span class="pre">coupling</span></code>). The draws come from the global random stream
+when the method is called, so a protocol places them in its stream (for
+example after building a readout). It needs <code class="docutils literal notranslate"><span class="pre">weight_transform:</span> <span class="pre">exp</span></code>.</p>
+<p><code class="docutils literal notranslate"><span class="pre">DendriNet.forward_levels(x,</span> <span class="pre">inhibitory_input,</span> <span class="pre">detach_child_inputs=False,</span>
+<span class="pre">interventions=None)</span></code> returns the output of every level, terminal level first,
+connected to the autograd graph; its last entry equals <code class="docutils literal notranslate"><span class="pre">forward</span></code>. With
+<code class="docutils literal notranslate"><span class="pre">detach_child_inputs</span></code> every level receives its children’s output detached,
+so differentiating a level’s output reaches only that level’s own parameters
+(local learning rules, <a class="reference internal" href="training_strategies.html#local-delivery"><span class="std std-ref">Delivered errors with autograd eligibilities</span></a>). <code class="docutils literal notranslate"><span class="pre">interventions</span></code> maps a depth
+to a labelled intervention that replaces that level’s output in this pass
+only. <code class="docutils literal notranslate"><span class="pre">CurrentInjection(reference_inhibitory_input,</span> <span class="pre">anchor)</span></code> turns the
+inhibition beyond a reference input into a current at a fixed voltage:
+<code class="docutils literal notranslate"><span class="pre">V</span> <span class="pre">=</span> <span class="pre">(E</span> <span class="pre">+</span> <span class="pre">C</span> <span class="pre">-</span> <span class="pre">(I</span> <span class="pre">-</span> <span class="pre">I_ref)</span> <span class="pre">anchor)</span> <span class="pre">/</span> <span class="pre">(leak</span> <span class="pre">+</span> <span class="pre">E</span> <span class="pre">+</span> <span class="pre">G</span> <span class="pre">+</span> <span class="pre">I_ref)</span></code>, followed by the
+level’s activation; the level’s ordinary forward still runs, so its
+diagnostics describe the unperturbed conductances. <code class="docutils literal notranslate"><span class="pre">forward</span></code> never applies
+interventions.</p>
+</section>
 </section>
 <section id="branch-layers">
 <span id="dendritic-branch-layer"></span><h2><a class="toc-backref" href="#id7" role="doc-backlink">Branch layers</a><a class="headerlink" href="#branch-layers" title="Link to this heading"></a></h2>

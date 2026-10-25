@@ -1,0 +1,349 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>dendritic_modeling.training.local_delivery &mdash; DendriNet v0.3.0</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=e259d695"></script>
+      <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            DendriNet
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../examples.html">Example configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Building models</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../network_architectures.html">Model architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../dendritic_neurons.html">Dendritic neurons</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../synapses.html">Synapses and connectivity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../population_networks.html">Population networks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../temporal_dynamics.html">Temporal dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../structured_ei_cores.html">Structured E/I cores</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../conductance_options.html">Conductance options</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../comparison_models.html">Baselines and comparison models</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Configuration</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../configuration_guide.html">Configuration guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../config_reference.html">Annotated reference configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../training_strategies.html">Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../distributed_training.html">Distributed training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../performance_kernels.html">Sparse execution and performance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Data and analysis</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../datasets.html">Datasets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../analysis.html">Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../analyzers.html">Analyzer reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../checkpoint_analysis.html">Analyzing saved checkpoints</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Running experiments</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../runs_and_outputs.html">Runs and outputs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../sweeps.html">Parameter sweeps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../model_compression.html">Compact checkpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../project_provenance.html">Project provenance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../available_components.html">Component catalogue</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../options_reference.html">Options reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../cli_reference.html">Command-line reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api_reference.html">Python API</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../extending.html">Extending DendriNet</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../engineering_architecture.html">Engineering architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../contributing.html">Contributing</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">DendriNet</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">dendritic_modeling.training.local_delivery</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for dendritic_modeling.training.local_delivery</h1><div class="highlight"><pre>
+<span></span><span class="sd">"""Signal delivery for local rules with autograd eligibilities.</span>
+
+<span class="sd">A local rule of this kind trains every level of a ``DendriNet`` by the</span>
+<span class="sd">gradient of a surrogate objective: the sum over levels of the level's output</span>
+<span class="sd">times a delivered error, with each level's child input detached</span>
+<span class="sd">(``DendriNet.forward_levels(..., detach_child_inputs=True)``). Autograd then</span>
+<span class="sd">gives each level's parameters their exact local eligibility times the</span>
+<span class="sd">delivered error. The delivered error is the soma error repeated over each</span>
+<span class="sd">neuron's compartments, times a gain built from the quantities below. The</span>
+<span class="sd">delivered error and its gains are supplied signals, not differentiated:</span>
+<span class="sd">``delivered_error_objective`` rejects graph-connected ones, and the gain</span>
+<span class="sd">quantities are computed without gradients.</span>
+
+<span class="sd">The functions here compute those quantities for one level; which products</span>
+<span class="sd">form a rule, and any permutation or noise applied to them, belongs to the</span>
+<span class="sd">protocol that uses them. The delivered error equals the backpropagated one</span>
+<span class="sd">when a level's gain is the product, over every ancestor on its path to the</span>
+<span class="sd">soma (the soma included), of the ancestor's activation slope, coupling ratio</span>
+<span class="sd">and relative resistance (1 at an ancestor without inhibition).</span>
+<span class="sd">"""</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sequence</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">torch</span><span class="w"> </span><span class="kn">import</span> <span class="n">nn</span>
+
+
+<div class="viewcode-block" id="soma_error">
+<a class="viewcode-back" href="../../../api_reference.html#dendritic_modeling.training.local_delivery.soma_error">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">soma_error</span><span class="p">(</span><span class="n">loss</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">soma_output</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Detached gradient of ``loss`` with respect to the soma outputs."""</span>
+    <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">autograd</span><span class="o">.</span><span class="n">grad</span><span class="p">(</span><span class="n">loss</span><span class="p">,</span> <span class="n">soma_output</span><span class="p">,</span> <span class="n">retain_graph</span><span class="o">=</span><span class="kc">True</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_require_shunting</span><span class="p">(</span><span class="n">layer</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span> <span class="s2">"use_shunting"</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> is defined for shunting levels"</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_uninhibited_denominator</span><span class="p">(</span><span class="n">layer</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">excitatory_input</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""D0 + epsilon: the level's forward denominator without inhibition.</span>
+
+<span class="sd">    Leak, the excitatory conductance where the level has that pathway, the</span>
+<span class="sd">    coupling conductance, and the level's ``epsilon``, which the forward pass</span>
+<span class="sd">    adds to its denominator (``V = N / (D + epsilon)``).</span>
+<span class="sd">    """</span>
+    <span class="n">base</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">effective_leak</span>
+    <span class="k">if</span> <span class="n">layer</span><span class="o">.</span><span class="n">branch_excitation</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">excitatory_input</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"level </span><span class="si">{</span><span class="n">layer</span><span class="o">.</span><span class="n">layer_idx</span><span class="si">}</span><span class="s2"> has an excitatory pathway; pass "</span>
+                <span class="s2">"excitatory_input"</span>
+            <span class="p">)</span>
+        <span class="n">base</span> <span class="o">=</span> <span class="n">base</span> <span class="o">+</span> <span class="n">layer</span><span class="o">.</span><span class="n">branch_excitation</span><span class="p">(</span><span class="n">excitatory_input</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">layer</span><span class="o">.</span><span class="n">input_branches</span><span class="p">:</span>
+        <span class="n">base</span> <span class="o">=</span> <span class="n">base</span> <span class="o">+</span> <span class="n">layer</span><span class="o">.</span><span class="n">branches_to_output</span><span class="o">.</span><span class="n">sum_conductances</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">layer</span><span class="o">.</span><span class="n">epsilon</span><span class="p">:</span>
+        <span class="n">base</span> <span class="o">=</span> <span class="n">base</span> <span class="o">+</span> <span class="n">layer</span><span class="o">.</span><span class="n">epsilon</span>
+    <span class="k">return</span> <span class="n">base</span>
+
+
+<div class="viewcode-block" id="relative_resistance">
+<a class="viewcode-back" href="../../../api_reference.html#dendritic_modeling.training.local_delivery.relative_resistance">[docs]</a>
+<span class="nd">@torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">()</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">relative_resistance</span><span class="p">(</span>
+    <span class="n">layer</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">inhibitory_input</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">excitatory_input</span><span class="o">=</span><span class="kc">None</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""(D0 + eps) / (D0 + I + eps) for every compartment of a shunting level.</span>
+
+<span class="sd">    ``I`` is the level's inhibitory conductance for ``inhibitory_input`` and</span>
+<span class="sd">    ``D0`` its total conductance without inhibition: leak plus coupling</span>
+<span class="sd">    conductance, plus the excitatory conductance at levels with an excitatory</span>
+<span class="sd">    pathway (pass ``excitatory_input`` there). ``eps`` is the level's</span>
+<span class="sd">    ``epsilon``, which the forward pass adds to the denominator. This is the</span>
+<span class="sd">    input resistance left by inhibition relative to the uninhibited compartment.</span>
+<span class="sd">    """</span>
+    <span class="n">_require_shunting</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span> <span class="s2">"relative_resistance"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">layer</span><span class="o">.</span><span class="n">branch_inhibition</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"level </span><span class="si">{</span><span class="n">layer</span><span class="o">.</span><span class="n">layer_idx</span><span class="si">}</span><span class="s2"> has no inhibitory pathway"</span><span class="p">)</span>
+    <span class="n">base</span> <span class="o">=</span> <span class="n">_uninhibited_denominator</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span> <span class="n">excitatory_input</span><span class="p">)</span>
+    <span class="n">inhibition</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">branch_inhibition</span><span class="p">(</span><span class="n">inhibitory_input</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">base</span> <span class="o">/</span> <span class="p">(</span><span class="n">base</span> <span class="o">+</span> <span class="n">inhibition</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="activation_slope">
+<a class="viewcode-back" href="../../../api_reference.html#dendritic_modeling.training.local_delivery.activation_slope">[docs]</a>
+<span class="nd">@torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">()</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">activation_slope</span><span class="p">(</span><span class="n">layer</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""The level's activation derivative at its last forward voltage.</span>
+
+<span class="sd">    Needs branch diagnostics on the level (``set_branch_diagnostics(True)``</span>
+<span class="sd">    before the forward pass). Supported activations: identity and tanh.</span>
+<span class="sd">    """</span>
+    <span class="n">voltage</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">get_branch_diagnostics</span><span class="p">()</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"V"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">voltage</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"level </span><span class="si">{</span><span class="n">layer</span><span class="o">.</span><span class="n">layer_idx</span><span class="si">}</span><span class="s2"> has no stored voltage; enable branch "</span>
+            <span class="s2">"diagnostics before the forward pass"</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">layer</span><span class="o">.</span><span class="n">reactivation</span><span class="p">,</span> <span class="n">nn</span><span class="o">.</span><span class="n">Identity</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">voltage</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">layer</span><span class="o">.</span><span class="n">reactivation</span><span class="p">,</span> <span class="n">nn</span><span class="o">.</span><span class="n">Tanh</span><span class="p">):</span>
+        <span class="k">return</span> <span class="mi">1</span> <span class="o">-</span> <span class="n">voltage</span><span class="o">.</span><span class="n">tanh</span><span class="p">()</span><span class="o">.</span><span class="n">square</span><span class="p">()</span>
+    <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">"activation_slope supports identity and tanh activations, not "</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">layer</span><span class="o">.</span><span class="n">reactivation</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">"</span>
+    <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="coupling_ratios">
+<a class="viewcode-back" href="../../../api_reference.html#dendritic_modeling.training.local_delivery.coupling_ratios">[docs]</a>
+<span class="nd">@torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">()</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">coupling_ratios</span><span class="p">(</span><span class="n">layer</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">excitatory_input</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""g_child / (D0 + eps) for every child of every parent compartment.</span>
+
+<span class="sd">    ``D0`` and ``eps`` are as in ``relative_resistance``: the parent's</span>
+<span class="sd">    conductance without inhibition (leak plus coupling conductance, plus the</span>
+<span class="sd">    excitatory conductance at levels with an excitatory pathway; pass</span>
+<span class="sd">    ``excitatory_input`` there) and its ``epsilon``. Shape</span>
+<span class="sd">    ``[parents, children per parent]``, or ``[batch, parents, children per</span>
+<span class="sd">    parent]`` when the excitatory conductance enters. Times</span>
+<span class="sd">    ``relative_resistance`` it is the exact ratio g_child / (D + eps) by which a</span>
+<span class="sd">    child's output moves its parent's voltage.</span>
+<span class="sd">    """</span>
+    <span class="n">_require_shunting</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span> <span class="s2">"coupling_ratios"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">layer</span><span class="o">.</span><span class="n">input_branches</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"level </span><span class="si">{</span><span class="n">layer</span><span class="o">.</span><span class="n">layer_idx</span><span class="si">}</span><span class="s2"> has no child branches"</span><span class="p">)</span>
+    <span class="n">base</span> <span class="o">=</span> <span class="n">_uninhibited_denominator</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span> <span class="n">excitatory_input</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">layer</span><span class="o">.</span><span class="n">branches_to_output</span><span class="o">.</span><span class="n">weight</span><span class="p">()</span> <span class="o">/</span> <span class="n">base</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span></div>
+
+
+
+<div class="viewcode-block" id="expand_to_children">
+<a class="viewcode-back" href="../../../api_reference.html#dendritic_modeling.training.local_delivery.expand_to_children">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">expand_to_children</span><span class="p">(</span><span class="n">values</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">branch_factor</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Repeat per-parent values over each parent's children (last dimension)."""</span>
+    <span class="k">return</span> <span class="n">values</span><span class="o">.</span><span class="n">repeat_interleave</span><span class="p">(</span><span class="n">branch_factor</span><span class="p">,</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="delivered_error_objective">
+<a class="viewcode-back" href="../../../api_reference.html#dendritic_modeling.training.local_delivery.delivered_error_objective">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">delivered_error_objective</span><span class="p">(</span>
+    <span class="n">level_outputs</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span>
+    <span class="n">error</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">gains</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span><span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Sum over levels of output x (error repeated over compartments x gain).</span>
+
+<span class="sd">    ``error`` has one column per neuron; each level's outputs are ordered</span>
+<span class="sd">    neuron by neuron, so the error is repeated over each neuron's</span>
+<span class="sd">    compartments. A gain of ``None`` delivers the repeated error unchanged.</span>
+<span class="sd">    The error and the gains must be detached: a graph-connected one would add</span>
+<span class="sd">    its own derivative to the update, so it raises. Add the result to the</span>
+<span class="sd">    loss and backpropagate.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">level_outputs</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">gains</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"give one gain (or None) per level output"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">error</span><span class="o">.</span><span class="n">requires_grad</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">"the delivered error must be detached; soma_error returns it detached"</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">gain</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">gain</span><span class="o">.</span><span class="n">requires_grad</span> <span class="k">for</span> <span class="n">gain</span> <span class="ow">in</span> <span class="n">gains</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">"gains must be detached (compute them under torch.no_grad() or detach "</span>
+            <span class="s2">"them); a graph-connected gain would add its own derivative"</span>
+        <span class="p">)</span>
+    <span class="n">n_soma</span> <span class="o">=</span> <span class="n">error</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">total</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">output</span><span class="p">,</span> <span class="n">gain</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">level_outputs</span><span class="p">,</span> <span class="n">gains</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">output</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">%</span> <span class="n">n_soma</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"a level with </span><span class="si">{</span><span class="n">output</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2"> compartments does not divide "</span>
+                <span class="sa">f</span><span class="s2">"into </span><span class="si">{</span><span class="n">n_soma</span><span class="si">}</span><span class="s2"> neurons"</span>
+            <span class="p">)</span>
+        <span class="n">delivered</span> <span class="o">=</span> <span class="n">error</span><span class="o">.</span><span class="n">repeat_interleave</span><span class="p">(</span><span class="n">output</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">//</span> <span class="n">n_soma</span><span class="p">,</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">gain</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">delivered</span> <span class="o">=</span> <span class="n">delivered</span> <span class="o">*</span> <span class="n">gain</span>
+        <span class="n">total</span> <span class="o">=</span> <span class="n">total</span> <span class="o">+</span> <span class="p">(</span><span class="n">output</span> <span class="o">*</span> <span class="n">delivered</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">total</span></div>
+
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s2">"activation_slope"</span><span class="p">,</span>
+    <span class="s2">"coupling_ratios"</span><span class="p">,</span>
+    <span class="s2">"delivered_error_objective"</span><span class="p">,</span>
+    <span class="s2">"expand_to_children"</span><span class="p">,</span>
+    <span class="s2">"relative_resistance"</span><span class="p">,</span>
+    <span class="s2">"soma_error"</span><span class="p">,</span>
+<span class="p">]</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024-2026, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

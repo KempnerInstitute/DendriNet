@@ -670,6 +670,10 @@
         <span class="k">return</span> <span class="n">voltage</span>
     <span class="n">centered</span> <span class="o">=</span> <span class="n">voltage</span> <span class="o">-</span> <span class="n">voltage</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdim</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
     <span class="n">std</span> <span class="o">=</span> <span class="n">voltage</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdim</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">unbiased</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">owner</span><span class="p">,</span> <span class="s2">"_record_additive_scale"</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
+        <span class="c1"># Local learning rules that need this z-score's derivative read the</span>
+        <span class="c1"># per-sample scale back (see LocalCA's additive_gain_mode).</span>
+        <span class="n">owner</span><span class="o">.</span><span class="n">_last_additive_scale</span> <span class="o">=</span> <span class="n">std</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span>
     <span class="k">return</span> <span class="n">centered</span> <span class="o">/</span> <span class="n">std</span><span class="o">.</span><span class="n">clamp_min</span><span class="p">(</span><span class="n">owner</span><span class="o">.</span><span class="n">epsilon</span><span class="p">)</span>
 
 

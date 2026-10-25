@@ -168,11 +168,26 @@
     <span class="s2">"indexed_dynamic"</span><span class="p">:</span> <span class="n">IndexedDynamicTopKLinear</span><span class="p">,</span>
     <span class="s2">"indexed_rewire"</span><span class="p">:</span> <span class="n">IndexedRewireLinear</span><span class="p">,</span>
 <span class="p">}</span>
+<span class="c1">#: The types DendriNet registers itself; any other registered type is a plugin's.</span>
+<span class="n">BUILTIN_SPARSE_LAYER_TYPES</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(</span><span class="n">SPARSE_LAYER_REGISTRY</span><span class="p">)</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">normalize_sparse_layer_type</span><span class="p">(</span><span class="n">layer_type</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Normalize public sparse-layer aliases to registry keys."""</span>
     <span class="k">return</span> <span class="n">normalize_sparsity_type</span><span class="p">(</span><span class="n">layer_type</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">get_sparse_layer_class</span><span class="p">(</span><span class="n">layer_type</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">type</span><span class="p">[</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""The class registered under ``layer_type``, loading plugins for an unknown name."""</span>
+    <span class="n">layer_type</span> <span class="o">=</span> <span class="n">normalize_sparse_layer_type</span><span class="p">(</span><span class="n">layer_type</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">layer_type</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">SPARSE_LAYER_REGISTRY</span><span class="p">:</span>
+        <span class="n">load_plugins</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">layer_type</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">SPARSE_LAYER_REGISTRY</span><span class="p">:</span>
+        <span class="n">available_types</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">SPARSE_LAYER_REGISTRY</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"Unknown sparse layer type '</span><span class="si">{</span><span class="n">layer_type</span><span class="si">}</span><span class="s2">'. Available types: </span><span class="si">{</span><span class="n">available_types</span><span class="si">}</span><span class="s2">"</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="n">SPARSE_LAYER_REGISTRY</span><span class="p">[</span><span class="n">layer_type</span><span class="p">]</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">get_sparse_layer</span><span class="p">(</span>
@@ -184,15 +199,7 @@
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Create a sparse synapse layer by registered type."""</span>
     <span class="n">layer_type</span> <span class="o">=</span> <span class="n">normalize_sparse_layer_type</span><span class="p">(</span><span class="n">layer_type</span><span class="p">)</span>
-    <span class="k">if</span> <span class="n">layer_type</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">SPARSE_LAYER_REGISTRY</span><span class="p">:</span>
-        <span class="n">load_plugins</span><span class="p">()</span>
-    <span class="k">if</span> <span class="n">layer_type</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">SPARSE_LAYER_REGISTRY</span><span class="p">:</span>
-        <span class="n">available_types</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">SPARSE_LAYER_REGISTRY</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">"Unknown sparse layer type '</span><span class="si">{</span><span class="n">layer_type</span><span class="si">}</span><span class="s2">'. Available types: </span><span class="si">{</span><span class="n">available_types</span><span class="si">}</span><span class="s2">"</span>
-        <span class="p">)</span>
-
-    <span class="n">layer_class</span> <span class="o">=</span> <span class="n">SPARSE_LAYER_REGISTRY</span><span class="p">[</span><span class="n">layer_type</span><span class="p">]</span>
+    <span class="n">layer_class</span> <span class="o">=</span> <span class="n">get_sparse_layer_class</span><span class="p">(</span><span class="n">layer_type</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">layer_type</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">"deepst"</span><span class="p">,</span> <span class="s2">"credit_deepst"</span><span class="p">}:</span>
         <span class="k">return</span> <span class="n">layer_class</span><span class="p">(</span><span class="n">in_features</span><span class="o">=</span><span class="n">in_features</span><span class="p">,</span> <span class="n">out_features</span><span class="o">=</span><span class="n">out_features</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">layer_class</span><span class="p">(</span>
@@ -237,9 +244,11 @@
 
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s2">"BUILTIN_SPARSE_LAYER_TYPES"</span><span class="p">,</span>
     <span class="s2">"SPARSE_LAYER_REGISTRY"</span><span class="p">,</span>
     <span class="s2">"get_available_sparse_types"</span><span class="p">,</span>
     <span class="s2">"get_sparse_layer"</span><span class="p">,</span>
+    <span class="s2">"get_sparse_layer_class"</span><span class="p">,</span>
     <span class="s2">"normalize_sparse_layer_type"</span><span class="p">,</span>
     <span class="s2">"register_sparse_layer"</span><span class="p">,</span>
     <span class="s2">"unregister_sparse_layer"</span><span class="p">,</span>

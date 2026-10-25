@@ -1,0 +1,1049 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.dendrinet &mdash; DendriNet v0.3.0</title>
+      <link rel="stylesheet" type="text/css" href="../../../../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../../../../_static/documentation_options.js?v=e259d695"></script>
+      <script src="../../../../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../../../../index.html" class="icon icon-home">
+            DendriNet
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../examples.html">Example configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Building models</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../network_architectures.html">Model architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../dendritic_neurons.html">Dendritic neurons</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../synapses.html">Synapses and connectivity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../population_networks.html">Population networks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../temporal_dynamics.html">Temporal dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../structured_ei_cores.html">Structured E/I cores</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../conductance_options.html">Conductance options</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../comparison_models.html">Baselines and comparison models</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Configuration</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../configuration_guide.html">Configuration guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../config_reference.html">Annotated reference configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../training_strategies.html">Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../distributed_training.html">Distributed training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../performance_kernels.html">Sparse execution and performance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Data and analysis</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../datasets.html">Datasets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../analysis.html">Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../analyzers.html">Analyzer reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../checkpoint_analysis.html">Analyzing saved checkpoints</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Running experiments</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../runs_and_outputs.html">Runs and outputs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../sweeps.html">Parameter sweeps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../model_compression.html">Compact checkpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../project_provenance.html">Project provenance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../available_components.html">Component catalogue</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../options_reference.html">Options reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../cli_reference.html">Command-line reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../api_reference.html">Python API</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../extending.html">Extending DendriNet</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../engineering_architecture.html">Engineering architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../contributing.html">Contributing</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../../../index.html">DendriNet</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../../../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.dendrinet</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.dendrinet</h1><div class="highlight"><pre>
+<span></span><span class="sd">"""</span>
+<span class="sd">DendriNet architectures for dendritic neural networks.</span>
+
+<span class="sd">This module implements the DendriNet and DendriNetWithOutputs classes</span>
+<span class="sd">which generate linear layers of neurons with sequential dendritic branches.</span>
+<span class="sd">"""</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">functools</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">inspect</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">copy</span><span class="w"> </span><span class="kn">import</span> <span class="n">deepcopy</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">replace</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch.nn</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">nn</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config.keys</span><span class="w"> </span><span class="kn">import</span> <span class="n">field_default</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config.synapse_payloads</span><span class="w"> </span><span class="kn">import</span> <span class="n">DeepSTConfig</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_config</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">DendriticBranchConfig</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">DendriticBranchLayer</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_options</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">explicit_options</span><span class="p">,</span>
+    <span class="n">reject_conflicts</span><span class="p">,</span>
+    <span class="n">resolve_dendrinet_synapse_config</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.dendrinet_config</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">DendriNetConfig</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.level_overrides</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">contacts_mask</span><span class="p">,</span>
+    <span class="n">declare_contacts</span><span class="p">,</span>
+    <span class="n">level_synapse_config</span><span class="p">,</span>
+    <span class="n">normalize_level_overrides</span><span class="p">,</span>
+    <span class="n">overrides_by_depth</span><span class="p">,</span>
+    <span class="n">remove_synaptic_pathway</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.reinitialization</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">LogNormalReinitialization</span><span class="p">,</span>
+    <span class="n">apply_lognormal_reinitialization</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.synapse_config</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">DendriticSynapseConfig</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.tangent_anchors</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">resolve_tangent_anchors_by_depth</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.excitation_inhibition.synapse.spatial_morphology</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">sample_configured_indices</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.excitation_inhibition.synapse.structured_mask</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">sample_configured_mask</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">_DEEPST_INIT_METHOD</span> <span class="o">=</span> <span class="n">field_default</span><span class="p">(</span><span class="n">DeepSTConfig</span><span class="p">,</span> <span class="s2">"init_method"</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_sample_dendrinet_structured_mask</span><span class="p">(</span>
+    <span class="n">structured_connectivity</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">pathway</span><span class="p">,</span>
+    <span class="n">out_dim</span><span class="p">,</span>
+    <span class="n">in_dim</span><span class="p">,</span>
+    <span class="n">synapses_per_branch</span><span class="p">,</span>
+    <span class="n">structured_layer_idx</span><span class="p">,</span>
+    <span class="n">level_idx</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Sample an optional structured mask for one DendriNet pathway."""</span>
+    <span class="k">if</span> <span class="n">in_dim</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">synapses_per_branch</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">synapses_per_branch</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">return</span> <span class="n">sample_configured_mask</span><span class="p">(</span>
+        <span class="n">structured_connectivity</span><span class="p">,</span>
+        <span class="n">pathway</span><span class="o">=</span><span class="n">pathway</span><span class="p">,</span>
+        <span class="n">out_features</span><span class="o">=</span><span class="n">out_dim</span><span class="p">,</span>
+        <span class="n">in_features</span><span class="o">=</span><span class="n">in_dim</span><span class="p">,</span>
+        <span class="n">layer_idx</span><span class="o">=</span><span class="n">structured_layer_idx</span><span class="p">,</span>
+        <span class="n">level_idx</span><span class="o">=</span><span class="n">level_idx</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_sample_dendrinet_structured_masks</span><span class="p">(</span>
+    <span class="n">structured_connectivity</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">structured_excitatory_pathway</span><span class="p">,</span>
+    <span class="n">structured_inhibitory_pathway</span><span class="p">,</span>
+    <span class="n">out_dim</span><span class="p">,</span>
+    <span class="n">excitatory_input_dim</span><span class="p">,</span>
+    <span class="n">excitatory_synapses_per_branch</span><span class="p">,</span>
+    <span class="n">inhibitory_input_dim</span><span class="p">,</span>
+    <span class="n">inhibitory_synapses_per_branch</span><span class="p">,</span>
+    <span class="n">structured_layer_idx</span><span class="p">,</span>
+    <span class="n">level_idx</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Sample optional excitatory and inhibitory masks for one DendriNet level."""</span>
+
+    <span class="n">excitatory_connection_mask</span> <span class="o">=</span> <span class="n">_sample_dendrinet_structured_mask</span><span class="p">(</span>
+        <span class="n">structured_connectivity</span><span class="p">,</span>
+        <span class="n">pathway</span><span class="o">=</span><span class="n">structured_excitatory_pathway</span><span class="p">,</span>
+        <span class="n">out_dim</span><span class="o">=</span><span class="n">out_dim</span><span class="p">,</span>
+        <span class="n">in_dim</span><span class="o">=</span><span class="n">excitatory_input_dim</span><span class="p">,</span>
+        <span class="n">synapses_per_branch</span><span class="o">=</span><span class="n">excitatory_synapses_per_branch</span><span class="p">,</span>
+        <span class="n">structured_layer_idx</span><span class="o">=</span><span class="n">structured_layer_idx</span><span class="p">,</span>
+        <span class="n">level_idx</span><span class="o">=</span><span class="n">level_idx</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">inhibitory_connection_mask</span> <span class="o">=</span> <span class="n">_sample_dendrinet_structured_mask</span><span class="p">(</span>
+        <span class="n">structured_connectivity</span><span class="p">,</span>
+        <span class="n">pathway</span><span class="o">=</span><span class="n">structured_inhibitory_pathway</span><span class="p">,</span>
+        <span class="n">out_dim</span><span class="o">=</span><span class="n">out_dim</span><span class="p">,</span>
+        <span class="n">in_dim</span><span class="o">=</span><span class="n">inhibitory_input_dim</span><span class="p">,</span>
+        <span class="n">synapses_per_branch</span><span class="o">=</span><span class="n">inhibitory_synapses_per_branch</span><span class="p">,</span>
+        <span class="n">structured_layer_idx</span><span class="o">=</span><span class="n">structured_layer_idx</span><span class="p">,</span>
+        <span class="n">level_idx</span><span class="o">=</span><span class="n">level_idx</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">excitatory_connection_mask</span><span class="p">,</span> <span class="n">inhibitory_connection_mask</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_sample_dendrinet_structured_indices</span><span class="p">(</span>
+    <span class="n">structured_connectivity</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">structured_excitatory_pathway</span><span class="p">,</span>
+    <span class="n">structured_inhibitory_pathway</span><span class="p">,</span>
+    <span class="n">out_dim</span><span class="p">,</span>
+    <span class="n">excitatory_input_dim</span><span class="p">,</span>
+    <span class="n">excitatory_synapses_per_branch</span><span class="p">,</span>
+    <span class="n">inhibitory_input_dim</span><span class="p">,</span>
+    <span class="n">inhibitory_synapses_per_branch</span><span class="p">,</span>
+    <span class="n">n_soma</span><span class="p">,</span>
+    <span class="n">branch_factors</span><span class="p">,</span>
+    <span class="n">index_dtype</span><span class="p">,</span>
+    <span class="n">structured_layer_idx</span><span class="p">,</span>
+    <span class="n">level_idx</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Sample optional compact excitatory and inhibitory indices."""</span>
+
+    <span class="n">excitatory_connection_indices</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="p">(</span>
+        <span class="n">excitatory_input_dim</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="ow">and</span> <span class="n">excitatory_synapses_per_branch</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="ow">and</span> <span class="n">excitatory_synapses_per_branch</span> <span class="o">&gt;</span> <span class="mi">0</span>
+    <span class="p">):</span>
+        <span class="n">excitatory_connection_indices</span> <span class="o">=</span> <span class="n">sample_configured_indices</span><span class="p">(</span>
+            <span class="n">structured_connectivity</span><span class="p">,</span>
+            <span class="n">pathway</span><span class="o">=</span><span class="n">structured_excitatory_pathway</span><span class="p">,</span>
+            <span class="n">out_features</span><span class="o">=</span><span class="n">out_dim</span><span class="p">,</span>
+            <span class="n">in_features</span><span class="o">=</span><span class="n">excitatory_input_dim</span><span class="p">,</span>
+            <span class="n">synapses_per_branch</span><span class="o">=</span><span class="n">excitatory_synapses_per_branch</span><span class="p">,</span>
+            <span class="n">owner_count</span><span class="o">=</span><span class="n">n_soma</span><span class="p">,</span>
+            <span class="n">branch_factors</span><span class="o">=</span><span class="n">branch_factors</span><span class="p">,</span>
+            <span class="n">layer_idx</span><span class="o">=</span><span class="n">structured_layer_idx</span><span class="p">,</span>
+            <span class="n">level_idx</span><span class="o">=</span><span class="n">level_idx</span><span class="p">,</span>
+            <span class="n">index_dtype</span><span class="o">=</span><span class="n">index_dtype</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="n">inhibitory_connection_indices</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="p">(</span>
+        <span class="n">inhibitory_input_dim</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="ow">and</span> <span class="n">inhibitory_synapses_per_branch</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="ow">and</span> <span class="n">inhibitory_synapses_per_branch</span> <span class="o">&gt;</span> <span class="mi">0</span>
+    <span class="p">):</span>
+        <span class="n">inhibitory_connection_indices</span> <span class="o">=</span> <span class="n">sample_configured_indices</span><span class="p">(</span>
+            <span class="n">structured_connectivity</span><span class="p">,</span>
+            <span class="n">pathway</span><span class="o">=</span><span class="n">structured_inhibitory_pathway</span><span class="p">,</span>
+            <span class="n">out_features</span><span class="o">=</span><span class="n">out_dim</span><span class="p">,</span>
+            <span class="n">in_features</span><span class="o">=</span><span class="n">inhibitory_input_dim</span><span class="p">,</span>
+            <span class="n">synapses_per_branch</span><span class="o">=</span><span class="n">inhibitory_synapses_per_branch</span><span class="p">,</span>
+            <span class="n">owner_count</span><span class="o">=</span><span class="n">n_soma</span><span class="p">,</span>
+            <span class="n">branch_factors</span><span class="o">=</span><span class="n">branch_factors</span><span class="p">,</span>
+            <span class="n">layer_idx</span><span class="o">=</span><span class="n">structured_layer_idx</span><span class="p">,</span>
+            <span class="n">level_idx</span><span class="o">=</span><span class="n">level_idx</span><span class="p">,</span>
+            <span class="n">index_dtype</span><span class="o">=</span><span class="n">index_dtype</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="n">excitatory_connection_indices</span><span class="p">,</span> <span class="n">inhibitory_connection_indices</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_make_dendrinet_branch_layer</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">output_dim</span><span class="p">,</span>
+    <span class="n">excitatory_input_dim</span><span class="p">,</span>
+    <span class="n">excitatory_synapses_per_branch</span><span class="p">,</span>
+    <span class="n">inhibitory_input_dim</span><span class="p">,</span>
+    <span class="n">inhibitory_synapses_per_branch</span><span class="p">,</span>
+    <span class="n">input_branch_factor</span><span class="p">,</span>
+    <span class="n">layer_idx</span><span class="p">,</span>
+    <span class="n">synapse_config</span><span class="p">,</span>
+    <span class="n">branch_extra_kwargs</span><span class="p">,</span>
+    <span class="n">excitatory_connection_indices</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">inhibitory_connection_indices</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">excitatory_connection_mask</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">inhibitory_connection_mask</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Create one DendriNet branch layer with the shared synapse config."""</span>
+    <span class="k">return</span> <span class="n">DendriticBranchLayer</span><span class="p">(</span>
+        <span class="n">branch_config</span><span class="o">=</span><span class="n">DendriticBranchConfig</span><span class="p">(</span>
+            <span class="n">output_dim</span><span class="o">=</span><span class="n">output_dim</span><span class="p">,</span>
+            <span class="n">excitatory_input_dim</span><span class="o">=</span><span class="n">excitatory_input_dim</span><span class="p">,</span>
+            <span class="n">excitatory_synapses_per_branch</span><span class="o">=</span><span class="n">excitatory_synapses_per_branch</span><span class="p">,</span>
+            <span class="n">inhibitory_input_dim</span><span class="o">=</span><span class="n">inhibitory_input_dim</span><span class="p">,</span>
+            <span class="n">inhibitory_synapses_per_branch</span><span class="o">=</span><span class="n">inhibitory_synapses_per_branch</span><span class="p">,</span>
+            <span class="n">input_branch_factor</span><span class="o">=</span><span class="n">input_branch_factor</span><span class="p">,</span>
+            <span class="n">layer_idx</span><span class="o">=</span><span class="n">layer_idx</span><span class="p">,</span>
+            <span class="n">excitatory_connection_indices</span><span class="o">=</span><span class="n">excitatory_connection_indices</span><span class="p">,</span>
+            <span class="n">inhibitory_connection_indices</span><span class="o">=</span><span class="n">inhibitory_connection_indices</span><span class="p">,</span>
+            <span class="n">excitatory_connection_mask</span><span class="o">=</span><span class="n">excitatory_connection_mask</span><span class="p">,</span>
+            <span class="n">inhibitory_connection_mask</span><span class="o">=</span><span class="n">inhibitory_connection_mask</span><span class="p">,</span>
+        <span class="p">),</span>
+        <span class="n">synapse_config</span><span class="o">=</span><span class="n">synapse_config</span><span class="p">,</span>
+        <span class="o">**</span><span class="n">branch_extra_kwargs</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_plan_dendrinet_branch_layout</span><span class="p">(</span>
+    <span class="n">n_soma</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">branch_factors</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> <span class="nb">list</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Return construction-order layer sizes and input branch factors."""</span>
+
+    <span class="n">layer_sizes</span> <span class="o">=</span> <span class="p">[</span><span class="n">n_soma</span><span class="p">]</span>
+    <span class="k">for</span> <span class="n">branch_factor</span> <span class="ow">in</span> <span class="n">branch_factors</span><span class="p">:</span>
+        <span class="n">layer_sizes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">layer_sizes</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">branch_factor</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="nb">reversed</span><span class="p">(</span><span class="n">layer_sizes</span><span class="p">)),</span> <span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="o">*</span><span class="nb">reversed</span><span class="p">(</span><span class="n">branch_factors</span><span class="p">)]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_validate_dendrinet_dimensions</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">n_soma</span><span class="p">,</span>
+    <span class="n">branch_factors</span><span class="p">,</span>
+    <span class="n">excitatory_input_dim</span><span class="p">,</span>
+    <span class="n">excitatory_synapses_per_branch</span><span class="p">,</span>
+    <span class="n">inhibitory_input_dim</span><span class="p">,</span>
+    <span class="n">inhibitory_synapses_per_branch</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Validate DendriNet dimensions and synapse counts."""</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">n_soma</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">"n_soma must be an integer"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">n_soma</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"n_soma must be &gt;= 1"</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">bf</span> <span class="ow">in</span> <span class="n">branch_factors</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">bf</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">"branch_factors must be integers"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">bf</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"branch_factors must be &gt;= 1"</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">inhibitory_input_dim</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">inhibitory_synapses_per_branch</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">inhibitory_synapses_per_branch</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">"inhibitory_synapses_per_branch must be int"</span><span class="p">)</span>
+        <span class="c1"># if inhibitory_synapses_per_branch &lt; 1:</span>
+        <span class="c1">#     raise ValueError("inhibitory_synapses_per_branch must be &gt;= 1")</span>
+
+    <span class="k">if</span> <span class="n">excitatory_input_dim</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">excitatory_synapses_per_branch</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">excitatory_synapses_per_branch</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">"excitatory_synapses_per_branch must be int"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">excitatory_synapses_per_branch</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"excitatory_synapses_per_branch must be &gt;= 1"</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_build_dendrinet_branch_layers</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">n_soma</span><span class="p">,</span>
+    <span class="n">n_branch_layers</span><span class="p">,</span>
+    <span class="n">branch_factors</span><span class="p">,</span>
+    <span class="n">layer_sizes</span><span class="p">,</span>
+    <span class="n">input_branch_factors</span><span class="p">,</span>
+    <span class="n">excitatory_input_dim</span><span class="p">,</span>
+    <span class="n">excitatory_synapses_per_branch</span><span class="p">,</span>
+    <span class="n">inhibitory_input_dim</span><span class="p">,</span>
+    <span class="n">inhibitory_synapses_per_branch</span><span class="p">,</span>
+    <span class="n">somatic_synapses</span><span class="p">,</span>
+    <span class="n">structured_connectivity</span><span class="p">,</span>
+    <span class="n">structured_layer_idx</span><span class="p">,</span>
+    <span class="n">structured_excitatory_pathway</span><span class="p">,</span>
+    <span class="n">structured_inhibitory_pathway</span><span class="p">,</span>
+    <span class="n">synapse_config</span><span class="p">,</span>
+    <span class="n">branch_extra_kwargs</span><span class="p">,</span>
+    <span class="n">level_overrides</span><span class="o">=</span><span class="p">(),</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Build DendriNet branch layers in forward construction order."""</span>
+
+    <span class="n">overrides</span> <span class="o">=</span> <span class="n">overrides_by_depth</span><span class="p">(</span>
+        <span class="n">normalize_level_overrides</span><span class="p">(</span><span class="n">level_overrides</span><span class="p">),</span> <span class="n">n_branch_layers</span>
+    <span class="p">)</span>
+    <span class="n">_validate_soma_override</span><span class="p">(</span>
+        <span class="n">overrides</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span>
+        <span class="n">somatic_synapses</span><span class="o">=</span><span class="n">somatic_synapses</span><span class="p">,</span>
+        <span class="n">synapse_config</span><span class="o">=</span><span class="n">synapse_config</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">if</span> <span class="n">n_branch_layers</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">somatic_synapses</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">"a DendriNet without dendritic levels (branch_factors: []) receives "</span>
+            <span class="s2">"input only at the soma, but somatic_synapses is false; set "</span>
+            <span class="s2">"somatic_synapses: true"</span>
+        <span class="p">)</span>
+    <span class="n">branch_extra_kwargs</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">branch_extra_kwargs</span><span class="p">)</span>
+    <span class="n">n0_by_depth</span><span class="p">,</span> <span class="n">t0_by_depth</span> <span class="o">=</span> <span class="n">resolve_tangent_anchors_by_depth</span><span class="p">(</span>
+        <span class="n">branch_extra_kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">"additive_tangent_n0_by_depth"</span><span class="p">,</span> <span class="p">()),</span>
+        <span class="n">branch_extra_kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">"additive_tangent_t0_by_depth"</span><span class="p">,</span> <span class="p">()),</span>
+        <span class="n">n_levels</span><span class="o">=</span><span class="n">n_branch_layers</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="n">scalar_n0</span><span class="o">=</span><span class="n">synapse_config</span><span class="o">.</span><span class="n">morphology</span><span class="o">.</span><span class="n">additive_tangent_n0</span><span class="p">,</span>
+        <span class="n">scalar_t0</span><span class="o">=</span><span class="n">synapse_config</span><span class="o">.</span><span class="n">morphology</span><span class="o">.</span><span class="n">additive_tangent_t0</span><span class="p">,</span>
+        <span class="n">epsilon</span><span class="o">=</span><span class="n">synapse_config</span><span class="o">.</span><span class="n">morphology</span><span class="o">.</span><span class="n">epsilon</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">config_at_depth</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">depth</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">n0_by_depth</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">config</span>
+        <span class="k">return</span> <span class="n">replace</span><span class="p">(</span>
+            <span class="n">config</span><span class="p">,</span>
+            <span class="n">morphology</span><span class="o">=</span><span class="n">replace</span><span class="p">(</span>
+                <span class="n">config</span><span class="o">.</span><span class="n">morphology</span><span class="p">,</span>
+                <span class="n">additive_tangent_n0</span><span class="o">=</span><span class="n">n0_by_depth</span><span class="p">[</span><span class="n">depth</span><span class="p">],</span>
+                <span class="n">additive_tangent_t0</span><span class="o">=</span><span class="n">t0_by_depth</span><span class="p">[</span><span class="n">depth</span><span class="p">],</span>
+            <span class="p">),</span>
+        <span class="p">)</span>
+
+    <span class="n">branch_layers</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">indexed_config</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">synapse_config</span><span class="p">,</span> <span class="s2">"indexed"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">index_dtype</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">indexed_config</span><span class="p">,</span> <span class="s2">"index_dtype"</span><span class="p">,</span> <span class="s2">"int64"</span><span class="p">)</span>
+    <span class="n">soma_synapse_config</span> <span class="o">=</span> <span class="n">config_at_depth</span><span class="p">(</span>
+        <span class="n">_soma_override_synapse_config</span><span class="p">(</span><span class="n">synapse_config</span><span class="p">),</span> <span class="mi">0</span>
+    <span class="p">)</span>
+    <span class="k">if</span> <span class="mi">0</span> <span class="ow">in</span> <span class="n">overrides</span><span class="p">:</span>
+        <span class="n">soma_synapse_config</span> <span class="o">=</span> <span class="n">level_synapse_config</span><span class="p">(</span>
+            <span class="n">soma_synapse_config</span><span class="p">,</span> <span class="n">overrides</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">activation</span>
+        <span class="p">)</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_branch_layers</span><span class="p">):</span>
+        <span class="n">depth</span> <span class="o">=</span> <span class="n">n_branch_layers</span> <span class="o">-</span> <span class="n">i</span>
+        <span class="n">override</span> <span class="o">=</span> <span class="n">overrides</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">depth</span><span class="p">)</span>
+        <span class="p">(</span>
+            <span class="n">excitatory_connection_mask</span><span class="p">,</span>
+            <span class="n">inhibitory_connection_mask</span><span class="p">,</span>
+        <span class="p">)</span> <span class="o">=</span> <span class="n">_sample_dendrinet_structured_masks</span><span class="p">(</span>
+            <span class="n">structured_connectivity</span><span class="p">,</span>
+            <span class="n">structured_excitatory_pathway</span><span class="o">=</span><span class="n">structured_excitatory_pathway</span><span class="p">,</span>
+            <span class="n">structured_inhibitory_pathway</span><span class="o">=</span><span class="n">structured_inhibitory_pathway</span><span class="p">,</span>
+            <span class="n">out_dim</span><span class="o">=</span><span class="n">layer_sizes</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+            <span class="n">excitatory_input_dim</span><span class="o">=</span><span class="n">excitatory_input_dim</span><span class="p">,</span>
+            <span class="n">excitatory_synapses_per_branch</span><span class="o">=</span><span class="n">excitatory_synapses_per_branch</span><span class="p">,</span>
+            <span class="n">inhibitory_input_dim</span><span class="o">=</span><span class="n">inhibitory_input_dim</span><span class="p">,</span>
+            <span class="n">inhibitory_synapses_per_branch</span><span class="o">=</span><span class="n">inhibitory_synapses_per_branch</span><span class="p">,</span>
+            <span class="n">structured_layer_idx</span><span class="o">=</span><span class="n">structured_layer_idx</span><span class="p">,</span>
+            <span class="n">level_idx</span><span class="o">=</span><span class="n">i</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="p">(</span>
+            <span class="n">excitatory_connection_indices</span><span class="p">,</span>
+            <span class="n">inhibitory_connection_indices</span><span class="p">,</span>
+        <span class="p">)</span> <span class="o">=</span> <span class="n">_sample_dendrinet_structured_indices</span><span class="p">(</span>
+            <span class="n">structured_connectivity</span><span class="p">,</span>
+            <span class="n">structured_excitatory_pathway</span><span class="o">=</span><span class="n">structured_excitatory_pathway</span><span class="p">,</span>
+            <span class="n">structured_inhibitory_pathway</span><span class="o">=</span><span class="n">structured_inhibitory_pathway</span><span class="p">,</span>
+            <span class="n">out_dim</span><span class="o">=</span><span class="n">layer_sizes</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+            <span class="n">excitatory_input_dim</span><span class="o">=</span><span class="n">excitatory_input_dim</span><span class="p">,</span>
+            <span class="n">excitatory_synapses_per_branch</span><span class="o">=</span><span class="n">excitatory_synapses_per_branch</span><span class="p">,</span>
+            <span class="n">inhibitory_input_dim</span><span class="o">=</span><span class="n">inhibitory_input_dim</span><span class="p">,</span>
+            <span class="n">inhibitory_synapses_per_branch</span><span class="o">=</span><span class="n">inhibitory_synapses_per_branch</span><span class="p">,</span>
+            <span class="n">n_soma</span><span class="o">=</span><span class="n">n_soma</span><span class="p">,</span>
+            <span class="n">branch_factors</span><span class="o">=</span><span class="n">branch_factors</span><span class="p">,</span>
+            <span class="n">index_dtype</span><span class="o">=</span><span class="n">index_dtype</span><span class="p">,</span>
+            <span class="n">structured_layer_idx</span><span class="o">=</span><span class="n">structured_layer_idx</span><span class="p">,</span>
+            <span class="n">level_idx</span><span class="o">=</span><span class="n">i</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">_reject_structured_contacts</span><span class="p">(</span>
+            <span class="n">override</span><span class="p">,</span>
+            <span class="n">masks</span><span class="o">=</span><span class="p">(</span><span class="n">excitatory_connection_mask</span><span class="p">,</span> <span class="n">inhibitory_connection_mask</span><span class="p">),</span>
+            <span class="n">indices</span><span class="o">=</span><span class="p">(</span><span class="n">excitatory_connection_indices</span><span class="p">,</span> <span class="n">inhibitory_connection_indices</span><span class="p">),</span>
+        <span class="p">)</span>
+        <span class="n">level_config</span> <span class="o">=</span> <span class="n">config_at_depth</span><span class="p">(</span><span class="n">synapse_config</span><span class="p">,</span> <span class="n">depth</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">override</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">level_config</span> <span class="o">=</span> <span class="n">level_synapse_config</span><span class="p">(</span><span class="n">level_config</span><span class="p">,</span> <span class="n">override</span><span class="o">.</span><span class="n">activation</span><span class="p">)</span>
+        <span class="n">lyr</span> <span class="o">=</span> <span class="n">_make_dendrinet_branch_layer</span><span class="p">(</span>
+            <span class="n">output_dim</span><span class="o">=</span><span class="n">layer_sizes</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+            <span class="n">excitatory_input_dim</span><span class="o">=</span><span class="n">excitatory_input_dim</span><span class="p">,</span>
+            <span class="n">excitatory_synapses_per_branch</span><span class="o">=</span><span class="n">excitatory_synapses_per_branch</span><span class="p">,</span>
+            <span class="n">inhibitory_input_dim</span><span class="o">=</span><span class="n">inhibitory_input_dim</span><span class="p">,</span>
+            <span class="n">inhibitory_synapses_per_branch</span><span class="o">=</span><span class="n">inhibitory_synapses_per_branch</span><span class="p">,</span>
+            <span class="n">excitatory_connection_indices</span><span class="o">=</span><span class="n">excitatory_connection_indices</span><span class="p">,</span>
+            <span class="n">inhibitory_connection_indices</span><span class="o">=</span><span class="n">inhibitory_connection_indices</span><span class="p">,</span>
+            <span class="n">excitatory_connection_mask</span><span class="o">=</span><span class="n">excitatory_connection_mask</span><span class="p">,</span>
+            <span class="n">inhibitory_connection_mask</span><span class="o">=</span><span class="n">inhibitory_connection_mask</span><span class="p">,</span>
+            <span class="n">input_branch_factor</span><span class="o">=</span><span class="n">input_branch_factors</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+            <span class="n">layer_idx</span><span class="o">=</span><span class="n">depth</span><span class="p">,</span>
+            <span class="n">synapse_config</span><span class="o">=</span><span class="n">level_config</span><span class="p">,</span>
+            <span class="n">branch_extra_kwargs</span><span class="o">=</span><span class="n">branch_extra_kwargs</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">_apply_level_override</span><span class="p">(</span><span class="n">lyr</span><span class="p">,</span> <span class="n">override</span><span class="p">,</span> <span class="n">n_soma</span><span class="o">=</span><span class="n">n_soma</span><span class="p">)</span>
+        <span class="n">branch_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">lyr</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">somatic_synapses</span><span class="p">:</span>
+        <span class="n">soma_level_idx</span> <span class="o">=</span> <span class="n">n_branch_layers</span>
+        <span class="p">(</span>
+            <span class="n">excitatory_connection_mask</span><span class="p">,</span>
+            <span class="n">inhibitory_connection_mask</span><span class="p">,</span>
+        <span class="p">)</span> <span class="o">=</span> <span class="n">_sample_dendrinet_structured_masks</span><span class="p">(</span>
+            <span class="n">structured_connectivity</span><span class="p">,</span>
+            <span class="n">structured_excitatory_pathway</span><span class="o">=</span><span class="n">structured_excitatory_pathway</span><span class="p">,</span>
+            <span class="n">structured_inhibitory_pathway</span><span class="o">=</span><span class="n">structured_inhibitory_pathway</span><span class="p">,</span>
+            <span class="n">out_dim</span><span class="o">=</span><span class="n">n_soma</span><span class="p">,</span>
+            <span class="n">excitatory_input_dim</span><span class="o">=</span><span class="n">excitatory_input_dim</span><span class="p">,</span>
+            <span class="n">excitatory_synapses_per_branch</span><span class="o">=</span><span class="n">excitatory_synapses_per_branch</span><span class="p">,</span>
+            <span class="n">inhibitory_input_dim</span><span class="o">=</span><span class="n">inhibitory_input_dim</span><span class="p">,</span>
+            <span class="n">inhibitory_synapses_per_branch</span><span class="o">=</span><span class="n">inhibitory_synapses_per_branch</span><span class="p">,</span>
+            <span class="n">structured_layer_idx</span><span class="o">=</span><span class="n">structured_layer_idx</span><span class="p">,</span>
+            <span class="n">level_idx</span><span class="o">=</span><span class="n">soma_level_idx</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="p">(</span>
+            <span class="n">excitatory_connection_indices</span><span class="p">,</span>
+            <span class="n">inhibitory_connection_indices</span><span class="p">,</span>
+        <span class="p">)</span> <span class="o">=</span> <span class="n">_sample_dendrinet_structured_indices</span><span class="p">(</span>
+            <span class="n">structured_connectivity</span><span class="p">,</span>
+            <span class="n">structured_excitatory_pathway</span><span class="o">=</span><span class="n">structured_excitatory_pathway</span><span class="p">,</span>
+            <span class="n">structured_inhibitory_pathway</span><span class="o">=</span><span class="n">structured_inhibitory_pathway</span><span class="p">,</span>
+            <span class="n">out_dim</span><span class="o">=</span><span class="n">n_soma</span><span class="p">,</span>
+            <span class="n">excitatory_input_dim</span><span class="o">=</span><span class="n">excitatory_input_dim</span><span class="p">,</span>
+            <span class="n">excitatory_synapses_per_branch</span><span class="o">=</span><span class="n">excitatory_synapses_per_branch</span><span class="p">,</span>
+            <span class="n">inhibitory_input_dim</span><span class="o">=</span><span class="n">inhibitory_input_dim</span><span class="p">,</span>
+            <span class="n">inhibitory_synapses_per_branch</span><span class="o">=</span><span class="n">inhibitory_synapses_per_branch</span><span class="p">,</span>
+            <span class="n">n_soma</span><span class="o">=</span><span class="n">n_soma</span><span class="p">,</span>
+            <span class="n">branch_factors</span><span class="o">=</span><span class="n">branch_factors</span><span class="p">,</span>
+            <span class="n">index_dtype</span><span class="o">=</span><span class="n">index_dtype</span><span class="p">,</span>
+            <span class="n">structured_layer_idx</span><span class="o">=</span><span class="n">structured_layer_idx</span><span class="p">,</span>
+            <span class="n">level_idx</span><span class="o">=</span><span class="n">soma_level_idx</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">_reject_structured_contacts</span><span class="p">(</span>
+            <span class="n">overrides</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span>
+            <span class="n">masks</span><span class="o">=</span><span class="p">(</span><span class="n">excitatory_connection_mask</span><span class="p">,</span> <span class="n">inhibitory_connection_mask</span><span class="p">),</span>
+            <span class="n">indices</span><span class="o">=</span><span class="p">(</span><span class="n">excitatory_connection_indices</span><span class="p">,</span> <span class="n">inhibitory_connection_indices</span><span class="p">),</span>
+        <span class="p">)</span>
+        <span class="n">branch_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="n">_make_dendrinet_branch_layer</span><span class="p">(</span>
+                <span class="n">output_dim</span><span class="o">=</span><span class="n">n_soma</span><span class="p">,</span>
+                <span class="n">excitatory_input_dim</span><span class="o">=</span><span class="n">excitatory_input_dim</span><span class="p">,</span>
+                <span class="n">excitatory_synapses_per_branch</span><span class="o">=</span><span class="n">excitatory_synapses_per_branch</span><span class="p">,</span>
+                <span class="n">inhibitory_input_dim</span><span class="o">=</span><span class="n">inhibitory_input_dim</span><span class="p">,</span>
+                <span class="n">inhibitory_synapses_per_branch</span><span class="o">=</span><span class="n">inhibitory_synapses_per_branch</span><span class="p">,</span>
+                <span class="n">excitatory_connection_indices</span><span class="o">=</span><span class="n">excitatory_connection_indices</span><span class="p">,</span>
+                <span class="n">inhibitory_connection_indices</span><span class="o">=</span><span class="n">inhibitory_connection_indices</span><span class="p">,</span>
+                <span class="n">excitatory_connection_mask</span><span class="o">=</span><span class="n">excitatory_connection_mask</span><span class="p">,</span>
+                <span class="n">inhibitory_connection_mask</span><span class="o">=</span><span class="n">inhibitory_connection_mask</span><span class="p">,</span>
+                <span class="n">input_branch_factor</span><span class="o">=</span><span class="n">input_branch_factors</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span>
+                <span class="n">layer_idx</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                <span class="n">synapse_config</span><span class="o">=</span><span class="n">soma_synapse_config</span><span class="p">,</span>
+                <span class="n">branch_extra_kwargs</span><span class="o">=</span><span class="n">branch_extra_kwargs</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">branch_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="n">_make_dendrinet_branch_layer</span><span class="p">(</span>
+                <span class="n">output_dim</span><span class="o">=</span><span class="n">n_soma</span><span class="p">,</span>
+                <span class="n">excitatory_input_dim</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="n">excitatory_synapses_per_branch</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="n">inhibitory_input_dim</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="n">inhibitory_synapses_per_branch</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="n">excitatory_connection_indices</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="n">inhibitory_connection_indices</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="n">input_branch_factor</span><span class="o">=</span><span class="n">input_branch_factors</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span>
+                <span class="n">layer_idx</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                <span class="n">synapse_config</span><span class="o">=</span><span class="n">soma_synapse_config</span><span class="p">,</span>
+                <span class="n">branch_extra_kwargs</span><span class="o">=</span><span class="n">branch_extra_kwargs</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+
+    <span class="n">_apply_level_override</span><span class="p">(</span><span class="n">branch_layers</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">overrides</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span> <span class="n">n_soma</span><span class="o">=</span><span class="n">n_soma</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">branch_layers</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_validate_soma_override</span><span class="p">(</span><span class="n">override</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">somatic_synapses</span><span class="p">,</span> <span class="n">synapse_config</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Reject soma overrides that the soma's construction cannot honour."""</span>
+    <span class="k">if</span> <span class="n">override</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span>
+    <span class="k">if</span> <span class="n">override</span><span class="o">.</span><span class="n">activation</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">getattr</span><span class="p">(</span>
+        <span class="n">synapse_config</span><span class="o">.</span><span class="n">reactivation</span><span class="p">,</span> <span class="s2">"soma_type"</span><span class="p">,</span> <span class="kc">None</span>
+    <span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">"the level override at depth 0 sets an activation and "</span>
+            <span class="s2">"reactivation.soma_type is set; use one of them"</span>
+        <span class="p">)</span>
+    <span class="n">changes_synapses</span> <span class="o">=</span> <span class="ow">not</span> <span class="p">(</span>
+        <span class="n">override</span><span class="o">.</span><span class="n">excitatory</span>
+        <span class="ow">and</span> <span class="n">override</span><span class="o">.</span><span class="n">inhibitory</span>
+        <span class="ow">and</span> <span class="n">override</span><span class="o">.</span><span class="n">excitatory_contacts</span> <span class="ow">is</span> <span class="kc">None</span>
+        <span class="ow">and</span> <span class="n">override</span><span class="o">.</span><span class="n">inhibitory_contacts</span> <span class="ow">is</span> <span class="kc">None</span>
+    <span class="p">)</span>
+    <span class="k">if</span> <span class="n">changes_synapses</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">somatic_synapses</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">"the level override at depth 0 changes somatic synapses, but the soma "</span>
+            <span class="s2">"has none (somatic_synapses: false)"</span>
+        <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_reject_structured_contacts</span><span class="p">(</span><span class="n">override</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">masks</span><span class="p">,</span> <span class="n">indices</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Declared contacts and structured connectivity may not both wire a pathway."""</span>
+    <span class="k">if</span> <span class="n">override</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span>
+    <span class="k">for</span> <span class="n">pathway</span><span class="p">,</span> <span class="n">mask</span><span class="p">,</span> <span class="n">index</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">((</span><span class="s2">"excitatory"</span><span class="p">,</span> <span class="s2">"inhibitory"</span><span class="p">),</span> <span class="n">masks</span><span class="p">,</span> <span class="n">indices</span><span class="p">):</span>
+        <span class="n">declared</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">override</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">pathway</span><span class="si">}</span><span class="s2">_contacts"</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">declared</span> <span class="ow">and</span> <span class="p">(</span><span class="n">mask</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">index</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"level </span><span class="si">{</span><span class="n">override</span><span class="o">.</span><span class="n">depth</span><span class="si">}</span><span class="s2"> declares </span><span class="si">{</span><span class="n">pathway</span><span class="si">}</span><span class="s2">_contacts and "</span>
+                <span class="s2">"structured_connectivity also wires that pathway; use one of them"</span>
+            <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_apply_level_override</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span> <span class="n">override</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">n_soma</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Declare a built level's contacts, then remove its disabled pathways."""</span>
+    <span class="k">if</span> <span class="n">override</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span>
+    <span class="k">for</span> <span class="n">pathway</span><span class="p">,</span> <span class="n">attribute</span> <span class="ow">in</span> <span class="p">(</span>
+        <span class="p">(</span><span class="s2">"excitatory"</span><span class="p">,</span> <span class="s2">"branch_excitation"</span><span class="p">),</span>
+        <span class="p">(</span><span class="s2">"inhibitory"</span><span class="p">,</span> <span class="s2">"branch_inhibition"</span><span class="p">),</span>
+    <span class="p">):</span>
+        <span class="n">contacts</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">override</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">pathway</span><span class="si">}</span><span class="s2">_contacts"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">contacts</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="n">synapse</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span> <span class="n">attribute</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">synapse</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"level </span><span class="si">{</span><span class="n">override</span><span class="o">.</span><span class="n">depth</span><span class="si">}</span><span class="s2"> declares </span><span class="si">{</span><span class="n">pathway</span><span class="si">}</span><span class="s2">_contacts but has no "</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">pathway</span><span class="si">}</span><span class="s2"> pathway"</span>
+            <span class="p">)</span>
+        <span class="n">declare_contacts</span><span class="p">(</span>
+            <span class="n">synapse</span><span class="p">,</span>
+            <span class="n">contacts_mask</span><span class="p">(</span>
+                <span class="n">contacts</span><span class="p">,</span>
+                <span class="n">rows</span><span class="o">=</span><span class="n">synapse</span><span class="o">.</span><span class="n">out_features</span><span class="p">,</span>
+                <span class="n">in_features</span><span class="o">=</span><span class="n">synapse</span><span class="o">.</span><span class="n">in_features</span><span class="p">,</span>
+                <span class="n">n_soma</span><span class="o">=</span><span class="n">n_soma</span><span class="p">,</span>
+                <span class="n">name</span><span class="o">=</span><span class="sa">f</span><span class="s2">"level </span><span class="si">{</span><span class="n">override</span><span class="o">.</span><span class="n">depth</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">pathway</span><span class="si">}</span><span class="s2">_contacts"</span><span class="p">,</span>
+            <span class="p">),</span>
+        <span class="p">)</span>
+    <span class="k">for</span> <span class="n">pathway</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"excitatory"</span><span class="p">,</span> <span class="s2">"inhibitory"</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">override</span><span class="p">,</span> <span class="n">pathway</span><span class="p">):</span>
+            <span class="n">remove_synaptic_pathway</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span> <span class="n">pathway</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_soma_override_synapse_config</span><span class="p">(</span><span class="n">synapse_config</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return the synapse config to use for the soma output layer.</span>
+
+<span class="sd">    When ``reactivation.soma_type`` is set, the soma (``layer_idx=0``) stage</span>
+<span class="sd">    uses that activation type with ``soma_init_m`` / ``soma_init_b`` as its</span>
+<span class="sd">    initialization parameters, while every other branch level keeps the base</span>
+<span class="sd">    gate. ``soma_type=None`` (the default) returns the shared config object</span>
+<span class="sd">    unchanged, so historical construction is byte-identical.</span>
+<span class="sd">    """</span>
+
+    <span class="n">reactivation</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">synapse_config</span><span class="p">,</span> <span class="s2">"reactivation"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">soma_type</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">reactivation</span><span class="p">,</span> <span class="s2">"soma_type"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">soma_type</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">synapse_config</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">replace</span>
+
+    <span class="k">return</span> <span class="n">replace</span><span class="p">(</span>
+        <span class="n">synapse_config</span><span class="p">,</span>
+        <span class="n">reactivation</span><span class="o">=</span><span class="n">replace</span><span class="p">(</span>
+            <span class="n">reactivation</span><span class="p">,</span>
+            <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">soma_type</span><span class="p">),</span>
+            <span class="n">init_m</span><span class="o">=</span><span class="n">reactivation</span><span class="o">.</span><span class="n">soma_init_m</span><span class="p">,</span>
+            <span class="n">init_b</span><span class="o">=</span><span class="n">reactivation</span><span class="o">.</span><span class="n">soma_init_b</span><span class="p">,</span>
+            <span class="n">soma_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="p">),</span>
+    <span class="p">)</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">DendriNet</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Generates a linear layer of neurons, each of which consists of a sequential</span>
+<span class="sd">    structure of dendritic branches and inhibitory/excitatory inputs.</span>
+
+<span class="sd">    This network models the complex interactions between excitatory and</span>
+<span class="sd">    inhibitory inputs across multiple dendritic branches, simulating dendritic</span>
+<span class="sd">    processing in biological neurons.</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">n_soma</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">branch_factors</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">excitatory_input_dim</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">excitatory_synapses_per_branch</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">inhibitory_input_dim</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">inhibitory_synapses_per_branch</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">reactivate</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">somatic_synapses</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">topk_init_method</span><span class="o">=</span><span class="s2">"xavier_normal"</span><span class="p">,</span>
+        <span class="n">topk_noise_level</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+        <span class="n">topk_type</span><span class="o">=</span><span class="s2">"standard"</span><span class="p">,</span>  <span class="c1"># TopK implementation strategy.</span>
+        <span class="n">topk_weight_norm_order</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">topk_gamma</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
+        <span class="n">weight_transform</span><span class="o">=</span><span class="s2">"exp"</span><span class="p">,</span>  <span class="c1"># Weight transformation for positive weights</span>
+        <span class="n">topk_temperature</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>  <span class="c1"># Stochastic TopK temperature.</span>
+        <span class="n">topk_ultrafast</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>  <span class="c1"># ultrafast stochastic-topk default (set False for rank-probabilistic)</span>
+        <span class="n">topk_strategy</span><span class="o">=</span><span class="s2">"none"</span><span class="p">,</span>
+        <span class="n">use_shunting</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">reactivation_type</span><span class="o">=</span><span class="s2">"param_tanh"</span><span class="p">,</span>
+        <span class="n">dendritic_activation</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">reactivation_strategy</span><span class="o">=</span><span class="s2">"none"</span><span class="p">,</span>
+        <span class="n">blocklinear_strategy</span><span class="o">=</span><span class="s2">"none"</span><span class="p">,</span>
+        <span class="n">print_hooks</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">reactivation_init_m</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="n">reactivation_init_b</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
+        <span class="n">reactivation_init_policy</span><span class="o">=</span><span class="s2">"analytical"</span><span class="p">,</span>
+        <span class="n">reactivation_sigma_aware_k</span><span class="o">=</span><span class="mf">0.25</span><span class="p">,</span>
+        <span class="n">dbl_init_method</span><span class="o">=</span><span class="s2">"analytical_expectation"</span><span class="p">,</span>
+        <span class="c1"># DeepST-compatible sparse-rewiring parameters.</span>
+        <span class="n">excitatory_target_density</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+        <span class="n">inhibitory_target_density</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+        <span class="n">use_noise</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">sigma</span><span class="o">=</span><span class="mf">0.05</span><span class="p">,</span>
+        <span class="n">rewiring_mode</span><span class="o">=</span><span class="s2">"global"</span><span class="p">,</span>
+        <span class="n">rewire_frequency</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="n">synapses_per_branch</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">efficient_blocklinear</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">freeze_excitatory_connectivity</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">freeze_inhibitory_connectivity</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">init_method</span><span class="o">=</span><span class="n">_DEEPST_INIT_METHOD</span><span class="p">,</span>
+        <span class="n">weight_threshold</span><span class="o">=</span><span class="mf">1e-6</span><span class="p">,</span>
+        <span class="n">adaptive_initialization</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">adaptive_initialization_policy</span><span class="o">=</span><span class="s2">"preserve_shunting_center"</span><span class="p">,</span>
+        <span class="n">adaptive_target_conductance</span><span class="o">=</span><span class="mf">5.0</span><span class="p">,</span>
+        <span class="n">initial_child_conductance</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
+        <span class="n">initial_conductance_scale</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
+        <span class="n">initial_child_conductance_log_sd</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+        <span class="n">structured_connectivity</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">structured_layer_idx</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+        <span class="n">structured_excitatory_pathway</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"ee"</span><span class="p">,</span>
+        <span class="n">structured_inhibitory_pathway</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"ie"</span><span class="p">,</span>
+        <span class="n">synapse_config</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">config</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">level_overrides</span><span class="o">=</span><span class="p">(),</span>
+        <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="n">config</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">dendrinet_config</span> <span class="o">=</span> <span class="n">DendriNetConfig</span><span class="o">.</span><span class="n">from_config</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
+            <span class="n">config_kwargs</span> <span class="o">=</span> <span class="n">dendrinet_config</span><span class="o">.</span><span class="n">to_kwargs</span><span class="p">()</span>
+            <span class="n">reject_conflicts</span><span class="p">(</span>
+                <span class="s2">"DendriNet"</span><span class="p">,</span>
+                <span class="s2">"config"</span><span class="p">,</span>
+                <span class="n">config_kwargs</span><span class="p">,</span>
+                <span class="n">explicit_options</span><span class="p">(</span>
+                    <span class="p">{</span>
+                        <span class="n">name</span><span class="p">:</span> <span class="n">value</span>
+                        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="nb">locals</span><span class="p">()</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+                        <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">_DENDRINET_CONFIG_ARGUMENTS</span>
+                    <span class="p">},</span>
+                    <span class="n">_dendrinet_defaults</span><span class="p">(),</span>
+                <span class="p">),</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="n">synapse_config</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">DendriticSynapseConfig</span><span class="o">.</span><span class="n">from_config</span><span class="p">(</span>
+                <span class="n">synapse_config</span>
+            <span class="p">)</span> <span class="o">!=</span> <span class="n">DendriticSynapseConfig</span><span class="o">.</span><span class="n">from_config</span><span class="p">(</span><span class="n">dendrinet_config</span><span class="o">.</span><span class="n">synapse_config</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s2">"DendriNet received config and a different synapse_config; "</span>
+                    <span class="s2">"set the synapse options in config.synapse_config"</span>
+                <span class="p">)</span>
+            <span class="n">n_soma</span> <span class="o">=</span> <span class="n">config_kwargs</span><span class="p">[</span><span class="s2">"n_soma"</span><span class="p">]</span>
+            <span class="n">branch_factors</span> <span class="o">=</span> <span class="n">config_kwargs</span><span class="p">[</span><span class="s2">"branch_factors"</span><span class="p">]</span>
+            <span class="n">excitatory_input_dim</span> <span class="o">=</span> <span class="n">config_kwargs</span><span class="p">[</span><span class="s2">"excitatory_input_dim"</span><span class="p">]</span>
+            <span class="n">excitatory_synapses_per_branch</span> <span class="o">=</span> <span class="n">config_kwargs</span><span class="p">[</span>
+                <span class="s2">"excitatory_synapses_per_branch"</span>
+            <span class="p">]</span>
+            <span class="n">inhibitory_input_dim</span> <span class="o">=</span> <span class="n">config_kwargs</span><span class="p">[</span><span class="s2">"inhibitory_input_dim"</span><span class="p">]</span>
+            <span class="n">inhibitory_synapses_per_branch</span> <span class="o">=</span> <span class="n">config_kwargs</span><span class="p">[</span>
+                <span class="s2">"inhibitory_synapses_per_branch"</span>
+            <span class="p">]</span>
+            <span class="n">somatic_synapses</span> <span class="o">=</span> <span class="n">config_kwargs</span><span class="p">[</span><span class="s2">"somatic_synapses"</span><span class="p">]</span>
+            <span class="n">structured_connectivity</span> <span class="o">=</span> <span class="n">config_kwargs</span><span class="p">[</span><span class="s2">"structured_connectivity"</span><span class="p">]</span>
+            <span class="n">structured_layer_idx</span> <span class="o">=</span> <span class="n">config_kwargs</span><span class="p">[</span><span class="s2">"structured_layer_idx"</span><span class="p">]</span>
+            <span class="n">structured_excitatory_pathway</span> <span class="o">=</span> <span class="n">config_kwargs</span><span class="p">[</span>
+                <span class="s2">"structured_excitatory_pathway"</span>
+            <span class="p">]</span>
+            <span class="n">structured_inhibitory_pathway</span> <span class="o">=</span> <span class="n">config_kwargs</span><span class="p">[</span>
+                <span class="s2">"structured_inhibitory_pathway"</span>
+            <span class="p">]</span>
+            <span class="n">synapse_config</span> <span class="o">=</span> <span class="n">dendrinet_config</span><span class="o">.</span><span class="n">synapse_config</span>
+            <span class="n">level_overrides</span> <span class="o">=</span> <span class="n">dendrinet_config</span><span class="o">.</span><span class="n">level_overrides</span>
+            <span class="n">kwargs</span><span class="p">[</span><span class="s2">"additive_tangent_n0_by_depth"</span><span class="p">]</span> <span class="o">=</span> <span class="n">config_kwargs</span><span class="p">[</span>
+                <span class="s2">"additive_tangent_n0_by_depth"</span>
+            <span class="p">]</span>
+            <span class="n">kwargs</span><span class="p">[</span><span class="s2">"additive_tangent_t0_by_depth"</span><span class="p">]</span> <span class="o">=</span> <span class="n">config_kwargs</span><span class="p">[</span>
+                <span class="s2">"additive_tangent_t0_by_depth"</span>
+            <span class="p">]</span>
+
+        <span class="n">_validate_dendrinet_dimensions</span><span class="p">(</span>
+            <span class="n">n_soma</span><span class="o">=</span><span class="n">n_soma</span><span class="p">,</span>
+            <span class="n">branch_factors</span><span class="o">=</span><span class="n">branch_factors</span><span class="p">,</span>
+            <span class="n">excitatory_input_dim</span><span class="o">=</span><span class="n">excitatory_input_dim</span><span class="p">,</span>
+            <span class="n">excitatory_synapses_per_branch</span><span class="o">=</span><span class="n">excitatory_synapses_per_branch</span><span class="p">,</span>
+            <span class="n">inhibitory_input_dim</span><span class="o">=</span><span class="n">inhibitory_input_dim</span><span class="p">,</span>
+            <span class="n">inhibitory_synapses_per_branch</span><span class="o">=</span><span class="n">inhibitory_synapses_per_branch</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Store branch factors for network-aware initialization</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">branch_factors</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">branch_factors</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_branch_layers</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">branch_factors</span><span class="p">)</span>
+        <span class="n">layer_sizes</span><span class="p">,</span> <span class="n">input_branch_factors</span> <span class="o">=</span> <span class="n">_plan_dendrinet_branch_layout</span><span class="p">(</span>
+            <span class="n">n_soma</span><span class="p">,</span>
+            <span class="n">branch_factors</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">formal_synapse_kwargs</span> <span class="o">=</span> <span class="n">DendriticSynapseConfig</span><span class="o">.</span><span class="n">legacy_kwargs_from_mapping</span><span class="p">(</span>
+            <span class="nb">locals</span><span class="p">()</span>
+        <span class="p">)</span>
+        <span class="p">(</span>
+            <span class="n">synapse_config</span><span class="p">,</span>
+            <span class="n">branch_extra_kwargs</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">dendritic_activation</span><span class="p">,</span>
+            <span class="n">reactivate</span><span class="p">,</span>
+            <span class="n">reactivation_type</span><span class="p">,</span>
+        <span class="p">)</span> <span class="o">=</span> <span class="n">resolve_dendrinet_synapse_config</span><span class="p">(</span>
+            <span class="n">formal_synapse_kwargs</span><span class="o">=</span><span class="n">formal_synapse_kwargs</span><span class="p">,</span>
+            <span class="n">extra_kwargs</span><span class="o">=</span><span class="n">kwargs</span><span class="p">,</span>
+            <span class="n">synapse_config</span><span class="o">=</span><span class="n">synapse_config</span><span class="p">,</span>
+            <span class="n">branch_factors</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">branch_factors</span><span class="p">,</span>
+            <span class="n">dendritic_activation</span><span class="o">=</span><span class="n">dendritic_activation</span><span class="p">,</span>
+            <span class="n">reactivate</span><span class="o">=</span><span class="n">reactivate</span><span class="p">,</span>
+            <span class="n">reactivation_type</span><span class="o">=</span><span class="n">reactivation_type</span><span class="p">,</span>
+            <span class="n">formal_defaults</span><span class="o">=</span><span class="n">_dendrinet_defaults</span><span class="p">(),</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">synapse_config</span> <span class="o">=</span> <span class="n">synapse_config</span>
+
+        <span class="n">branch_layers</span> <span class="o">=</span> <span class="n">_build_dendrinet_branch_layers</span><span class="p">(</span>
+            <span class="n">n_soma</span><span class="o">=</span><span class="n">n_soma</span><span class="p">,</span>
+            <span class="n">n_branch_layers</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">n_branch_layers</span><span class="p">,</span>
+            <span class="n">branch_factors</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">branch_factors</span><span class="p">,</span>
+            <span class="n">layer_sizes</span><span class="o">=</span><span class="n">layer_sizes</span><span class="p">,</span>
+            <span class="n">input_branch_factors</span><span class="o">=</span><span class="n">input_branch_factors</span><span class="p">,</span>
+            <span class="n">excitatory_input_dim</span><span class="o">=</span><span class="n">excitatory_input_dim</span><span class="p">,</span>
+            <span class="n">excitatory_synapses_per_branch</span><span class="o">=</span><span class="n">excitatory_synapses_per_branch</span><span class="p">,</span>
+            <span class="n">inhibitory_input_dim</span><span class="o">=</span><span class="n">inhibitory_input_dim</span><span class="p">,</span>
+            <span class="n">inhibitory_synapses_per_branch</span><span class="o">=</span><span class="n">inhibitory_synapses_per_branch</span><span class="p">,</span>
+            <span class="n">somatic_synapses</span><span class="o">=</span><span class="n">somatic_synapses</span><span class="p">,</span>
+            <span class="n">structured_connectivity</span><span class="o">=</span><span class="n">structured_connectivity</span><span class="p">,</span>
+            <span class="n">structured_layer_idx</span><span class="o">=</span><span class="n">structured_layer_idx</span><span class="p">,</span>
+            <span class="n">structured_excitatory_pathway</span><span class="o">=</span><span class="n">structured_excitatory_pathway</span><span class="p">,</span>
+            <span class="n">structured_inhibitory_pathway</span><span class="o">=</span><span class="n">structured_inhibitory_pathway</span><span class="p">,</span>
+            <span class="n">synapse_config</span><span class="o">=</span><span class="n">synapse_config</span><span class="p">,</span>
+            <span class="n">branch_extra_kwargs</span><span class="o">=</span><span class="n">branch_extra_kwargs</span><span class="p">,</span>
+            <span class="n">level_overrides</span><span class="o">=</span><span class="n">level_overrides</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">level_overrides</span> <span class="o">=</span> <span class="n">normalize_level_overrides</span><span class="p">(</span><span class="n">level_overrides</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">branch_layers</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">ModuleList</span><span class="p">(</span><span class="n">branch_layers</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">branch_configs</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">layer</span><span class="o">.</span><span class="n">branch_config</span> <span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="n">branch_layers</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">reactivate</span> <span class="o">=</span> <span class="n">reactivate</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">layer_sizes</span> <span class="o">=</span> <span class="n">layer_sizes</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span> <span class="o">=</span> <span class="n">inhibitory_input_dim</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_soma</span> <span class="o">=</span> <span class="n">n_soma</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">somatic_synapses</span> <span class="o">=</span> <span class="n">somatic_synapses</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">efficient_blocklinear</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">synapse_config</span><span class="o">.</span><span class="n">morphology</span><span class="o">.</span><span class="n">efficient_blocklinear</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">apply_rewiring</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_layers</span><span class="p">:</span>
+            <span class="n">layer</span><span class="o">.</span><span class="n">apply_rewiring</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">decay_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">weight_decay</span><span class="p">,</span> <span class="n">weight_boosting</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">branch_layer</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_layers</span><span class="p">:</span>
+            <span class="n">branch_layer</span><span class="o">.</span><span class="n">decay_weights</span><span class="p">(</span><span class="n">weight_decay</span><span class="p">,</span> <span class="n">weight_boosting</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">inhibitory_input</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="n">output</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_layers</span><span class="p">:</span>
+            <span class="c1"># Every level receives the cell's inputs and its child outputs.</span>
+            <span class="n">output</span> <span class="o">=</span> <span class="n">layer</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">inhibitory_input</span><span class="p">,</span> <span class="n">output</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">output</span>
+
+<div class="viewcode-block" id="DendriNet.forward_levels">
+<a class="viewcode-back" href="../../../../../../api_reference.html#dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.dendrinet.DendriNet.forward_levels">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward_levels</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">x</span><span class="p">,</span>
+        <span class="n">inhibitory_input</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">detach_child_inputs</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">interventions</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Return the output of every level, terminal level first, soma last.</span>
+
+<span class="sd">        The outputs stay connected to the autograd graph. With</span>
+<span class="sd">        ``detach_child_inputs`` each level receives its children's output</span>
+<span class="sd">        detached, so a level's own parameters are the only ones its output</span>
+<span class="sd">        depends on through the graph (local learning rules differentiate</span>
+<span class="sd">        these outputs). ``interventions`` maps a level's depth (0 = soma) to a</span>
+<span class="sd">        labelled intervention such as ``CurrentInjection``; the level's output</span>
+<span class="sd">        is replaced by the intervention's and passed on to its parent.</span>
+<span class="sd">        Without these options the last output equals ``forward``.</span>
+<span class="sd">        """</span>
+        <span class="n">interventions</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">interventions</span> <span class="ow">or</span> <span class="p">{})</span>
+        <span class="n">depths</span> <span class="o">=</span> <span class="p">{</span><span class="n">layer</span><span class="o">.</span><span class="n">layer_idx</span> <span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_layers</span><span class="p">}</span>
+        <span class="n">unknown</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">interventions</span><span class="p">)</span> <span class="o">-</span> <span class="n">depths</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">unknown</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"interventions name levels that do not exist: </span><span class="si">{</span><span class="n">unknown</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="n">outputs</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">output</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_layers</span><span class="p">:</span>
+            <span class="n">child</span> <span class="o">=</span> <span class="n">output</span>
+            <span class="k">if</span> <span class="n">detach_child_inputs</span> <span class="ow">and</span> <span class="n">child</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">child</span> <span class="o">=</span> <span class="n">child</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span>
+            <span class="n">output</span> <span class="o">=</span> <span class="n">layer</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">inhibitory_input</span><span class="p">,</span> <span class="n">child</span><span class="p">)</span>
+            <span class="n">intervention</span> <span class="o">=</span> <span class="n">interventions</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">layer</span><span class="o">.</span><span class="n">layer_idx</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">intervention</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">output</span> <span class="o">=</span> <span class="n">intervention</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">inhibitory_input</span><span class="p">,</span> <span class="n">child</span><span class="p">)</span>
+            <span class="n">outputs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">output</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">outputs</span></div>
+
+
+<div class="viewcode-block" id="DendriNet.reinitialize">
+<a class="viewcode-back" href="../../../../../../api_reference.html#dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.dendrinet.DendriNet.reinitialize">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">reinitialize</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">recipe</span><span class="p">:</span> <span class="n">LogNormalReinitialization</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Redraw the log-conductances with an explicit recipe.</span>
+
+<span class="sd">        The draws come from the global random stream when this is called, in</span>
+<span class="sd">        the order the recipe documents, so a protocol decides where in its</span>
+<span class="sd">        stream they fall.</span>
+<span class="sd">        """</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">recipe</span><span class="p">,</span> <span class="n">LogNormalReinitialization</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">"recipe must be a LogNormalReinitialization"</span><span class="p">)</span>
+        <span class="n">apply_lognormal_reinitialization</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">branch_layers</span><span class="p">,</span> <span class="n">recipe</span><span class="p">)</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">sum_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pruned</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="n">exc_total</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span><span class="p">:</span>
+            <span class="n">inh_total</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="n">n_layers</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_branch_layers</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_layers</span><span class="p">):</span>
+            <span class="n">layer</span><span class="p">:</span> <span class="n">DendriticBranchLayer</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_layers</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+
+            <span class="k">if</span> <span class="n">layer</span><span class="o">.</span><span class="n">input_inhibitory</span> <span class="ow">and</span> <span class="n">layer</span><span class="o">.</span><span class="n">input_excitatory</span><span class="p">:</span>
+                <span class="n">weights</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">get_pruned_weights</span><span class="p">()</span> <span class="k">if</span> <span class="n">pruned</span> <span class="k">else</span> <span class="n">layer</span><span class="o">.</span><span class="n">get_weights</span><span class="p">()</span>
+                <span class="n">exc</span> <span class="o">=</span> <span class="n">weights</span><span class="p">[</span><span class="s2">"exc"</span><span class="p">]</span>
+                <span class="n">inh</span> <span class="o">=</span> <span class="n">weights</span><span class="p">[</span><span class="s2">"inh"</span><span class="p">]</span>
+                <span class="n">exc_chunk</span> <span class="o">=</span> <span class="n">exc</span><span class="o">.</span><span class="n">chunk</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_soma</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+                <span class="n">inh_chunk</span> <span class="o">=</span> <span class="n">inh</span><span class="o">.</span><span class="n">chunk</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_soma</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+                <span class="n">exc_total</span> <span class="o">=</span> <span class="n">exc_total</span> <span class="o">+</span> <span class="n">torch</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span>
+                    <span class="p">[</span><span class="n">chunk</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="n">exc_chunk</span><span class="p">],</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span>
+                <span class="p">)</span>
+                <span class="n">inh_total</span> <span class="o">=</span> <span class="n">inh_total</span> <span class="o">+</span> <span class="n">torch</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span>
+                    <span class="p">[</span><span class="n">chunk</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="n">inh_chunk</span><span class="p">],</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span>
+                <span class="p">)</span>
+
+            <span class="k">elif</span> <span class="n">layer</span><span class="o">.</span><span class="n">input_excitatory</span><span class="p">:</span>
+                <span class="n">weights</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">get_pruned_weights</span><span class="p">()</span> <span class="k">if</span> <span class="n">pruned</span> <span class="k">else</span> <span class="n">layer</span><span class="o">.</span><span class="n">get_weights</span><span class="p">()</span>
+                <span class="n">exc</span> <span class="o">=</span> <span class="n">weights</span><span class="p">[</span><span class="s2">"exc"</span><span class="p">]</span>
+                <span class="n">exc_chunk</span> <span class="o">=</span> <span class="n">exc</span><span class="o">.</span><span class="n">chunk</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_soma</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+                <span class="n">exc_total</span> <span class="o">=</span> <span class="n">exc_total</span> <span class="o">+</span> <span class="n">torch</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span>
+                    <span class="p">[</span><span class="n">chunk</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="n">exc_chunk</span><span class="p">],</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span>
+                <span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">exc_total</span><span class="p">,</span> <span class="n">inh_total</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">exc_total</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">log_sum_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pruned</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span><span class="p">:</span>
+            <span class="n">exc_total</span><span class="p">,</span> <span class="n">inh_total</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sum_weights</span><span class="p">(</span><span class="n">pruned</span><span class="o">=</span><span class="n">pruned</span><span class="p">)</span>
+            <span class="k">return</span> <span class="p">(</span><span class="n">exc_total</span> <span class="o">+</span> <span class="mf">1e-8</span><span class="p">)</span><span class="o">.</span><span class="n">log</span><span class="p">(),</span> <span class="p">(</span><span class="n">inh_total</span> <span class="o">+</span> <span class="mf">1e-8</span><span class="p">)</span><span class="o">.</span><span class="n">log</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">exc_total</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sum_weights</span><span class="p">(</span><span class="n">pruned</span><span class="o">=</span><span class="n">pruned</span><span class="p">)</span>
+            <span class="k">return</span> <span class="p">(</span><span class="n">exc_total</span> <span class="o">+</span> <span class="mf">1e-8</span><span class="p">)</span><span class="o">.</span><span class="n">log</span><span class="p">()</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"DendriNet"</span><span class="p">,</span> <span class="s2">"DendriNetConfig"</span><span class="p">]</span>
+
+
+<span class="n">_DENDRINET_CONFIG_ARGUMENTS</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(</span>
+    <span class="p">{</span>
+        <span class="s2">"n_soma"</span><span class="p">,</span>
+        <span class="s2">"branch_factors"</span><span class="p">,</span>
+        <span class="s2">"excitatory_input_dim"</span><span class="p">,</span>
+        <span class="s2">"excitatory_synapses_per_branch"</span><span class="p">,</span>
+        <span class="s2">"inhibitory_input_dim"</span><span class="p">,</span>
+        <span class="s2">"inhibitory_synapses_per_branch"</span><span class="p">,</span>
+        <span class="s2">"somatic_synapses"</span><span class="p">,</span>
+        <span class="s2">"structured_connectivity"</span><span class="p">,</span>
+        <span class="s2">"structured_layer_idx"</span><span class="p">,</span>
+        <span class="s2">"structured_excitatory_pathway"</span><span class="p">,</span>
+        <span class="s2">"structured_inhibitory_pathway"</span><span class="p">,</span>
+        <span class="s2">"level_overrides"</span><span class="p">,</span>
+    <span class="p">}</span>
+<span class="p">)</span>
+
+
+<span class="nd">@functools</span><span class="o">.</span><span class="n">lru_cache</span><span class="p">(</span><span class="n">maxsize</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_dendrinet_defaults</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Signature defaults of ``DendriNet.__init__``."""</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="n">name</span><span class="p">:</span> <span class="n">parameter</span><span class="o">.</span><span class="n">default</span>
+        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">parameter</span> <span class="ow">in</span> <span class="n">inspect</span><span class="o">.</span><span class="n">signature</span><span class="p">(</span><span class="n">DendriNet</span><span class="o">.</span><span class="fm">__init__</span><span class="p">)</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">parameter</span><span class="o">.</span><span class="n">default</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">inspect</span><span class="o">.</span><span class="n">Parameter</span><span class="o">.</span><span class="n">empty</span>
+    <span class="p">}</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024-2026, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -1,0 +1,457 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.level_overrides &mdash; DendriNet v0.3.0</title>
+      <link rel="stylesheet" type="text/css" href="../../../../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../../../../_static/documentation_options.js?v=e259d695"></script>
+      <script src="../../../../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../../../../index.html" class="icon icon-home">
+            DendriNet
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../examples.html">Example configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Building models</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../network_architectures.html">Model architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../dendritic_neurons.html">Dendritic neurons</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../synapses.html">Synapses and connectivity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../population_networks.html">Population networks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../temporal_dynamics.html">Temporal dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../structured_ei_cores.html">Structured E/I cores</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../conductance_options.html">Conductance options</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../comparison_models.html">Baselines and comparison models</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Configuration</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../configuration_guide.html">Configuration guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../config_reference.html">Annotated reference configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../training_strategies.html">Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../distributed_training.html">Distributed training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../performance_kernels.html">Sparse execution and performance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Data and analysis</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../datasets.html">Datasets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../analysis.html">Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../analyzers.html">Analyzer reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../checkpoint_analysis.html">Analyzing saved checkpoints</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Running experiments</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../runs_and_outputs.html">Runs and outputs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../sweeps.html">Parameter sweeps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../model_compression.html">Compact checkpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../project_provenance.html">Project provenance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../available_components.html">Component catalogue</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../options_reference.html">Options reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../cli_reference.html">Command-line reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../api_reference.html">Python API</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../extending.html">Extending DendriNet</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../engineering_architecture.html">Engineering architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../contributing.html">Contributing</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../../../index.html">DendriNet</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../../../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.level_overrides</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.level_overrides</h1><div class="highlight"><pre>
+<span></span><span class="sd">"""Per-level structure overrides for ``DendriNet``.</span>
+
+<span class="sd">A DendriNet builds every level from the same synapse counts, connectivity and</span>
+<span class="sd">activation. A level override changes one level: it removes a synaptic</span>
+<span class="sd">pathway, declares the inputs each compartment contacts, or gives the level its</span>
+<span class="sd">own activation.</span>
+<span class="sd">"""</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Mapping</span><span class="p">,</span> <span class="n">Sequence</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">fields</span><span class="p">,</span> <span class="n">replace</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.activations.factory</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">get_registered_activation_types</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">TopKLinear</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">PATHWAYS</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"excitatory"</span><span class="p">,</span> <span class="s2">"inhibitory"</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_contact_lists</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Normalize per-compartment contact lists to nested tuples of ints."""</span>
+    <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="n">message</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> must be a list of input-index lists, one per compartment"</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="nb">bytes</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">))</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">Sequence</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="n">message</span><span class="p">)</span>
+    <span class="n">rows</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">value</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">row</span><span class="p">,</span> <span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="nb">bytes</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">))</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">row</span><span class="p">,</span> <span class="n">Sequence</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="n">message</span><span class="p">)</span>
+        <span class="n">indices</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">index</span> <span class="ow">in</span> <span class="n">row</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="nb">bool</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> entries must be integer input indices"</span><span class="p">)</span>
+            <span class="n">indices</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">index</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">indices</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"every compartment in </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> needs at least one contact"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">indices</span><span class="p">))</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">indices</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> repeats an input within one compartment"</span><span class="p">)</span>
+        <span class="n">rows</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">indices</span><span class="p">))</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">rows</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> must list at least one compartment"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">rows</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="DendriticLevelOverride">
+<a class="viewcode-back" href="../../../../../../api_reference.html#dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.level_overrides.DendriticLevelOverride">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">DendriticLevelOverride</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Structure of one DendriNet level that differs from the shared settings.</span>
+
+<span class="sd">    ``depth`` counts levels from the soma: 0 is the soma, 1 the level whose</span>
+<span class="sd">    compartments couple into the soma, and the terminal level has depth</span>
+<span class="sd">    ``len(branch_factors)``.</span>
+
+<span class="sd">    ``excitatory: false`` or ``inhibitory: false`` remove that feedforward</span>
+<span class="sd">    pathway from the level. The pathway is built and initialized with the</span>
+<span class="sd">    others and removed afterwards, so every remaining parameter receives the</span>
+<span class="sd">    same random draws and initial values as in the model with the pathway</span>
+<span class="sd">    (matched initialization across pathway ablations).</span>
+
+<span class="sd">    ``excitatory_contacts`` and ``inhibitory_contacts`` declare the inputs</span>
+<span class="sd">    each compartment of the level contacts: a list of input indices per</span>
+<span class="sd">    compartment, either for every compartment of the level or once for the</span>
+<span class="sd">    compartments of one neuron, repeated for every neuron (compartments are</span>
+<span class="sd">    ordered neuron by neuron). They become the pathway's connection mask,</span>
+<span class="sd">    which is derived from configuration and not saved in checkpoints.</span>
+<span class="sd">    Selection by the pathway's synapse count still applies among the declared</span>
+<span class="sd">    contacts; declare at most that many per compartment for all of them to be</span>
+<span class="sd">    active.</span>
+
+<span class="sd">    ``activation`` names the level's activation (any registered activation</span>
+<span class="sd">    type; ``identity`` or ``none`` for none). ``None`` keeps the network-wide</span>
+<span class="sd">    setting.</span>
+<span class="sd">    """</span>
+
+    <span class="n">depth</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">excitatory</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">inhibitory</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">activation</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">excitatory_contacts</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">inhibitory_contacts</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">depth</span><span class="p">,</span> <span class="nb">bool</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">depth</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">"level override depth must be an integer"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">depth</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"level override depth must be &gt;= 0 (0 is the soma)"</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">pathway</span> <span class="ow">in</span> <span class="n">PATHWAYS</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pathway</span><span class="p">),</span> <span class="nb">bool</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"level override </span><span class="si">{</span><span class="n">pathway</span><span class="si">}</span><span class="s2"> must be true or false"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">activation</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">activation</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">"level override activation must be a string"</span><span class="p">)</span>
+            <span class="n">name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">activation</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">"none"</span><span class="p">,</span> <span class="s2">"identity"</span><span class="p">}</span> <span class="ow">and</span> <span class="p">(</span>
+                <span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">get_registered_activation_types</span><span class="p">()</span>
+            <span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Unknown level activation: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">activation</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">pathway</span> <span class="ow">in</span> <span class="n">PATHWAYS</span><span class="p">:</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">pathway</span><span class="si">}</span><span class="s2">_contacts"</span>
+            <span class="n">contacts</span> <span class="o">=</span> <span class="n">_contact_lists</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">),</span> <span class="n">key</span><span class="p">)</span>
+            <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">contacts</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">contacts</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pathway</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">"level </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">depth</span><span class="si">}</span><span class="s2"> removes its </span><span class="si">{</span><span class="n">pathway</span><span class="si">}</span><span class="s2"> pathway and also "</span>
+                    <span class="sa">f</span><span class="s2">"declares </span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">"</span>
+                <span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">from_config</span><span class="p">(</span>
+        <span class="bp">cls</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="n">DendriticLevelOverride</span> <span class="o">|</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DendriticLevelOverride</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Normalize an override object or mapping."""</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="bp">cls</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">value</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">):</span>
+            <span class="n">known</span> <span class="o">=</span> <span class="p">{</span><span class="n">item</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">fields</span><span class="p">(</span><span class="bp">cls</span><span class="p">)}</span>
+            <span class="n">unknown</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="o">-</span> <span class="n">known</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">unknown</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">"Unknown level override keys: </span><span class="si">{</span><span class="n">unknown</span><span class="si">}</span><span class="s2">; expected </span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="n">known</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
+                <span class="p">)</span>
+            <span class="k">if</span> <span class="s2">"depth"</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">value</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"a level override needs a depth"</span><span class="p">)</span>
+            <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="o">**</span><span class="nb">dict</span><span class="p">(</span><span class="n">value</span><span class="p">))</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">"a level override must be a DendriticLevelOverride or mapping"</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_config</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">"""Return the override as a plain mapping (lists for contacts)."""</span>
+        <span class="n">result</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"depth"</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">depth</span><span class="p">}</span>
+        <span class="n">defaults</span> <span class="o">=</span> <span class="p">{</span><span class="n">item</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="n">item</span><span class="o">.</span><span class="n">default</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">fields</span><span class="p">(</span><span class="bp">self</span><span class="p">)}</span>
+        <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">fields</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">item</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">item</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s2">"depth"</span> <span class="ow">or</span> <span class="n">value</span> <span class="o">==</span> <span class="n">defaults</span><span class="p">[</span><span class="n">item</span><span class="o">.</span><span class="n">name</span><span class="p">]:</span>
+                <span class="k">continue</span>
+            <span class="k">if</span> <span class="n">item</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">"_contacts"</span><span class="p">):</span>
+                <span class="n">value</span> <span class="o">=</span> <span class="p">[</span><span class="nb">list</span><span class="p">(</span><span class="n">row</span><span class="p">)</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">value</span><span class="p">]</span>
+            <span class="n">result</span><span class="p">[</span><span class="n">item</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+        <span class="k">return</span> <span class="n">result</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">is_identity</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Whether the override leaves its level unchanged."""</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">excitatory</span>
+            <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">inhibitory</span>
+            <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">activation</span> <span class="ow">is</span> <span class="kc">None</span>
+            <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">excitatory_contacts</span> <span class="ow">is</span> <span class="kc">None</span>
+            <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_contacts</span> <span class="ow">is</span> <span class="kc">None</span>
+        <span class="p">)</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">normalize_level_overrides</span><span class="p">(</span><span class="n">values</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">DendriticLevelOverride</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Return overrides sorted by depth, rejecting repeated depths."""</span>
+    <span class="k">if</span> <span class="n">values</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">()</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="nb">bytes</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">))</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">Sequence</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">"level_overrides must be a list of level overrides"</span><span class="p">)</span>
+    <span class="n">overrides</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">DendriticLevelOverride</span><span class="o">.</span><span class="n">from_config</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">values</span><span class="p">)</span>
+    <span class="n">depths</span> <span class="o">=</span> <span class="p">[</span><span class="n">override</span><span class="o">.</span><span class="n">depth</span> <span class="k">for</span> <span class="n">override</span> <span class="ow">in</span> <span class="n">overrides</span><span class="p">]</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">depths</span><span class="p">))</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">depths</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"level_overrides repeats a depth: </span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="n">depths</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">overrides</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">override</span><span class="p">:</span> <span class="n">override</span><span class="o">.</span><span class="n">depth</span><span class="p">))</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">overrides_by_depth</span><span class="p">(</span>
+    <span class="n">overrides</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">DendriticLevelOverride</span><span class="p">],</span> <span class="n">n_branch_layers</span><span class="p">:</span> <span class="nb">int</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">DendriticLevelOverride</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Index overrides by depth after checking every depth exists."""</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">override</span> <span class="ow">in</span> <span class="n">overrides</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">override</span><span class="o">.</span><span class="n">depth</span> <span class="o">&gt;</span> <span class="n">n_branch_layers</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"level override depth </span><span class="si">{</span><span class="n">override</span><span class="o">.</span><span class="n">depth</span><span class="si">}</span><span class="s2"> exceeds the terminal "</span>
+                <span class="sa">f</span><span class="s2">"level's depth (</span><span class="si">{</span><span class="n">n_branch_layers</span><span class="si">}</span><span class="s2">)"</span>
+            <span class="p">)</span>
+        <span class="n">result</span><span class="p">[</span><span class="n">override</span><span class="o">.</span><span class="n">depth</span><span class="p">]</span> <span class="o">=</span> <span class="n">override</span>
+    <span class="k">return</span> <span class="n">result</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">contacts_mask</span><span class="p">(</span>
+    <span class="n">contacts</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]],</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">rows</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">in_features</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">n_soma</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Boolean connection mask ``[rows, in_features]`` from contact lists."""</span>
+    <span class="n">per_neuron</span> <span class="o">=</span> <span class="n">rows</span> <span class="o">//</span> <span class="n">n_soma</span> <span class="k">if</span> <span class="n">rows</span> <span class="o">%</span> <span class="n">n_soma</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">contacts</span><span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">{</span><span class="n">rows</span><span class="p">,</span> <span class="n">per_neuron</span><span class="p">}:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> lists </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">contacts</span><span class="p">)</span><span class="si">}</span><span class="s2"> compartments; the level has </span><span class="si">{</span><span class="n">rows</span><span class="si">}</span><span class="s2"> "</span>
+            <span class="sa">f</span><span class="s2">"(</span><span class="si">{</span><span class="n">per_neuron</span><span class="si">}</span><span class="s2"> per neuron)"</span>
+        <span class="p">)</span>
+    <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">contacts</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">index</span> <span class="ow">in</span> <span class="n">row</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">index</span> <span class="o">&lt;</span> <span class="n">in_features</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> contains input </span><span class="si">{</span><span class="n">index</span><span class="si">}</span><span class="s2">, outside [0, </span><span class="si">{</span><span class="n">in_features</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2">]"</span>
+                <span class="p">)</span>
+    <span class="n">mask</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">rows</span><span class="p">,</span> <span class="n">in_features</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">bool</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">rows</span><span class="p">):</span>
+        <span class="n">mask</span><span class="p">[</span><span class="n">row</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">contacts</span><span class="p">[</span><span class="n">row</span> <span class="o">%</span> <span class="nb">len</span><span class="p">(</span><span class="n">contacts</span><span class="p">)])]</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="k">return</span> <span class="n">mask</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">level_synapse_config</span><span class="p">(</span><span class="n">synapse_config</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">activation</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""The synapse config of a level with its own activation."""</span>
+    <span class="k">if</span> <span class="n">activation</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">synapse_config</span>
+    <span class="k">return</span> <span class="n">replace</span><span class="p">(</span>
+        <span class="n">synapse_config</span><span class="p">,</span>
+        <span class="n">reactivation</span><span class="o">=</span><span class="n">replace</span><span class="p">(</span>
+            <span class="n">synapse_config</span><span class="o">.</span><span class="n">reactivation</span><span class="p">,</span>
+            <span class="n">dendritic_activation</span><span class="o">=</span><span class="n">activation</span><span class="o">.</span><span class="n">lower</span><span class="p">(),</span>
+            <span class="n">soma_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="p">),</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">remove_synaptic_pathway</span><span class="p">(</span><span class="n">layer</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">pathway</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Remove a feedforward pathway from a built branch layer.</span>
+
+<span class="sd">    The layer is left as if it had been constructed without that pathway:</span>
+<span class="sd">    no synapse module, no input flag and no pathway entries in its</span>
+<span class="sd">    ``branch_config``.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="n">pathway</span> <span class="o">==</span> <span class="s2">"excitatory"</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span> <span class="s2">"branch_excitation"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"level </span><span class="si">{</span><span class="n">layer</span><span class="o">.</span><span class="n">layer_idx</span><span class="si">}</span><span class="s2"> has no excitatory pathway to remove"</span>
+            <span class="p">)</span>
+        <span class="n">layer</span><span class="o">.</span><span class="n">branch_excitation</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">layer</span><span class="o">.</span><span class="n">input_excitatory</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="n">layer</span><span class="o">.</span><span class="vm">__dict__</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">"excitatory_input_dim"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="n">layer</span><span class="o">.</span><span class="n">branch_config</span> <span class="o">=</span> <span class="n">replace</span><span class="p">(</span>
+            <span class="n">layer</span><span class="o">.</span><span class="n">branch_config</span><span class="p">,</span>
+            <span class="n">excitatory_input_dim</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">excitatory_synapses_per_branch</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">excitatory_connection_indices</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">excitatory_connection_mask</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="k">elif</span> <span class="n">pathway</span> <span class="o">==</span> <span class="s2">"inhibitory"</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span> <span class="s2">"branch_inhibition"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"level </span><span class="si">{</span><span class="n">layer</span><span class="o">.</span><span class="n">layer_idx</span><span class="si">}</span><span class="s2"> has no inhibitory pathway to remove"</span>
+            <span class="p">)</span>
+        <span class="n">layer</span><span class="o">.</span><span class="n">branch_inhibition</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">layer</span><span class="o">.</span><span class="n">input_inhibitory</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="n">layer</span><span class="o">.</span><span class="vm">__dict__</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">"inhibitory_input_dim"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="n">layer</span><span class="o">.</span><span class="n">branch_config</span> <span class="o">=</span> <span class="n">replace</span><span class="p">(</span>
+            <span class="n">layer</span><span class="o">.</span><span class="n">branch_config</span><span class="p">,</span>
+            <span class="n">inhibitory_input_dim</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">inhibitory_synapses_per_branch</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">inhibitory_connection_indices</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">inhibitory_connection_mask</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Unknown pathway </span><span class="si">{</span><span class="n">pathway</span><span class="si">!r}</span><span class="s2">; expected one of </span><span class="si">{</span><span class="n">PATHWAYS</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">declare_contacts</span><span class="p">(</span><span class="n">synapse</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">mask</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Use configuration-declared contacts as a synapse's connection mask.</span>
+
+<span class="sd">    The mask is kept as a non-persistent buffer: configuration rebuilds it,</span>
+<span class="sd">    so checkpoints keep the layout of the same model without declared</span>
+<span class="sd">    contacts.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">synapse</span><span class="p">,</span> <span class="n">TopKLinear</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">"declared contacts need a dense synapse layer with a connection mask "</span>
+            <span class="sa">f</span><span class="s2">"(the TopK family); </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">synapse</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2"> stores its contacts "</span>
+            <span class="s2">"differently"</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">mask</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">!=</span> <span class="p">(</span><span class="n">synapse</span><span class="o">.</span><span class="n">out_features</span><span class="p">,</span> <span class="n">synapse</span><span class="o">.</span><span class="n">in_features</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"declared contacts have shape </span><span class="si">{</span><span class="nb">tuple</span><span class="p">(</span><span class="n">mask</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span><span class="si">}</span><span class="s2">, the synapse layer "</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="p">(</span><span class="n">synapse</span><span class="o">.</span><span class="n">out_features</span><span class="p">,</span><span class="w"> </span><span class="n">synapse</span><span class="o">.</span><span class="n">in_features</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
+        <span class="p">)</span>
+    <span class="n">synapse</span><span class="o">.</span><span class="n">register_buffer</span><span class="p">(</span>
+        <span class="s2">"connection_mask"</span><span class="p">,</span>
+        <span class="n">mask</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="o">=</span><span class="n">synapse</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">bool</span><span class="p">),</span>
+        <span class="n">persistent</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s2">"DendriticLevelOverride"</span><span class="p">,</span>
+    <span class="s2">"contacts_mask"</span><span class="p">,</span>
+    <span class="s2">"declare_contacts"</span><span class="p">,</span>
+    <span class="s2">"level_synapse_config"</span><span class="p">,</span>
+    <span class="s2">"normalize_level_overrides"</span><span class="p">,</span>
+    <span class="s2">"overrides_by_depth"</span><span class="p">,</span>
+    <span class="s2">"remove_synaptic_pathway"</span><span class="p">,</span>
+<span class="p">]</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024-2026, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

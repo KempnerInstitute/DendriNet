@@ -1,0 +1,313 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.reinitialization &mdash; DendriNet v0.3.0</title>
+      <link rel="stylesheet" type="text/css" href="../../../../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../../../../_static/documentation_options.js?v=e259d695"></script>
+      <script src="../../../../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../../../../index.html" class="icon icon-home">
+            DendriNet
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../examples.html">Example configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Building models</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../network_architectures.html">Model architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../dendritic_neurons.html">Dendritic neurons</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../synapses.html">Synapses and connectivity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../population_networks.html">Population networks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../temporal_dynamics.html">Temporal dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../structured_ei_cores.html">Structured E/I cores</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../conductance_options.html">Conductance options</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../comparison_models.html">Baselines and comparison models</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Configuration</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../configuration_guide.html">Configuration guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../config_reference.html">Annotated reference configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../training_strategies.html">Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../distributed_training.html">Distributed training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../performance_kernels.html">Sparse execution and performance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Data and analysis</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../datasets.html">Datasets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../analysis.html">Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../analyzers.html">Analyzer reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../checkpoint_analysis.html">Analyzing saved checkpoints</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Running experiments</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../runs_and_outputs.html">Runs and outputs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../sweeps.html">Parameter sweeps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../model_compression.html">Compact checkpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../project_provenance.html">Project provenance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../available_components.html">Component catalogue</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../options_reference.html">Options reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../cli_reference.html">Command-line reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../api_reference.html">Python API</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../extending.html">Extending DendriNet</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../engineering_architecture.html">Engineering architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../contributing.html">Contributing</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../../../index.html">DendriNet</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../../../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.reinitialization</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.reinitialization</h1><div class="highlight"><pre>
+<span></span><span class="sd">"""Explicit re-initialization recipes for ``DendriNet``.</span>
+
+<span class="sd">A recipe redraws a built network's log-conductances from the global random</span>
+<span class="sd">stream at the moment it is applied, so a protocol controls exactly where in</span>
+<span class="sd">its random stream the draws fall (for example after building a readout).</span>
+<span class="sd">"""</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Mapping</span><span class="p">,</span> <span class="n">Sequence</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">fields</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">TopKLinear</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">OFFSET_TARGETS</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"excitatory"</span><span class="p">,</span> <span class="s2">"inhibitory"</span><span class="p">,</span> <span class="s2">"coupling"</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="LogOffset">
+<a class="viewcode-back" href="../../../../../../api_reference.html#dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.reinitialization.LogOffset">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">LogOffset</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""A constant added to one level's log-weights after the draws."""</span>
+
+    <span class="n">depth</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">target</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">value</span><span class="p">:</span> <span class="nb">float</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">depth</span><span class="p">,</span> <span class="nb">bool</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">depth</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">"log offset depth must be an integer"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">target</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">OFFSET_TARGETS</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"log offset target must be one of </span><span class="si">{</span><span class="n">OFFSET_TARGETS</span><span class="si">}</span><span class="s2">, got </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">target</span><span class="si">!r}</span><span class="s2">"</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="nb">bool</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">)):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">"log offset value must be a number"</span><span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">from_config</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="n">LogOffset</span> <span class="o">|</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">LogOffset</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="bp">cls</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">value</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">):</span>
+            <span class="n">known</span> <span class="o">=</span> <span class="p">{</span><span class="n">item</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">fields</span><span class="p">(</span><span class="bp">cls</span><span class="p">)}</span>
+            <span class="n">unknown</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="o">-</span> <span class="n">known</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">unknown</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Unknown log offset keys: </span><span class="si">{</span><span class="n">unknown</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+            <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="o">**</span><span class="nb">dict</span><span class="p">(</span><span class="n">value</span><span class="p">))</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">"a log offset must be a LogOffset or mapping"</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="LogNormalReinitialization">
+<a class="viewcode-back" href="../../../../../../api_reference.html#dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.reinitialization.LogNormalReinitialization">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">LogNormalReinitialization</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Redraw synaptic and coupling log-weights from normal distributions.</span>
+
+<span class="sd">    Levels are visited in construction order (terminal level first, soma</span>
+<span class="sd">    last). At each level the excitatory, then the inhibitory synaptic</span>
+<span class="sd">    log-weights are drawn from N(``synapse_log_mean``, ``synapse_log_sd``)</span>
+<span class="sd">    over the full dense tensors (entries outside the connection mask</span>
+<span class="sd">    included), then the level's coupling log-weights from</span>
+<span class="sd">    N(``coupling_log_mean``, ``coupling_log_sd``). The ``log_offsets`` are</span>
+<span class="sd">    added after all draws, in the order given. Requires exponential weight</span>
+<span class="sd">    transforms (the parameters are log-conductances) and dense synapse layers.</span>
+<span class="sd">    """</span>
+
+    <span class="n">synapse_log_sd</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="n">coupling_log_sd</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="n">synapse_log_mean</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
+    <span class="n">coupling_log_mean</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
+    <span class="n">log_offsets</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">LogOffset</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"synapse_log_sd"</span><span class="p">,</span> <span class="s2">"coupling_log_sd"</span><span class="p">):</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">bool</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">)):</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> must be a number"</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">value</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> must be &gt;= 0"</span><span class="p">)</span>
+        <span class="n">offsets</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_offsets</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">offsets</span><span class="p">,</span> <span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="nb">bytes</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">))</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span>
+            <span class="n">offsets</span><span class="p">,</span> <span class="n">Sequence</span>
+        <span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">"log_offsets must be a list of offsets"</span><span class="p">)</span>
+        <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span> <span class="s2">"log_offsets"</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">LogOffset</span><span class="o">.</span><span class="n">from_config</span><span class="p">(</span><span class="n">item</span><span class="p">)</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">offsets</span><span class="p">)</span>
+        <span class="p">)</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_synapse_targets</span><span class="p">(</span><span class="n">layer</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]:</span>
+    <span class="n">targets</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">target</span><span class="p">,</span> <span class="n">attribute</span> <span class="ow">in</span> <span class="p">(</span>
+        <span class="p">(</span><span class="s2">"excitatory"</span><span class="p">,</span> <span class="s2">"branch_excitation"</span><span class="p">),</span>
+        <span class="p">(</span><span class="s2">"inhibitory"</span><span class="p">,</span> <span class="s2">"branch_inhibition"</span><span class="p">),</span>
+    <span class="p">):</span>
+        <span class="n">synapse</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span> <span class="n">attribute</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">synapse</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">synapse</span><span class="p">,</span> <span class="n">TopKLinear</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">"LogNormalReinitialization needs dense synapse layers (the TopK "</span>
+                <span class="sa">f</span><span class="s2">"family); level </span><span class="si">{</span><span class="n">layer</span><span class="o">.</span><span class="n">layer_idx</span><span class="si">}</span><span class="s2"> uses </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">synapse</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">)</span>
+        <span class="n">targets</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">target</span><span class="p">,</span> <span class="n">synapse</span><span class="o">.</span><span class="n">pre_w</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">targets</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">apply_lognormal_reinitialization</span><span class="p">(</span>
+    <span class="n">branch_layers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span> <span class="n">recipe</span><span class="p">:</span> <span class="n">LogNormalReinitialization</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Apply ``recipe`` to the branch layers of one DendriNet."""</span>
+    <span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="n">branch_layers</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">str</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span> <span class="s2">"weight_transform"</span><span class="p">,</span> <span class="s2">""</span><span class="p">))</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="o">!=</span> <span class="s2">"exp"</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">"LogNormalReinitialization needs weight_transform: exp (log-"</span>
+                <span class="sa">f</span><span class="s2">"conductance parameters); level </span><span class="si">{</span><span class="n">layer</span><span class="o">.</span><span class="n">layer_idx</span><span class="si">}</span><span class="s2"> uses "</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">layer</span><span class="o">.</span><span class="n">weight_transform</span><span class="si">!r}</span><span class="s2">"</span>
+            <span class="p">)</span>
+        <span class="k">for</span> <span class="n">attribute</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"branch_recurrent"</span><span class="p">,</span> <span class="s2">"branch_rec_inhibition"</span><span class="p">):</span>
+            <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span> <span class="n">attribute</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s2">"LogNormalReinitialization does not cover recurrent synapses"</span>
+                <span class="p">)</span>
+    <span class="n">by_depth</span> <span class="o">=</span> <span class="p">{</span><span class="n">layer</span><span class="o">.</span><span class="n">layer_idx</span><span class="p">:</span> <span class="n">layer</span> <span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="n">branch_layers</span><span class="p">}</span>
+    <span class="k">for</span> <span class="n">offset</span> <span class="ow">in</span> <span class="n">recipe</span><span class="o">.</span><span class="n">log_offsets</span><span class="p">:</span>
+        <span class="n">layer</span> <span class="o">=</span> <span class="n">by_depth</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">offset</span><span class="o">.</span><span class="n">depth</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">layer</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"log offset depth </span><span class="si">{</span><span class="n">offset</span><span class="o">.</span><span class="n">depth</span><span class="si">}</span><span class="s2"> is not a level"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">offset</span><span class="o">.</span><span class="n">target</span> <span class="o">==</span> <span class="s2">"coupling"</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span> <span class="s2">"input_branches"</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"level </span><span class="si">{</span><span class="n">offset</span><span class="o">.</span><span class="n">depth</span><span class="si">}</span><span class="s2"> has no couplings to offset"</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">offset</span><span class="o">.</span><span class="n">target</span> <span class="ow">not</span> <span class="ow">in</span> <span class="nb">dict</span><span class="p">(</span><span class="n">_synapse_targets</span><span class="p">(</span><span class="n">layer</span><span class="p">)):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"level </span><span class="si">{</span><span class="n">offset</span><span class="o">.</span><span class="n">depth</span><span class="si">}</span><span class="s2"> has no </span><span class="si">{</span><span class="n">offset</span><span class="o">.</span><span class="n">target</span><span class="si">}</span><span class="s2"> pathway"</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
+        <span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="n">branch_layers</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">_target</span><span class="p">,</span> <span class="n">weight</span> <span class="ow">in</span> <span class="n">_synapse_targets</span><span class="p">(</span><span class="n">layer</span><span class="p">):</span>
+                <span class="n">weight</span><span class="o">.</span><span class="n">normal_</span><span class="p">(</span><span class="n">recipe</span><span class="o">.</span><span class="n">synapse_log_mean</span><span class="p">,</span> <span class="n">recipe</span><span class="o">.</span><span class="n">synapse_log_sd</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span> <span class="s2">"input_branches"</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
+                <span class="n">layer</span><span class="o">.</span><span class="n">branches_to_output</span><span class="o">.</span><span class="n">log_weight</span><span class="o">.</span><span class="n">normal_</span><span class="p">(</span>
+                    <span class="n">recipe</span><span class="o">.</span><span class="n">coupling_log_mean</span><span class="p">,</span> <span class="n">recipe</span><span class="o">.</span><span class="n">coupling_log_sd</span>
+                <span class="p">)</span>
+        <span class="k">for</span> <span class="n">offset</span> <span class="ow">in</span> <span class="n">recipe</span><span class="o">.</span><span class="n">log_offsets</span><span class="p">:</span>
+            <span class="n">layer</span> <span class="o">=</span> <span class="n">by_depth</span><span class="p">[</span><span class="n">offset</span><span class="o">.</span><span class="n">depth</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">offset</span><span class="o">.</span><span class="n">target</span> <span class="o">==</span> <span class="s2">"coupling"</span><span class="p">:</span>
+                <span class="n">layer</span><span class="o">.</span><span class="n">branches_to_output</span><span class="o">.</span><span class="n">log_weight</span><span class="o">.</span><span class="n">add_</span><span class="p">(</span><span class="n">offset</span><span class="o">.</span><span class="n">value</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="nb">dict</span><span class="p">(</span><span class="n">_synapse_targets</span><span class="p">(</span><span class="n">layer</span><span class="p">))[</span><span class="n">offset</span><span class="o">.</span><span class="n">target</span><span class="p">]</span><span class="o">.</span><span class="n">add_</span><span class="p">(</span><span class="n">offset</span><span class="o">.</span><span class="n">value</span><span class="p">)</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s2">"LogNormalReinitialization"</span><span class="p">,</span>
+    <span class="s2">"LogOffset"</span><span class="p">,</span>
+    <span class="s2">"apply_lognormal_reinitialization"</span><span class="p">,</span>
+<span class="p">]</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024-2026, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

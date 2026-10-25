@@ -101,6 +101,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#trainer-strategies">Trainer strategies</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#analyzers">Analyzers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#additive-integration-rules">Additive integration rules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sparse-synapse-layers">Sparse synapse layers</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="engineering_architecture.html">Engineering architecture</a></li>
@@ -420,6 +421,36 @@ For example,
 <code class="docutils literal notranslate"><span class="pre">layer.branch_excitation.project_with_weights(x.abs(),</span> <span class="pre">w.abs())</span></code>, with
 <code class="docutils literal notranslate"><span class="pre">w</span> <span class="pre">=</span> <span class="pre">layer.branch_excitation.effective_sparse_weight()</span></code>, sums the magnitudes
 of the excitatory drives of each branch.</p>
+</section>
+<section id="sparse-synapse-layers">
+<h2>Sparse synapse layers<a class="headerlink" href="#sparse-synapse-layers" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">register_sparse_layer(name,</span> <span class="pre">layer_class)</span></code> adds a synapse layer that
+<code class="docutils literal notranslate"><span class="pre">sparsity.type</span></code> (<code class="docutils literal notranslate"><span class="pre">topk_type</span></code> in the options of a population) selects, and
+<code class="docutils literal notranslate"><span class="pre">sparsity.options</span></code> (<code class="docutils literal notranslate"><span class="pre">topk_options</span></code>) holds the options of its constructor.
+The options must be a mapping; omitting them, or <code class="docutils literal notranslate"><span class="pre">null</span></code>, means none. The
+built-in types take no options and reject a non-empty mapping. Population
+networks, the model builders and the transformer FFN and E/I-stack
+replacements all pass the options to the layer.</p>
+<p>A registered subclass of
+<code class="xref py py-class docutils literal notranslate"><span class="pre">IndexedSparseLinear</span></code>
+is built like <code class="docutils literal notranslate"><span class="pre">type:</span> <span class="pre">indexed</span></code>: it receives the layer’s seed, output chunk size
+and indexed storage and execution options (among them
+<code class="docutils literal notranslate"><span class="pre">indexed_projection_backend</span></code>, so the accelerator kernels apply), and it reads
+the options that <code class="docutils literal notranslate"><span class="pre">indexed</span></code> reads. The forward projection applies
+<code class="docutils literal notranslate"><span class="pre">sparse_weight()</span></code>, so a subclass that overrides it changes the weights every
+backend uses. Any other registered type receives the generic sparse options
+(<code class="docutils literal notranslate"><span class="pre">init_method</span></code>, <code class="docutils literal notranslate"><span class="pre">noise_level</span></code>, <code class="docutils literal notranslate"><span class="pre">weight_transform</span></code>, <code class="docutils literal notranslate"><span class="pre">weight_norm_order</span></code>,
+<code class="docutils literal notranslate"><span class="pre">gamma</span></code> and the connection mask) and its own options.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">core</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">sparsity</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">scaled_indexed</span>
+<span class="w">      </span><span class="nt">options</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">scale</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2.0</span>
+<span class="w">      </span><span class="nt">indexed</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">projection_backend</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">auto</span>
+</pre></div>
+</div>
 </section>
 </section>
 
