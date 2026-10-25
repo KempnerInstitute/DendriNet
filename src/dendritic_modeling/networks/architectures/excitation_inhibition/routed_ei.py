@@ -12,7 +12,10 @@ from torch import nn
 from torch.nn import functional as F
 
 from dendritic_modeling.config.routed_ei import RoutedEIConfig
-from dendritic_modeling.networks.functional import additive_voltage, shunting_voltage
+from dendritic_modeling.networks.functional import (
+    _raw_current_sum,
+    _shunting_current_components,
+)
 from dendritic_modeling.networks.utils.routing import (
     assignment_statistics,
     routing_assignments,
@@ -130,8 +133,12 @@ class RoutedEIReadout(nn.Module):
                 or value.device != self.route_logits.device
             ):
                 raise ValueError("inputs must match the model dtype and device")
-            if not bool(torch.isfinite(value).all()) or bool((value < 0).any()):
-                raise ValueError("routed_ei inputs must be finite and nonnegative")
+        # One host synchronization checks both streams.
+        valid = ((excitation >= 0) & torch.isfinite(excitation)).all() & (
+            (inhibition >= 0) & torch.isfinite(inhibition)
+        ).all()
+        if not bool(valid):
+            raise ValueError("routed_ei inputs must be finite and nonnegative")
         return excitation, inhibition
 
     def drives(self, excitation, inhibition=None, *, hard=None):
@@ -184,12 +191,16 @@ class RoutedEIReadout(nn.Module):
     def _branch_preactivation(self, excitation, inhibition, *, hard):
         excitation, inhibition = self._inputs(excitation, inhibition)
         e, i = self._drives(excitation, inhibition, hard=hard)
+        # The arithmetic of networks.functional without its operand checks,
+        # which read tensors on the host: validated inputs and normalized
+        # positive weights make these currents finite and nonnegative.
         if self.config.mechanism == "additive":
-            voltage = additive_voltage(e, i)
+            voltage = _raw_current_sum(e, 0.0, i, 0.0, 0.0)
         else:
-            voltage = shunting_voltage(
-                e, i, leak=self.config.leak_conductance, epsilon=self.config.epsilon
+            numerator, denominator = _shunting_current_components(
+                e, 0.0, i, 0.0, 0.0, None, self.config.leak_conductance
             )
+            voltage = numerator / (denominator + self.config.epsilon)
         preactivation = (
             self.config.branch_scale
             * (voltage - self.config.branch_center)

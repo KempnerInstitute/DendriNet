@@ -440,6 +440,7 @@ def test_drives_are_the_currents_the_forward_integrates(
     assert torch.equal(i_drive, response["i_drive"])
     if support == "global_mean":
         assert torch.equal(i_drive, i.mean(dim=1, keepdim=True))
+    # The forward's unchecked arithmetic equals the checked public functions.
     voltage = (
         additive_voltage(e_drive, i_drive)
         if mechanism == "additive"
