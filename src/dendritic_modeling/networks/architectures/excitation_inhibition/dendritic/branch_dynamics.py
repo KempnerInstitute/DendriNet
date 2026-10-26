@@ -296,6 +296,16 @@ def forward_branch_dynamics(
     analysis_rule = active_branch_rule_override(owner)
     if analysis_rule is not None:
         check_branch_rule_override_target(owner)
+    perturbation = getattr(owner, "_compartment_perturbation", None)
+    if (
+        perturbation is not None
+        and perturbation.coordinate == "current"
+        and not owner.use_shunting
+    ):
+        raise ValueError(
+            "a current perturbation needs a shunting layer; this layer integrates "
+            f"with {owner.additive_mode!r}"
+        )
     needs_components = (
         store_diagnostics
         or analysis_rule is not None
@@ -386,6 +396,7 @@ def forward_branch_dynamics(
         and not getattr(owner, "_store_analysis_currents", False)
         and analysis_rule is None
         and rounding is None
+        and perturbation is None
     ):
         fused_shunt = fused_shunt_reactivation(owner.reactivation)
 
@@ -395,6 +406,12 @@ def forward_branch_dynamics(
         denominator = shunt_denominator
     elif owner.use_shunting:
         denominator = shunt_denominator
+        if perturbation is not None and perturbation.coordinate == "current":
+            # An injected current joins the numerator; the total conductance
+            # in the denominator attenuates it.
+            if not isinstance(shunt_numerator, torch.Tensor):
+                shunt_numerator = torch.zeros_like(denominator)
+            shunt_numerator = perturbation.add_to(shunt_numerator)
         if analysis_rule is None:
             voltage = shunt_numerator / (denominator + owner.epsilon)
         else:
@@ -424,6 +441,8 @@ def forward_branch_dynamics(
                 else None
             ),
         )
+    if perturbation is not None and perturbation.coordinate == "voltage":
+        voltage = perturbation.add_to(voltage)
     if rounding is not None:
         voltage = round_signal(voltage, rounding)
 
@@ -463,6 +482,8 @@ def forward_branch_dynamics(
         result = fused_shunt(shunt_numerator, denominator, owner.epsilon)
     else:
         result = round_signal(owner.reactivation(voltage), rounding)
+    if perturbation is not None and perturbation.coordinate == "output":
+        result = perturbation.add_to(result)
     if getattr(owner, "_store_analysis_currents", False):
         owner._last_analysis_currents = {
             # Canonical stage-explicit analysis names.
@@ -487,6 +508,11 @@ def compute_branch_raw_currents(
     rec_inhibitory_input=None,
 ):
     """Compute raw feedforward and recurrent branch currents."""
+    if getattr(owner, "_compartment_perturbation", None) is not None:
+        raise ValueError(
+            "compartment perturbations act in DendriticBranchLayer.forward; the "
+            "stateful current path does not apply them"
+        )
     store_diagnostics = bool(getattr(owner, "_store_diagnostics", False))
     active_pathways: set[str] = set()
     raw_E = 0

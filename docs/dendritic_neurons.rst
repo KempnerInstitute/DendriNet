@@ -524,6 +524,42 @@ through the fused gate; the forward output is the same.
        voltages = [currents["pre_gate_voltage"] for currents in captured]
        credit = torch.autograd.grad(loss, voltages)
 
+.. _compartment-perturbations:
+
+Compartment perturbations
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``perturb_compartments({layer: CompartmentPerturbation(offset, coordinate)})``
+adds ``offset`` to a branch layer's compartments inside a ``with`` block,
+during the layer's own forward pass, so the layer still runs once. The
+coordinate is ``output`` (added after the layer's activation: the signal its
+parent receives), ``voltage`` (added before the activation, so the
+activation's slope applies) or, for shunting layers, ``current`` (an injected
+current added to the numerator of ``V = (N + J) / (D + epsilon)``, so the
+layer's total conductance attenuates it). The offset must broadcast to the
+layer's output ``[batch, compartments]`` and match its device and dtype;
+compartments left alone get zeros. On exit each layer returns to its previous
+perturbation. Perturbations change no parameter or buffer, and the stateful
+current path of ``StatefulDendriNet`` refuses them. While a perturbation is
+set, a shunting layer forms its voltage explicitly instead of through the
+fused gate, with the same output for a zero offset. The gradient of a loss
+with respect to a zero offset that requires gradients is the exact error of
+the compartments in that coordinate:
+
+.. code-block:: python
+
+   import torch
+   from dendritic_modeling.networks import CompartmentPerturbation, perturb_compartments
+
+   layer = neuron.branch_layers[0]  # the terminal level
+   zero = torch.zeros(len(x), layer.branch_config.output_dim, requires_grad=True)
+   with perturb_compartments({layer: CompartmentPerturbation(zero, "current")}):
+       loss = torch.nn.functional.cross_entropy(model(x), y)
+   current_error = torch.autograd.grad(loss, zero)[0]
+
+Node-perturbation estimates of the same errors from loss changes are described
+in :ref:`node-perturbation`.
+
 Analysis-only rule overrides
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

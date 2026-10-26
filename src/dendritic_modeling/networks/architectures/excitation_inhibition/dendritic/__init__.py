@@ -14,11 +14,15 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.b
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer import (
     DendriticBranchLayer,
     capture_analysis_currents,
+    perturb_compartments,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_rule_override import (
     BRANCH_RULE_OVERRIDES,
     BranchRuleOverride,
     override_branch_rules,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.compartment_perturbation import (
+    CompartmentPerturbation,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.dendrinet import (
     DendriNet,
@@ -55,6 +59,7 @@ __all__ = [
     "AdaptiveInitConfig",
     "BlockLinear",
     "BranchRuleOverride",
+    "CompartmentPerturbation",
     "DeepSTConfig",
     "DendriNet",
     "DendriNetConfig",
@@ -75,4 +80,5 @@ __all__ = [
     "create_gabor_unit",
     "create_motion_unit",
     "override_branch_rules",
+    "perturb_compartments",
 ]
