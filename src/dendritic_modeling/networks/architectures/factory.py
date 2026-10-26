@@ -2,6 +2,7 @@ import dataclasses
 import logging
 import math
 from collections.abc import Callable
+from contextlib import contextmanager
 from typing import Any, Optional, Union
 
 import torch
@@ -14,6 +15,7 @@ from dendritic_modeling.config.conversion import to_plain_dict as _to_plain_mapp
 from dendritic_modeling.config.core_sections import BUILTIN_CORE_TYPES
 from dendritic_modeling.config.model_aliases import get_core_morphology_alias_overrides
 from dendritic_modeling.config.recurrence import _STRUCTURED_EI_TYPES, _UNIFIED_EI_TYPES
+from dendritic_modeling.config.seeds import derive_seed
 from dendritic_modeling.config.shared_projection import SharedProjectionShuntingConfig
 from dendritic_modeling.networks.architectures.biological_constraints import (
     enforce_biological_neuron,
@@ -104,6 +106,23 @@ ArchitectureBuilder = Callable[
     [str, Union[dict[str, Any], DictConfig], Optional[int], Optional[int]],
     nn.Module,
 ]
+
+
+@contextmanager
+def _keyed_initialization_stream(seed, core_type):
+    """Construct a control core from a CPU stream keyed by an explicit seed.
+
+    ``None`` keeps the caller's global stream. The key keeps a seed equal to
+    the run's model seed from replaying the draws of an encoder built from it.
+    """
+    if seed is None:
+        yield
+        return
+    with torch.random.fork_rng(devices=[]):
+        torch.random.default_generator.manual_seed(
+            derive_seed(int(seed), f"core.{core_type}.initialization")
+        )
+        yield
 
 
 def _build_einet_architecture(
@@ -409,10 +428,7 @@ def _build_routed_ei_architecture(type, parameters, input_dim, suffix_input_dim)
     if suffix_input_dim is not None and suffix_input_dim != config.output_dim:
         raise ValueError("routed_ei output dimension does not match the decoder")
     seed = raw.get("initialization_seed")
-    if seed is None:
-        return build_routed_ei(config)
-    with torch.random.fork_rng(devices=[]):
-        torch.random.default_generator.manual_seed(int(seed))
+    with _keyed_initialization_stream(seed, "routed_ei"):
         return build_routed_ei(config)
 
 

@@ -16,6 +16,7 @@ from dendritic_modeling.config import (
     load_config,
 )
 from dendritic_modeling.config.regularization import RegularizationConfig
+from dendritic_modeling.config.seeds import derive_seed
 from dendritic_modeling.networks.architectures.classical.pathway_router import (
     PathwayRouter,
 )
@@ -314,13 +315,21 @@ def test_new_section_is_none_and_old_models_are_identical():
         assert torch.equal(tensor, new.state_dict()[key])
 
 
-def test_explicit_initialization_seed_preserves_callers_stream():
+def test_explicit_initialization_seed_selects_a_keyed_stream():
     raw = {"routed_ei": asdict(spec()), "initialization_seed": 4}
     rng = torch.get_rng_state().clone()
     a = get_architecture("routed_ei", raw)
     b = get_architecture("routed_ei", raw)
     assert torch.equal(rng, torch.get_rng_state())
     assert all(torch.equal(v, b.state_dict()[k]) for k, v in a.state_dict().items())
+    # Keyed by the core type, so an encoder built after manual_seed(4) is not
+    # replayed by the core.
+    built = []
+    for seed in (derive_seed(4, "core.routed_ei.initialization"), 4):
+        torch.manual_seed(seed)
+        built.append(build_routed_ei(spec()).route_logits)
+    assert torch.equal(a.route_logits, built[0])
+    assert not torch.equal(a.route_logits, built[1])
 
 
 def test_reused_pathway_soft_assignments_are_exact():
@@ -813,6 +822,23 @@ def test_example_reuses_existing_dataset_loader():
         assert x.min() >= 0 and labels.max() < cfg.model.core.routed_ei.output_dim
         logits = model(x[:4])
         assert logits.shape == (4, 2) and torch.isfinite(logits).all()
+
+
+def test_training_builds_the_control_from_the_global_stream():
+    from dendritic_modeling.scripts.script_utils.setup_utils import (
+        _apply_initialization_seed_defaults,
+    )
+
+    cfg = config_from_mapping(mapping())
+    _apply_initialization_seed_defaults(cfg.model, 41)
+    assert cfg.model.core.initialization_seed is None
+    torch.manual_seed(41)  # As training's set_seed(model_seed).
+    trained = initialize_model(cfg.model)[0].core_network
+    torch.manual_seed(41)
+    direct = build_routed_ei(spec())
+    assert all(
+        torch.equal(v, direct.state_dict()[k]) for k, v in trained.state_dict().items()
+    )
 
 
 def test_training_filled_seeds_do_not_warn_about_unused_sections(caplog):

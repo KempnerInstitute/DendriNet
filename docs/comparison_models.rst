@@ -539,6 +539,10 @@ Only ordinary backpropagation with the standard trainer is qualified.
 LocalCA, feedback alignment and recurrent configurations raise during loading.
 The affine readout prevents a ``biological_neuron: true`` declaration.
 No production paper pin is changed merely by selecting this architecture.
+Training builds the control from the run's global random stream, as direct
+construction after ``torch.manual_seed(model_seed)`` and any encoder draws
+would. An explicit ``core.initialization_seed`` instead draws it from a CPU
+stream keyed by that seed and the core type.
 
 Routing regularization is opt-in under
 ``training.main.regularization``. ``routing_entropy_weight`` penalizes
