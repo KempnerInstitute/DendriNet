@@ -120,14 +120,26 @@ def test_group_basis_rejects_invalid_groups(groups, message):
         group_basis(groups, SIZE)
 
 
+def test_group_basis_needs_integer_indices_and_size():
+    with pytest.raises(TypeError, match="integer indices"):
+        group_basis([[0.0, 1]], SIZE)
+    with pytest.raises(TypeError, match="size must be an integer"):
+        group_basis([[0, 1]], float(SIZE))
+
+
 @pytest.mark.parametrize(
     "settings, message",
     [
         ({"scale": 0.0}, "scale must be positive"),
         ({"scale": math.nan}, "scale must be positive"),
-        ({"draws": []}, "positive counts"),
-        ({"draws": [0, 4]}, "positive counts"),
+        ({"scale": True}, "scale must be a number"),
+        ({"draws": []}, "at least one draw count"),
+        ({"draws": [0, 4]}, "draw count must be positive"),
+        ({"draws": [1.5]}, "draw count must be an integer"),
+        ({"draws": [True]}, "draw count must be an integer"),
+        ({"draws": 4}, "collection of counts"),
         ({"chunk": 0}, "chunk must be positive"),
+        ({"chunk": 2.0}, "chunk must be an integer"),
         ({"basis": torch.ones(SIZE, 2, dtype=torch.float64)}, "orthonormal"),
         ({"basis": torch.eye(SIZE + 1, dtype=torch.float64)}, "shape"),
         ({"basis": torch.eye(SIZE)}, "device and dtype"),
@@ -161,3 +173,26 @@ def test_draws_on_the_gpu_need_a_gpu_generator():
         loss, device="cuda", generator=torch.Generator(device="cuda").manual_seed(7)
     )
     assert found.estimates[16].device.type == "cuda"
+
+
+@pytest.mark.requires_gpu
+def test_an_unindexed_cuda_device_accepts_a_basis_on_the_current_device():
+    loss_cpu, _, _ = _quadratic()
+
+    def loss(offset):
+        return loss_cpu(offset.cpu()).to(offset.device)
+
+    # Tensors report cuda:0; the requested device "cuda" must still match them.
+    basis = group_basis([[0, 1], [2, 3, 4]], SIZE, dtype=torch.float64, device="cuda")
+    found = _estimate(
+        loss,
+        device="cuda",
+        basis=basis,
+        generator=torch.Generator(device="cuda").manual_seed(7),
+    )
+    assert found.estimates[16].device == basis.device
+    # Without a device the draws are made on the generator's.
+    default = _estimate(
+        loss, basis=basis, generator=torch.Generator(device="cuda").manual_seed(7)
+    )
+    assert torch.equal(default.estimates[16], found.estimates[16])

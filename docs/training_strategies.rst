@@ -1268,9 +1268,10 @@ per example.
   unreduced per-example losses ``[c, B]``; the result holds the estimate for
   every count in ``draws`` (larger counts extend the draws of smaller ones)
   and ``evaluations_per_example(draws)``. The draws come from ``generator``
-  (on the device of the estimate) one at a time, so they do not depend on
-  ``chunk``. Scales, counts, chunk, generator device, basis shape and
-  orthonormality are checked;
+  one at a time, so they do not depend on ``chunk``, and are made on
+  ``device`` (by default the generator's; ``"cuda"`` means the current CUDA
+  device). Scales, integer counts and chunk, the generator's device, the
+  basis's device, dtype, shape and orthonormality are checked;
 - ``group_basis(groups, size)``: orthonormal columns averaging disjoint groups
   of coordinates (for example the children of each parent); overlapping,
   empty or out-of-range groups raise.

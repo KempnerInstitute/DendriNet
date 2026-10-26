@@ -936,22 +936,40 @@ perturbation. ``coordinate`` is ``output``, ``voltage`` or, for shunting
 levels, ``current``. ``dictionaries`` sets the perturbation directions:
 ``independent`` (every compartment), ``siblings`` (one direction per group of
 children of a parent) or ``neuron`` (one per neuron). ``relative_scales``
-multiply the RMS of the perturbed quantity on the analysed examples (for
-``current``, the shunting numerator). ``match_perturbation_energy`` adds runs
-of the structured dictionaries scaled by sqrt(D / m), so their expected
-perturbation energy equals that of independent draws. ``loss`` is
-``cross_entropy`` (class labels) or ``mse``. The tree selection and checks are
-those of ``path_matched_intervention``; levels must run
-``DendriticBranchLayer.forward`` (population networks, whose cells take the
-stateful current path, are refused), and the core must be feedforward.
+multiply the RMS of the perturbed quantity over the level on the analysed
+examples (for ``current``, the shunting numerator).
+``match_perturbation_energy`` adds runs of the structured dictionaries scaled
+by sqrt(D / m), so their expected perturbation energy equals that of
+independent draws. ``loss`` is ``cross_entropy`` (class labels) or ``mse``.
+The first ``max_samples`` examples of the evaluation split are analysed
+(default 256; ``null`` for all), and every forward pass takes at most
+``analysis.runtime.batch_size`` examples times ``chunk`` draws. ``seed``
+fixes the draws; left unset, a run fills it from its probe seed (seed 0
+without one), and every row records the seed of its draws.
+
+The tree selection and checks are those of ``path_matched_intervention``.
+Each perturbed level must run ``DendriticBranchLayer.forward`` once per model
+forward (feedforward population networks qualify); recurrent cores, stateful
+current paths and cores with ``autograd_credit_mode: soma_broadcast``, whose
+gradients are not the exact errors, are refused.
+
+The scale is relative to the RMS over the level, while the effect of a
+perturbation depends on each compartment. For ``current`` the voltage
+response is the injected current divided by the compartment's total
+conductance, so weakly driven, high-resistance compartments receive much
+larger relative perturbations, and the smoothing bias of a nonlinear tree can
+appear at scales where ``output`` and ``voltage`` estimates are unbiased.
+List several ``relative_scales`` and treat a scale dependence as bias.
 
 Each row reports a depth, dictionary, energy, relative scale and draw count:
 cosine with the exact error over all compartments, the mean cosine within each
 neuron, sign agreement, relative error, norm ratio, for structured
 dictionaries the share of the exact error's energy in their span and the
 cosine with that projection, the forward evaluations per example (two per
-draw) and the wall time per draw. These are measurements at a fixed state;
-they say nothing by themselves about learning with the estimates.
+draw) and the wall time per draw (CUDA work included). The file also records
+the seed, device, dtype, ``chunk`` and examples per forward. These are
+measurements at a fixed state; they say nothing by themselves about learning
+with the estimates.
 
 .. code-block:: yaml
 
@@ -966,7 +984,7 @@ they say nothing by themselves about learning with the estimates.
          relative_scales: [0.01, 0.1]
          draws: [1, 4, 16, 64, 256]
          match_perturbation_energy: true
-         max_examples: 256
+         max_samples: 256
 
 Output: ``node_perturbation_credit/<name>.json``. Example profile:
 ``configs/examples/node_perturbation_credit_analysis.yaml``.

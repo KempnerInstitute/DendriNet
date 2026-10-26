@@ -9,21 +9,28 @@
   layer's ``output``, its pre-activation ``voltage`` or, for shunting layers,
   an injected ``current`` in the voltage equation's numerator, inside the
   layer's own forward pass (the layer runs once). Offsets are checked for
-  shape, device and dtype; the stateful current path refuses them. Off by
+  shape, device and dtype. Paths that would not apply a perturbation raise
+  while one is set: stateful and recurrent currents, voltages computed from
+  given currents, a ``forward_levels`` intervention on the same level, and a
+  current perturbation under the ``raw_additive`` rule overrides. Off by
   default; forward outputs are unchanged without a perturbation and with a
   zero offset.
 - ``dendritic_modeling.training.node_perturbation`` estimates errors from loss
   changes: ``node_perturbation_estimates`` (antithetic Gaussian draws from a
-  given generator, optional orthonormal basis, per-example losses, estimates
-  for several draw counts and their evaluation counts) and ``group_basis``
-  (orthonormal group averages; overlapping groups raise).
+  given generator, on its device by default, optional orthonormal basis,
+  per-example losses, estimates for several draw counts and their evaluation
+  counts) and ``group_basis`` (orthonormal group averages; overlapping groups
+  raise).
 - New final-only analyzer ``node_perturbation_credit`` (typed section
   ``analysis.node_perturbation_credit``; example
   ``configs/examples/node_perturbation_credit_analysis.yaml``): compartment
   errors of chosen tree levels estimated by node perturbation with
   independent, sibling or neuron dictionaries (optionally at matched
   perturbation energy), compared with the exact errors; reports agreement,
-  evaluation counts and wall time per draw.
+  evaluation counts and wall time per draw. Forward passes take at most
+  ``analysis.runtime.batch_size`` examples; levels that run more than once
+  per forward and cores with ``soma_broadcast`` credit are refused; an unset
+  ``seed`` follows the analysis seed policy.
 - Branch layers expose their graph-connected forward currents for analyses:
   ``DendriticBranchLayer.set_analysis_currents``, ``get_analysis_currents``,
   ``clear_analysis_currents`` and the context manager

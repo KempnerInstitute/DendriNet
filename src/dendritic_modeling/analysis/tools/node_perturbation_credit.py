@@ -11,8 +11,10 @@ perturbation. Reported per level, dictionary, scale and draw count: cosine over
 all compartments, mean cosine within each neuron, sign agreement, relative
 error, norm ratio, for structured dictionaries the share of the exact error's
 energy in their span, the forward evaluations per example and the wall time
-per draw. Final-only; feedforward trees whose levels run
-``DendriticBranchLayer.forward``.
+per draw. Final-only. The perturbed levels must run
+``DendriticBranchLayer.forward`` once per model forward; recurrent cores and
+cores whose autograd credit is not exact (``soma_broadcast``) are refused,
+since their gradients are not the exact errors.
 """
 
 from __future__ import annotations
@@ -141,18 +143,37 @@ class NodePerturbationCreditAnalyzer(AbstractAnalyzer):
             is_recurrent = is_recurrent()
         if bool(is_recurrent):
             raise ValueError("node-perturbation credit requires a feedforward model")
+        surrogate = sorted(
+            {
+                str(module.autograd_credit_mode)
+                for module in model.modules()
+                if getattr(module, "autograd_credit_mode", "exact") != "exact"
+            }
+        )
+        if surrogate:
+            raise ValueError(
+                "node-perturbation credit compares estimates with exact errors, but "
+                f"the model's autograd credit is {surrogate}"
+            )
         modules, n_somas, branch_factors = inventory_nested_tree(
             model, module_name_prefix=params.module_name_prefix
         )
         missing = [depth for depth in params.depths if depth not in modules]
         if missing:
             raise ValueError(f"the tree has depths {sorted(modules)}; not {missing}")
+        runtime = runtime if runtime is not None else EvaluationRuntimeConfig()
+        examples = int(runtime.batch_size)
+        if examples < 1:
+            raise ValueError("analysis.runtime.batch_size must be positive")
         tensors = materialize_dataset(
-            test_dataset, runtime, explicit_max_samples=params.max_examples
+            test_dataset, runtime, explicit_max_samples=params.max_samples
         )
         x, y = tensors[0], tensors[1]
+        seed = 0 if params.seed is None else int(params.seed)
         rows: list[dict[str, Any]] = []
         with analysis_device_context(model, device) as target:
+            # Tensors carry a concrete device (cuda:0, not cuda).
+            target = torch.empty(0, device=target).device
             x, y = x.to(target), y.to(target)
             dtype = next(model.parameters()).dtype
             for depth in params.depths:
@@ -169,6 +190,8 @@ class NodePerturbationCreditAnalyzer(AbstractAnalyzer):
                         branch_factors,
                         dtype,
                         target,
+                        examples,
+                        seed,
                     )
                 )
         result = {
@@ -178,7 +201,11 @@ class NodePerturbationCreditAnalyzer(AbstractAnalyzer):
             "n_somas": int(n_somas),
             "branch_factors": [int(f) for f in branch_factors],
             "modules": {str(depth): modules[depth][0] for depth in params.depths},
-            "seed": int(params.seed),
+            "seed": seed,
+            "device": str(target),
+            "dtype": str(dtype).removeprefix("torch."),
+            "chunk": int(params.chunk),
+            "examples_per_forward": examples,
             "rows": rows,
         }
         if save_path is not None:
@@ -186,27 +213,50 @@ class NodePerturbationCreditAnalyzer(AbstractAnalyzer):
         return result
 
     def _level(
-        self, model, layer, name, depth, x, y, n_somas, branch_factors, dtype, device
+        self,
+        model,
+        layer,
+        name,
+        depth,
+        x,
+        y,
+        n_somas,
+        branch_factors,
+        dtype,
+        device,
+        examples,
+        base_seed,
     ):
         params = self.params
         width = int(layer.branch_config.output_dim)
         per_neuron = width // n_somas
         batch = int(x.shape[0])
-        exact = self._exact_errors(model, layer, x, y, width, dtype, device)
-        reference = self._coordinate_rms(model, layer, x)
+        exact = self._exact_errors(
+            model, layer, name, x, y, width, dtype, device, examples
+        )
+        reference = self._coordinate_rms(model, layer, x, examples)
 
         def loss(offset: torch.Tensor) -> torch.Tensor:
+            # Copy-major rows: copy c of example b is row c * part + b.
             copies = offset.shape[0]
-            repeated_x = x.repeat(copies, *([1] * (x.ndim - 1)))
-            repeated_y = y.repeat(copies, *([1] * (y.ndim - 1)))
-            perturbation = CompartmentPerturbation(
-                offset.reshape(copies * batch, width), params.coordinate
-            )
-            with perturb_compartments({layer: perturbation}):
-                output = _output_tensor(model(repeated_x))
-            return per_example_loss(output, repeated_y, params.loss).reshape(
-                copies, batch
-            )
+            losses = []
+            for start in range(0, batch, examples):
+                stop = min(batch, start + examples)
+                part = stop - start
+                repeated_x = x[start:stop].repeat(copies, *([1] * (x.ndim - 1)))
+                repeated_y = y[start:stop].repeat(copies, *([1] * (y.ndim - 1)))
+                perturbation = CompartmentPerturbation(
+                    offset[:, start:stop].reshape(copies * part, width),
+                    params.coordinate,
+                )
+                with perturb_compartments({layer: perturbation}):
+                    output = _output_tensor(model(repeated_x))
+                losses.append(
+                    per_example_loss(output, repeated_y, params.loss).reshape(
+                        copies, part
+                    )
+                )
+            return torch.cat(losses, dim=1)
 
         rows = []
         for dictionary in params.dictionaries:
@@ -221,10 +271,11 @@ class NodePerturbationCreditAnalyzer(AbstractAnalyzer):
                 for relative in params.relative_scales:
                     scale = relative * reference * factor
                     seed = (
-                        int(params.seed)
+                        base_seed
                         + stable_seed_offset(depth, dictionary, energy, relative)
                     ) % 2**63
                     generator = torch.Generator(device=device).manual_seed(seed)
+                    _synchronize(device)
                     started = time.perf_counter()
                     found = node_perturbation_estimates(
                         loss,
@@ -237,6 +288,7 @@ class NodePerturbationCreditAnalyzer(AbstractAnalyzer):
                         dtype=dtype,
                         device=device,
                     )
+                    _synchronize(device)
                     seconds_per_draw = (time.perf_counter() - started) / max(
                         found.estimates
                     )
@@ -249,6 +301,7 @@ class NodePerturbationCreditAnalyzer(AbstractAnalyzer):
                                 "energy": energy,
                                 "relative_scale": float(relative),
                                 "scale": float(scale),
+                                "seed": int(seed),
                                 "rank": int(found.rank),
                                 "draws": int(draws),
                                 "evaluations_per_example": found.evaluations_per_example(
@@ -260,39 +313,71 @@ class NodePerturbationCreditAnalyzer(AbstractAnalyzer):
                         )
         return rows
 
-    def _exact_errors(self, model, layer, x, y, width, dtype, device):
-        offset = torch.zeros(
-            x.shape[0], width, dtype=dtype, device=device, requires_grad=True
-        )
-        with perturb_compartments(
-            {layer: CompartmentPerturbation(offset, self.params.coordinate)}
-        ):
-            output = _output_tensor(model(x))
-        loss = per_example_loss(output, y, self.params.loss).sum()
-        return torch.autograd.grad(loss, offset)[0].detach()
+    def _exact_errors(self, model, layer, name, x, y, width, dtype, device, examples):
+        """Gradients of the loss with respect to zero offsets, a batch of examples at a time."""
+        calls: list[int] = []
+        handle = layer.register_forward_hook(lambda *_, calls=calls: calls.append(1))
+        errors = []
+        try:
+            with torch.enable_grad():
+                for start in range(0, x.shape[0], examples):
+                    inputs, targets = (
+                        x[start : start + examples],
+                        y[start : start + examples],
+                    )
+                    offset = torch.zeros(
+                        inputs.shape[0],
+                        width,
+                        dtype=dtype,
+                        device=device,
+                        requires_grad=True,
+                    )
+                    calls.clear()
+                    with perturb_compartments(
+                        {layer: CompartmentPerturbation(offset, self.params.coordinate)}
+                    ):
+                        output = _output_tensor(model(inputs))
+                    if len(calls) != 1:
+                        raise ValueError(
+                            f"{name} ran {len(calls)} times in one model forward; "
+                            "node-perturbation credit needs a level that runs once"
+                        )
+                    loss = per_example_loss(output, targets, self.params.loss).sum()
+                    errors.append(torch.autograd.grad(loss, offset)[0].detach())
+        finally:
+            handle.remove()
+        return torch.cat(errors)
 
-    def _coordinate_rms(self, model, layer, x) -> float:
+    def _coordinate_rms(self, model, layer, x, examples) -> float:
         """RMS of the perturbed quantity on the analysed examples (the scales' unit)."""
+        total, count = 0.0, 0
         with torch.no_grad(), capture_analysis_currents(layer):
-            model(x)
-            currents = layer.get_analysis_currents()
-        if self.params.coordinate == "output":
-            value = currents["post_gate_output"]
-        elif self.params.coordinate == "voltage":
-            value = currents["pre_gate_voltage"]
-        else:
-            # The shunting numerator that an injected current joins.
-            parts = [
-                currents[k]
-                for k in ("pre_gate_excitation_current", "pre_gate_upstream_current")
-                if currents[k] is not None
-            ]
-            if not parts:
-                raise ValueError(
-                    "a current perturbation needs a layer with excitatory or upstream current"
-                )
-            value = sum(parts)
-        rms = float(value.double().square().mean().sqrt())
+            for start in range(0, x.shape[0], examples):
+                model(x[start : start + examples])
+                currents = layer.get_analysis_currents()
+                if self.params.coordinate == "output":
+                    value = currents["post_gate_output"]
+                elif self.params.coordinate == "voltage":
+                    value = currents["pre_gate_voltage"]
+                else:
+                    # The shunting numerator that an injected current joins.
+                    parts = [
+                        currents[k]
+                        for k in (
+                            "pre_gate_excitation_current",
+                            "pre_gate_upstream_current",
+                        )
+                        if currents[k] is not None
+                    ]
+                    if not parts:
+                        raise ValueError(
+                            "a current perturbation needs a layer with excitatory or "
+                            "upstream current"
+                        )
+                    value = sum(parts)
+                total += float(value.double().square().sum())
+                count += value.numel()
+        rms = math.sqrt(total / count)
         if not math.isfinite(rms) or rms <= 0:
             raise ValueError(
                 f"the perturbed quantity has RMS {rms}; relative scales are undefined"
@@ -318,6 +403,12 @@ class NodePerturbationCreditAnalyzer(AbstractAnalyzer):
         return group_basis(
             [list(group) for group in groups], width, dtype=dtype, device=device
         )
+
+
+def _synchronize(device: torch.device) -> None:
+    """Wait for queued CUDA work, so wall times cover it."""
+    if device.type == "cuda":
+        torch.cuda.synchronize(device)
 
 
 __all__ = ["NodePerturbationCreditAnalyzer", "agreement", "per_example_loss"]

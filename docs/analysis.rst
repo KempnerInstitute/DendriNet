@@ -306,8 +306,7 @@ still run out of memory on a split too large for one batch: ``information``,
 ``source_tuning_support``, ``representation_accessibility``,
 ``path_matched_information``, ``path_matched_intervention``,
 ``local_inhibitory_population_intervention``, ``input_region_intervention``,
-``node_perturbation_credit``, ``local_rule_components``, ``spike_train`` and
-the reference pass of
+``local_rule_components``, ``spike_train`` and the reference pass of
 ``ablation``'s ``mean_clamp``. Set ``mode: stream`` (or a smaller
 ``materialize_threshold_mb`` with ``mode: auto``, or ``max_samples``) in the
 runtime profile of such runs.

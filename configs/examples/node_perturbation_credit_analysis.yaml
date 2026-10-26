@@ -16,6 +16,6 @@ analysis:
       draws: [1, 4, 16, 64, 256]
       match_perturbation_energy: true
       loss: cross_entropy
-      max_examples: 256
+      max_samples: 256
       chunk: 16
       seed: 0

@@ -3127,15 +3127,15 @@ Explained in :ref:`analyzer-catalogue`. Class ``dendritic_modeling.config.analys
    * - ``loss``
      - ``str``
      - ``cross_entropy``
-   * - ``max_examples``
+   * - ``max_samples``
      - ``Optional[int]``
      - ``256``
    * - ``chunk``
      - ``int``
      - ``16``
    * - ``seed``
-     - ``int``
-     - ``0``
+     - ``Optional[int]``
+     - ``null``
 
 .. _options-analysis-local-inhibitory-population-intervention-params:
 

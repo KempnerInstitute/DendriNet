@@ -2,6 +2,7 @@ import dataclasses
 import difflib
 import logging
 import math
+import numbers
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any, ClassVar, Optional
@@ -1769,6 +1770,28 @@ NODE_PERTURBATION_DICTIONARIES = ("independent", "siblings", "neuron")
 NODE_PERTURBATION_LOSSES = ("cross_entropy", "mse")
 
 
+def _node_perturbation_list(values: Any, field: str) -> list[Any]:
+    if isinstance(values, (str, bytes)) or not isinstance(values, (list, tuple)):
+        raise TypeError(f"node-perturbation {field}: expected a list, got {values!r}")
+    if not values:
+        raise ValueError(f"node-perturbation {field}: give at least one value")
+    if len(set(values)) != len(values):
+        raise ValueError(f"node-perturbation {field}: repeated value in {list(values)}")
+    return list(values)
+
+
+def _node_perturbation_integer(value: Any, field: str, minimum: int) -> int:
+    if isinstance(value, bool) or not isinstance(value, numbers.Integral):
+        raise TypeError(
+            f"node-perturbation {field}: expected an integer, got {value!r}"
+        )
+    if value < minimum:
+        raise ValueError(
+            f"node-perturbation {field}: expected at least {minimum}, got {value}"
+        )
+    return int(value)
+
+
 @dataclass
 class NodePerturbationCreditAnalysisParams(BaseConfig):
     """Node-perturbation estimates of compartment credit at a checkpoint.
@@ -1781,14 +1804,16 @@ class NodePerturbationCreditAnalysisParams(BaseConfig):
     ``dictionaries`` sets the perturbation directions: ``independent`` (each
     compartment), ``siblings`` (one direction per group of children of a
     parent) or ``neuron`` (one direction per neuron). ``relative_scales``
-    multiply the RMS of the perturbed quantity on the analysed examples;
-    ``draws`` are the reported draw counts, each draw costing two forward
-    evaluations per example. ``match_perturbation_energy`` adds runs of the
-    structured dictionaries with the scale multiplied by sqrt(D / m), the
-    expected perturbation energy of independent draws. ``loss`` is
-    ``cross_entropy`` (class labels) or ``mse``; ``max_examples`` examples of
-    the evaluation split are used, forward in chunks of ``chunk`` draws;
-    ``seed`` fixes the draws.
+    multiply the RMS of the perturbed quantity over the level on the analysed
+    examples; ``draws`` are the reported draw counts, each draw costing two
+    forward evaluations per example. ``match_perturbation_energy`` adds runs
+    of the structured dictionaries with the scale multiplied by sqrt(D / m),
+    the expected perturbation energy of independent draws. ``loss`` is
+    ``cross_entropy`` (class labels) or ``mse``. The first ``max_samples``
+    examples of the evaluation split are used (``None``: all of them); each
+    forward evaluates up to ``analysis.runtime.batch_size`` examples times
+    ``chunk`` draws. ``seed`` fixes the draws; left unset, a run fills it from
+    its probe seed, and without one the draws use seed 0.
     """
 
     depths: list[int] = field(default_factory=lambda: [1])
@@ -1799,48 +1824,60 @@ class NodePerturbationCreditAnalysisParams(BaseConfig):
     draws: list[int] = field(default_factory=lambda: [1, 4, 16, 64])
     match_perturbation_energy: bool = False
     loss: str = "cross_entropy"
-    max_examples: Optional[int] = 256
+    max_samples: Optional[int] = 256
     chunk: int = 16
-    seed: int = 0
+    seed: Optional[int] = None
 
     def __post_init__(self) -> None:
-        self.depths = sorted({int(value) for value in self.depths})
-        if not self.depths or self.depths[0] < 0:
-            raise ValueError("node-perturbation depths must be soma-relative (>= 0)")
+        self.depths = sorted(
+            _node_perturbation_integer(value, "depths", 0)
+            for value in _node_perturbation_list(self.depths, "depths")
+        )
         if self.module_name_prefix is not None:
             self.module_name_prefix = str(self.module_name_prefix) or None
         self.coordinate = normalize_choice(
             self.coordinate, NODE_PERTURBATION_COORDINATES, field="coordinate"
         )
-        self.dictionaries = list(
-            dict.fromkeys(
+        self.dictionaries = _node_perturbation_list(
+            [
                 normalize_choice(
                     value, NODE_PERTURBATION_DICTIONARIES, field="dictionaries"
                 )
-                for value in self.dictionaries
-            )
+                for value in _node_perturbation_list(self.dictionaries, "dictionaries")
+            ],
+            "dictionaries",
         )
-        if not self.dictionaries:
-            raise ValueError("give at least one node-perturbation dictionary")
         if "siblings" in self.dictionaries and 0 in self.depths:
             raise ValueError("the soma level (depth 0) has no sibling groups")
-        self.relative_scales = [float(value) for value in self.relative_scales]
-        if not self.relative_scales or any(
+        scales = _node_perturbation_list(self.relative_scales, "relative_scales")
+        if any(
+            isinstance(value, bool) or not isinstance(value, numbers.Real)
+            for value in scales
+        ):
+            raise TypeError(f"relative_scales must be numbers, got {scales}")
+        self.relative_scales = [float(value) for value in scales]
+        if any(
             not math.isfinite(value) or value <= 0 for value in self.relative_scales
         ):
             raise ValueError("relative_scales must be positive and finite")
-        self.draws = sorted({int(value) for value in self.draws})
-        if not self.draws or self.draws[0] < 1:
-            raise ValueError("draws must be positive counts")
+        self.draws = sorted(
+            _node_perturbation_integer(value, "draws", 1)
+            for value in _node_perturbation_list(self.draws, "draws")
+        )
+        if not isinstance(self.match_perturbation_energy, bool):
+            raise TypeError("match_perturbation_energy must be true or false")
         self.loss = normalize_choice(self.loss, NODE_PERTURBATION_LOSSES, field="loss")
-        if self.max_examples is not None:
-            self.max_examples = int(self.max_examples)
-            if self.max_examples < 1:
-                raise ValueError("max_examples must be positive")
-        self.chunk = int(self.chunk)
-        if self.chunk < 1:
-            raise ValueError("chunk must be positive")
-        self.seed = int(self.seed)
+        if self.max_samples is not None:
+            self.max_samples = _node_perturbation_integer(
+                self.max_samples, "max_samples", 1
+            )
+        self.chunk = _node_perturbation_integer(self.chunk, "chunk", 1)
+        if self.seed is not None:
+            if isinstance(self.seed, bool) or not isinstance(
+                self.seed, numbers.Integral
+            ):
+                raise TypeError(f"seed must be an integer, got {self.seed!r}")
+            self.seed = int(self.seed)
 
 
 @dataclass

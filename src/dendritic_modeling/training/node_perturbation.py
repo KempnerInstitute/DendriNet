@@ -20,10 +20,19 @@ batch are independent members of one evaluation.
 from __future__ import annotations
 
 import math
+import numbers
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 
 import torch
+
+
+def _positive_int(value: object, name: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, numbers.Integral):
+        raise TypeError(f"{name} must be an integer, got {value!r}")
+    if value < 1:
+        raise ValueError(f"{name} must be positive, got {value}")
+    return int(value)
 
 
 @dataclass(frozen=True)
@@ -58,15 +67,19 @@ def group_basis(
     coordinates. Groups must be non-empty, disjoint and within range;
     coordinates in no group are not perturbed.
     """
-    size = int(size)
-    if size < 1:
-        raise ValueError(f"size must be positive, got {size}")
+    size = _positive_int(size, "size")
     if not groups:
         raise ValueError("give at least one group")
     seen: set[int] = set()
     basis = torch.zeros(size, len(groups), dtype=dtype, device=device)
     for column, group in enumerate(groups):
-        members = [int(index) for index in group]
+        members = list(group)
+        if any(
+            isinstance(index, bool) or not isinstance(index, numbers.Integral)
+            for index in members
+        ):
+            raise TypeError(f"group {column} must hold integer indices, got {members}")
+        members = [int(index) for index in members]
         if not members:
             raise ValueError(f"group {column} is empty")
         outside = [index for index in members if not 0 <= index < size]
@@ -119,30 +132,34 @@ def node_perturbation_estimates(
     over examples, and is called with ``+scale * noise`` and ``-scale *
     noise`` for each chunk of at most ``chunk`` draws. ``basis`` restricts the
     noise to orthonormal columns (``[D, m]``; see :func:`group_basis`).
-    ``generator`` (on ``device``) makes the draws reproducible, independently
-    of ``chunk``; the estimates for all counts in ``draws`` share the same
-    draws in order, so larger counts extend smaller ones. Returns a
+    ``generator`` makes the draws reproducible, independently of ``chunk``;
+    the draws are made on ``device``, by default the generator's, which must
+    be the generator's device. The estimates for all counts in ``draws`` share
+    the same draws in order, so larger counts extend smaller ones. Returns a
     :class:`NodePerturbationEstimate`.
     """
-    batch, size = (int(value) for value in shape)
-    if batch < 1 or size < 1:
-        raise ValueError(f"shape must be two positive sizes (B, D), got {tuple(shape)}")
+    shape = tuple(shape)
+    if len(shape) != 2:
+        raise ValueError(f"shape must be two positive sizes (B, D), got {shape}")
+    batch, size = (_positive_int(value, "each size in shape") for value in shape)
+    if isinstance(scale, bool) or not isinstance(scale, numbers.Real):
+        raise TypeError(f"scale must be a number, got {scale!r}")
     scale = float(scale)
     if not math.isfinite(scale) or scale <= 0:
         raise ValueError(f"scale must be positive and finite, got {scale}")
-    counts = sorted({int(value) for value in draws})
-    if not counts or counts[0] < 1:
-        raise ValueError(f"draws must be positive counts, got {counts}")
-    chunk = int(chunk)
-    if chunk < 1:
-        raise ValueError(f"chunk must be positive, got {chunk}")
-    device = torch.device(device) if device is not None else torch.device("cpu")
+    if isinstance(draws, (str, bytes)) or not isinstance(draws, Iterable):
+        raise TypeError(f"draws must be a collection of counts, got {draws!r}")
+    counts = sorted({_positive_int(value, "each draw count") for value in draws})
+    if not counts:
+        raise ValueError("give at least one draw count")
+    chunk = _positive_int(chunk, "chunk")
     if not isinstance(generator, torch.Generator):
         raise TypeError("give a torch.Generator for reproducible draws")
-    if generator.device.type != device.type:
-        raise ValueError(
-            f"the generator is on {generator.device}, the draws are on {device}"
-        )
+    # Tensors carry a concrete device (cuda:0, not cuda); compare those.
+    source = torch.empty(0, device=generator.device).device
+    device = source if device is None else torch.empty(0, device=device).device
+    if source != device:
+        raise ValueError(f"the generator is on {source}, the draws are on {device}")
     if basis is not None:
         if basis.device != device or basis.dtype != dtype:
             raise ValueError("the basis must have the draws' device and dtype")
