@@ -922,6 +922,55 @@ Output: ``branch_local_sensitivity/<name>.json``. Example profile:
 ``configs/examples/branch_local_sensitivity_analysis.yaml``. Collect checkpoint
 runs with ``dendritic-collect-branch-sensitivities``.
 
+.. _analyzer-node-perturbation-credit:
+
+``node_perturbation_credit``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Final-only. Estimates the error of every compartment of the selected
+soma-relative ``depths`` from loss changes under antithetic perturbations of
+that level (:ref:`node-perturbation`, applied with
+:ref:`compartment perturbations <compartment-perturbations>`) and compares it
+with the exact error, the gradient of the loss with respect to a zero
+perturbation. ``coordinate`` is ``output``, ``voltage`` or, for shunting
+levels, ``current``. ``dictionaries`` sets the perturbation directions:
+``independent`` (every compartment), ``siblings`` (one direction per group of
+children of a parent) or ``neuron`` (one per neuron). ``relative_scales``
+multiply the RMS of the perturbed quantity on the analysed examples (for
+``current``, the shunting numerator). ``match_perturbation_energy`` adds runs
+of the structured dictionaries scaled by sqrt(D / m), so their expected
+perturbation energy equals that of independent draws. ``loss`` is
+``cross_entropy`` (class labels) or ``mse``. The tree selection and checks are
+those of ``path_matched_intervention``; levels must run
+``DendriticBranchLayer.forward`` (population networks, whose cells take the
+stateful current path, are refused), and the core must be feedforward.
+
+Each row reports a depth, dictionary, energy, relative scale and draw count:
+cosine with the exact error over all compartments, the mean cosine within each
+neuron, sign agreement, relative error, norm ratio, for structured
+dictionaries the share of the exact error's energy in their span and the
+cosine with that projection, the forward evaluations per example (two per
+draw) and the wall time per draw. These are measurements at a fixed state;
+they say nothing by themselves about learning with the estimates.
+
+.. code-block:: yaml
+
+   analysis:
+     node_perturbation_credit:
+       enabled: true
+       params:
+         depths: [1, 2]
+         module_name_prefix: core_network.layers.0.excitatory_cells.branch_layers
+         coordinate: output
+         dictionaries: [independent, siblings, neuron]
+         relative_scales: [0.01, 0.1]
+         draws: [1, 4, 16, 64, 256]
+         match_perturbation_energy: true
+         max_examples: 256
+
+Output: ``node_perturbation_credit/<name>.json``. Example profile:
+``configs/examples/node_perturbation_credit_analysis.yaml``.
+
 Connectivity and weights
 ------------------------
 

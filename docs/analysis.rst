@@ -74,12 +74,13 @@ During training
 
 Two analyzers default to ``training: true``: ``synapse_turnover``, which
 compares snapshots taken during training and raises with ``training: false``,
-and ``reactivation_dynamics``. Nine analyzers are final-only and raise with
+and ``reactivation_dynamics``. Ten analyzers are final-only and raise with
 ``training: true``: ``representation_accessibility``,
 ``source_tuning_support``, ``input_region_intervention``,
 ``synapse_pruning``, ``path_matched_intervention``,
-``branch_local_sensitivity``, ``local_inhibitory_population_intervention``,
-``path_matched_information`` and ``gain_load_perturbation``. Both errors are
+``branch_local_sensitivity``, ``node_perturbation_credit``,
+``local_inhibitory_population_intervention``, ``path_matched_information``
+and ``gain_load_perturbation``. Both errors are
 raised before training starts.
 
 Other rules:
@@ -305,7 +306,8 @@ still run out of memory on a split too large for one batch: ``information``,
 ``source_tuning_support``, ``representation_accessibility``,
 ``path_matched_information``, ``path_matched_intervention``,
 ``local_inhibitory_population_intervention``, ``input_region_intervention``,
-``local_rule_components``, ``spike_train`` and the reference pass of
+``node_perturbation_credit``, ``local_rule_components``, ``spike_train`` and
+the reference pass of
 ``ablation``'s ``mean_clamp``. Set ``mode: stream`` (or a smaller
 ``materialize_threshold_mb`` with ``mode: auto``, or ``max_samples``) in the
 runtime profile of such runs.
@@ -389,6 +391,7 @@ The JSON result files follow four patterns:
 - ``<name>.json``: ``performance``, ``representation_accessibility``,
   ``source_tuning_support``, ``input_region_intervention``, ``ablation``,
   ``path_matched_intervention``, ``branch_local_sensitivity``,
+  ``node_perturbation_credit``,
   ``local_inhibitory_population_intervention``, ``path_matched_information``,
   ``compartment_snr``, ``multiplicative_gain``, ``gain_load_perturbation``,
   ``inhibitory_specialization``, ``jacobian_spectrum``,
@@ -552,6 +555,11 @@ run directory.
      - no
      - test
      - ``branch_local_sensitivity``
+   * - :ref:`node_perturbation_credit <analyzer-node-perturbation-credit>`
+     - Compartment errors estimated from loss changes, against exact errors
+     - no
+     - test
+     - ``node_perturbation_credit``
    * - :ref:`weight <analyzer-weight>`
      - Weight statistics; optional exact source-support profiles
      - yes

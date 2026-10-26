@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+- Branch-layer compartments can be perturbed for causal analyses:
+  ``perturb_compartments({layer: CompartmentPerturbation(offset, coordinate)})``
+  (``dendritic_modeling.networks``; also
+  ``DendriticBranchLayer.set_compartment_perturbation``) adds an offset to a
+  layer's ``output``, its pre-activation ``voltage`` or, for shunting layers,
+  an injected ``current`` in the voltage equation's numerator, inside the
+  layer's own forward pass (the layer runs once). Offsets are checked for
+  shape, device and dtype; the stateful current path refuses them. Off by
+  default; forward outputs are unchanged without a perturbation and with a
+  zero offset.
+- ``dendritic_modeling.training.node_perturbation`` estimates errors from loss
+  changes: ``node_perturbation_estimates`` (antithetic Gaussian draws from a
+  given generator, optional orthonormal basis, per-example losses, estimates
+  for several draw counts and their evaluation counts) and ``group_basis``
+  (orthonormal group averages; overlapping groups raise).
+- New final-only analyzer ``node_perturbation_credit`` (typed section
+  ``analysis.node_perturbation_credit``; example
+  ``configs/examples/node_perturbation_credit_analysis.yaml``): compartment
+  errors of chosen tree levels estimated by node perturbation with
+  independent, sibling or neuron dictionaries (optionally at matched
+  perturbation energy), compared with the exact errors; reports agreement,
+  evaluation counts and wall time per draw.
 - Branch layers expose their graph-connected forward currents for analyses:
   ``DendriticBranchLayer.set_analysis_currents``, ``get_analysis_currents``,
   ``clear_analysis_currents`` and the context manager

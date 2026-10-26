@@ -1,0 +1,21 @@
+# Final-only node-perturbation estimates of compartment credit in one fitted
+# dendritic tree, compared with the exact errors at the same checkpoint.
+# Each draw costs two forward evaluations per example.
+analysis:
+  node_perturbation_credit:
+    enabled: true
+    training: false
+    params:
+      # Soma-relative: 0 is the soma and 1 the proximal level.
+      depths: [1, 2]
+      module_name_prefix: core_network.layers.0.excitatory_cells.branch_layers
+      # output, voltage or (shunting levels) current
+      coordinate: output
+      dictionaries: [independent, siblings, neuron]
+      relative_scales: [0.01, 0.1]
+      draws: [1, 4, 16, 64, 256]
+      match_perturbation_energy: true
+      loss: cross_entropy
+      max_examples: 256
+      chunk: 16
+      seed: 0

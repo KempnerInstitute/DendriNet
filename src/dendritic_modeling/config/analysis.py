@@ -1764,6 +1764,96 @@ class BranchLocalSensitivityAnalysisConfig(BaseConfig):
     )
 
 
+NODE_PERTURBATION_COORDINATES = ("output", "voltage", "current")
+NODE_PERTURBATION_DICTIONARIES = ("independent", "siblings", "neuron")
+NODE_PERTURBATION_LOSSES = ("cross_entropy", "mse")
+
+
+@dataclass
+class NodePerturbationCreditAnalysisParams(BaseConfig):
+    """Node-perturbation estimates of compartment credit at a checkpoint.
+
+    For each soma-relative level in ``depths`` (0 is the soma) of one
+    dendritic tree (``module_name_prefix`` selects it when the model has
+    several), the compartments' errors in ``coordinate`` (``output``,
+    ``voltage`` or, for shunting levels, ``current``) are estimated from loss
+    changes under antithetic perturbations and compared with the exact errors.
+    ``dictionaries`` sets the perturbation directions: ``independent`` (each
+    compartment), ``siblings`` (one direction per group of children of a
+    parent) or ``neuron`` (one direction per neuron). ``relative_scales``
+    multiply the RMS of the perturbed quantity on the analysed examples;
+    ``draws`` are the reported draw counts, each draw costing two forward
+    evaluations per example. ``match_perturbation_energy`` adds runs of the
+    structured dictionaries with the scale multiplied by sqrt(D / m), the
+    expected perturbation energy of independent draws. ``loss`` is
+    ``cross_entropy`` (class labels) or ``mse``; ``max_examples`` examples of
+    the evaluation split are used, forward in chunks of ``chunk`` draws;
+    ``seed`` fixes the draws.
+    """
+
+    depths: list[int] = field(default_factory=lambda: [1])
+    module_name_prefix: Optional[str] = None
+    coordinate: str = "output"
+    dictionaries: list[str] = field(default_factory=lambda: ["independent"])
+    relative_scales: list[float] = field(default_factory=lambda: [0.01])
+    draws: list[int] = field(default_factory=lambda: [1, 4, 16, 64])
+    match_perturbation_energy: bool = False
+    loss: str = "cross_entropy"
+    max_examples: Optional[int] = 256
+    chunk: int = 16
+    seed: int = 0
+
+    def __post_init__(self) -> None:
+        self.depths = sorted({int(value) for value in self.depths})
+        if not self.depths or self.depths[0] < 0:
+            raise ValueError("node-perturbation depths must be soma-relative (>= 0)")
+        if self.module_name_prefix is not None:
+            self.module_name_prefix = str(self.module_name_prefix) or None
+        self.coordinate = normalize_choice(
+            self.coordinate, NODE_PERTURBATION_COORDINATES, field="coordinate"
+        )
+        self.dictionaries = list(
+            dict.fromkeys(
+                normalize_choice(
+                    value, NODE_PERTURBATION_DICTIONARIES, field="dictionaries"
+                )
+                for value in self.dictionaries
+            )
+        )
+        if not self.dictionaries:
+            raise ValueError("give at least one node-perturbation dictionary")
+        if "siblings" in self.dictionaries and 0 in self.depths:
+            raise ValueError("the soma level (depth 0) has no sibling groups")
+        self.relative_scales = [float(value) for value in self.relative_scales]
+        if not self.relative_scales or any(
+            not math.isfinite(value) or value <= 0 for value in self.relative_scales
+        ):
+            raise ValueError("relative_scales must be positive and finite")
+        self.draws = sorted({int(value) for value in self.draws})
+        if not self.draws or self.draws[0] < 1:
+            raise ValueError("draws must be positive counts")
+        self.loss = normalize_choice(self.loss, NODE_PERTURBATION_LOSSES, field="loss")
+        if self.max_examples is not None:
+            self.max_examples = int(self.max_examples)
+            if self.max_examples < 1:
+                raise ValueError("max_examples must be positive")
+        self.chunk = int(self.chunk)
+        if self.chunk < 1:
+            raise ValueError("chunk must be positive")
+        self.seed = int(self.seed)
+
+
+@dataclass
+class NodePerturbationCreditAnalysisConfig(BaseConfig):
+    """Enable the final-only node-perturbation credit analyzer."""
+
+    enabled: bool = False
+    training: bool = False
+    params: NodePerturbationCreditAnalysisParams = field(
+        default_factory=NodePerturbationCreditAnalysisParams
+    )
+
+
 @dataclass
 class LocalInhibitoryPopulationInterventionAnalysisParams(BaseConfig):
     """Whole-population local-I interventions across feedforward layers.
@@ -3212,6 +3302,9 @@ class AnalysisConfig(BaseConfig):
     )
     branch_local_sensitivity: BranchLocalSensitivityAnalysisConfig = field(
         default_factory=BranchLocalSensitivityAnalysisConfig
+    )
+    node_perturbation_credit: NodePerturbationCreditAnalysisConfig = field(
+        default_factory=NodePerturbationCreditAnalysisConfig
     )
     local_inhibitory_population_intervention: (
         LocalInhibitoryPopulationInterventionAnalysisConfig
