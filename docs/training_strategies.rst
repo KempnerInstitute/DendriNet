@@ -1243,6 +1243,43 @@ slope, coupling ratio and relative resistance; the tests check this against
 autograd. Which products a rule uses, and any permutation, binning or noise
 applied to them, belongs to the protocol.
 
+.. _node-perturbation:
+
+Node-perturbation estimates
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``dendritic_modeling.training.node_perturbation`` estimates errors from loss
+changes instead of derivatives. For per-example losses ``l_b(h_b)`` and
+antithetic draws ``n ~ N(0, I)`` of scale ``s``,
+
+.. code-block:: text
+
+   g_hat_b = mean over draws of [l_b(h_b + s n) - l_b(h_b - s n)] / (2 s) * n
+
+is unbiased for the gradient when ``l_b`` is quadratic in ``h_b``; otherwise
+it estimates the gradient of the loss smoothed by the perturbation, with a
+bias of order ``s**2``. With orthonormal basis columns ``Q`` (perturbations
+``Q z``) it estimates ``Q Q^T`` times that smoothed gradient, which approaches
+the projected gradient as ``s`` vanishes. Each draw costs two loss evaluations
+per example.
+
+- ``node_perturbation_estimates(loss, (B, D), scale=, draws=, generator=,
+  basis=None, chunk=16)``: ``loss`` maps perturbations ``[c, B, D]`` to
+  unreduced per-example losses ``[c, B]``; the result holds the estimate for
+  every count in ``draws`` (larger counts extend the draws of smaller ones)
+  and ``evaluations_per_example(draws)``. The draws come from ``generator``
+  (on the device of the estimate) one at a time, so they do not depend on
+  ``chunk``. Scales, counts, chunk, generator device, basis shape and
+  orthonormality are checked;
+- ``group_basis(groups, size)``: orthonormal columns averaging disjoint groups
+  of coordinates (for example the children of each parent); overlapping,
+  empty or out-of-range groups raise.
+
+With :ref:`compartment perturbations <compartment-perturbations>` the loss can
+perturb compartment outputs, voltages or injected currents. The
+``node_perturbation_credit`` analysis (:ref:`analyzer-node-perturbation-credit`)
+compares such estimates with exact errors at a checkpoint.
+
 Warm-up strategies
 ------------------
 
