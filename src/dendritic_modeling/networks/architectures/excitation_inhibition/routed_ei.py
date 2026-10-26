@@ -13,6 +13,7 @@ from torch.nn import functional as F
 
 from dendritic_modeling.config.routed_ei import RoutedEIConfig
 from dendritic_modeling.networks.functional import (
+    _check_operand,
     _raw_current_sum,
     _shunting_current_components,
 )
@@ -211,14 +212,18 @@ class RoutedEIReadout(nn.Module):
     def _branch_preactivation(self, excitation, inhibition, *, hard):
         excitation, inhibition = self._inputs(excitation, inhibition)
         e, i = self._drives(excitation, inhibition, hard=hard)
-        # The arithmetic of networks.functional without its operand checks,
-        # which read tensors on the host: validated inputs and normalized
+        # The arithmetic of networks.functional without its tensor checks,
+        # which read values on the host: validated inputs and normalized
         # positive weights make these currents finite and nonnegative.
         if self.config.mechanism == "additive":
             voltage = _raw_current_sum(e, 0.0, i, 0.0, 0.0)
         else:
+            leak = self.config.leak_conductance
+            # A configured positive leak can still round to zero in the model's
+            # dtype, which would let an empty branch divide zero by zero.
+            _check_operand(leak, e, "leak_conductance", positive=True)
             numerator, denominator = _shunting_current_components(
-                e, 0.0, i, 0.0, 0.0, None, self.config.leak_conductance
+                e, 0.0, i, 0.0, 0.0, None, leak
             )
             voltage = numerator / (denominator + self.config.epsilon)
         preactivation = (

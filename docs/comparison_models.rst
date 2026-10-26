@@ -485,7 +485,8 @@ Empty branches have zero drive; no implicit balancing or reassignment occurs.
 ``inhibitory_support: global_mean`` is a shunting-only control that replaces
 each branch's inhibitory drive by the unweighted mean of the input I channels.
 
-Shunting defaults to positive unit leak and epsilon ``1e-8``. Raw addition is
+Shunting defaults to positive unit leak and epsilon ``1e-8``; a forward call
+raises if the leak rounds to zero in the model's dtype. Raw addition is
 ``E - I``; nondefault leak/epsilon values and global-mean support are rejected
 because this comparator does not use them. The optional output transformation is
 ``branch_scale * (voltage - branch_center) / branch_divisor``; its default is

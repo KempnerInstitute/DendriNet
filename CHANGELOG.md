@@ -12,7 +12,8 @@
   shared by paired E/I channels, positive weights divided by their branch sums,
   existing shunting/additive current integration and an affine readout. Its
   typed payload is `None` in other cores; unsupported training, mixed
-  precision, unused sections and options that fixed routing ignores raise.
+  precision, unused sections, options that fixed routing ignores and a leak
+  that rounds to zero in the model's dtype raise.
   Fixed/learned routing, a global-mean inhibitory control and an explicit
   clamped-sum normalization floor support historical reduced-model replay.
   Dividing by the sum (`networks.utils.weight_normalization.divide_rows_by_sum`,

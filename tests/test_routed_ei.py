@@ -286,6 +286,22 @@ def test_mixed_precision_is_rejected_in_configs_and_under_autocast():
     assert torch.isfinite(model(x)).all()
 
 
+def test_a_leak_that_rounds_to_zero_in_the_model_dtype_raises():
+    config = RoutedEIConfig(
+        features=4, branches=3, output_dim=2, leak_conductance=1e-8, epsilon=0.0
+    )
+    model = build_routed_ei(config)
+    with torch.no_grad():
+        model.route_logits[0].fill_(4.0)  # Branches 1 and 2 stay empty.
+    x = torch.ones(2, 8)
+    assert torch.isfinite(model(x)).all()
+    half = model.half()
+    # In float16 the leak is zero and an empty branch would give 0 / 0.
+    for call in (half, half.branch_response, half.branch_values):
+        with pytest.raises(ValueError, match=r"rounds to zero in torch\.float16"):
+            call(x.half())
+
+
 def test_temperature_schedules_apply_to_learned_routing_only():
     learned = build_routed_ei(spec())
     learned.temperature = 0.5
