@@ -456,7 +456,11 @@ have this shape or be flattened; the latter are reshaped before normalization.
 Its first dimension must equal the product of ``input_shape``. The readout is
 constructed before the normalizer. A single unactivated Linear uses
 ``readout.weight`` and ``readout.bias`` checkpoint keys; an MLP retains the
-builder's numeric module keys under ``readout``.
+builder's numeric module keys under ``readout``. Training builds the readout
+from the run's global random stream (after any encoder draws), as it builds an
+``affine_mlp`` core, so ``normalization: none`` starts from the weights of the
+equivalent ``affine_mlp`` control. An explicit ``core.initialization_seed``
+draws the readout from a CPU stream keyed by that seed and the core type.
 
 Four normalization choices are supported:
 

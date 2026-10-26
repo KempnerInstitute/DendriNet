@@ -7,7 +7,9 @@
   group-mean division, retaining constructor order and checkpoint keys.
   Normalization, groups and divisor offset are typed configuration; noise is
   an explicit runtime input. It does not change physical shunting, L1 input
-  normalization, existing cores or their default random streams.
+  normalization, existing cores or their default random streams. Training
+  initializes it from the global stream, like `affine_mlp`; an explicit
+  `core.initialization_seed` selects a stream keyed by the seed and core type.
 
 - Add opt-in `affine_mlp.initialization: pytorch_default` for dense controls.
   It retains the original Linear constructor weights, biases and RNG draws;

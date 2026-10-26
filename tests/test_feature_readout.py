@@ -12,6 +12,7 @@ from dendritic_modeling.config import (
     FeatureReadoutConfig,
     config_from_mapping,
 )
+from dendritic_modeling.config.seeds import derive_seed
 from dendritic_modeling.networks.architectures.classical.feature_readout import (
     build_feature_readout,
 )
@@ -209,7 +210,7 @@ def test_omitted_section_and_explicit_none_leave_existing_core_unchanged():
     assert all(torch.equal(v, new.state_dict()[k]) for k, v in old.state_dict().items())
 
 
-def test_explicit_seed_and_config_copy():
+def test_explicit_seed_selects_a_keyed_stream_and_copies_the_config():
     config = spec("group_mean")
     rng = torch.get_rng_state().clone()
     raw = {"feature_readout": asdict(config), "initialization_seed": 5}
@@ -217,8 +218,50 @@ def test_explicit_seed_and_config_copy():
     b = get_architecture("feature_readout", raw)
     assert torch.equal(rng, torch.get_rng_state())
     assert all(torch.equal(v, b.state_dict()[k]) for k, v in a.state_dict().items())
+    # Keyed by the core type, so an encoder built after manual_seed(5) is not
+    # replayed by the readout.
+    built = []
+    for seed in (derive_seed(5, "core.feature_readout.initialization"), 5):
+        torch.manual_seed(seed)
+        built.append(build_feature_readout(config).readout.weight)
+    assert torch.equal(a.readout.weight, built[0])
+    assert not torch.equal(a.readout.weight, built[1])
     config.input_shape[0] = 99
     assert a.config.input_shape == [8, 2, 2]
+
+
+def test_training_initializes_the_readout_like_the_affine_mlp_control():
+    from dendritic_modeling.scripts.script_utils.setup_utils import (
+        _apply_initialization_seed_defaults,
+    )
+
+    # The encoder draws from the model stream first; reseeding the readout
+    # with the model seed would replay those draws instead of continuing.
+    encoder = {
+        "type": "mlpautoencoder",
+        "params": {
+            "input_dim": 32,
+            "encoder_hidden_dims": [32],
+            "latent_dim": 32,
+            "decoder_hidden_dims": [32],
+        },
+    }
+    readout, control = mapping(), mapping()
+    control["model"]["core"] = {
+        "type": "affine_mlp",
+        "affine_mlp": asdict(spec().readout),
+    }
+    states = []
+    for value in (readout, control):
+        value["model"]["encoder"] = encoder
+        cfg = config_from_mapping(value)
+        _apply_initialization_seed_defaults(cfg.model, 41)
+        torch.manual_seed(41)  # As training's set_seed(model_seed).
+        states.append(list(initialize_model(cfg.model)[0].state_dict().values()))
+        if value is readout:
+            assert cfg.model.core.initialization_seed is None
+    assert len(states[0]) == len(states[1])
+    assert all(torch.equal(a, b) for a, b in zip(*states))
 
 
 def test_group_divisor_noise_validation_and_gradient():

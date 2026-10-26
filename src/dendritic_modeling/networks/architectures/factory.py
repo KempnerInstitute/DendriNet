@@ -382,10 +382,7 @@ def _build_feature_readout_architecture(type, parameters, input_dim, suffix_inpu
     ):
         raise ValueError("feature_readout output dimension does not match the decoder")
     seed = raw.get("initialization_seed")
-    if seed is None:
-        return build_feature_readout(config)
-    with torch.random.fork_rng(devices=[]):
-        torch.random.default_generator.manual_seed(int(seed))
+    with _keyed_initialization_stream(seed, "feature_readout"):
         return build_feature_readout(config)
 
 
