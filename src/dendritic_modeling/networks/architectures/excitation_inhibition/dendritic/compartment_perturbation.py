@@ -19,13 +19,25 @@ coordinate, so the perturbed layer runs once:
 The offset must broadcast to the layer's output, ``[batch, compartments]``,
 without changing its shape, and must match its device and dtype; compartments
 left unperturbed get zeros. A perturbation changes no parameter or buffer.
+With signal rounding, voltage and current offsets are rounded with the
+voltage, and output offsets are added to the rounded output.
+
 Gradients of a loss with respect to a zero offset that requires gradients are
-the exact errors of the compartments in that coordinate.
+the exact errors of the compartments in that coordinate, as autograd computes
+them: gradient hooks of the model (training-mode gradient scaling, or a core's
+``soma_broadcast`` credit) change them in the same way as parameter gradients.
+
+Perturbations act only in ``DendriticBranchLayer.forward``. Paths that would
+not apply them raise while one is set: stateful and recurrent currents,
+voltages computed from given currents, a ``DendriNet.forward_levels``
+intervention on the same level, and a current perturbation under a branch
+rule override that does not read the shunting numerator.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any, Optional
 
 import torch
 
@@ -75,4 +87,16 @@ class CompartmentPerturbation:
         return value + offset
 
 
-__all__ = ["COORDINATES", "CompartmentPerturbation"]
+def active_compartment_perturbation(owner: Any) -> Optional[CompartmentPerturbation]:
+    """The perturbation a forward pass of ``owner`` applies, or ``None``."""
+    perturbation = getattr(owner, "_compartment_perturbation", None)
+    if perturbation is None or isinstance(perturbation, CompartmentPerturbation):
+        return perturbation
+    raise TypeError(
+        "compartment perturbations are applied with perturb_compartments(...) or "
+        "DendriticBranchLayer.set_compartment_perturbation(...), not by setting "
+        "_compartment_perturbation"
+    )
+
+
+__all__ = ["COORDINATES", "CompartmentPerturbation", "active_compartment_perturbation"]

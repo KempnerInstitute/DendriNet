@@ -4,14 +4,28 @@ from __future__ import annotations
 
 import pytest
 import torch
+from test_activation_lifecycle import (
+    _build_einet,
+    _count_fused_shunt_calls,
+    _einet_config as _lifecycle_config,
+    _inputs as _lifecycle_inputs,
+)
 
 from dendritic_modeling.networks import (
     CompartmentPerturbation,
+    DendriticBranchLayer,
     capture_analysis_currents,
     perturb_compartments,
 )
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_rule_override import (
+    BranchRuleOverride,
+    override_branch_rules,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.dendrinet import (
     DendriNet,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.level_interventions import (
+    CurrentInjection,
 )
 
 SOMA, STREAMS = 3, 2
@@ -288,3 +302,131 @@ def test_the_stateful_current_path_refuses_a_perturbation():
     )
     with pytest.raises(ValueError, match="stateful current path"):
         layer.compute_raw_currents(x, inhibition)
+
+
+@pytest.mark.parametrize("coordinate", ["output", "voltage", "current"])
+def test_a_zero_offset_matches_the_fused_shunt_gate(monkeypatch, coordinate):
+    calls = _count_fused_shunt_calls(monkeypatch)
+    model = _build_einet(_lifecycle_config(reactivation={"memory_efficient": True}))
+    x = _lifecycle_inputs(2)
+    with torch.no_grad():
+        reference = model(x)
+    assert calls  # the default forward takes the fused gate
+    fused = len(calls)
+    layers = [m for m in model.modules() if isinstance(m, DendriticBranchLayer)]
+    dtype = next(model.parameters()).dtype
+    zeros = {
+        layer: CompartmentPerturbation(
+            torch.zeros(_width(layer), dtype=dtype), coordinate
+        )
+        for layer in layers
+    }
+    with torch.no_grad(), perturb_compartments(zeros):
+        perturbed = model(x)
+    assert len(calls) == fused  # perturbed layers form the voltage explicitly
+    assert torch.equal(perturbed, reference)
+
+
+def test_a_current_perturbation_needs_a_rule_that_reads_the_numerator():
+    net = _net()
+    x, inhibition = _inputs()
+    terminal = net.branch_layers[0]
+    current = torch.full((len(x), _width(terminal)), 0.5, dtype=x.dtype)
+    moments = {
+        name: torch.tensor(value, dtype=x.dtype)
+        for name, value in (
+            ("raw_mean", 0.0),
+            ("raw_std", 1.0),
+            ("voltage_mean", 0.0),
+            ("voltage_std", 1.0),
+        )
+    }
+    for rule in (
+        BranchRuleOverride("raw_additive"),
+        BranchRuleOverride("raw_additive_moment_matched", **moments),
+    ):
+        with (
+            override_branch_rules({terminal: rule}),
+            perturb_compartments(
+                {terminal: CompartmentPerturbation(current, "current")}
+            ),
+            pytest.raises(ValueError, match="does not read the shunting numerator"),
+        ):
+            net(x, inhibition)
+    # A rule that divides the numerator applies the injected current.
+    rolled = BranchRuleOverride("sample_rolled_denominator")
+    with torch.no_grad(), override_branch_rules({terminal: rolled}):
+        reference = net.forward_levels(x, inhibition)[0]
+        with perturb_compartments(
+            {terminal: CompartmentPerturbation(current, "current")}
+        ):
+            perturbed = net.forward_levels(x, inhibition)[0]
+    assert not torch.allclose(perturbed, reference)
+    # Output and voltage offsets apply under any rule.
+    with (
+        torch.no_grad(),
+        override_branch_rules({terminal: BranchRuleOverride("raw_additive")}),
+    ):
+        reference = net.forward_levels(x, inhibition)[0]
+        with perturb_compartments(
+            {terminal: CompartmentPerturbation(current, "output")}
+        ):
+            perturbed = net.forward_levels(x, inhibition)[0]
+    assert torch.allclose(perturbed, reference + current, rtol=0, atol=1e-15)
+
+
+def test_voltages_from_given_currents_refuse_a_perturbation():
+    terminal = _net().branch_layers[0]
+    x, _ = _inputs()
+    excitation = torch.ones(len(x), _width(terminal), dtype=x.dtype)
+    with (
+        perturb_compartments(
+            {terminal: CompartmentPerturbation(torch.zeros_like(excitation))}
+        ),
+        pytest.raises(ValueError, match="voltages computed from currents"),
+    ):
+        terminal.output_from_currents(excitation, excitation)
+
+
+def test_an_intervention_cannot_share_a_level_with_a_perturbation():
+    net = _net()
+    x, inhibition = _inputs()
+    terminal = net.branch_layers[0]
+    injection = CurrentInjection(
+        reference_inhibitory_input=inhibition,
+        anchor=torch.zeros(_width(terminal), dtype=x.dtype),
+    )
+    with (
+        perturb_compartments(
+            {
+                terminal: CompartmentPerturbation(
+                    torch.zeros(_width(terminal), dtype=x.dtype)
+                )
+            }
+        ),
+        pytest.raises(ValueError, match="drop the compartment perturbation"),
+    ):
+        net.forward_levels(x, inhibition, interventions={terminal.layer_idx: injection})
+
+
+def test_a_perturbation_set_by_hand_must_be_a_compartment_perturbation():
+    net = _net()
+    x, inhibition = _inputs()
+    net.branch_layers[0]._compartment_perturbation = torch.zeros(1, dtype=x.dtype)
+    with pytest.raises(TypeError, match="perturb_compartments"):
+        net(x, inhibition)
+
+
+def test_a_refused_setup_leaves_no_layer_perturbed():
+    first, second = _net(shunting=False).branch_layers[:2]
+    zero = torch.zeros(1, dtype=torch.float64)
+    with pytest.raises(ValueError, match="needs a shunting layer"):
+        with perturb_compartments(
+            {
+                first: CompartmentPerturbation(zero),
+                second: CompartmentPerturbation(zero, "current"),
+            }
+        ):
+            pass
+    assert first.compartment_perturbation is None
+    assert second.compartment_perturbation is None

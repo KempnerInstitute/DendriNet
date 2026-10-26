@@ -110,6 +110,14 @@ class BranchRuleOverride:
             elif not value.is_floating_point():
                 raise TypeError(f"{name} must be a floating-point tensor")
 
+    @property
+    def reads_numerator(self) -> bool:
+        """Whether the rule's voltage depends on the shunting numerator ``N``.
+
+        The additive rules recombine ``E``, ``I`` and ``C`` instead.
+        """
+        return self.rule not in ("raw_additive", "raw_additive_moment_matched")
+
     def voltage(
         self,
         owner: Any,

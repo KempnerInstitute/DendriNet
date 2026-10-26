@@ -15,6 +15,9 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.b
     active_branch_rule_override,
     check_branch_rule_override_target,
 )
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.compartment_perturbation import (
+    active_compartment_perturbation,
+)
 from dendritic_modeling.networks.utils.signal_rounding import round_signal
 from dendritic_modeling.plugins import load_plugins
 
@@ -296,16 +299,18 @@ def forward_branch_dynamics(
     analysis_rule = active_branch_rule_override(owner)
     if analysis_rule is not None:
         check_branch_rule_override_target(owner)
-    perturbation = getattr(owner, "_compartment_perturbation", None)
-    if (
-        perturbation is not None
-        and perturbation.coordinate == "current"
-        and not owner.use_shunting
-    ):
-        raise ValueError(
-            "a current perturbation needs a shunting layer; this layer integrates "
-            f"with {owner.additive_mode!r}"
-        )
+    perturbation = active_compartment_perturbation(owner)
+    if perturbation is not None and perturbation.coordinate == "current":
+        if not owner.use_shunting:
+            raise ValueError(
+                "a current perturbation needs a shunting layer; this layer "
+                f"integrates with {owner.additive_mode!r}"
+            )
+        if analysis_rule is not None and not analysis_rule.reads_numerator:
+            raise ValueError(
+                f"the {analysis_rule.rule!r} rule override does not read the "
+                "shunting numerator, so it would ignore an injected current"
+            )
     needs_components = (
         store_diagnostics
         or analysis_rule is not None
@@ -508,7 +513,7 @@ def compute_branch_raw_currents(
     rec_inhibitory_input=None,
 ):
     """Compute raw feedforward and recurrent branch currents."""
-    if getattr(owner, "_compartment_perturbation", None) is not None:
+    if active_compartment_perturbation(owner) is not None:
         raise ValueError(
             "compartment perturbations act in DendriticBranchLayer.forward; the "
             "stateful current path does not apply them"
@@ -601,6 +606,12 @@ def compute_branch_voltage_from_currents(
     if active_branch_rule_override(owner) is not None:
         raise ValueError(
             "branch rule overrides apply to the feedforward forward pass; "
+            "voltages computed from currents (recurrent and stateful paths, "
+            "analyses that substitute currents) would ignore them"
+        )
+    if active_compartment_perturbation(owner) is not None:
+        raise ValueError(
+            "compartment perturbations act in DendriticBranchLayer.forward; "
             "voltages computed from currents (recurrent and stateful paths, "
             "analyses that substitute currents) would ignore them"
         )

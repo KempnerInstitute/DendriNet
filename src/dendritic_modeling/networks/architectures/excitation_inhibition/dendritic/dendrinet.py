@@ -783,14 +783,26 @@ class DendriNet(nn.Module):
         depends on through the graph (local learning rules differentiate
         these outputs). ``interventions`` maps a level's depth (0 = soma) to a
         labelled intervention such as ``CurrentInjection``; the level's output
-        is replaced by the intervention's and passed on to its parent.
-        Without these options the last output equals ``forward``.
+        is replaced by the intervention's and passed on to its parent, so a
+        level cannot also carry a compartment perturbation. Without these
+        options the last output equals ``forward``.
         """
         interventions = dict(interventions or {})
         depths = {layer.layer_idx for layer in self.branch_layers}
         unknown = sorted(set(interventions) - depths)
         if unknown:
             raise ValueError(f"interventions name levels that do not exist: {unknown}")
+        perturbed = sorted(
+            layer.layer_idx
+            for layer in self.branch_layers
+            if layer.layer_idx in interventions
+            and layer.compartment_perturbation is not None
+        )
+        if perturbed:
+            raise ValueError(
+                "an intervention replaces its level's output, which would drop the "
+                f"compartment perturbation set on levels {perturbed}"
+            )
         outputs = []
         output = None
         for layer in self.branch_layers:

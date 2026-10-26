@@ -1629,8 +1629,10 @@ def perturb_compartments(perturbations):
             layer.set_compartment_perturbation(perturbation)
         yield dict(items)
     finally:
+        # The previous values were accepted when set; restoring them directly
+        # cannot fail and so cannot hide an error raised in the block.
         for (layer, _), perturbation in zip(items, previous):
-            layer.set_compartment_perturbation(perturbation)
+            layer._compartment_perturbation = perturbation
 
 
 __all__ = ["DendriticBranchLayer", "capture_analysis_currents", "perturb_compartments"]

@@ -539,12 +539,23 @@ current added to the numerator of ``V = (N + J) / (D + epsilon)``, so the
 layer's total conductance attenuates it). The offset must broadcast to the
 layer's output ``[batch, compartments]`` and match its device and dtype;
 compartments left alone get zeros. On exit each layer returns to its previous
-perturbation. Perturbations change no parameter or buffer, and the stateful
-current path of ``StatefulDendriNet`` refuses them. While a perturbation is
-set, a shunting layer forms its voltage explicitly instead of through the
-fused gate, with the same output for a zero offset. The gradient of a loss
-with respect to a zero offset that requires gradients is the exact error of
-the compartments in that coordinate:
+perturbation. Perturbations change no parameter or buffer. While a
+perturbation is set, a shunting layer forms its voltage explicitly instead of
+through the fused gate, with the same output for a zero offset; with signal
+rounding, voltage and current offsets are rounded with the voltage and output
+offsets are added to the rounded output.
+
+Perturbations act only in ``DendriticBranchLayer.forward``. Paths that would
+not apply them raise while one is set: the stateful and recurrent current
+paths, voltages computed from given currents (``output_from_currents``), a
+``DendriNet.forward_levels`` intervention on the same level, and a ``current``
+perturbation under a branch rule override that does not read the shunting
+numerator (``raw_additive``, ``raw_additive_moment_matched``). The gradient of
+a loss with respect to a zero offset that requires gradients is the exact
+error of the compartments in that coordinate, as autograd computes it:
+gradient hooks (training-mode gradient scaling, ``soma_broadcast`` credit)
+change it as they change parameter gradients, so compute it in evaluation
+mode with exact credit:
 
 .. code-block:: python
 
