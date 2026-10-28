@@ -286,6 +286,8 @@ def forward_branch_dynamics(
     """Run the branch-layer forward dynamics before returning reactivation output."""
     excitation = None
     inhibition = None
+    rec_excitation = None
+    rec_inhibition = None
     branch_current = None
     E = 0
     inhibitory_total = 0
@@ -297,9 +299,26 @@ def forward_branch_dynamics(
     store_diagnostics = bool(getattr(owner, "_store_diagnostics", False))
     rounding = getattr(owner, "_signal_round_dtype", None)
     analysis_rule = active_branch_rule_override(owner)
+    perturbation = active_compartment_perturbation(owner)
+    if getattr(owner, "_store_analysis_currents", False):
+        owner._last_analysis_currents = {}
+        if (
+            torch.is_grad_enabled()
+            and owner.use_shunting
+            and not store_diagnostics
+            and analysis_rule is None
+            and perturbation is None
+            and rounding is None
+            and fused_shunt_reactivation(owner.reactivation) is not None
+        ):
+            raise ValueError(
+                "graph-connected analysis capture would bypass the fused shunting "
+                "backward; use torch.no_grad() for forward-only capture, or "
+                "construct an unfused model (reactivation.memory_efficient=False) "
+                "for gradient analyses"
+            )
     if analysis_rule is not None:
         check_branch_rule_override_target(owner)
-    perturbation = active_compartment_perturbation(owner)
     if perturbation is not None and perturbation.coordinate == "current":
         if not owner.use_shunting:
             raise ValueError(
@@ -494,6 +513,8 @@ def forward_branch_dynamics(
             # Canonical stage-explicit analysis names.
             "pre_gate_excitation_current": excitation,
             "pre_gate_inhibition_current": inhibition,
+            "pre_gate_recurrent_excitation_current": rec_excitation,
+            "pre_gate_recurrent_inhibition_current": rec_inhibition,
             "pre_gate_upstream_current": branch_current,
             "pre_gate_voltage": voltage,
             "post_gate_output": result,
@@ -505,6 +526,16 @@ def forward_branch_dynamics(
     return result
 
 
+def _reject_analysis_capture_on_current_path(owner: Any) -> None:
+    if getattr(owner, "_store_analysis_currents", False):
+        owner._last_analysis_currents = {}
+        raise ValueError(
+            "analysis current capture requires DendriticBranchLayer.forward; "
+            "stateful steps, parallel_readout, all_active_star and "
+            "current-substitution paths are unsupported"
+        )
+
+
 def compute_branch_raw_currents(
     owner: Any,
     x,
@@ -513,6 +544,7 @@ def compute_branch_raw_currents(
     rec_inhibitory_input=None,
 ):
     """Compute raw feedforward and recurrent branch currents."""
+    _reject_analysis_capture_on_current_path(owner)
     if active_compartment_perturbation(owner) is not None:
         raise ValueError(
             "compartment perturbations act in DendriticBranchLayer.forward; the "
@@ -600,6 +632,7 @@ def compute_branch_voltage_from_currents(
     leaves the layer's stored diagnostics untouched (for analyses that apply
     the rule to substituted currents).
     """
+    _reject_analysis_capture_on_current_path(owner)
     store_diagnostics = record_diagnostics and bool(
         getattr(owner, "_store_diagnostics", False)
     )

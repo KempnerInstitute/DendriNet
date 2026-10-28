@@ -1252,15 +1252,21 @@ class DendriticBranchLayer(nn.Module):
     def set_analysis_currents(self, enabled: bool = True) -> None:
         """Enable or disable capture of the forward currents with their graph.
 
-        While enabled, each forward keeps the layer's pre-gate excitatory,
-        inhibitory and upstream currents, its pre-gate voltage and its
+        While enabled, each forward keeps the layer's pre-gate feedforward,
+        recurrent and upstream currents, its pre-gate voltage and its
         post-gate output (``pre_gate_excitation_current``,
-        ``pre_gate_inhibition_current``, ``pre_gate_upstream_current``,
+        ``pre_gate_inhibition_current``,
+        ``pre_gate_recurrent_excitation_current``,
+        ``pre_gate_recurrent_inhibition_current``, ``pre_gate_upstream_current``,
         ``pre_gate_voltage``, ``post_gate_output``) attached to the autograd
         graph, so analyses can differentiate a loss with respect to them.
-        Unlike :meth:`set_branch_diagnostics`, nothing is detached. A shunting
-        layer then forms its voltage explicitly instead of through the fused
-        gate, with the same forward output. Disabling discards the tensors.
+        Unlike :meth:`set_branch_diagnostics`, nothing is detached. Missing
+        pathways are ``None``. Capture that would bypass a fused shunting gate
+        requires ``torch.no_grad()``: its backward need not match the explicit
+        voltage path. For gradient analyses, construct an unfused model with
+        ``reactivation.memory_efficient=False``. Stateful steps, parallel/star
+        forwards and current-substitution methods reject capture. Disabling
+        discards the tensors.
         """
         self._store_analysis_currents = bool(enabled)
         if not enabled:

@@ -440,8 +440,8 @@ class LocalCreditAssignment(
         step and stops where the step calls ``optimizer.step()``: the local
         rule's gradients, the encoder and decoder updates, the distributed
         average and clipping. ``epoch`` (counted from 1, as in training)
-        selects the update modes of that epoch (freeze windows and
-        ``training_schedule``); by default the trainer's current epoch, the
+        selects the update modes and HSIC warmup of that epoch (freeze windows
+        and ``training_schedule``); by default the trainer's current epoch, the
         first before :meth:`train` has run. The optimizer's gradients are
         reset first, as in training. The model keeps its mode: in ``train()``
         mode this is a training step's update, including the forward's
@@ -449,25 +449,45 @@ class LocalCreditAssignment(
         none`` the core is held fixed as in training: its parameters do not
         require gradients during the call and the forward leaves its sparse
         state unchanged. Before ``train`` has run, the trainer first prepares
-        ``model`` as ``train`` does, without copying a best state. Returns the
-        batch loss.
+        ``model`` as ``train`` does, without copying a best state. Restores the
+        epoch counter, and under ``core_update_mode: none`` the pre-call
+        trainability, including when initialization or the batch raises.
+        Returns the batch loss.
         """
-        if not hasattr(self, "epoch_counter"):
-            self._check_local_model(model)
-            self._initialize_attributes(model, self.epochs, snapshot_best=False)
-        if epoch is None:
-            epoch = max(int(self.epoch_counter), 1)
-        elif int(epoch) < 1:
-            raise ValueError(f"epoch counts from 1, as in training; got {epoch}")
-        frozen_core = self._freeze_core(model)
+        # Initialization can freeze reactivation parameters before _freeze_core
+        # runs. Preserve the caller's flags, while letting initialization record
+        # the original gate trainability for subsequent training phases.
+        trainability = (
+            snapshot_requires_grad(self._unwrap_model(model))
+            if getattr(self.local_cfg, "core_update_mode", "local") == "none"
+            else None
+        )
         try:
-            with frozen_sparse_state() if frozen_core is not None else nullcontext():
-                return self._assign_batch_gradients(
-                    model, inputs.to(self.device), targets.to(self.device), int(epoch)
-                )
+            if not hasattr(self, "epoch_counter"):
+                self._check_local_model(model)
+                self._initialize_attributes(model, self.epochs, snapshot_best=False)
+            if epoch is None:
+                epoch = max(int(self.epoch_counter), 1)
+            elif int(epoch) < 1:
+                raise ValueError(f"epoch counts from 1, as in training; got {epoch}")
+            frozen_core = self._freeze_core(model)
+            previous_epoch = self.epoch_counter
+            self.epoch_counter = int(epoch)
+            try:
+                with (
+                    frozen_sparse_state() if frozen_core is not None else nullcontext()
+                ):
+                    return self._assign_batch_gradients(
+                        model,
+                        inputs.to(self.device),
+                        targets.to(self.device),
+                        int(epoch),
+                    )
+            finally:
+                self.epoch_counter = previous_epoch
         finally:
-            if frozen_core is not None:
-                restore_requires_grad(frozen_core)
+            if trainability is not None:
+                restore_requires_grad(trainability)
 
     def _assign_batch_gradients(
         self,

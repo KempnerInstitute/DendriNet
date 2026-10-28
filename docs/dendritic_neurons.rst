@@ -504,13 +504,24 @@ fewer active contacts.
 ``layer.set_analysis_currents(True)`` instead keeps the forward's pre-gate
 excitatory, inhibitory and upstream currents, the pre-gate voltage and the
 post-gate output attached to the autograd graph (``pre_gate_excitation_current``,
-``pre_gate_inhibition_current``, ``pre_gate_upstream_current``,
+``pre_gate_inhibition_current``, ``pre_gate_recurrent_excitation_current``,
+``pre_gate_recurrent_inhibition_current``, ``pre_gate_upstream_current``,
 ``pre_gate_voltage``, ``post_gate_output``), so an analysis can differentiate a
 loss with respect to compartment voltages or outputs; ``get_analysis_currents()``
 returns them. ``capture_analysis_currents(layers)`` enables the capture inside
 a ``with`` block, then restores each layer's setting and discards the tensors.
-While capturing, a shunting layer forms its voltage explicitly instead of
-through the fused gate; the forward output is the same.
+Recurrent currents have separate fields; missing pathways are ``None``.
+Capture is supported through the branch layer's ``forward`` only: stateful
+steps, ``parallel_readout``, ``all_active_star`` and current-substitution
+methods raise an error rather than returning empty or stale captures.
+
+Capture that would bypass a fused shunting gate requires ``torch.no_grad()``.
+Its forward output is unchanged, but the fused backward reconstructs voltage
+from a clamped logit and need not match the explicit voltage path. To analyze
+gradients, construct an unfused model with
+``reactivation.memory_efficient=False`` and compare against that model's
+training update. This is a different backward implementation, not a claim of
+equivalence to the fused update. The example below assumes an unfused model.
 
 .. code-block:: python
 

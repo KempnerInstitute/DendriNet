@@ -327,6 +327,41 @@ def test_a_zero_offset_matches_the_fused_shunt_gate(monkeypatch, coordinate):
     assert torch.equal(perturbed, reference)
 
 
+@pytest.mark.parametrize("coordinate", ["output", "voltage", "current"])
+def test_capture_preserves_gradients_of_an_already_unfused_perturbation(coordinate):
+    model = _build_einet(_lifecycle_config(reactivation={"memory_efficient": True}))
+    x = _lifecycle_inputs(2)
+    layers = [m for m in model.modules() if isinstance(m, DendriticBranchLayer)]
+    dtype = next(model.parameters()).dtype
+    offsets = {
+        layer: CompartmentPerturbation(
+            torch.zeros(_width(layer), dtype=dtype, requires_grad=True), coordinate
+        )
+        for layer in layers
+    }
+
+    def run():
+        model.zero_grad(set_to_none=True)
+        output = model(x)
+        gradients = torch.autograd.grad(
+            output.square().sum(),
+            tuple(model.parameters()) + tuple(item.offset for item in offsets.values()),
+            allow_unused=True,
+        )
+        return output.detach(), gradients
+
+    with perturb_compartments(offsets):
+        reference, reference_gradients = run()
+        with capture_analysis_currents(layers):
+            captured, captured_gradients = run()
+    assert torch.equal(captured, reference)
+    for found, expected in zip(captured_gradients, reference_gradients, strict=True):
+        if expected is None:
+            assert found is None
+        else:
+            assert torch.equal(found, expected)
+
+
 def test_a_current_perturbation_needs_a_rule_that_reads_the_numerator():
     net = _net()
     x, inhibition = _inputs()
