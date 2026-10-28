@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Analysis current capture exposes separate recurrent excitation and inhibition
+  tensors. It rejects stateful, parallel/star and current-substitution paths,
+  and requires ``torch.no_grad()`` when capture would bypass a fused shunting
+  backward. These restrictions prevent incomplete records and comparisons
+  against a different training gradient; default execution is unchanged.
 - ``assign_gradients`` applies HSIC warmup at its resolved epoch and restores
   the trainer's counter afterwards. With ``core_update_mode: none``, preserve
   gate trainability from before initialization, including on failure.

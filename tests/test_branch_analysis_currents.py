@@ -18,6 +18,8 @@ from dendritic_modeling.networks import DendriticBranchLayer, capture_analysis_c
 CANONICAL = (
     "pre_gate_excitation_current",
     "pre_gate_inhibition_current",
+    "pre_gate_recurrent_excitation_current",
+    "pre_gate_recurrent_inhibition_current",
     "pre_gate_upstream_current",
     "pre_gate_voltage",
     "post_gate_output",
@@ -76,12 +78,8 @@ def test_captured_tensors_are_the_forward_values_with_their_graph():
         )
 
 
-@pytest.mark.parametrize("memory_efficient", [False, True])
-def test_capture_leaves_the_forward_output_and_gradients_unchanged(
-    monkeypatch, memory_efficient
-):
-    calls = _count_fused_shunt_calls(monkeypatch)
-    model = _model(memory_efficient)
+def test_capture_leaves_unfused_forward_output_and_gradients_unchanged():
+    model = _model()
     x = _inputs(2)
 
     def run():
@@ -95,18 +93,139 @@ def test_capture_leaves_the_forward_output_and_gradients_unchanged(
         }
 
     reference, reference_grads = run()
-    assert bool(calls) == memory_efficient  # the fused gate runs by default
-    fused_calls = len(calls)
     with capture_analysis_currents(_branch_layers(model)):
         captured, captured_grads = run()
-    assert len(calls) == fused_calls  # capture forms the voltage explicitly
     assert torch.equal(captured, reference)
     assert captured_grads.keys() == reference_grads.keys()
     for name, gradient in reference_grads.items():
-        if memory_efficient:  # the fused gate has its own backward formula
-            torch.testing.assert_close(captured_grads[name], gradient)
+        assert torch.equal(captured_grads[name], gradient), name
+
+
+def test_fused_capture_requires_no_grad_and_preserves_forward(monkeypatch):
+    calls = _count_fused_shunt_calls(monkeypatch)
+    model = _model(memory_efficient=True)
+    layers = _branch_layers(model)
+    x = _inputs(2)
+    with torch.no_grad():
+        # Exercise the saturated regime where the fused backward's clamped
+        # logit gives a different voltage from the explicit path.
+        for layer in layers:
+            layer.reactivation.log_m.fill_(torch.tensor(1.5).log().item())
+            layer.reactivation.b.fill_(6.0)
+        reference = model(x)
+    assert calls
+    fused_calls = len(calls)
+    with torch.no_grad(), capture_analysis_currents(layers):
+        captured = model(x)
+        assert all(layer.get_analysis_currents() for layer in layers)
+    assert torch.equal(captured, reference)
+    assert len(calls) == fused_calls
+
+    with pytest.raises(ValueError, match="bypass the fused shunting backward"):
+        with capture_analysis_currents(layers):
+            model(x)
+    assert all(not layer.analysis_currents_enabled for layer in layers)
+    assert all(layer.get_analysis_currents() == {} for layer in layers)
+
+
+@pytest.mark.parametrize("feedforward", [False, True])
+def test_recurrent_currents_are_separate_forward_tensors_with_exact_credit(feedforward):
+    torch.manual_seed(5)
+    layer = (
+        DendriticBranchLayer(
+            output_dim=2,
+            excitatory_input_dim=3 if feedforward else None,
+            excitatory_synapses_per_branch=3 if feedforward else 0,
+            recurrent_input_dim=3,
+            recurrent_synapses_per_branch=3,
+            rec_inhibitory_input_dim=3,
+            rec_inhibitory_synapses_per_branch=3,
+            topk_type="standard",
+            reactivate=False,
+            weight_transform="exp",
+            use_noise=False,
+            adaptive_initialization=False,
+        )
+        .double()
+        .eval()
+    )
+    x = torch.rand(4, 3, dtype=torch.float64)
+    inhibitory_input = torch.rand_like(x)
+    with capture_analysis_currents(layer):
+        output = layer(x, recurrent_input=x, rec_inhibitory_input=inhibitory_input)
+        currents = layer.get_analysis_currents()
+        recurrent_e = currents["pre_gate_recurrent_excitation_current"]
+        recurrent_i = currents["pre_gate_recurrent_inhibition_current"]
+        assert recurrent_e.grad_fn is not None
+        assert recurrent_i.grad_fn is not None
+        assert currents["excitation"] is currents["pre_gate_excitation_current"]
+        assert currents["inhibition"] is currents["pre_gate_inhibition_current"]
+        assert currents["branch_input"] is currents["pre_gate_upstream_current"]
+        excitation = recurrent_e
+        if feedforward:
+            excitation = excitation + currents["pre_gate_excitation_current"]
         else:
-            assert torch.equal(captured_grads[name], gradient), name
+            assert currents["pre_gate_excitation_current"] is None
+        denominator = layer.effective_leak + excitation + recurrent_i + layer.epsilon
+        torch.testing.assert_close(output, excitation / denominator)
+        grad_e, grad_i = torch.autograd.grad(output.sum(), (recurrent_e, recurrent_i))
+        torch.testing.assert_close(
+            grad_e, (denominator - excitation) / denominator.square()
+        )
+        torch.testing.assert_close(grad_i, -excitation / denominator.square())
+        layer(x, recurrent_input=x)
+        assert (
+            layer.get_analysis_currents()["pre_gate_recurrent_inhibition_current"]
+            is None
+        )
+
+
+@pytest.mark.parametrize(
+    "mode", ["parallel_readout", "all_active_star", "stateful_step"]
+)
+def test_population_paths_that_bypass_layer_forward_reject_capture(mode):
+    from test_parallel_multiscale_control import (
+        _small_feedforward_population,
+        _small_population,
+    )
+
+    model = (
+        _small_population()
+        if mode == "stateful_step"
+        else _small_feedforward_population(mode)
+    )
+    layers = _branch_layers(model)
+    x = torch.ones(2, 6)
+    with pytest.raises(
+        ValueError, match=r"capture requires DendriticBranchLayer\.forward"
+    ):
+        with capture_analysis_currents(layers):
+            if mode == "stateful_step":
+                model.step(x, recurrent_input=torch.ones(2, 4))
+            else:
+                model(x)
+    assert all(layer.get_analysis_currents() == {} for layer in layers)
+
+
+@pytest.mark.parametrize(
+    "method", ["compute_raw_currents", "voltage_from_currents", "output_from_currents"]
+)
+def test_current_substitution_rejects_capture_and_clears_previous_records(method):
+    model = _model()
+    layer = _branch_layers(model)[0]
+    with capture_analysis_currents(layer):
+        model(_inputs(2))
+        assert layer.get_analysis_currents()
+        with pytest.raises(
+            ValueError, match=r"capture requires DendriticBranchLayer\.forward"
+        ):
+            if method == "compute_raw_currents":
+                layer.compute_raw_currents(torch.ones(2, 3))
+            elif method == "voltage_from_currents":
+                layer.voltage_from_currents(1.0, 0.0, 0.0)
+            else:
+                layer.output_from_currents(1.0, 0.0)
+        assert layer.get_analysis_currents() == {}
 
 
 def test_the_context_restores_each_setting_and_discards_tensors():
