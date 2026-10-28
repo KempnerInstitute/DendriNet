@@ -93,6 +93,16 @@ Analysis
 .. autoclass:: dendritic_modeling.analysis.utils.streaming_covariance.StreamingCovariance
    :members:
 
+.. autofunction:: dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer.capture_analysis_currents
+
+.. automethod:: dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer.DendriticBranchLayer.set_analysis_currents
+
+.. automethod:: dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer.DendriticBranchLayer.get_analysis_currents
+
+.. automethod:: dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer.DendriticBranchLayer.clear_analysis_currents
+
+.. automethod:: dendritic_modeling.training.strategies.local_learning.LocalCreditAssignment.assign_gradients
+
 Training state
 --------------
 

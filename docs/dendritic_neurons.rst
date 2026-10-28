@@ -501,6 +501,45 @@ of active synapses per compartment of each pathway (``E``, ``I``, ``E_rec``,
 configured count when a connectivity mask or a dynamic synapse type leaves
 fewer active contacts.
 
+``layer.set_analysis_currents(True)`` instead keeps the forward's pre-gate
+excitatory, inhibitory and upstream currents, the pre-gate voltage and the
+post-gate output attached to the autograd graph (``pre_gate_excitation_current``,
+``pre_gate_inhibition_current``, ``pre_gate_recurrent_excitation_current``,
+``pre_gate_recurrent_inhibition_current``, ``pre_gate_upstream_current``,
+``pre_gate_voltage``, ``post_gate_output``), so an analysis can differentiate a
+loss with respect to compartment voltages or outputs; ``get_analysis_currents()``
+returns them. ``capture_analysis_currents(layers)`` enables the capture inside
+a ``with`` block, then restores each layer's setting and discards the tensors.
+Recurrent currents have separate fields; missing pathways are ``None``.
+Capture is supported through the branch layer's ``forward`` only: stateful
+steps, ``parallel_readout``, ``all_active_star`` and current-substitution
+methods raise an error rather than returning empty or stale captures.
+``forward_levels`` also rejects capture on an intervened level before running
+the model and clears that level's old records. Other levels can still capture
+their actual outputs in the intervened network. Information-analysis
+projections temporarily disable capture for their synthetic signals and
+restore the caller's setting, including on failure.
+
+Capture that would bypass a fused shunting gate requires ``torch.no_grad()``.
+Its forward output is unchanged, but the fused backward reconstructs voltage
+from a clamped logit and need not match the explicit voltage path. To analyze
+gradients, construct an unfused model with
+``reactivation.memory_efficient=False`` and compare against that model's
+training update. This is a different backward implementation, not a claim of
+equivalence to the fused update. The example below assumes an unfused model.
+
+.. code-block:: python
+
+   import torch
+   from dendritic_modeling.networks import capture_analysis_currents
+
+   layers = list(neuron.branch_layers)
+   with capture_analysis_currents(layers):
+       loss = torch.nn.functional.cross_entropy(model(x), y)
+       captured = [layer.get_analysis_currents() for layer in layers]
+       voltages = [currents["pre_gate_voltage"] for currents in captured]
+       credit = torch.autograd.grad(loss, voltages)
+
 Analysis-only rule overrides
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

@@ -20,6 +20,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic i
     ReactivationConfig,
     TopKConfig,
     analytical_expectation_dbl_init,
+    capture_analysis_currents,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.ei_layer import (
     ExcitationInhibitionLayer,
@@ -83,6 +84,7 @@ __all__ = [
     "TransferLayer",
     "VarianceTopKLinear",
     "analytical_expectation_dbl_init",
+    "capture_analysis_currents",
     "distance_kernel_probabilities",
     "normalize_pathway_name",
     "sample_configured_mask",

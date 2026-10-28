@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+- Reject graph capture on intervened ``forward_levels`` levels before any
+  forward and clear their old records. Information-analysis projections
+  temporarily disable capture and restore the caller's setting on exit.
+- ``assign_gradients`` reapplies the configured gate policy on every frozen-core
+  call, including encoder/decoder gates, and clears stale gradients even for
+  parameters outside the optimizer's groups.
+- Analysis current capture exposes separate recurrent excitation and inhibition
+  tensors. It rejects stateful, parallel/star and current-substitution paths,
+  and requires ``torch.no_grad()`` when capture would bypass a fused shunting
+  backward. These restrictions prevent incomplete records and comparisons
+  against a different training gradient; default execution is unchanged.
+- ``assign_gradients`` applies HSIC warmup at its resolved epoch and restores
+  the trainer's counter afterwards. With ``core_update_mode: none``, preserve
+  gate trainability from before initialization, including on failure.
+- Branch layers expose their graph-connected forward currents for analyses:
+  ``DendriticBranchLayer.set_analysis_currents``, ``get_analysis_currents``,
+  ``clear_analysis_currents`` and the context manager
+  ``capture_analysis_currents(layers)`` (``dendritic_modeling.networks``)
+  keep the pre-gate currents, the pre-gate voltage and the post-gate output
+  attached to the autograd graph, which the detached branch diagnostics do
+  not. The information, branch-activation and input-region analyses now use
+  them. Capture is off by default and does not change forward outputs.
+- ``LocalCreditAssignment.assign_gradients(model, inputs, targets, epoch=None)``
+  assigns one batch's training update to ``.grad`` without the optimizer step,
+  for example to compare it with backpropagated gradients; ``epoch`` (from 1)
+  selects the epoch whose update modes apply. Under ``core_update_mode: none``
+  it holds the core fixed as training does (core parameters without gradients,
+  forward under ``frozen_sparse_state``). Training runs the same code for
+  every batch and is unchanged.
+
 - Paper-code exports accept explicitly allow-listed, committed `LICENSE`
   and `Makefile` files. Other extensionless inputs and copied library paths
   remain rejected; manuscript export rules are unchanged.

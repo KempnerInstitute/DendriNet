@@ -24,6 +24,9 @@ PYTHONPATH=$PWD/src python -m pytest -m "not slow" -n auto
   them on a five-minute deadline or a pytest interruption. Worker exceptions
   still fail the test. This also prevents timed-out children from keeping the
   pytest process alive during interpreter shutdown.
+  The topology/checkpoint worker releases its optimizer and distributed model
+  before destroying the process group, so their reducers can clean up while
+  communication resources are still live.
 
 ## Default-path goldens
 
