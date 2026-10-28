@@ -17,7 +17,7 @@ from test_operator_config_contract import _config
 from dendritic_modeling.analysis.core.information_parts.information_signal_projection import (
     compute_projected_branch_output,
 )
-from dendritic_modeling.networks import DendriticBranchLayer
+from dendritic_modeling.networks import DendriticBranchLayer, capture_analysis_currents
 from dendritic_modeling.networks.architectures.factory import get_architecture
 
 
@@ -47,14 +47,16 @@ def test_projection_of_recorded_currents_reproduces_each_layer(rule, gate, leak)
         pytest.skip("a non-unit leak requires shunting integration")
     network = _network(rule, gate, leak)
     branches = [m for m in network.modules() if isinstance(m, DendriticBranchLayer)]
-    for branch in branches:
-        branch._store_analysis_currents = True
-    with torch.no_grad():
+    with torch.no_grad(), capture_analysis_currents(branches):
         network(torch.rand(5, 6, generator=torch.Generator().manual_seed(2)))
+        records = {branch: branch.get_analysis_currents() for branch in branches}
 
+    # Projection substitutes currents after collection, as the analyzer does;
+    # it is not another capture of the model's actual forward compartments.
     non_leaf = 0
     for branch in branches:
-        record = branch._last_analysis_currents
+        assert not branch.analysis_currents_enabled
+        record = records[branch]
         projected = compute_projected_branch_output(
             branch,
             *(
