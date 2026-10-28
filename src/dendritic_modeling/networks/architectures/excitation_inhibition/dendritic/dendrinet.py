@@ -784,7 +784,9 @@ class DendriNet(nn.Module):
         these outputs). ``interventions`` maps a level's depth (0 = soma) to a
         labelled intervention such as ``CurrentInjection``; the level's output
         is replaced by the intervention's and passed on to its parent, so a
-        level cannot also carry a compartment perturbation. Without these
+        level cannot also carry a compartment perturbation. Current capture
+        on an intervened level raises before any forward and clears its old
+        captures; other levels can still capture their outputs. Without these
         options the last output equals ``forward``.
         """
         interventions = dict(interventions or {})
@@ -792,6 +794,20 @@ class DendriNet(nn.Module):
         unknown = sorted(set(interventions) - depths)
         if unknown:
             raise ValueError(f"interventions name levels that do not exist: {unknown}")
+        captured_interventions = [
+            layer
+            for layer in self.branch_layers
+            if interventions.get(layer.layer_idx) is not None
+            and layer.analysis_currents_enabled
+        ]
+        if captured_interventions:
+            for layer in captured_interventions:
+                layer.clear_analysis_currents()
+            raise ValueError(
+                "analysis current capture is unsupported on intervened levels: "
+                f"{[layer.layer_idx for layer in captured_interventions]}; "
+                "the intervention replaces their ordinary forward computation"
+            )
         perturbed = sorted(
             layer.layer_idx
             for layer in self.branch_layers

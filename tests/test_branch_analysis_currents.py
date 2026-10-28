@@ -228,6 +228,62 @@ def test_current_substitution_rejects_capture_and_clears_previous_records(method
         assert layer.get_analysis_currents() == {}
 
 
+def test_intervened_levels_reject_capture_before_any_forward_and_clear_records():
+    from test_dendrinet_level_overrides import _inputs as tree_inputs, _typed
+
+    from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.level_interventions import (
+        CurrentInjection,
+    )
+
+    model, _ = _typed(10)
+    model = model.double()
+    x, inhibition = tree_inputs()
+    layers = model.branch_layers[1:]
+    with capture_analysis_currents(layers):
+        model.forward_levels(x, inhibition)
+        assert all(layer.get_analysis_currents() for layer in layers)
+        calls = []
+        handles = [
+            layer.register_forward_hook(lambda *args: calls.append(1))
+            for layer in model.branch_layers
+        ]
+        try:
+            interventions = {
+                layer.layer_idx: CurrentInjection(inhibition, 0.1) for layer in layers
+            }
+            with pytest.raises(
+                ValueError, match="capture is unsupported on intervened levels"
+            ):
+                model.forward_levels(x, inhibition, interventions=interventions)
+            assert not calls
+            assert all(layer.get_analysis_currents() == {} for layer in layers)
+        finally:
+            for handle in handles:
+                handle.remove()
+
+
+def test_capture_on_other_levels_follows_the_intervened_forward():
+    from test_dendrinet_level_overrides import _inputs as tree_inputs, _typed
+
+    from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.level_interventions import (
+        CurrentInjection,
+    )
+
+    model, _ = _typed(10)
+    model = model.double()
+    x, inhibition = tree_inputs()
+    soma = model.branch_layers[-1]
+    with capture_analysis_currents(soma):
+        outputs = model.forward_levels(
+            x, inhibition, interventions={1: CurrentInjection(inhibition * 0.5, 0.1)}
+        )
+        assert soma.get_analysis_currents()["post_gate_output"] is outputs[-1]
+        (gradient,) = torch.autograd.grad(
+            outputs[-1].sum(), soma.get_analysis_currents()["pre_gate_voltage"]
+        )
+        assert torch.isfinite(gradient).all()
+
+
 def test_the_context_restores_each_setting_and_discards_tensors():
     model = _model()
     layers = _branch_layers(model)

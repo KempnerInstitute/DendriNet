@@ -18,7 +18,8 @@ def compute_projected_branch_output(
     recorded ones in the layer's own rule (``output_from_currents``), so its
     leak, integration mode, the coupling conductance of its child branches,
     its signal rounding and its gate are those of the forward pass. The rule
-    is evaluated in float64.
+    is evaluated in float64. Capture is temporarily disabled and its setting
+    restored on exit; synthetic signals do not populate forward captures.
     """
     parameter = next(module.parameters(), None)
     device = parameter.device if parameter is not None else torch.device("cpu")
@@ -29,13 +30,20 @@ def compute_projected_branch_output(
     child_conductance = None
     if getattr(module, "input_branches", False):
         child_conductance = module.branches_to_output.sum_conductances()
-    with torch.no_grad():
-        output = module.output_from_currents(
-            current(excitation),
-            current(inhibition),
-            branch_current=current(branch_input),
-            branch_conductance=child_conductance,
-        )
+    # These are synthetic signals, not another captured forward. The caller
+    # may have enabled capture before the analyzer attached its own hooks.
+    previous_capture = module.analysis_currents_enabled
+    try:
+        module.set_analysis_currents(False)
+        with torch.no_grad():
+            output = module.output_from_currents(
+                current(excitation),
+                current(inhibition),
+                branch_current=current(branch_input),
+                branch_conductance=child_conductance,
+            )
+    finally:
+        module.set_analysis_currents(previous_capture)
     return output.double().cpu().numpy()
 
 
