@@ -514,6 +514,11 @@ Recurrent currents have separate fields; missing pathways are ``None``.
 Capture is supported through the branch layer's ``forward`` only: stateful
 steps, ``parallel_readout``, ``all_active_star`` and current-substitution
 methods raise an error rather than returning empty or stale captures.
+``forward_levels`` also rejects capture on an intervened level before running
+the model and clears that level's old records. Other levels can still capture
+their actual outputs in the intervened network. Information-analysis
+projections temporarily disable capture for their synthetic signals and
+restore the caller's setting, including on failure.
 
 Capture that would bypass a fused shunting gate requires ``torch.no_grad()``.
 Its forward output is unchanged, but the fused backward reconstructs voltage

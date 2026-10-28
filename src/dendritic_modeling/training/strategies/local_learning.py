@@ -442,14 +442,16 @@ class LocalCreditAssignment(
         average and clipping. ``epoch`` (counted from 1, as in training)
         selects the update modes and HSIC warmup of that epoch (freeze windows
         and ``training_schedule``); by default the trainer's current epoch, the
-        first before :meth:`train` has run. The optimizer's gradients are
-        reset first, as in training. The model keeps its mode: in ``train()``
+        first before :meth:`train` has run. Model gradients are reset before
+        the batch, including parameters outside the optimizer. The model keeps
+        its mode: in ``train()``
         mode this is a training step's update, including the forward's
         updates of sparse synapse statistics. Under ``core_update_mode:
         none`` the core is held fixed as in training: its parameters do not
         require gradients during the call and the forward leaves its sparse
-        state unchanged. Before ``train`` has run, the trainer first prepares
-        ``model`` as ``train`` does, without copying a best state. Restores the
+        state unchanged. The configured gate policy is applied on every call,
+        including gates outside the core. Before ``train`` has run, the trainer
+        first prepares ``model`` as ``train`` does, without copying a best state. Restores the
         epoch counter, and under ``core_update_mode: none`` the pre-call
         trainability, including when initialization or the batch raises.
         Returns the batch loss.
@@ -470,7 +472,12 @@ class LocalCreditAssignment(
                 epoch = max(int(self.epoch_counter), 1)
             elif int(epoch) < 1:
                 raise ValueError(f"epoch counts from 1, as in training; got {epoch}")
+            if trainability is not None:
+                self._configure_reactivation_update_mode(model)
             frozen_core = self._freeze_core(model)
+            # The optimizer can exclude frozen core parameters. Clear their
+            # old gradients too, e.g. from an earlier backprop comparison.
+            model.zero_grad(set_to_none=True)
             previous_epoch = self.epoch_counter
             self.epoch_counter = int(epoch)
             try:

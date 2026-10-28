@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Reject graph capture on intervened ``forward_levels`` levels before any
+  forward and clear their old records. Information-analysis projections
+  temporarily disable capture and restore the caller's setting on exit.
+- ``assign_gradients`` reapplies the configured gate policy on every frozen-core
+  call, including encoder/decoder gates, and clears stale gradients even for
+  parameters outside the optimizer's groups.
 - Analysis current capture exposes separate recurrent excitation and inhibition
   tensors. It rejects stateful, parallel/star and current-substitution paths,
   and requires ``torch.no_grad()`` when capture would bypass a fused shunting

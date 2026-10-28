@@ -12,6 +12,9 @@ from test_local_learning_credit_controls import (
     _variance_tree_model,
 )
 from test_trainer_configuration import _data, _einet_model, _make_trainer, _mlp_model
+from torch import nn
+
+from dendritic_modeling.networks.activations.parametric import ParametricTanh
 
 
 def _gradients(model):
@@ -264,3 +267,66 @@ def test_failed_batch_restores_an_existing_epoch_counter(monkeypatch):
     with pytest.raises(RuntimeError, match="batch failed"):
         trainer.assign_gradients(model, *_data(n=16).tensors, epoch=3)
     assert trainer.epoch_counter == 7
+
+
+@pytest.mark.parametrize("gate_mode", ["frozen", "backprop"])
+def test_repeated_calls_reapply_gate_policy_outside_the_frozen_core(gate_mode):
+    model = _einet_model()
+    model.encoder_network = nn.Sequential(nn.Linear(6, 6), ParametricTanh(6))
+    model.decoder_network = nn.Sequential(model.decoder_network, ParametricTanh(3))
+    # Preserve a gate parameter deliberately fixed by the caller.
+    model.encoder_network[1].b.requires_grad_(False)
+    before = _trainability(model)
+    gates = [
+        parameter
+        for module in (model.encoder_network[1], model.decoder_network[1])
+        for parameter in module.parameters()
+        if parameter.requires_grad
+    ]
+    trainer, _ = _make_trainer(
+        "local_ca",
+        model,
+        local_rule_config={
+            "core_update_mode": "none",
+            "encoder_update_mode": "backprop",
+        },
+        reactivation_update_mode=gate_mode,
+        recalibrate_reactivation_every=0,
+    )
+    previous_gradients = None
+    for _ in range(3):
+        trainer.assign_gradients(model, *_data(n=16).tensors)
+        assert _trainability(model) == before
+        assert model.encoder_network[1].b.grad is None
+        assert all((gate.grad is None) == (gate_mode == "frozen") for gate in gates)
+        gradients = _gradients(model)
+        assert any(name.startswith("encoder_network.0.") for name in gradients)
+        assert any(name.startswith("decoder_network.0.") for name in gradients)
+        if previous_gradients is not None:
+            assert gradients.keys() == previous_gradients.keys()
+            assert all(
+                torch.equal(gradient, previous_gradients[name])
+                for name, gradient in gradients.items()
+            )
+        previous_gradients = gradients
+
+
+def test_assign_gradients_clears_stale_grads_outside_optimizer_groups():
+    model = _einet_model()
+    x, y = _data(n=16).tensors
+    model(x).square().sum().backward()
+    assert any(
+        parameter.grad is not None for parameter in model.core_network.parameters()
+    )
+    optimizer = torch.optim.Adam(model.decoder_network.parameters())
+    trainer, _ = _make_trainer(
+        "local_ca",
+        model,
+        optimizer=optimizer,
+        local_rule_config={"core_update_mode": "none"},
+    )
+    trainer.assign_gradients(model, x, y)
+    assert all(parameter.grad is None for parameter in model.core_network.parameters())
+    assert any(
+        parameter.grad is not None for parameter in model.decoder_network.parameters()
+    )
