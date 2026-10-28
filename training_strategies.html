@@ -94,6 +94,7 @@
 <li class="toctree-l3"><a class="reference internal" href="#morphology-aware-extensions">Morphology-aware extensions</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#what-the-rules-update">What the rules update</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#synapses-and-components">Synapses and components</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#gradients-without-a-step">Gradients without a step</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#delivered-errors-with-autograd-eligibilities">Delivered errors with autograd eligibilities</a></li>
 </ul>
 </li>
@@ -1403,6 +1404,38 @@ more than once in a forward pass (a recurrent unroll) raises.</p></li>
 <p>Under DDP, <code class="docutils literal notranslate"><span class="pre">local_ca</span></code> averages its assigned gradients across ranks before
 clipping and the optimizer step, because they do not come from a
 <code class="docutils literal notranslate"><span class="pre">backward()</span></code> call whose gradients DDP reduces.</p>
+</section>
+<section id="gradients-without-a-step">
+<h3>Gradients without a step<a class="headerlink" href="#gradients-without-a-step" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">trainer.assign_gradients(model,</span> <span class="pre">inputs,</span> <span class="pre">targets)</span></code> performs a training
+step’s gradient assignment and stops before the optimizer step: the local
+rule’s gradients, the encoder and decoder updates, the distributed average and
+clipping, by the same code and in the same order as training. It leaves the
+update in <code class="docutils literal notranslate"><span class="pre">.grad</span></code> and returns the batch loss. <code class="docutils literal notranslate"><span class="pre">epoch=</span></code> (counted from 1, as
+in training) selects whose update modes and HSIC warmup apply (freeze windows,
+<code class="docutils literal notranslate"><span class="pre">training_schedule</span></code>); by default the trainer’s current epoch, or the first
+before <code class="docutils literal notranslate"><span class="pre">train</span></code> has run, in which case the trainer first prepares the model as
+<code class="docutils literal notranslate"><span class="pre">train</span></code> does. The model keeps its mode; in <code class="docutils literal notranslate"><span class="pre">train()</span></code> mode the forward also
+updates sparse synapse statistics, as in training. Under <code class="docutils literal notranslate"><span class="pre">core_update_mode:</span>
+<span class="pre">none</span></code> the core is held fixed as training holds it: during the call its
+parameters do not require gradients and the forward leaves its Top-K
+statistics, release tracking and dense-to-sparse schedules unchanged. The
+epoch counter and, with the core held fixed, the pre-call trainability are
+restored on exit, even if initialization or the batch fails. With the trainer
+built from a run’s configuration, as the training
+script builds it (<code class="docutils literal notranslate"><span class="pre">get_trainer</span></code>), the gradients are the update that
+configuration trains with, for example for a comparison with backpropagation:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">model</span><span class="o">.</span><span class="n">eval</span><span class="p">()</span>
+<span class="n">trainer</span><span class="o">.</span><span class="n">assign_gradients</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+<span class="n">local</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="n">name</span><span class="p">:</span> <span class="n">parameter</span><span class="o">.</span><span class="n">grad</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">parameter</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">named_parameters</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">parameter</span><span class="o">.</span><span class="n">grad</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+<span class="p">}</span>
+<span class="n">model</span><span class="o">.</span><span class="n">zero_grad</span><span class="p">(</span><span class="n">set_to_none</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">functional</span><span class="o">.</span><span class="n">cross_entropy</span><span class="p">(</span><span class="n">model</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="n">y</span><span class="p">)</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
+</pre></div>
+</div>
 </section>
 <section id="delivered-errors-with-autograd-eligibilities">
 <span id="local-delivery"></span><h3>Delivered errors with autograd eligibilities<a class="headerlink" href="#delivered-errors-with-autograd-eligibilities" title="Link to this heading"></a></h3>

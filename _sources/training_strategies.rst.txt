@@ -1176,6 +1176,40 @@ Under DDP, ``local_ca`` averages its assigned gradients across ranks before
 clipping and the optimizer step, because they do not come from a
 ``backward()`` call whose gradients DDP reduces.
 
+Gradients without a step
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+``trainer.assign_gradients(model, inputs, targets)`` performs a training
+step's gradient assignment and stops before the optimizer step: the local
+rule's gradients, the encoder and decoder updates, the distributed average and
+clipping, by the same code and in the same order as training. It leaves the
+update in ``.grad`` and returns the batch loss. ``epoch=`` (counted from 1, as
+in training) selects whose update modes and HSIC warmup apply (freeze windows,
+``training_schedule``); by default the trainer's current epoch, or the first
+before ``train`` has run, in which case the trainer first prepares the model as
+``train`` does. The model keeps its mode; in ``train()`` mode the forward also
+updates sparse synapse statistics, as in training. Under ``core_update_mode:
+none`` the core is held fixed as training holds it: during the call its
+parameters do not require gradients and the forward leaves its Top-K
+statistics, release tracking and dense-to-sparse schedules unchanged. The
+epoch counter and, with the core held fixed, the pre-call trainability are
+restored on exit, even if initialization or the batch fails. With the trainer
+built from a run's configuration, as the training
+script builds it (``get_trainer``), the gradients are the update that
+configuration trains with, for example for a comparison with backpropagation:
+
+.. code-block:: python
+
+   model.eval()
+   trainer.assign_gradients(model, x, y)
+   local = {
+       name: parameter.grad.clone()
+       for name, parameter in model.named_parameters()
+       if parameter.grad is not None
+   }
+   model.zero_grad(set_to_none=True)
+   torch.nn.functional.cross_entropy(model(x), y).backward()
+
 .. _local-delivery:
 
 Delivered errors with autograd eligibilities

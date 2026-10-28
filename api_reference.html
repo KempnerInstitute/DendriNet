@@ -136,6 +136,11 @@
 </li>
 <li class="toctree-l3"><a class="reference internal" href="#dendritic_modeling.scripts.analysis.run_checkpoint_analysis.run_checkpoint_analysis"><code class="docutils literal notranslate"><span class="pre">run_checkpoint_analysis()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#dendritic_modeling.analysis.utils.streaming_covariance.StreamingCovariance"><code class="docutils literal notranslate"><span class="pre">StreamingCovariance</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer.capture_analysis_currents"><code class="docutils literal notranslate"><span class="pre">capture_analysis_currents()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer.DendriticBranchLayer.set_analysis_currents"><code class="docutils literal notranslate"><span class="pre">DendriticBranchLayer.set_analysis_currents()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer.DendriticBranchLayer.get_analysis_currents"><code class="docutils literal notranslate"><span class="pre">DendriticBranchLayer.get_analysis_currents()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer.DendriticBranchLayer.clear_analysis_currents"><code class="docutils literal notranslate"><span class="pre">DendriticBranchLayer.clear_analysis_currents()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#dendritic_modeling.training.strategies.local_learning.LocalCreditAssignment.assign_gradients"><code class="docutils literal notranslate"><span class="pre">LocalCreditAssignment.assign_gradients()</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#training-state">Training state</a><ul>
@@ -552,6 +557,80 @@ which includes the completion status of every requested analyzer.</p>
 <dd><p>Merge batch-centered moments; O(features**2) state, no retained observations.</p>
 </dd></dl>
 
+<dl class="py function">
+<dt class="sig sig-object py" id="dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer.capture_analysis_currents">
+<span class="sig-prename descclassname"><span class="pre">dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer.</span></span><span class="sig-name descname"><span class="pre">capture_analysis_currents</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">layers</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dendritic_modeling/networks/architectures/excitation_inhibition/dendritic/branch_layer.html#capture_analysis_currents"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer.capture_analysis_currents" title="Link to this definition"></a></dt>
+<dd><p>Capture the graph-connected forward currents of branch layers in a block.</p>
+<p><code class="docutils literal notranslate"><span class="pre">layers</span></code> is one <code class="xref py py-class docutils literal notranslate"><span class="pre">DendriticBranchLayer</span></code> or an iterable of them.
+Inside the block each forward of these layers keeps its currents, voltage
+and output with their autograd graph, as
+<a class="reference internal" href="#dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer.DendriticBranchLayer.set_analysis_currents" title="dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer.DendriticBranchLayer.set_analysis_currents"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_analysis_currents()</span></code></a> describes; read them
+with <code class="docutils literal notranslate"><span class="pre">get_analysis_currents()</span></code>. On exit, also after an error, every
+layer returns to its previous setting and the captured tensors are
+discarded. Yields the layers as a tuple.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer.DendriticBranchLayer.set_analysis_currents">
+<span class="sig-prename descclassname"><span class="pre">DendriticBranchLayer.</span></span><span class="sig-name descname"><span class="pre">set_analysis_currents</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">enabled</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.15)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><span class="pre">None</span></a></span></span><a class="reference internal" href="_modules/dendritic_modeling/networks/architectures/excitation_inhibition/dendritic/branch_layer.html#DendriticBranchLayer.set_analysis_currents"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer.DendriticBranchLayer.set_analysis_currents" title="Link to this definition"></a></dt>
+<dd><p>Enable or disable capture of the forward currents with their graph.</p>
+<p>While enabled, each forward keeps the layer’s pre-gate feedforward,
+recurrent and upstream currents, its pre-gate voltage and its
+post-gate output (<code class="docutils literal notranslate"><span class="pre">pre_gate_excitation_current</span></code>,
+<code class="docutils literal notranslate"><span class="pre">pre_gate_inhibition_current</span></code>,
+<code class="docutils literal notranslate"><span class="pre">pre_gate_recurrent_excitation_current</span></code>,
+<code class="docutils literal notranslate"><span class="pre">pre_gate_recurrent_inhibition_current</span></code>, <code class="docutils literal notranslate"><span class="pre">pre_gate_upstream_current</span></code>,
+<code class="docutils literal notranslate"><span class="pre">pre_gate_voltage</span></code>, <code class="docutils literal notranslate"><span class="pre">post_gate_output</span></code>) attached to the autograd
+graph, so analyses can differentiate a loss with respect to them.
+Unlike <code class="xref py py-meth docutils literal notranslate"><span class="pre">set_branch_diagnostics()</span></code>, nothing is detached. Missing
+pathways are <code class="docutils literal notranslate"><span class="pre">None</span></code>. Capture that would bypass a fused shunting gate
+requires <code class="docutils literal notranslate"><span class="pre">torch.no_grad()</span></code>: its backward need not match the explicit
+voltage path. For gradient analyses, construct an unfused model with
+<code class="docutils literal notranslate"><span class="pre">reactivation.memory_efficient=False</span></code>. Stateful steps, parallel/star
+forwards and current-substitution methods reject capture. Disabling
+discards the tensors.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer.DendriticBranchLayer.get_analysis_currents">
+<span class="sig-prename descclassname"><span class="pre">DendriticBranchLayer.</span></span><span class="sig-name descname"><span class="pre">get_analysis_currents</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.15)"><span class="pre">dict</span></a></span></span><a class="reference internal" href="_modules/dendritic_modeling/networks/architectures/excitation_inhibition/dendritic/branch_layer.html#DendriticBranchLayer.get_analysis_currents"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer.DendriticBranchLayer.get_analysis_currents" title="Link to this definition"></a></dt>
+<dd><p>Return a shallow copy of the most recent graph-connected currents.</p>
+<p>Besides the names listed in <a class="reference internal" href="#dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer.DendriticBranchLayer.set_analysis_currents" title="dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer.DendriticBranchLayer.set_analysis_currents"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_analysis_currents()</span></code></a>, the
+dictionary carries the older aliases <code class="docutils literal notranslate"><span class="pre">excitation</span></code>, <code class="docutils literal notranslate"><span class="pre">inhibition</span></code> and
+<code class="docutils literal notranslate"><span class="pre">branch_input</span></code>. It is empty before a forward with capture enabled.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer.DendriticBranchLayer.clear_analysis_currents">
+<span class="sig-prename descclassname"><span class="pre">DendriticBranchLayer.</span></span><span class="sig-name descname"><span class="pre">clear_analysis_currents</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><span class="pre">None</span></a></span></span><a class="reference internal" href="_modules/dendritic_modeling/networks/architectures/excitation_inhibition/dendritic/branch_layer.html#DendriticBranchLayer.clear_analysis_currents"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer.DendriticBranchLayer.clear_analysis_currents" title="Link to this definition"></a></dt>
+<dd><p>Discard the most recently captured analysis currents.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="dendritic_modeling.training.strategies.local_learning.LocalCreditAssignment.assign_gradients">
+<span class="sig-prename descclassname"><span class="pre">LocalCreditAssignment.</span></span><span class="sig-name descname"><span class="pre">assign_gradients</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">BaseModel</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inputs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.14)"><span class="pre">Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">targets</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.14)"><span class="pre">Tensor</span></a></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">epoch</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.14)"><span class="pre">Tensor</span></a></span></span><a class="reference internal" href="_modules/dendritic_modeling/training/strategies/local_learning.html#LocalCreditAssignment.assign_gradients"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.training.strategies.local_learning.LocalCreditAssignment.assign_gradients" title="Link to this definition"></a></dt>
+<dd><p>Assign one batch’s update to the parameters’ <code class="docutils literal notranslate"><span class="pre">.grad</span></code>; no step.</p>
+<p>Runs the forward, local signals and gradient assignment of a training
+step and stops where the step calls <code class="docutils literal notranslate"><span class="pre">optimizer.step()</span></code>: the local
+rule’s gradients, the encoder and decoder updates, the distributed
+average and clipping. <code class="docutils literal notranslate"><span class="pre">epoch</span></code> (counted from 1, as in training)
+selects the update modes and HSIC warmup of that epoch (freeze windows
+and <code class="docutils literal notranslate"><span class="pre">training_schedule</span></code>); by default the trainer’s current epoch, the
+first before <code class="xref py py-meth docutils literal notranslate"><span class="pre">train()</span></code> has run. Model gradients are reset before
+the batch, including parameters outside the optimizer. The model keeps
+its mode: in <code class="docutils literal notranslate"><span class="pre">train()</span></code>
+mode this is a training step’s update, including the forward’s
+updates of sparse synapse statistics. Under <code class="docutils literal notranslate"><span class="pre">core_update_mode:</span>
+<span class="pre">none</span></code> the core is held fixed as in training: its parameters do not
+require gradients during the call and the forward leaves its sparse
+state unchanged. The configured gate policy is applied on every call,
+including gates outside the core. Before <code class="docutils literal notranslate"><span class="pre">train</span></code> has run, the trainer
+first prepares <code class="docutils literal notranslate"><span class="pre">model</span></code> as <code class="docutils literal notranslate"><span class="pre">train</span></code> does, without copying a best state. Restores the
+epoch counter, and under <code class="docutils literal notranslate"><span class="pre">core_update_mode:</span> <span class="pre">none</span></code> the pre-call
+trainability, including when initialization or the batch raises.
+Returns the batch loss.</p>
+</dd></dl>
+
 </section>
 <section id="training-state">
 <h2>Training state<a class="headerlink" href="#training-state" title="Link to this heading"></a></h2>
@@ -612,6 +691,8 @@ depends on through the graph (local learning rules differentiate
 these outputs). <code class="docutils literal notranslate"><span class="pre">interventions</span></code> maps a level’s depth (0 = soma) to a
 labelled intervention such as <code class="docutils literal notranslate"><span class="pre">CurrentInjection</span></code>; the level’s output
 is replaced by the intervention’s and passed on to its parent.
+Current capture on an intervened level raises before any forward and
+clears its old captures; other levels can still capture their outputs.
 Without these options the last output equals <code class="docutils literal notranslate"><span class="pre">forward</span></code>.</p>
 </dd></dl>
 

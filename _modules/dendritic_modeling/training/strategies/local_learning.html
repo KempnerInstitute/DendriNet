@@ -1,0 +1,848 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>dendritic_modeling.training.strategies.local_learning &mdash; DendriNet v0.3.0</title>
+      <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../../_static/documentation_options.js?v=e259d695"></script>
+      <script src="../../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../../index.html" class="icon icon-home">
+            DendriNet
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../examples.html">Example configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Building models</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../network_architectures.html">Model architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../dendritic_neurons.html">Dendritic neurons</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../synapses.html">Synapses and connectivity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../population_networks.html">Population networks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../temporal_dynamics.html">Temporal dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../structured_ei_cores.html">Structured E/I cores</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../conductance_options.html">Conductance options</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../comparison_models.html">Baselines and comparison models</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Configuration</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../configuration_guide.html">Configuration guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../config_reference.html">Annotated reference configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../training_strategies.html">Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../distributed_training.html">Distributed training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../performance_kernels.html">Sparse execution and performance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Data and analysis</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../datasets.html">Datasets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../analysis.html">Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../analyzers.html">Analyzer reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../checkpoint_analysis.html">Analyzing saved checkpoints</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Running experiments</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../runs_and_outputs.html">Runs and outputs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../sweeps.html">Parameter sweeps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../model_compression.html">Compact checkpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../project_provenance.html">Project provenance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../available_components.html">Component catalogue</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../options_reference.html">Options reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../cli_reference.html">Command-line reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../api_reference.html">Python API</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../extending.html">Extending DendriNet</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../engineering_architecture.html">Engineering architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../contributing.html">Contributing</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">DendriNet</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">dendritic_modeling.training.strategies.local_learning</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for dendritic_modeling.training.strategies.local_learning</h1><div class="highlight"><pre>
+<span></span><span class="sd">"""</span>
+<span class="sd">Local learning training strategies.</span>
+
+<span class="sd">This module implements multi-factor local learning rules for dendritic networks.</span>
+
+<span class="sd">It provides biologically-inspired 3-/4-/5-factor Hebbian-like rules that use</span>
+<span class="sd">locally available signals (pre-synaptic input, compartment voltages) modulated</span>
+<span class="sd">by a broadcast soma error and optional morphology/information factors.</span>
+<span class="sd">"""</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">contextlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">nullcontext</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">torch</span><span class="w"> </span><span class="kn">import</span> <span class="n">nn</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config.local_learning</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">build_local_rule_config</span><span class="p">,</span>
+    <span class="n">coerce_legacy_local_rule_config</span><span class="p">,</span>
+    <span class="n">section_to_dict</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config.training</span><span class="w"> </span><span class="kn">import</span> <span class="n">CommonTrainerConfig</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks</span><span class="w"> </span><span class="kn">import</span> <span class="n">DendriticBranchLayer</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.excitation_inhibition.synapse.dense_to_sparse</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">DenseToSparseLinear</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.excitation_inhibition.synapse.indexed_release</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">IndexedReleaseLinear</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.excitation_inhibition.synapse.variance</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">VarianceTopKLinear</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.structure</span><span class="w"> </span><span class="kn">import</span> <span class="n">inhibitory_branch_layer_ids</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.utils.sparse_maintenance</span><span class="w"> </span><span class="kn">import</span> <span class="n">frozen_sparse_state</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.training.strategies.local_learning_parts.local_learning_broadcast_mixin</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">LocalLearningBroadcastMixin</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.training.strategies.local_learning_parts.local_learning_epoch</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">_accumulate_backprop_gradients</span> <span class="k">as</span> <span class="n">_accumulate_backprop_gradients</span><span class="p">,</span>
+    <span class="n">_accumulate_backprop_update_gradients</span><span class="p">,</span>
+    <span class="n">_accumulate_local_logging_loss</span><span class="p">,</span>
+    <span class="n">_apply_decoder_local_gradients</span> <span class="k">as</span> <span class="n">_apply_decoder_local_gradients</span><span class="p">,</span>
+    <span class="n">_apply_local_decoder_update</span><span class="p">,</span>
+    <span class="n">_apply_path_propagation_factor</span> <span class="k">as</span> <span class="n">_apply_path_propagation_factor</span><span class="p">,</span>
+    <span class="n">_average_distributed_gradients</span><span class="p">,</span>
+    <span class="n">_average_local_epoch_losses</span><span class="p">,</span>
+    <span class="n">_clear_topk_mask_cache</span> <span class="k">as</span> <span class="n">_clear_topk_mask_cache</span><span class="p">,</span>
+    <span class="n">_clip_model_gradients</span><span class="p">,</span>
+    <span class="n">_collect_backprop_param_groups</span> <span class="k">as</span> <span class="n">_collect_backprop_param_groups</span><span class="p">,</span>
+    <span class="n">_collect_topk_modules</span> <span class="k">as</span> <span class="n">_collect_topk_modules</span><span class="p">,</span>
+    <span class="n">_enable_topk_mask_cache</span> <span class="k">as</span> <span class="n">_enable_topk_mask_cache</span><span class="p">,</span>
+    <span class="n">_forward_with_local_recorders</span><span class="p">,</span>
+    <span class="n">_has_dendritic_branch_layers</span><span class="p">,</span>
+    <span class="n">_prepare_hsic_target</span><span class="p">,</span>
+    <span class="n">_resolve_epoch_update_modes</span> <span class="k">as</span> <span class="n">_resolve_epoch_update_modes</span><span class="p">,</span>
+    <span class="n">_resolve_local_epoch_update_modes</span><span class="p">,</span>
+    <span class="n">_resolve_reactivation_update_enabled</span><span class="p">,</span>
+    <span class="n">_resolve_stdp_error_signals</span> <span class="k">as</span> <span class="n">_resolve_stdp_error_signals</span><span class="p">,</span>
+    <span class="n">_zero_optimizer_gradients</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.training.strategies.local_learning_parts.local_learning_gradients_mixin</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">LocalLearningGradientMixin</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.training.strategies.local_learning_parts.local_learning_hsic_mixin</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">LocalLearningHSICMixin</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.training.strategies.local_learning_parts.local_learning_modulators</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">LocalLearningModulatorMixin</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.training.strategies.local_learning_parts.local_learning_morphology_mixin</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">LocalLearningMorphologyMixin</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.training.strategies.local_learning_parts.local_learning_recorders</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">LocalLearningRecorderMixin</span><span class="p">,</span>
+    <span class="n">reject_mismatched_dynamics_mode</span><span class="p">,</span>
+    <span class="n">reject_unsupported_forward_paths</span><span class="p">,</span>
+    <span class="n">reject_unsupported_synapses</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.training.strategies.local_learning_parts.local_learning_rule_mixin</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">LocalLearningRuleMixin</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.training.strategies.local_learning_parts.local_learning_signals</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">LocalLearningSignalMixin</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.training.strategies.local_learning_parts.local_learning_state</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">_LayerStats</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.training.strategies.local_learning_parts.local_learning_stdp_mixin</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">LocalLearningSTDPMixin</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.training.strategies.standard</span><span class="w"> </span><span class="kn">import</span> <span class="n">Trainer</span><span class="p">,</span> <span class="n">_step_seconds</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.training.strategies.trainability</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">TrainabilitySnapshot</span><span class="p">,</span>
+    <span class="n">restore_requires_grad</span><span class="p">,</span>
+    <span class="n">snapshot_requires_grad</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.utils.hooks</span><span class="w"> </span><span class="kn">import</span> <span class="n">iter_named_modules_of_type</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+<span class="n">_COMMON_GRAD_CLIP_DEFAULT</span> <span class="o">=</span> <span class="n">CommonTrainerConfig</span><span class="o">.</span><span class="n">__dataclass_fields__</span><span class="p">[</span>
+    <span class="s2">"grad_clip_value"</span>
+<span class="p">]</span><span class="o">.</span><span class="n">default</span>
+
+<span class="c1"># Sparse layers whose training forwards change their selection state.</span>
+<span class="n">_FORWARD_STATE_SPARSE_LAYERS</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">DenseToSparseLinear</span><span class="p">,</span>
+    <span class="n">IndexedReleaseLinear</span><span class="p">,</span>
+    <span class="n">VarianceTopKLinear</span><span class="p">,</span>
+<span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_same_clip_value</span><span class="p">(</span><span class="n">first</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">second</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Compare clip settings, treating ``None``/non-positive as disabled."""</span>
+    <span class="n">first_disabled</span> <span class="o">=</span> <span class="ow">not</span> <span class="n">first</span> <span class="ow">or</span> <span class="nb">float</span><span class="p">(</span><span class="n">first</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="mi">0</span>
+    <span class="n">second_disabled</span> <span class="o">=</span> <span class="ow">not</span> <span class="n">second</span> <span class="ow">or</span> <span class="nb">float</span><span class="p">(</span><span class="n">second</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="mi">0</span>
+    <span class="k">if</span> <span class="n">first_disabled</span> <span class="ow">or</span> <span class="n">second_disabled</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">first_disabled</span> <span class="ow">and</span> <span class="n">second_disabled</span>
+    <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="n">first</span><span class="p">)</span> <span class="o">==</span> <span class="nb">float</span><span class="p">(</span><span class="n">second</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">inactive_auxiliary_terms</span><span class="p">(</span><span class="n">local_cfg</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""The enabled auxiliary terms of ``local_cfg`` whose weights make them no-ops.</span>
+
+<span class="sd">    HSIC scales its gradients by ``hsic.weight`` (and its self and target parts</span>
+<span class="sd">    by ``self_weight`` and ``target_weight``), so a zero weight adds nothing.</span>
+<span class="sd">    Inhibitory and voltage homeostasis apply only a positive ``weight``, and</span>
+<span class="sd">    gate homeostasis only a positive ``center_weight`` or ``saturation_weight``.</span>
+<span class="sd">    """</span>
+    <span class="n">inactive</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">hsic</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">local_cfg</span><span class="p">,</span> <span class="s2">"hsic"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">hsic</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">hsic</span><span class="p">,</span> <span class="s2">"enabled"</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">float</span><span class="p">(</span><span class="n">hsic</span><span class="o">.</span><span class="n">weight</span><span class="p">)</span> <span class="o">==</span> <span class="mf">0.0</span><span class="p">:</span>
+            <span class="n">inactive</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">"hsic (weight=0)"</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">float</span><span class="p">(</span><span class="n">hsic</span><span class="o">.</span><span class="n">self_weight</span><span class="p">)</span> <span class="o">==</span> <span class="mf">0.0</span> <span class="ow">and</span> <span class="nb">float</span><span class="p">(</span><span class="n">hsic</span><span class="o">.</span><span class="n">target_weight</span><span class="p">)</span> <span class="o">==</span> <span class="mf">0.0</span><span class="p">:</span>
+            <span class="n">inactive</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">"hsic (self_weight=0 and target_weight=0)"</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"inhibitory_homeostasis"</span><span class="p">,</span> <span class="s2">"voltage_homeostasis"</span><span class="p">):</span>
+        <span class="n">cfg</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">local_cfg</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">cfg</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="s2">"enabled"</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
+            <span class="k">if</span> <span class="nb">float</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">weight</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="mf">0.0</span><span class="p">:</span>
+                <span class="n">inactive</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> (weight=</span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">weight</span><span class="p">)</span><span class="si">:</span><span class="s2">g</span><span class="si">}</span><span class="s2">)"</span><span class="p">)</span>
+    <span class="n">gate</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">local_cfg</span><span class="p">,</span> <span class="s2">"gate_homeostasis"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">gate</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">gate</span><span class="p">,</span> <span class="s2">"enabled"</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
+        <span class="n">center</span><span class="p">,</span> <span class="n">saturation</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">gate</span><span class="o">.</span><span class="n">center_weight</span><span class="p">),</span> <span class="nb">float</span><span class="p">(</span><span class="n">gate</span><span class="o">.</span><span class="n">saturation_weight</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">center</span> <span class="o">&lt;=</span> <span class="mf">0.0</span> <span class="ow">and</span> <span class="n">saturation</span> <span class="o">&lt;=</span> <span class="mf">0.0</span><span class="p">:</span>
+            <span class="n">inactive</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"gate_homeostasis (center_weight=</span><span class="si">{</span><span class="n">center</span><span class="si">:</span><span class="s2">g</span><span class="si">}</span><span class="s2">, "</span>
+                <span class="sa">f</span><span class="s2">"saturation_weight=</span><span class="si">{</span><span class="n">saturation</span><span class="si">:</span><span class="s2">g</span><span class="si">}</span><span class="s2">)"</span>
+            <span class="p">)</span>
+    <span class="k">return</span> <span class="n">inactive</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">LocalCreditAssignment</span><span class="p">(</span>
+    <span class="n">LocalLearningSignalMixin</span><span class="p">,</span>
+    <span class="n">LocalLearningRecorderMixin</span><span class="p">,</span>
+    <span class="n">LocalLearningSTDPMixin</span><span class="p">,</span>
+    <span class="n">LocalLearningBroadcastMixin</span><span class="p">,</span>
+    <span class="n">LocalLearningHSICMixin</span><span class="p">,</span>
+    <span class="n">LocalLearningRuleMixin</span><span class="p">,</span>
+    <span class="n">LocalLearningGradientMixin</span><span class="p">,</span>
+    <span class="n">LocalLearningMorphologyMixin</span><span class="p">,</span>
+    <span class="n">LocalLearningModulatorMixin</span><span class="p">,</span>
+    <span class="n">Trainer</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Local multi-factor learning strategy for dendritic networks.</span>
+
+<span class="sd">    Implements 3-/4-/5-factor Hebbian-like local rules for both synaptic</span>
+<span class="sd">    conductances (TopKLinear) and dendritic branch conductances (BlockLinear)</span>
+<span class="sd">    using locally available signals plus a broadcast error from the soma.</span>
+<span class="sd">    """</span>
+
+    <span class="c1"># The local-rule loop bypasses Trainer.train() and its LR scheduler.</span>
+    <span class="n">supports_lr_schedule</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="c1"># Options its own step loop does not apply (see STEP_OPTIONS).</span>
+    <span class="n">unapplied_options</span> <span class="o">=</span> <span class="n">Trainer</span><span class="o">.</span><span class="n">unapplied_options</span> <span class="o">|</span> <span class="nb">frozenset</span><span class="p">(</span>
+        <span class="p">{</span><span class="s2">"use_amp"</span><span class="p">,</span> <span class="s2">"enable_nan_checking"</span><span class="p">}</span>
+    <span class="p">)</span>
+    <span class="c1"># Local gradients are assigned directly and averaged explicitly.</span>
+    <span class="n">ddp_reduces_gradients</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">config_dict</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">"local_rule_config"</span><span class="p">,</span> <span class="p">{})</span> <span class="ow">or</span> <span class="p">{}</span>
+        <span class="c1"># Keep the common clip value only when it was passed, so the local-rule</span>
+        <span class="c1"># path can reject a value it would not apply.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_configured_grad_clip_value</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"grad_clip_value"</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_configured_grad_clip_mode</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"grad_clip_mode"</span><span class="p">)</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="c1"># Build LocalRuleConfig with proper nested config handling</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">local_cfg</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_build_local_rule_config</span><span class="p">(</span><span class="n">config_dict</span><span class="p">)</span>
+        <span class="n">inactive</span> <span class="o">=</span> <span class="n">inactive_auxiliary_terms</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">local_cfg</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">inactive</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_main_process</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="s2">"local_ca: the auxiliary terms </span><span class="si">%s</span><span class="s2"> are enabled but their weights "</span>
+                <span class="s2">"make them change no update; set a positive weight or "</span>
+                <span class="s2">"enabled: false (training.main.learning_strategy_config)."</span><span class="p">,</span>
+                <span class="s2">"; "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">inactive</span><span class="p">),</span>
+            <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_layer_stats</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">_LayerStats</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_decoder_cache</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_additive_running_var</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_broadcast_cache</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_stdp_traces</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_warned_decoder_soma_fallback</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="c1"># Trainable parameters that receive no gradient; set at the first step.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">uncovered_parameters</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">filename_prefix</span> <span class="o">=</span> <span class="s2">"local_learning_"</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger_info_prefix</span> <span class="o">=</span> <span class="s2">"[Local] "</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_section_to_dict</span><span class="p">(</span><span class="n">section</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">"""Convert a config section object to a plain dict."""</span>
+        <span class="k">return</span> <span class="n">section_to_dict</span><span class="p">(</span><span class="n">section</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_coerce_legacy_local_rule_config</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">config_dict</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">"""Normalize legacy flat local learning config to nested LocalRuleConfig layout."""</span>
+        <span class="k">return</span> <span class="n">coerce_legacy_local_rule_config</span><span class="p">(</span><span class="n">config_dict</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_build_local_rule_config</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config_dict</span><span class="p">:</span> <span class="nb">dict</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Build LocalRuleConfig from dict with proper nested config handling."""</span>
+        <span class="k">return</span> <span class="n">build_local_rule_config</span><span class="p">(</span><span class="n">config_dict</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_should_update_local_record</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rec</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Return whether LocalCA should write gradients for a recorded branch.</span>
+
+<span class="sd">        This only changes explicit inhibitory-cell DendriNet populations. I-to-E</span>
+<span class="sd">        synapses that live on excitatory dendrites remain ordinary excitatory</span>
+<span class="sd">        population records and are still updated by LocalCA.</span>
+<span class="sd">        """</span>
+        <span class="k">if</span> <span class="n">rec</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"population"</span><span class="p">)</span> <span class="o">!=</span> <span class="s2">"explicit_inhibitory"</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">True</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_explicit_inhibitory_mode</span><span class="p">()</span> <span class="o">==</span> <span class="s2">"local_ca"</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_report_uncovered_parameters</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Record and warn once about trainable parameters left without gradient."""</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">uncovered_parameters</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">name</span>
+            <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">param</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_unwrap_model</span><span class="p">(</span><span class="n">model</span><span class="p">)</span><span class="o">.</span><span class="n">named_parameters</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">param</span><span class="o">.</span><span class="n">requires_grad</span> <span class="ow">and</span> <span class="n">param</span><span class="o">.</span><span class="n">grad</span> <span class="ow">is</span> <span class="kc">None</span>
+        <span class="p">]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">uncovered_parameters</span><span class="p">:</span>
+            <span class="n">names</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">uncovered_parameters</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="s2">"</span><span class="si">%s%d</span><span class="s2"> trainable parameters receive no gradient from the local "</span>
+                <span class="s2">"rules and the configured update modes and stay fixed: </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">logger_info_prefix</span><span class="p">,</span>
+                <span class="nb">len</span><span class="p">(</span><span class="n">names</span><span class="p">),</span>
+                <span class="s2">", "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">names</span><span class="p">[:</span><span class="mi">10</span><span class="p">])</span> <span class="o">+</span> <span class="p">(</span><span class="s2">" ..."</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">names</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">10</span> <span class="k">else</span> <span class="s2">""</span><span class="p">),</span>
+            <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_explicit_inhibitory_mode</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="n">mode</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">local_cfg</span><span class="p">,</span> <span class="s2">"explicit_inhibitory_update_mode"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">mode</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># Compatibility for older LocalRuleConfig-like objects in tests.</span>
+            <span class="n">update</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">local_cfg</span><span class="p">,</span> <span class="s2">"update_explicit_inhibitory_cells"</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+            <span class="k">return</span> <span class="s2">"local_ca"</span> <span class="k">if</span> <span class="n">update</span> <span class="k">else</span> <span class="s2">"freeze"</span>
+        <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">mode</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+
+    <span class="c1"># Override: do not run extra pretrain/final phases here</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_pretrain</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>  <span class="c1"># type: ignore[override]</span>
+        <span class="k">return</span> <span class="p">[],</span> <span class="p">[]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_check_local_model</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Reject a model without branch layers or with unapplied options."""</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">_has_dendritic_branch_layers</span><span class="p">(</span><span class="n">model</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">"strategy 'local_ca' updates dendritic branch layers with local "</span>
+                <span class="s2">"rules, but this model has none; use 'standard' (backpropagation) "</span>
+                <span class="s2">"or 'dfa' for this core"</span>
+            <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_validate_local_rule_options</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_validate_local_rule_options</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Reject common options that the local-rule loop does not apply.</span>
+
+<span class="sd">        Local rules assign ``param.grad`` directly: backward-hook gradient</span>
+<span class="sd">        scaling and the auxiliary regularization loss never act on them, and</span>
+<span class="sd">        clipping uses ``learning_strategy_config.clip_grad_value``.</span>
+<span class="sd">        """</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_reject_unapplied_gradient_scaling</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>
+        <span class="n">reject_unsupported_forward_paths</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_unwrap_model</span><span class="p">(</span><span class="n">model</span><span class="p">),</span>
+            <span class="n">allow</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">local_cfg</span><span class="o">.</span><span class="n">allow_unmodeled_forward_features</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">three_factor</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">local_cfg</span><span class="o">.</span><span class="n">three_factor</span>
+        <span class="n">reject_mismatched_dynamics_mode</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_unwrap_model</span><span class="p">(</span><span class="n">model</span><span class="p">),</span>
+            <span class="n">three_factor</span><span class="o">.</span><span class="n">dynamics_mode</span><span class="p">,</span>
+            <span class="n">allow_mismatch</span><span class="o">=</span><span class="n">three_factor</span><span class="o">.</span><span class="n">allow_mismatched_dynamics_mode</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">normalized</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">name</span>
+            <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">layer</span> <span class="ow">in</span> <span class="n">iter_named_modules_of_type</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_unwrap_model</span><span class="p">(</span><span class="n">model</span><span class="p">),</span> <span class="n">DendriticBranchLayer</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span> <span class="s2">"use_additive_normalization"</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+        <span class="p">]</span>
+        <span class="k">if</span> <span class="n">normalized</span> <span class="ow">and</span> <span class="n">three_factor</span><span class="o">.</span><span class="n">additive_gain_mode</span> <span class="o">!=</span> <span class="s2">"normalization_jacobian"</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="s2">"</span><span class="si">%s</span><span class="s2">local_ca omits the derivative of use_additive_normalization at "</span>
+                <span class="s2">"</span><span class="si">%s</span><span class="s2">; three_factor.additive_gain_mode: normalization_jacobian "</span>
+                <span class="s2">"supplies it (exact gradients also need exact delivered errors)"</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">logger_info_prefix</span><span class="p">,</span>
+                <span class="s2">", "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">normalized</span><span class="p">[:</span><span class="mi">4</span><span class="p">])</span> <span class="o">+</span> <span class="p">(</span><span class="s2">" ..."</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">normalized</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">4</span> <span class="k">else</span> <span class="s2">""</span><span class="p">),</span>
+            <span class="p">)</span>
+        <span class="n">reject_unsupported_synapses</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_unwrap_model</span><span class="p">(</span><span class="n">model</span><span class="p">),</span>
+            <span class="n">stdp_pathways</span><span class="o">=</span><span class="p">{</span>
+                <span class="n">pathway</span>
+                <span class="k">for</span> <span class="n">pathway</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"exc"</span><span class="p">,</span> <span class="s2">"inh"</span><span class="p">,</span> <span class="s2">"rec_exc"</span><span class="p">,</span> <span class="s2">"rec_inh"</span><span class="p">)</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_stdp_enabled</span><span class="p">()</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_stdp_pathway_enabled</span><span class="p">(</span><span class="n">pathway</span><span class="p">)</span>
+            <span class="p">},</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_explicit_inhibitory_mode</span><span class="p">()</span> <span class="o">==</span> <span class="s2">"freeze"</span> <span class="ow">and</span> <span class="ow">not</span> <span class="p">(</span>
+            <span class="n">inhibitory_branch_layer_ids</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_unwrap_model</span><span class="p">(</span><span class="n">model</span><span class="p">))</span>
+        <span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">"explicit_inhibitory_update_mode 'freeze' has no inhibitory "</span>
+                <span class="s2">"population to freeze in this model"</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">regularization_manager</span><span class="o">.</span><span class="n">has_regularization</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">"local_ca assigns local-rule gradients and does not apply "</span>
+                <span class="s2">"training.main.regularization; set its l1/l2/E-I weights to 0 "</span>
+                <span class="s2">"or use a strategy that applies it (standard, dfa)."</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_configured_grad_clip_mode</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="s2">"value"</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">"local_ca clips local-rule gradients element-wise with "</span>
+                <span class="s2">"training.main.learning_strategy_config.clip_grad_value, so "</span>
+                <span class="s2">"training.main.common.grad_clip_mode="</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_configured_grad_clip_mode</span><span class="si">!r}</span><span class="s2"> would not be applied"</span>
+            <span class="p">)</span>
+        <span class="n">configured</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_configured_grad_clip_value</span>
+        <span class="n">local_clip</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">local_cfg</span><span class="p">,</span> <span class="s2">"clip_grad_value"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">configured</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">_same_clip_value</span><span class="p">(</span><span class="n">configured</span><span class="p">,</span> <span class="n">local_clip</span><span class="p">):</span>
+            <span class="k">return</span>
+        <span class="k">if</span> <span class="n">_same_clip_value</span><span class="p">(</span><span class="n">configured</span><span class="p">,</span> <span class="n">_COMMON_GRAD_CLIP_DEFAULT</span><span class="p">):</span>
+            <span class="c1"># The typed common default: local_ca documents that it clips with</span>
+            <span class="c1"># learning_strategy_config.clip_grad_value instead.</span>
+            <span class="k">return</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">"local_ca clips local-rule gradients with "</span>
+            <span class="sa">f</span><span class="s2">"training.main.learning_strategy_config.clip_grad_value=</span><span class="si">{</span><span class="n">local_clip</span><span class="si">}</span><span class="s2">; "</span>
+            <span class="sa">f</span><span class="s2">"training.main.common.grad_clip_value=</span><span class="si">{</span><span class="n">configured</span><span class="si">}</span><span class="s2"> would not be "</span>
+            <span class="s2">"applied. Set learning_strategy_config.clip_grad_value instead, or "</span>
+            <span class="sa">f</span><span class="s2">"leave common.grad_clip_value at its default "</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">_COMMON_GRAD_CLIP_DEFAULT</span><span class="si">}</span><span class="s2">."</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_freeze_core</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">TrainabilitySnapshot</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Hold the core fixed under ``core_update_mode: none``.</span>
+
+<span class="sd">        The training step already skips the local-rule gradients. Here the</span>
+<span class="sd">        core's parameters stop requiring gradients, which also keeps sparse</span>
+<span class="sd">        maintenance (decay, boosting, rewiring, topology controllers) off</span>
+<span class="sd">        them, and ``train`` runs the epochs under ``frozen_sparse_state`` so</span>
+<span class="sd">        that Top-K statistics, release tracking and dense-to-sparse schedules</span>
+<span class="sd">        do not change. Settings that would still change the core raise.</span>
+<span class="sd">        Returns the trainability to restore afterwards, or ``None``.</span>
+<span class="sd">        """</span>
+        <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">local_cfg</span><span class="p">,</span> <span class="s2">"core_update_mode"</span><span class="p">,</span> <span class="s2">"local"</span><span class="p">)</span> <span class="o">!=</span> <span class="s2">"none"</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="n">component</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_unwrap_model</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>
+        <span class="n">core</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">component</span><span class="p">,</span> <span class="s2">"core_network"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">core</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">"core_update_mode 'none' holds the core network fixed, but this "</span>
+                <span class="s2">"model has no core_network"</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">distributed</span><span class="o">.</span><span class="n">is_available</span><span class="p">()</span> <span class="ow">and</span> <span class="n">torch</span><span class="o">.</span><span class="n">distributed</span><span class="o">.</span><span class="n">is_initialized</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">distributed</span><span class="o">.</span><span class="n">get_world_size</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s2">"core_update_mode 'none' supports single-process training only"</span>
+                <span class="p">)</span>
+        <span class="n">every</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">"recalibrate_reactivation_every"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="ow">or</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">every</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">"core_update_mode 'none' keeps the core's gates fixed, but "</span>
+                <span class="sa">f</span><span class="s2">"recalibrate_reactivation_every=</span><span class="si">{</span><span class="n">every</span><span class="si">}</span><span class="s2"> recalibrates them during "</span>
+                <span class="s2">"training; set it to 0"</span>
+            <span class="p">)</span>
+        <span class="n">batch_norms</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">name</span>
+            <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">module</span> <span class="ow">in</span> <span class="n">core</span><span class="o">.</span><span class="n">named_modules</span><span class="p">()</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">nn</span><span class="o">.</span><span class="n">modules</span><span class="o">.</span><span class="n">batchnorm</span><span class="o">.</span><span class="n">_BatchNorm</span><span class="p">)</span>
+        <span class="p">]</span>
+        <span class="k">if</span> <span class="n">batch_norms</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">"core_update_mode 'none' keeps the core fixed, but these batch "</span>
+                <span class="s2">"normalization layers update running statistics in training: "</span>
+                <span class="o">+</span> <span class="s2">", "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">batch_norms</span><span class="p">)</span>
+            <span class="p">)</span>
+        <span class="n">core_modules</span> <span class="o">=</span> <span class="p">{</span><span class="nb">id</span><span class="p">(</span><span class="n">module</span><span class="p">)</span> <span class="k">for</span> <span class="n">module</span> <span class="ow">in</span> <span class="n">core</span><span class="o">.</span><span class="n">modules</span><span class="p">()}</span>
+        <span class="n">outside</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">name</span>
+            <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">module</span> <span class="ow">in</span> <span class="n">component</span><span class="o">.</span><span class="n">named_modules</span><span class="p">()</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">_FORWARD_STATE_SPARSE_LAYERS</span><span class="p">)</span>
+            <span class="ow">and</span> <span class="nb">id</span><span class="p">(</span><span class="n">module</span><span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">core_modules</span>
+        <span class="p">]</span>
+        <span class="k">if</span> <span class="n">outside</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">"core_update_mode 'none' freezes the sparse state that training "</span>
+                <span class="s2">"forwards update (Top-K statistics, release tracking, dense-to-"</span>
+                <span class="s2">"sparse schedules), which would also freeze these layers outside "</span>
+                <span class="s2">"the core: "</span> <span class="o">+</span> <span class="s2">", "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">outside</span><span class="p">)</span>
+            <span class="p">)</span>
+        <span class="n">snapshot</span> <span class="o">=</span> <span class="n">snapshot_requires_grad</span><span class="p">(</span><span class="n">component</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">parameter</span> <span class="ow">in</span> <span class="n">core</span><span class="o">.</span><span class="n">parameters</span><span class="p">():</span>
+            <span class="n">parameter</span><span class="o">.</span><span class="n">requires_grad</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">return</span> <span class="n">snapshot</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_resolve_local_reactivation_update_flag</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">update_reactivation</span><span class="p">:</span> <span class="nb">bool</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Disable local reactivation updates when the shared trainer mode does not use learned b,m."""</span>
+        <span class="k">return</span> <span class="n">_resolve_reactivation_update_enabled</span><span class="p">(</span>
+            <span class="n">update_reactivation</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_normalize_reactivation_update_mode</span><span class="p">(),</span>
+        <span class="p">)</span>
+
+    <span class="c1"># ----------------------- Core training overrides -----------------------</span>
+<div class="viewcode-block" id="LocalCreditAssignment.assign_gradients">
+<a class="viewcode-back" href="../../../../api_reference.html#dendritic_modeling.training.strategies.local_learning.LocalCreditAssignment.assign_gradients">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">assign_gradients</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">model</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">,</span>
+        <span class="n">inputs</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="n">targets</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">epoch</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Assign one batch's update to the parameters' ``.grad``; no step.</span>
+
+<span class="sd">        Runs the forward, local signals and gradient assignment of a training</span>
+<span class="sd">        step and stops where the step calls ``optimizer.step()``: the local</span>
+<span class="sd">        rule's gradients, the encoder and decoder updates, the distributed</span>
+<span class="sd">        average and clipping. ``epoch`` (counted from 1, as in training)</span>
+<span class="sd">        selects the update modes and HSIC warmup of that epoch (freeze windows</span>
+<span class="sd">        and ``training_schedule``); by default the trainer's current epoch, the</span>
+<span class="sd">        first before :meth:`train` has run. Model gradients are reset before</span>
+<span class="sd">        the batch, including parameters outside the optimizer. The model keeps</span>
+<span class="sd">        its mode: in ``train()``</span>
+<span class="sd">        mode this is a training step's update, including the forward's</span>
+<span class="sd">        updates of sparse synapse statistics. Under ``core_update_mode:</span>
+<span class="sd">        none`` the core is held fixed as in training: its parameters do not</span>
+<span class="sd">        require gradients during the call and the forward leaves its sparse</span>
+<span class="sd">        state unchanged. The configured gate policy is applied on every call,</span>
+<span class="sd">        including gates outside the core. Before ``train`` has run, the trainer</span>
+<span class="sd">        first prepares ``model`` as ``train`` does, without copying a best state. Restores the</span>
+<span class="sd">        epoch counter, and under ``core_update_mode: none`` the pre-call</span>
+<span class="sd">        trainability, including when initialization or the batch raises.</span>
+<span class="sd">        Returns the batch loss.</span>
+<span class="sd">        """</span>
+        <span class="c1"># Initialization can freeze reactivation parameters before _freeze_core</span>
+        <span class="c1"># runs. Preserve the caller's flags, while letting initialization record</span>
+        <span class="c1"># the original gate trainability for subsequent training phases.</span>
+        <span class="n">trainability</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">snapshot_requires_grad</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_unwrap_model</span><span class="p">(</span><span class="n">model</span><span class="p">))</span>
+            <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">local_cfg</span><span class="p">,</span> <span class="s2">"core_update_mode"</span><span class="p">,</span> <span class="s2">"local"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"none"</span>
+            <span class="k">else</span> <span class="kc">None</span>
+        <span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">"epoch_counter"</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_check_local_model</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_initialize_attributes</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">epochs</span><span class="p">,</span> <span class="n">snapshot_best</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">epoch</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">epoch</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">epoch_counter</span><span class="p">),</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="nb">int</span><span class="p">(</span><span class="n">epoch</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"epoch counts from 1, as in training; got </span><span class="si">{</span><span class="n">epoch</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">trainability</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_configure_reactivation_update_mode</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>
+            <span class="n">frozen_core</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_freeze_core</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>
+            <span class="c1"># The optimizer can exclude frozen core parameters. Clear their</span>
+            <span class="c1"># old gradients too, e.g. from an earlier backprop comparison.</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">zero_grad</span><span class="p">(</span><span class="n">set_to_none</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">previous_epoch</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">epoch_counter</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">epoch_counter</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">epoch</span><span class="p">)</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">with</span> <span class="p">(</span>
+                    <span class="n">frozen_sparse_state</span><span class="p">()</span> <span class="k">if</span> <span class="n">frozen_core</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">nullcontext</span><span class="p">()</span>
+                <span class="p">):</span>
+                    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_assign_batch_gradients</span><span class="p">(</span>
+                        <span class="n">model</span><span class="p">,</span>
+                        <span class="n">inputs</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">),</span>
+                        <span class="n">targets</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">),</span>
+                        <span class="nb">int</span><span class="p">(</span><span class="n">epoch</span><span class="p">),</span>
+                    <span class="p">)</span>
+            <span class="k">finally</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">epoch_counter</span> <span class="o">=</span> <span class="n">previous_epoch</span>
+        <span class="k">finally</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">trainability</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">restore_requires_grad</span><span class="p">(</span><span class="n">trainability</span><span class="p">)</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_assign_batch_gradients</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">model</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">,</span>
+        <span class="n">inputs</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="n">targets</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="n">epoch</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""The gradient assignment of one training step at ``epoch``."""</span>
+        <span class="c1"># Resolve per-epoch schedule for reactivation/decoder behavior</span>
+        <span class="n">update_reactivation</span><span class="p">,</span> <span class="n">encoder_update_mode</span><span class="p">,</span> <span class="n">decoder_update_mode</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">_resolve_local_epoch_update_modes</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">local_cfg</span><span class="p">,</span>
+                <span class="n">epoch</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_normalize_reactivation_update_mode</span><span class="p">(),</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Forward once to obtain outputs and local signals.</span>
+        <span class="n">y_hat</span><span class="p">,</span> <span class="n">layer_records</span> <span class="o">=</span> <span class="n">_forward_with_local_recorders</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">inputs</span><span class="p">)</span>
+
+        <span class="c1"># Reuse the recorded forward for pointwise losses. Model-dependent</span>
+        <span class="c1"># losses retain the compatibility fallback to a separate evaluation.</span>
+        <span class="n">loss</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compute_logging_loss</span><span class="p">(</span>
+            <span class="n">model</span><span class="p">,</span>
+            <span class="n">inputs</span><span class="p">,</span>
+            <span class="n">targets</span><span class="p">,</span>
+            <span class="n">predictions</span><span class="o">=</span><span class="n">y_hat</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Compute output-space error (dL/dy_hat) then resolve local soma-space</span>
+        <span class="c1"># signals for local dendritic updates.</span>
+        <span class="n">delta_out</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compute_soma_error</span><span class="p">(</span><span class="n">y_hat</span><span class="p">,</span> <span class="n">targets</span><span class="p">)</span>
+        <span class="n">v0_local</span><span class="p">,</span> <span class="n">delta_local</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_local_soma_signals</span><span class="p">(</span>
+            <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+            <span class="n">y_hat</span><span class="o">=</span><span class="n">y_hat</span><span class="p">,</span>
+            <span class="n">delta_out</span><span class="o">=</span><span class="n">delta_out</span><span class="o">.</span><span class="n">detach</span><span class="p">(),</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Prepare HSIC targets if needed</span>
+        <span class="n">y_target</span> <span class="o">=</span> <span class="n">_prepare_hsic_target</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">local_cfg</span><span class="p">,</span> <span class="n">targets</span><span class="p">,</span> <span class="n">y_hat</span><span class="p">)</span>
+
+        <span class="c1"># Zero gradients (we will set param.grads directly)</span>
+        <span class="n">_zero_optimizer_gradients</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">optimizer</span><span class="p">)</span>
+
+        <span class="c1"># Apply local learning updates as gradients on parameters; with</span>
+        <span class="c1"># core_update_mode "none" the core keeps its parameters.</span>
+        <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">local_cfg</span><span class="p">,</span> <span class="s2">"core_update_mode"</span><span class="p">,</span> <span class="s2">"local"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"local"</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_apply_local_rule_gradients</span><span class="p">(</span>
+                <span class="n">model</span><span class="p">,</span>
+                <span class="n">layer_records</span><span class="p">,</span>
+                <span class="n">v0</span><span class="o">=</span><span class="n">v0_local</span><span class="p">,</span>
+                <span class="n">delta</span><span class="o">=</span><span class="n">delta_local</span><span class="p">,</span>
+                <span class="n">y_target</span><span class="o">=</span><span class="n">y_target</span><span class="p">,</span>
+                <span class="n">update_reactivation</span><span class="o">=</span><span class="n">update_reactivation</span><span class="p">,</span>
+            <span class="p">)</span>
+
+        <span class="n">_accumulate_backprop_update_gradients</span><span class="p">(</span>
+            <span class="n">loss</span><span class="o">=</span><span class="n">loss</span><span class="p">,</span>
+            <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+            <span class="n">encoder_update_mode</span><span class="o">=</span><span class="n">encoder_update_mode</span><span class="p">,</span>
+            <span class="n">decoder_update_mode</span><span class="o">=</span><span class="n">decoder_update_mode</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="n">_apply_local_decoder_update</span><span class="p">(</span>
+            <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+            <span class="n">decoder_update_mode</span><span class="o">=</span><span class="n">decoder_update_mode</span><span class="p">,</span>
+            <span class="n">decoder_cache</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_decoder_cache</span><span class="p">,</span>
+            <span class="n">delta_out</span><span class="o">=</span><span class="n">delta_out</span><span class="p">,</span>
+            <span class="n">normalize_by_batch</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">local_cfg</span><span class="o">.</span><span class="n">normalize_by_batch</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">uncovered_parameters</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_report_uncovered_parameters</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>
+
+        <span class="c1"># LocalCA assigns gradients directly rather than calling</span>
+        <span class="c1"># ``loss.backward()``. DDP therefore cannot reduce them through</span>
+        <span class="c1"># autograd hooks; average them explicitly before clipping.</span>
+        <span class="n">_average_distributed_gradients</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>
+
+        <span class="c1"># Optional gradient clipping (value-wise)</span>
+        <span class="n">_clip_model_gradients</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">local_cfg</span><span class="o">.</span><span class="n">clip_grad_value</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">loss</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_epoch_train</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">,</span> <span class="n">train_loader</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]:</span>  <span class="c1"># type: ignore[override]</span>
+        <span class="n">model</span><span class="o">.</span><span class="n">train</span><span class="p">()</span>
+        <span class="n">loss_sum</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">((),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float64</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+
+        <span class="n">profile_loader</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">"profile_dataloader"</span><span class="p">,</span> <span class="kc">False</span><span class="p">))</span>
+        <span class="n">data_wait_total</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="n">step_time_total</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="n">max_data_wait</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="n">n_batches</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="n">train_iter</span> <span class="o">=</span> <span class="nb">iter</span><span class="p">(</span><span class="n">train_loader</span><span class="p">)</span>
+        <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="n">fetch_start</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">batch</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="n">train_iter</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">StopIteration</span><span class="p">:</span>
+                <span class="k">break</span>
+            <span class="k">if</span> <span class="n">profile_loader</span><span class="p">:</span>
+                <span class="n">data_wait</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span> <span class="o">-</span> <span class="n">fetch_start</span>
+                <span class="n">data_wait_total</span> <span class="o">+=</span> <span class="n">data_wait</span>
+                <span class="n">max_data_wait</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">max_data_wait</span><span class="p">,</span> <span class="n">data_wait</span><span class="p">)</span>
+                <span class="n">step_start</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span>
+
+            <span class="n">x_batch</span><span class="p">,</span> <span class="n">y_batch</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_move_training_batch_to_device</span><span class="p">(</span>
+                <span class="n">batch</span><span class="p">,</span>
+                <span class="n">train_loader</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="n">loss</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_assign_batch_gradients</span><span class="p">(</span>
+                <span class="n">model</span><span class="p">,</span> <span class="n">x_batch</span><span class="p">,</span> <span class="n">y_batch</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">epoch_counter</span>
+            <span class="p">)</span>
+            <span class="n">_accumulate_local_logging_loss</span><span class="p">(</span><span class="n">loss_sum</span><span class="p">,</span> <span class="n">loss</span><span class="p">)</span>
+
+            <span class="c1"># Step optimizer</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">optimizer</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+            <span class="n">n_batches</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="n">profile_loader</span><span class="p">:</span>
+                <span class="n">step_time_total</span> <span class="o">+=</span> <span class="n">_step_seconds</span><span class="p">(</span><span class="n">step_start</span><span class="p">,</span> <span class="n">loss_sum</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">profile_loader</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_main_process</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_log_dataloader_profile</span><span class="p">(</span>
+                <span class="n">n_batches</span><span class="o">=</span><span class="n">n_batches</span><span class="p">,</span>
+                <span class="n">data_wait_total</span><span class="o">=</span><span class="n">data_wait_total</span><span class="p">,</span>
+                <span class="n">step_time_total</span><span class="o">=</span><span class="n">step_time_total</span><span class="p">,</span>
+                <span class="n">max_data_wait</span><span class="o">=</span><span class="n">max_data_wait</span><span class="p">,</span>
+            <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">_average_local_epoch_losses</span><span class="p">(</span><span class="n">loss_sum</span><span class="p">,</span> <span class="n">n_batches</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">train</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">model</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">,</span>
+        <span class="n">train_data</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">Dataset</span><span class="p">,</span>
+        <span class="n">valid_data</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">Dataset</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="c1"># The local-rule loop never builds the per-epoch LR scheduler.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_lr_schedule</span><span class="p">()</span>
+        <span class="c1"># Standard training loop but with local rule gradient computation</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_check_local_model</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>
+
+        <span class="n">train_loader</span><span class="p">,</span> <span class="n">valid_loader</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dataloaders</span><span class="p">(</span><span class="n">train_data</span><span class="p">,</span> <span class="n">valid_data</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_initialize_attributes</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">epochs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_save_checkpoint</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>
+
+        <span class="c1"># Use the standard loop to ensure epoch counters and early stopping work</span>
+        <span class="n">train_losses</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">valid_losses</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">train_losses_base</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">train_losses_reg</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">frozen_core</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_freeze_core</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">with</span> <span class="n">frozen_sparse_state</span><span class="p">()</span> <span class="k">if</span> <span class="n">frozen_core</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">nullcontext</span><span class="p">():</span>
+                <span class="n">train_losses</span><span class="p">,</span> <span class="n">valid_losses</span><span class="p">,</span> <span class="n">train_losses_base</span><span class="p">,</span> <span class="n">train_losses_reg</span> <span class="o">=</span> <span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_run_training_loop</span><span class="p">(</span>
+                        <span class="n">n_epochs</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">epochs</span><span class="p">,</span>
+                        <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+                        <span class="n">train_loader</span><span class="o">=</span><span class="n">train_loader</span><span class="p">,</span>
+                        <span class="n">valid_loader</span><span class="o">=</span><span class="n">valid_loader</span><span class="p">,</span>
+                        <span class="n">train_losses</span><span class="o">=</span><span class="n">train_losses</span><span class="p">,</span>
+                        <span class="n">valid_losses</span><span class="o">=</span><span class="n">valid_losses</span><span class="p">,</span>
+                        <span class="n">train_losses_base</span><span class="o">=</span><span class="n">train_losses_base</span><span class="p">,</span>
+                        <span class="n">train_losses_reg</span><span class="o">=</span><span class="n">train_losses_reg</span><span class="p">,</span>
+                        <span class="n">logger_info</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">logger_info_prefix</span><span class="p">,</span>
+                    <span class="p">)</span>
+                <span class="p">)</span>
+        <span class="k">finally</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">frozen_core</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">restore_requires_grad</span><span class="p">(</span><span class="n">frozen_core</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_main_process</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"Best epoch: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">best_epoch</span><span class="si">}</span><span class="s2">, Best loss: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">best_loss</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_restore_best_state</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">valid_losses</span><span class="p">)</span>
+
+        <span class="n">results</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">"best_epoch"</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">best_epoch</span><span class="p">,</span>
+            <span class="s2">"best_loss"</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">best_loss</span><span class="p">,</span>
+            <span class="s2">"best_state_dict"</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">best_state_dict</span><span class="p">,</span>
+            <span class="s2">"train_losses"</span><span class="p">:</span> <span class="n">train_losses</span><span class="p">,</span>
+            <span class="s2">"valid_losses"</span><span class="p">:</span> <span class="n">valid_losses</span><span class="p">,</span>
+            <span class="s2">"train_losses_base"</span><span class="p">:</span> <span class="n">train_losses_base</span><span class="p">,</span>
+            <span class="s2">"train_losses_reg"</span><span class="p">:</span> <span class="n">train_losses_reg</span><span class="p">,</span>
+            <span class="s2">"dataloader_tuning"</span><span class="p">:</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">"dataloader_tuning"</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+            <span class="s2">"data_parallel"</span><span class="p">:</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">"data_parallel"</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+        <span class="p">}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_loss_plotting</span><span class="p">(</span><span class="n">train_losses</span><span class="p">,</span> <span class="n">valid_losses</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">results</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"LocalCreditAssignment"</span><span class="p">]</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024-2026, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

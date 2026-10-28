@@ -670,6 +670,42 @@ of active synapses per compartment of each pathway (<code class="docutils litera
 <code class="docutils literal notranslate"><span class="pre">I_rec</span></code>) on that forward pass. <code class="docutils literal notranslate"><span class="pre">realized_K</span></code> can be smaller than the
 configured count when a connectivity mask or a dynamic synapse type leaves
 fewer active contacts.</p>
+<p><code class="docutils literal notranslate"><span class="pre">layer.set_analysis_currents(True)</span></code> instead keeps the forward’s pre-gate
+excitatory, inhibitory and upstream currents, the pre-gate voltage and the
+post-gate output attached to the autograd graph (<code class="docutils literal notranslate"><span class="pre">pre_gate_excitation_current</span></code>,
+<code class="docutils literal notranslate"><span class="pre">pre_gate_inhibition_current</span></code>, <code class="docutils literal notranslate"><span class="pre">pre_gate_recurrent_excitation_current</span></code>,
+<code class="docutils literal notranslate"><span class="pre">pre_gate_recurrent_inhibition_current</span></code>, <code class="docutils literal notranslate"><span class="pre">pre_gate_upstream_current</span></code>,
+<code class="docutils literal notranslate"><span class="pre">pre_gate_voltage</span></code>, <code class="docutils literal notranslate"><span class="pre">post_gate_output</span></code>), so an analysis can differentiate a
+loss with respect to compartment voltages or outputs; <code class="docutils literal notranslate"><span class="pre">get_analysis_currents()</span></code>
+returns them. <code class="docutils literal notranslate"><span class="pre">capture_analysis_currents(layers)</span></code> enables the capture inside
+a <code class="docutils literal notranslate"><span class="pre">with</span></code> block, then restores each layer’s setting and discards the tensors.
+Recurrent currents have separate fields; missing pathways are <code class="docutils literal notranslate"><span class="pre">None</span></code>.
+Capture is supported through the branch layer’s <code class="docutils literal notranslate"><span class="pre">forward</span></code> only: stateful
+steps, <code class="docutils literal notranslate"><span class="pre">parallel_readout</span></code>, <code class="docutils literal notranslate"><span class="pre">all_active_star</span></code> and current-substitution
+methods raise an error rather than returning empty or stale captures.
+<code class="docutils literal notranslate"><span class="pre">forward_levels</span></code> also rejects capture on an intervened level before running
+the model and clears that level’s old records. Other levels can still capture
+their actual outputs in the intervened network. Information-analysis
+projections temporarily disable capture for their synthetic signals and
+restore the caller’s setting, including on failure.</p>
+<p>Capture that would bypass a fused shunting gate requires <code class="docutils literal notranslate"><span class="pre">torch.no_grad()</span></code>.
+Its forward output is unchanged, but the fused backward reconstructs voltage
+from a clamped logit and need not match the explicit voltage path. To analyze
+gradients, construct an unfused model with
+<code class="docutils literal notranslate"><span class="pre">reactivation.memory_efficient=False</span></code> and compare against that model’s
+training update. This is a different backward implementation, not a claim of
+equivalence to the fused update. The example below assumes an unfused model.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks</span><span class="w"> </span><span class="kn">import</span> <span class="n">capture_analysis_currents</span>
+
+<span class="n">layers</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">neuron</span><span class="o">.</span><span class="n">branch_layers</span><span class="p">)</span>
+<span class="k">with</span> <span class="n">capture_analysis_currents</span><span class="p">(</span><span class="n">layers</span><span class="p">):</span>
+    <span class="n">loss</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">functional</span><span class="o">.</span><span class="n">cross_entropy</span><span class="p">(</span><span class="n">model</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="n">y</span><span class="p">)</span>
+    <span class="n">captured</span> <span class="o">=</span> <span class="p">[</span><span class="n">layer</span><span class="o">.</span><span class="n">get_analysis_currents</span><span class="p">()</span> <span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="n">layers</span><span class="p">]</span>
+    <span class="n">voltages</span> <span class="o">=</span> <span class="p">[</span><span class="n">currents</span><span class="p">[</span><span class="s2">"pre_gate_voltage"</span><span class="p">]</span> <span class="k">for</span> <span class="n">currents</span> <span class="ow">in</span> <span class="n">captured</span><span class="p">]</span>
+    <span class="n">credit</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">autograd</span><span class="o">.</span><span class="n">grad</span><span class="p">(</span><span class="n">loss</span><span class="p">,</span> <span class="n">voltages</span><span class="p">)</span>
+</pre></div>
+</div>
 </section>
 <section id="analysis-only-rule-overrides">
 <h3>Analysis-only rule overrides<a class="headerlink" href="#analysis-only-rule-overrides" title="Link to this heading"></a></h3>
