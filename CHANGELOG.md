@@ -28,9 +28,10 @@
   independent, sibling or neuron dictionaries (optionally at matched
   perturbation energy), compared with the exact errors; reports agreement,
   evaluation counts and wall time per draw. Forward passes take at most
-  ``analysis.runtime.batch_size`` examples; levels that run more than once
-  per forward and cores with ``soma_broadcast`` credit are refused; an unset
-  ``seed`` follows the analysis seed policy.
+  ``analysis.runtime.batch_size`` rows (an example under one draw is one row);
+  levels that run more than once per forward, cores with ``soma_broadcast``
+  credit and models with signal rounding are refused; an unset ``seed``
+  follows the analysis seed policy.
 - Branch layers expose their graph-connected forward currents for analyses:
   ``DendriticBranchLayer.set_analysis_currents``, ``get_analysis_currents``,
   ``clear_analysis_currents`` and the context manager

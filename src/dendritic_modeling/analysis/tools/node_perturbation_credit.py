@@ -12,9 +12,10 @@ all compartments, mean cosine within each neuron, sign agreement, relative
 error, norm ratio, for structured dictionaries the share of the exact error's
 energy in their span, the forward evaluations per example and the wall time
 per draw. Final-only. The perturbed levels must run
-``DendriticBranchLayer.forward`` once per model forward; recurrent cores and
-cores whose autograd credit is not exact (``soma_broadcast``) are refused,
-since their gradients are not the exact errors.
+``DendriticBranchLayer.forward`` once per model forward. Recurrent cores, cores
+whose autograd credit is not exact (``soma_broadcast``) and models with signal
+rounding are refused: their gradients are not the derivatives of the forward
+that the perturbations probe.
 """
 
 from __future__ import annotations
@@ -44,6 +45,7 @@ from dendritic_modeling.networks import (
     capture_analysis_currents,
     perturb_compartments,
 )
+from dendritic_modeling.networks.utils.signal_rounding import signal_rounding_dtype
 from dendritic_modeling.training.node_perturbation import (
     group_basis,
     node_perturbation_estimates,
@@ -63,15 +65,15 @@ def _output_tensor(value: Any) -> torch.Tensor:
 def per_example_loss(
     output: torch.Tensor, target: torch.Tensor, loss: str
 ) -> torch.Tensor:
-    """Unreduced loss of each example: ``cross_entropy`` (class labels) or ``mse``."""
+    """Unreduced loss of each example: ``cross_entropy`` (class labels) or ``mse``.
+
+    ``mse`` averages the squared error over an example's outputs, which may be a
+    single value per example (``[batch]``) or any trailing shape.
+    """
     if loss == "cross_entropy":
         return F.cross_entropy(output, target.long(), reduction="none")
-    return (
-        (output - target.reshape(output.shape).to(output.dtype))
-        .square()
-        .flatten(1)
-        .mean(1)
-    )
+    error = output - target.reshape(output.shape).to(output.dtype)
+    return error.square().reshape(output.shape[0], -1).mean(1)
 
 
 def agreement(
@@ -155,6 +157,21 @@ class NodePerturbationCreditAnalyzer(AbstractAnalyzer):
                 "node-perturbation credit compares estimates with exact errors, but "
                 f"the model's autograd credit is {surrogate}"
             )
+        rounded = sorted(
+            {
+                module.signal_rounding
+                for module in model.modules()
+                if isinstance(getattr(module, "signal_rounding", None), str)
+                and signal_rounding_dtype(module.signal_rounding) is not None
+            }
+        )
+        if rounded:
+            # Rounding makes the forward piecewise constant, while autograd passes
+            # gradients through the casts: its errors are a surrogate there.
+            raise ValueError(
+                "node-perturbation credit compares estimates with exact errors, but "
+                f"the model rounds its signals to {rounded}"
+            )
         modules, n_somas, branch_factors = inventory_nested_tree(
             model, module_name_prefix=params.module_name_prefix
         )
@@ -162,8 +179,9 @@ class NodePerturbationCreditAnalyzer(AbstractAnalyzer):
         if missing:
             raise ValueError(f"the tree has depths {sorted(modules)}; not {missing}")
         runtime = runtime if runtime is not None else EvaluationRuntimeConfig()
-        examples = int(runtime.batch_size)
-        if examples < 1:
+        # A row is one example under one draw; every forward takes at most this many.
+        rows_per_forward = int(runtime.batch_size)
+        if rows_per_forward < 1:
             raise ValueError("analysis.runtime.batch_size must be positive")
         tensors = materialize_dataset(
             test_dataset, runtime, explicit_max_samples=params.max_samples
@@ -190,7 +208,7 @@ class NodePerturbationCreditAnalyzer(AbstractAnalyzer):
                         branch_factors,
                         dtype,
                         target,
-                        examples,
+                        rows_per_forward,
                         seed,
                     )
                 )
@@ -205,7 +223,7 @@ class NodePerturbationCreditAnalyzer(AbstractAnalyzer):
             "device": str(target),
             "dtype": str(dtype).removeprefix("torch."),
             "chunk": int(params.chunk),
-            "examples_per_forward": examples,
+            "rows_per_forward": rows_per_forward,
             "rows": rows,
         }
         if save_path is not None:
@@ -224,7 +242,7 @@ class NodePerturbationCreditAnalyzer(AbstractAnalyzer):
         branch_factors,
         dtype,
         device,
-        examples,
+        rows_per_forward,
         base_seed,
     ):
         params = self.params
@@ -232,31 +250,26 @@ class NodePerturbationCreditAnalyzer(AbstractAnalyzer):
         per_neuron = width // n_somas
         batch = int(x.shape[0])
         exact = self._exact_errors(
-            model, layer, name, x, y, width, dtype, device, examples
+            model, layer, name, x, y, width, dtype, device, rows_per_forward
         )
-        reference = self._coordinate_rms(model, layer, x, examples)
+        reference = self._coordinate_rms(model, layer, x, rows_per_forward)
 
         def loss(offset: torch.Tensor) -> torch.Tensor:
-            # Copy-major rows: copy c of example b is row c * part + b.
+            # Copy-major rows: row r is draw r // batch of example r % batch.
             copies = offset.shape[0]
+            total = copies * batch
+            offsets = offset.reshape(total, width)
             losses = []
-            for start in range(0, batch, examples):
-                stop = min(batch, start + examples)
-                part = stop - start
-                repeated_x = x[start:stop].repeat(copies, *([1] * (x.ndim - 1)))
-                repeated_y = y[start:stop].repeat(copies, *([1] * (y.ndim - 1)))
+            for start in range(0, total, rows_per_forward):
+                stop = min(total, start + rows_per_forward)
+                index = torch.arange(start, stop, device=x.device) % batch
                 perturbation = CompartmentPerturbation(
-                    offset[:, start:stop].reshape(copies * part, width),
-                    params.coordinate,
+                    offsets[start:stop], params.coordinate
                 )
                 with perturb_compartments({layer: perturbation}):
-                    output = _output_tensor(model(repeated_x))
-                losses.append(
-                    per_example_loss(output, repeated_y, params.loss).reshape(
-                        copies, part
-                    )
-                )
-            return torch.cat(losses, dim=1)
+                    output = _output_tensor(model(x[index]))
+                losses.append(per_example_loss(output, y[index], params.loss))
+            return torch.cat(losses).reshape(copies, batch)
 
         rows = []
         for dictionary in params.dictionaries:

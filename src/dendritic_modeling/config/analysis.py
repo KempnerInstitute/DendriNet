@@ -1809,11 +1809,12 @@ class NodePerturbationCreditAnalysisParams(BaseConfig):
     forward evaluations per example. ``match_perturbation_energy`` adds runs
     of the structured dictionaries with the scale multiplied by sqrt(D / m),
     the expected perturbation energy of independent draws. ``loss`` is
-    ``cross_entropy`` (class labels) or ``mse``. The first ``max_samples``
-    examples of the evaluation split are used (``None``: all of them); each
-    forward evaluates up to ``analysis.runtime.batch_size`` examples times
-    ``chunk`` draws. ``seed`` fixes the draws; left unset, a run fills it from
-    its probe seed, and without one the draws use seed 0.
+    ``cross_entropy`` (class labels) or ``mse`` (any output shape, also one
+    value per example). The first ``max_samples`` examples of the evaluation
+    split are used (``None``: all of them); each forward takes at most
+    ``analysis.runtime.batch_size`` rows, a row being one example under one
+    draw. ``seed`` fixes the draws; left unset, a run fills it from its probe
+    seed, and without one the draws use seed 0.
     """
 
     depths: list[int] = field(default_factory=lambda: [1])

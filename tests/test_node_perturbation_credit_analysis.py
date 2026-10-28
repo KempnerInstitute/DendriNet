@@ -20,6 +20,7 @@ from dendritic_modeling.config.analysis import (
     EvaluationRuntimeConfig,
     fill_analysis_seeds,
 )
+from dendritic_modeling.networks import DendriticBranchLayer
 
 PREFIX = "core_network.layers.0.excitatory_cells.branch_layers"
 
@@ -136,7 +137,7 @@ def test_the_analyzer_estimates_every_configured_case(tmp_path, coordinate):
     assert saved["rows"] == result["rows"]
     assert (result["n_somas"], result["branch_factors"]) == (4, [2, 2])
     assert (result["seed"], result["device"], result["dtype"]) == (0, "cpu", "float64")
-    assert (result["chunk"], result["examples_per_forward"]) == (128, 256)
+    assert (result["chunk"], result["rows_per_forward"]) == (128, 256)
     assert len({row["seed"] for row in result["rows"]}) == 2 * (1 + 2 + 2)
     rows = result["rows"]
     # Per depth: independent once, siblings and neuron at both energies, two draw counts.
@@ -183,7 +184,7 @@ def test_batches_of_examples_give_the_same_estimates():
     parts = analyzer.analyze(
         model, _double_dataset(), runtime=EvaluationRuntimeConfig(batch_size=5)
     )
-    assert parts["examples_per_forward"] == 5 and parts["n_examples"] == 24
+    assert parts["rows_per_forward"] == 5 and parts["n_examples"] == 24
     for a, b in zip(whole["rows"], parts["rows"], strict=True):
         for key, value in a.items():
             if key == "seconds_per_draw":
@@ -235,3 +236,64 @@ def test_structured_dictionaries_run_on_an_unindexed_cuda_device():
     assert result["device"].startswith("cuda:")
     assert len(result["rows"]) == 2 * 3
     assert next(model.parameters()).device.type == "cpu"
+
+
+def test_forward_passes_stay_within_the_batch_size():
+    model = _two_depth_classifier().double()
+    sizes = []
+    handle = model.register_forward_pre_hook(
+        lambda _module, args, sizes=sizes: sizes.append(int(args[0].shape[0]))
+    )
+    analyzer = NodePerturbationCreditAnalyzer(
+        NodePerturbationCreditAnalysisParams(
+            module_name_prefix=PREFIX, draws=[4, 8], chunk=4
+        )
+    )
+    try:
+        result = analyzer.analyze(
+            model, _double_dataset(), runtime=EvaluationRuntimeConfig(batch_size=5)
+        )
+    finally:
+        handle.remove()
+    assert result["rows_per_forward"] == 5
+    assert sizes and max(sizes) == 5
+
+
+class _Column(torch.nn.Module):
+    """The first output of a model, as one value per example or one column."""
+
+    def __init__(self, inner, squeeze):
+        super().__init__()
+        self.inner, self.squeeze = inner, squeeze
+
+    def forward(self, x):
+        value = self.inner(x)[:, :1]
+        return value[:, 0] if self.squeeze else value
+
+
+def test_one_output_per_example_gives_the_estimates_of_one_column():
+    inner = _two_depth_classifier().double()
+    found = {}
+    for squeeze in (True, False):
+        params = NodePerturbationCreditAnalysisParams(
+            module_name_prefix=f"inner.{PREFIX}", loss="mse", draws=[4, 16], seed=3
+        )
+        found[squeeze] = NodePerturbationCreditAnalyzer(params).analyze(
+            _Column(inner, squeeze), _double_dataset()
+        )["rows"]
+    for a, b in zip(found[True], found[False], strict=True):
+        assert {k: v for k, v in a.items() if k != "seconds_per_draw"} == {
+            k: v for k, v in b.items() if k != "seconds_per_draw"
+        }
+
+
+def test_signal_rounded_models_are_refused():
+    model = _two_depth_classifier()
+    layer = next(m for m in model.modules() if isinstance(m, DendriticBranchLayer))
+    # The guard reads the public option, which every rounding module carries.
+    layer.signal_rounding = "bfloat16"
+    analyzer = NodePerturbationCreditAnalyzer(
+        NodePerturbationCreditAnalysisParams(module_name_prefix=PREFIX)
+    )
+    with pytest.raises(ValueError, match="rounds its signals"):
+        analyzer.analyze(model, _dataset())
