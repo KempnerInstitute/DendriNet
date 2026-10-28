@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- ``assign_gradients`` applies HSIC warmup at its resolved epoch and restores
+  the trainer's counter afterwards. With ``core_update_mode: none``, preserve
+  gate trainability from before initialization, including on failure.
 - Branch layers expose their graph-connected forward currents for analyses:
   ``DendriticBranchLayer.set_analysis_currents``, ``get_analysis_currents``,
   ``clear_analysis_currents`` and the context manager
