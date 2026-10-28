@@ -1,7 +1,8 @@
 # AGENTS.md
 
 Guidance for coding agents and contributors working in this repository.
-`CLAUDE.md` links here. Human-oriented detail lives in
+Tools that read `CLAUDE.md` can use a local, untracked link to this file
+(`ln -s AGENTS.md CLAUDE.md`). Human-oriented detail lives in
 [`docs/contributing.rst`](docs/contributing.rst).
 
 ## Project
