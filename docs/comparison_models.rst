@@ -486,7 +486,8 @@ Empty branches have zero drive; no implicit balancing or reassignment occurs.
 each branch's inhibitory drive by the unweighted mean of the input I channels.
 
 Shunting defaults to positive unit leak and epsilon ``1e-8``; a forward call
-raises if the leak rounds to zero in the model's dtype. Raw addition is
+raises if either constant overflows in the model's dtype or the leak rounds
+to zero. Raw addition is
 ``E - I``; nondefault leak/epsilon values and global-mean support are rejected
 because this comparator does not use them. The optional output transformation is
 ``branch_scale * (voltage - branch_center) / branch_divisor``; its default is

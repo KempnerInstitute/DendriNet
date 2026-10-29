@@ -302,6 +302,24 @@ def test_a_leak_that_rounds_to_zero_in_the_model_dtype_raises():
             call(x.half())
 
 
+@pytest.mark.parametrize("name", ["leak_conductance", "epsilon"])
+@pytest.mark.parametrize(
+    "dtype, value",
+    [(torch.float16, 1e5), (torch.bfloat16, 1e40), (torch.float32, 1e40)],
+)
+def test_shunting_constants_must_stay_finite_in_the_model_dtype(name, dtype, value):
+    config = RoutedEIConfig(features=4, branches=3, output_dim=2, **{name: value})
+    torch.manual_seed(27)
+    model = build_routed_ei(config).double()
+    x = torch.ones(2, 8, dtype=torch.float64)
+    # The same constant is valid when its magnitude fits the model's dtype.
+    assert torch.isfinite(model(x)).all()
+    model.to(dtype)
+    for call in (model, model.branch_response, model.branch_values):
+        with pytest.raises(ValueError, match=f"{name} must be finite"):
+            call(x.to(dtype))
+
+
 def test_temperature_schedules_apply_to_learned_routing_only():
     learned = build_routed_ei(spec())
     learned.temperature = 0.5

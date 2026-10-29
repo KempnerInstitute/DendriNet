@@ -222,6 +222,7 @@ class RoutedEIReadout(nn.Module):
             # A configured positive leak can still round to zero in the model's
             # dtype, which would let an empty branch divide zero by zero.
             _check_operand(leak, e, "leak_conductance", positive=True)
+            _check_operand(self.config.epsilon, e, "epsilon")
             numerator, denominator = _shunting_current_components(
                 e, 0.0, i, 0.0, 0.0, None, leak
             )

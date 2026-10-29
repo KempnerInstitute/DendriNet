@@ -13,7 +13,8 @@
   existing shunting/additive current integration and an affine readout. Its
   typed payload is `None` in other cores; unsupported training, mixed
   precision, unused sections, options that fixed routing ignores and a leak
-  that rounds to zero in the model's dtype raise.
+  that rounds to zero in the model's dtype raise. Leak and epsilon must also
+  remain finite in that dtype, including in branch-response diagnostics.
   Fixed/learned routing, a global-mean inhibitory control and an explicit
   clamped-sum normalization floor support historical reduced-model replay.
   Dividing by the sum (`networks.utils.weight_normalization.divide_rows_by_sum`,
