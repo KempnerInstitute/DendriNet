@@ -53,6 +53,8 @@ class RoutedEIConfig(BaseConfig):
             raise ValueError("routed_ei.routing must be learned or fixed")
         if self.inhibitory_support not in {"matched", "global_mean"}:
             raise ValueError("inhibitory_support must be matched or global_mean")
+        if not isinstance(self.fixed_assignment, list):
+            raise ValueError("routed_ei.fixed_assignment must be a list")
         if self.routing == "fixed":
             if len(self.fixed_assignment) != self.features or any(
                 type(i) is not int or not 0 <= i < self.branches

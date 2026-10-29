@@ -17,6 +17,9 @@
   remain finite in that dtype, including in branch-response diagnostics.
   Fixed/learned routing, a global-mean inhibitory control and an explicit
   clamped-sum normalization floor support historical reduced-model replay.
+  Non-list fixed assignments are rejected before any initialization draws.
+  Explicit normalization floors must remain finite and strictly positive in
+  the weight dtype, both in routed models and the shared normalization helpers.
   Dividing by the sum (`networks.utils.weight_normalization.divide_rows_by_sum`,
   shared with `normalize_weight_rows(sum_floor=...)`) keeps the normalization's
   derivative at the zero entries of hard-routed rows. Parameters a

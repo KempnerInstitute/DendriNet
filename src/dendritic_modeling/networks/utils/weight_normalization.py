@@ -104,6 +104,7 @@ def normalize_weight_rows(
             rows; ``None`` means every entry is a contact.
         sum_floor: Explicit clamped-sum convention for nonnegative, order-1
             weights: ``weight / clamp(sum(weight), min=sum_floor) * gamma``.
+            Must remain finite and strictly positive in ``weight.dtype``.
             Small rows then shrink rather than have unit norm. This opt-in
             convention preserves reduced-model replays; ``None`` retains the
             existing robust p-norm algorithm, including every default call.
@@ -153,16 +154,28 @@ def normalize_weight_rows(
 def divide_rows_by_sum(
     weight: torch.Tensor, floor: float | None = None
 ) -> torch.Tensor:
-    """Divide each row of nonnegative ``weight`` by its sum, without checks.
+    """Divide each row of nonnegative ``weight`` by its sum.
 
     With ``floor=None`` every row with a positive sum sums to one and all-zero
     rows stay zero. Unlike the p-norm path of :func:`normalize_weight_rows`,
     the sum is differentiated at zero entries too, as straight-through routing
     needs. A positive ``floor`` divides by ``max(sum, floor)``, the clamped-sum
-    convention, so rows below the floor shrink. Callers guarantee finite,
+    convention, so rows below the floor shrink. The scalar floor must remain
+    finite and strictly positive in ``weight.dtype``. Callers guarantee finite,
     nonnegative weights; ``normalize_weight_rows(..., sum_floor=...)`` checks
     them first.
     """
+    if floor is not None:
+        if (
+            isinstance(floor, bool)
+            or not isinstance(floor, Real)
+            or not math.isfinite(floor)
+            or floor <= 0
+        ):
+            raise ValueError("floor must be finite and positive")
+        converted = torch.tensor(floor, dtype=weight.dtype, device="cpu").item()
+        if not math.isfinite(converted) or converted <= 0:
+            raise ValueError(f"floor must remain finite and positive in {weight.dtype}")
     total = weight.sum(dim=-1, keepdim=True)
     if floor is None:
         return weight / torch.where(total > 0, total, torch.ones_like(total))

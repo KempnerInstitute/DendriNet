@@ -241,6 +241,50 @@ def test_invalid_config_fails_before_rng_changes(change):
     assert torch.equal(rng, torch.get_rng_state())
 
 
+@pytest.mark.parametrize("assignment", [None, 0, False, (), {}, "", (0, 1)])
+@pytest.mark.parametrize("routing", ["learned", "fixed"])
+@pytest.mark.parametrize("entry_point", ["validate", "builder", "factory"])
+def test_fixed_assignment_requires_a_list_before_initialization(
+    assignment, routing, entry_point
+):
+    config = RoutedEIConfig(
+        features=2, branches=2, routing=routing, fixed_assignment=assignment
+    )
+    calls = {
+        "validate": config.validate,
+        "builder": lambda: build_routed_ei(config),
+        "factory": lambda: get_architecture("routed_ei", {"routed_ei": asdict(config)}),
+    }
+    rng = torch.get_rng_state().clone()
+    with pytest.raises(ValueError, match="fixed_assignment must be a list"):
+        calls[entry_point]()
+    assert torch.equal(rng, torch.get_rng_state())
+
+
+@pytest.mark.parametrize("routing", ["learned", "fixed"])
+def test_empty_routed_branches_reject_an_underflowing_normalization_floor(routing):
+    torch.manual_seed(27)
+    config = RoutedEIConfig(
+        features=4,
+        branches=3,
+        output_dim=2,
+        routing=routing,
+        fixed_assignment=[0] * 4 if routing == "fixed" else [],
+        weight_normalization_floor=1e-8,
+    )
+    model = build_routed_ei(config)
+    with torch.no_grad():
+        model.route_logits[0].fill_(4.0)
+    x = torch.ones(2, 8)
+    assert torch.isfinite(model(x)).all()
+    for drive in model.drives(x):
+        assert torch.equal(drive[:, 1:], torch.zeros(2, 2))
+    model.half()
+    for call in (model, model.drives, model.branch_values, model.branch_response):
+        with pytest.raises(ValueError, match=r"floor.*finite and positive"):
+            call(x.half())
+
+
 @pytest.mark.parametrize(
     "core_type",
     [

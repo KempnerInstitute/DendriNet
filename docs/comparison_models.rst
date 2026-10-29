@@ -477,8 +477,10 @@ entry can differ from one in its last bit); evaluation uses exact one-hot
 assignments. With ``hard_routing: false``, both use soft assignments.
 ``inferred_assignment()`` returns each source's branch under hard routing and
 resolves near-ties as the forward does. ``routing: fixed``
-requires a ``fixed_assignment`` list containing one branch index per feature;
-it does not read ``temperature``, ``hard_routing`` or ``route_init_std``, so
+requires a ``fixed_assignment`` list containing one branch index per feature.
+Learned routing requires an empty list; non-list values are rejected before
+initialization draws any random numbers. Fixed routing does not read
+``temperature``, ``hard_routing`` or ``route_init_std``, so
 their non-default values raise. Assigning ``model.temperature`` re-validates
 the configuration, so a temperature schedule applies to learned routing only.
 Empty branches have zero drive; no implicit balancing or reassignment occurs.
@@ -527,7 +529,10 @@ division by ``max(sum(weights), floor)``, the clamped-sum convention of earlier
 reduced-model runs. The two conventions agree exactly, in values and
 gradients, while every branch's weight sum exceeds the floor; below it,
 including at empty branches, the floor convention divides by the floor instead.
-Replaying a clamped-sum model therefore requires its original floor.
+Replaying a clamped-sum model therefore requires its original floor. The floor
+must remain finite and strictly positive in the weight dtype; values that
+overflow or round to zero raise before division. The same check applies to
+``divide_rows_by_sum`` and ``normalize_weight_rows(..., sum_floor=...)``.
 
 The fixed-assignment and global-mean controls keep the unused route-logit or
 I-weight parameters and their initialization draws, so all variants share one
