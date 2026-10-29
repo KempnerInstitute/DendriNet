@@ -112,6 +112,7 @@ from dendritic_modeling.networks.architectures.classical.autoencoder.vae import 
     MLPVariationalAutoencoder,
 )
 from dendritic_modeling.networks.base import BaseNetwork
+from dendritic_modeling.networks.functional import additive_voltage, shunting_voltage
 from dendritic_modeling.networks.input import InputNetTransform, SigmoidOutputNetwork
 
 __all__ = [
@@ -189,6 +190,7 @@ __all__ = [
     "TopKLinear",
     "TransferLayer",
     "VarianceTopKLinear",
+    "additive_voltage",
     "analytical_expectation_dbl_init",
     "build_synapse_type_set",
     "capture_analysis_currents",
@@ -199,6 +201,7 @@ __all__ = [
     "sample_distance_kernel_mask",
     "sample_fixed_indegree_mask",
     "sample_probability_mask",
+    "shunting_voltage",
     "transformed_feature_dim",
     "validate_connection_mask",
     "validate_input_transform",

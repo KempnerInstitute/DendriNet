@@ -18,6 +18,10 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.b
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.compartment_perturbation import (
     active_compartment_perturbation,
 )
+from dendritic_modeling.networks.functional import (
+    _raw_current_sum,
+    _shunting_current_components,
+)
 from dendritic_modeling.networks.utils.signal_rounding import round_signal
 from dendritic_modeling.plugins import load_plugins
 
@@ -661,27 +665,21 @@ def compute_branch_voltage_from_currents(
                 "coupling conductance (branches_to_output.sum_conductances()) in "
                 "the denominator; pass branch_conductance"
             )
-        N = trace_E + trace_E_rec
-        if torch.is_tensor(trace_branch):
-            N = N + trace_branch
-        elif trace_branch:
-            N = N + trace_branch
-
-        denominator = owner.effective_leak + trace_E
-        # Scalars count as well as tensors (zero scalars add nothing).
-        for term in (trace_E_rec, trace_I, trace_I_rec):
-            if torch.is_tensor(term) or term:
-                denominator = denominator + term
-        if branch_conductance is not None:
-            denominator = denominator + branch_conductance
+        N, denominator = _shunting_current_components(
+            trace_E,
+            trace_E_rec,
+            trace_I,
+            trace_I_rec,
+            trace_branch,
+            branch_conductance,
+            owner.effective_leak,
+        )
         T = denominator - owner.effective_leak
         voltage = N / (denominator + owner.epsilon)
     else:
-        raw_voltage = trace_E + trace_E_rec - trace_I - trace_I_rec
-        if torch.is_tensor(trace_branch):
-            raw_voltage = raw_voltage + trace_branch
-        elif trace_branch:
-            raw_voltage = raw_voltage + trace_branch
+        raw_voltage = _raw_current_sum(
+            trace_E, trace_E_rec, trace_I, trace_I_rec, trace_branch
+        )
 
         if store_diagnostics or owner.additive_mode != "raw":
             E = trace_E + trace_E_rec
