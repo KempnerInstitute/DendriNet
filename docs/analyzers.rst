@@ -956,6 +956,18 @@ with ``signal_rounding`` are refused: their gradients are not the derivatives
 of the forward the perturbations probe (rounding makes it piecewise constant,
 while autograd passes gradients through the casts).
 
+The estimator assumes that examples are independent. Overrides
+``sample_rolled_denominator``, ``sample_rolled_tangent`` and
+``permuted_current_denominator`` are refused anywhere in the model, including
+outside the selected tree: they can couple examples and change their pairings
+when perturbation draws are batched.
+
+A level that executes but does not influence the loss has zero exact credit,
+including when all model parameters are frozen and the loss has no gradient
+graph. Alignment to a zero reference is undefined. When both exact and
+estimated credit are zero, the cosines and relative metrics are reported as
+NaN.
+
 The scale is relative to the RMS over the level, while the effect of a
 perturbation depends on each compartment. For ``current`` the voltage
 response is the injected current divided by the compartment's total

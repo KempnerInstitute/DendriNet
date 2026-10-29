@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Node-perturbation credit analysis rejects sample-rolled and permuted-
+  denominator overrides anywhere in the model before forwarding, since its
+  estimates require independent examples. Unused offsets and losses without
+  gradient graphs give zero exact credit; alignment to zero remains undefined.
+- Orthonormal-basis validation accounts for the supplied dtype's precision,
+  evaluating float16 and bfloat16 Gram matrices in float32. Valid rounded
+  dictionaries are accepted without changing the perturbations or relaxing
+  the existing float32/float64 tolerances.
 - Branch-layer compartments can be perturbed for causal analyses:
   ``perturb_compartments({layer: CompartmentPerturbation(offset, coordinate)})``
   (``dendritic_modeling.networks``; also

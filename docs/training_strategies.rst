@@ -1279,6 +1279,12 @@ per example.
   of coordinates (for example the children of each parent); overlapping,
   empty or out-of-range groups raise.
 
+Basis validation allows absolute Gram-matrix error up to the larger of the
+dtype's machine epsilon and ``1e-5`` (``1e-10`` for float64). For float16 and
+bfloat16, the Gram product is evaluated in float32 to separate accumulation
+roundoff from the precision of the supplied basis. This does not normalize or
+change the basis used for perturbations.
+
 With :ref:`compartment perturbations <compartment-perturbations>` the loss can
 perturb compartment outputs, voltages or injected currents. The
 ``node_perturbation_credit`` analysis (:ref:`analyzer-node-perturbation-credit`)

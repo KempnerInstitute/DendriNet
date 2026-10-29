@@ -98,7 +98,11 @@ def group_basis(
 
 
 def check_orthonormal_basis(basis: torch.Tensor, size: int) -> None:
-    """Raise unless ``basis`` is ``[size, m]`` with orthonormal columns."""
+    """Raise unless columns are orthonormal within the basis dtype's precision.
+
+    The absolute Gram-matrix tolerance is at least one dtype epsilon. Half-
+    precision Gram products accumulate in float32; the basis itself is unchanged.
+    """
     if not isinstance(basis, torch.Tensor) or basis.ndim != 2:
         raise ValueError("a basis is a two-dimensional tensor [size, columns]")
     if basis.shape[0] != size or basis.shape[1] < 1:
@@ -107,8 +111,11 @@ def check_orthonormal_basis(basis: torch.Tensor, size: int) -> None:
             f"got {tuple(basis.shape)}"
         )
     tolerance = 1e-10 if basis.dtype == torch.float64 else 1e-5
-    gram = basis.T @ basis
-    identity = torch.eye(basis.shape[1], dtype=basis.dtype, device=basis.device)
+    if basis.is_floating_point():
+        tolerance = max(tolerance, torch.finfo(basis.dtype).eps)
+    checked = basis.float() if basis.dtype in (torch.float16, torch.bfloat16) else basis
+    gram = checked.T @ checked
+    identity = torch.eye(basis.shape[1], dtype=gram.dtype, device=gram.device)
     if not torch.allclose(gram, identity, atol=tolerance, rtol=0):
         raise ValueError("basis columns must be orthonormal")
 

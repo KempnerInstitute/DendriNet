@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 
 import pytest
 import torch
@@ -14,13 +15,25 @@ from dendritic_modeling.analysis.tools.node_perturbation_credit import (
     NodePerturbationCreditAnalyzer,
     agreement,
 )
-from dendritic_modeling.config import NodePerturbationCreditAnalysisParams, load_config
+from dendritic_modeling.config import (
+    NodePerturbationCreditAnalysisParams,
+    TransferFunctionConfig,
+    load_config,
+)
 from dendritic_modeling.config.analysis import (
     AnalysisConfig,
     EvaluationRuntimeConfig,
     fill_analysis_seeds,
 )
-from dendritic_modeling.networks import DendriticBranchLayer
+from dendritic_modeling.models import Classifier
+from dendritic_modeling.networks import (
+    DendriticBranchLayer,
+    ExcitationInhibitionNetwork,
+    Identity,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_rule_override import (
+    BranchRuleOverride,
+)
 
 PREFIX = "core_network.layers.0.excitatory_cells.branch_layers"
 
@@ -297,3 +310,153 @@ def test_signal_rounded_models_are_refused():
     )
     with pytest.raises(ValueError, match="rounds its signals"):
         analyzer.analyze(model, _dataset())
+
+
+@pytest.mark.parametrize(
+    "rule, fields",
+    [
+        ("sample_rolled_denominator", {}),
+        (
+            "sample_rolled_tangent",
+            {
+                "anchor_numerator": torch.tensor(1.0),
+                "anchor_conductance": torch.tensor(1.0),
+            },
+        ),
+        (
+            "permuted_current_denominator",
+            {"denominator_permutation": torch.tensor([1, 0])},
+        ),
+    ],
+)
+@pytest.mark.parametrize("tree", [0, 1])
+def test_batch_coupled_overrides_are_refused_anywhere_before_forward(
+    rule, fields, tree
+):
+    torch.manual_seed(17)
+    model = _two_depth_classifier()
+    # Analyze tree 0, depth 1; the override can be on a different depth or tree.
+    layer = model.core_network.layers[tree].excitatory_cells.branch_layers[-1]
+    calls = []
+    handle = model.register_forward_pre_hook(lambda *_: calls.append(1))
+    analyzer = NodePerturbationCreditAnalyzer(
+        NodePerturbationCreditAnalysisParams(
+            module_name_prefix=PREFIX, depths=[1], chunk=2, draws=[2]
+        )
+    )
+    try:
+        with layer.override_branch_rule(BranchRuleOverride(rule, **fields)):
+            with pytest.raises(ValueError, match="batch-dependent.*" + rule):
+                analyzer.analyze(
+                    model, _dataset(n=2), runtime=EvaluationRuntimeConfig(batch_size=3)
+                )
+    finally:
+        handle.remove()
+    assert not calls
+
+
+def test_batch_independent_override_keeps_estimates_when_rebatched():
+    torch.manual_seed(23)
+    model = _two_depth_classifier().double()
+    layer = model.core_network.layers[1].excitatory_cells.branch_layers[-1]
+    analyzer = NodePerturbationCreditAnalyzer(
+        NodePerturbationCreditAnalysisParams(
+            module_name_prefix=PREFIX, depths=[1], chunk=2, draws=[4], seed=5
+        )
+    )
+    data = _dataset(n=2)
+    data = torch.utils.data.TensorDataset(data.tensors[0].double(), data.tensors[1])
+    override = BranchRuleOverride(
+        "frozen_denominator", anchor_conductance=torch.tensor(1.0)
+    )
+    with layer.override_branch_rule(override):
+        rows = [
+            analyzer.analyze(
+                model, data, runtime=EvaluationRuntimeConfig(batch_size=size)
+            )["rows"][0]
+            for size in (2, 3)
+        ]
+    for key, value in rows[0].items():
+        if key == "seconds_per_draw":
+            continue
+        if isinstance(value, float):
+            assert rows[1][key] == pytest.approx(value, rel=1e-9, abs=1e-12), key
+        else:
+            assert rows[1][key] == value, key
+
+
+def _unused_inhibitory_classifier():
+    torch.manual_seed(19)
+    return Classifier(
+        encoder_network=Identity(input_dim=10),
+        core_network=ExcitationInhibitionNetwork(
+            input_dim=10,
+            transfer_params=TransferFunctionConfig().asdict(),
+            excitatory_layer_sizes=[4, 4],
+            inhibitory_layer_sizes=[2, 2],
+            excitatory_branch_factors=[2, 2],
+            inhibitory_branch_factors=[2, 2],
+            ee_synapses_per_branch_per_layer=[1, 1],
+            ei_synapses_per_branch_per_layer=[1, 1],
+            ie_synapses_per_branch_per_layer=[0, 0],
+            ii_synapses_per_branch_per_layer=[0],
+        ),
+        decoder_network=Identity(input_dim=4),
+    ).double()
+
+
+@pytest.mark.parametrize("frozen", [False, True])
+@pytest.mark.parametrize("coordinate", ["output", "voltage", "current"])
+def test_unused_inhibitory_offsets_have_zero_credit(frozen, coordinate):
+    model = _unused_inhibitory_classifier()
+    model.requires_grad_(not frozen)
+    prefix = "core_network.layers.1.inhibitory_cells.branch_layers"
+    analyzer = NodePerturbationCreditAnalyzer(
+        NodePerturbationCreditAnalysisParams(
+            module_name_prefix=prefix,
+            coordinate=coordinate,
+            depths=[1],
+            dictionaries=["independent", "siblings"],
+            draws=[2],
+            chunk=2,
+        )
+    )
+    data = _dataset(n=2)
+    x, y = data.tensors[0].double(), data.tensors[1]
+    layer = next(
+        m
+        for n, m in model.named_modules()
+        if n.startswith(prefix)
+        and isinstance(m, DendriticBranchLayer)
+        and m.layer_idx == 1
+    )
+    errors = analyzer._exact_errors(
+        model,
+        layer,
+        prefix,
+        x,
+        y,
+        layer.branch_config.output_dim,
+        torch.float64,
+        torch.device("cpu"),
+        3,
+    )
+    assert torch.equal(errors, torch.zeros_like(errors))
+    assert not errors.requires_grad
+    result = analyzer.analyze(
+        model,
+        torch.utils.data.TensorDataset(x, y),
+        runtime=EvaluationRuntimeConfig(batch_size=3),
+    )
+    assert len(result["rows"]) == 2
+    # Zero-vs-zero alignment and relative magnitude are undefined, not successes.
+    for row in result["rows"]:
+        for key in (
+            "cosine",
+            "within_neuron_cosine",
+            "sign_agreement",
+            "relative_error",
+            "norm_ratio",
+        ):
+            assert math.isnan(row[key]), (key, row)
+    assert all(p.requires_grad == (not frozen) for p in model.parameters())

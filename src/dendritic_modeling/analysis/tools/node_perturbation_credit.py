@@ -15,7 +15,9 @@ per draw. Final-only. The perturbed levels must run
 ``DendriticBranchLayer.forward`` once per model forward. Recurrent cores, cores
 whose autograd credit is not exact (``soma_broadcast``) and models with signal
 rounding are refused: their gradients are not the derivatives of the forward
-that the perturbations probe.
+that the perturbations probe. Sample-rolled and permuted-denominator overrides
+are also refused anywhere in the model: their example coupling violates the
+estimator's independent-example assumption and changes when draws are batched.
 """
 
 from __future__ import annotations
@@ -44,6 +46,9 @@ from dendritic_modeling.networks import (
     CompartmentPerturbation,
     capture_analysis_currents,
     perturb_compartments,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_rule_override import (
+    active_branch_rule_override,
 )
 from dendritic_modeling.networks.utils.signal_rounding import signal_rounding_dtype
 from dendritic_modeling.training.node_perturbation import (
@@ -137,6 +142,18 @@ class NodePerturbationCreditAnalyzer(AbstractAnalyzer):
         """Run every configured level, dictionary, scale and draw count."""
         if training:
             raise ValueError("node-perturbation credit is a final-only analysis")
+        for name, module in model.named_modules():
+            override = active_branch_rule_override(module)
+            if override is not None and override.rule in (
+                "sample_rolled_denominator",
+                "sample_rolled_tangent",
+                "permuted_current_denominator",
+            ):
+                raise ValueError(
+                    "node-perturbation credit requires independent examples; "
+                    f"batch-dependent override {override.rule!r} on {name!r} "
+                    "changes the loss when perturbation draws are batched"
+                )
         params = self.params
         is_recurrent = getattr(
             getattr(model, "core_network", None), "is_recurrent", False
@@ -356,7 +373,13 @@ class NodePerturbationCreditAnalyzer(AbstractAnalyzer):
                             "node-perturbation credit needs a level that runs once"
                         )
                     loss = per_example_loss(output, targets, self.params.loss).sum()
-                    errors.append(torch.autograd.grad(loss, offset)[0].detach())
+                    if loss.requires_grad:
+                        gradient = torch.autograd.grad(
+                            loss, offset, allow_unused=True, materialize_grads=True
+                        )[0]
+                    else:
+                        gradient = torch.zeros_like(offset)
+                    errors.append(gradient.detach())
         finally:
             handle.remove()
         return torch.cat(errors)

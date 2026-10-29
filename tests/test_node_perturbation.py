@@ -106,6 +106,50 @@ def test_group_basis_columns_are_orthonormal_group_averages():
 
 
 @pytest.mark.parametrize(
+    "dtype", [torch.float16, torch.bfloat16, torch.float32, torch.float64]
+)
+@pytest.mark.parametrize("width", [3, 7, 31, 129])
+def test_group_basis_accepts_roundoff_in_its_dtype(dtype, width):
+    basis = group_basis([list(range(width)), [width]], width + 1, dtype=dtype)
+    check_orthonormal_basis(basis, width + 1)
+
+
+@pytest.mark.parametrize("dtype", [torch.float16, torch.bfloat16])
+def test_dense_bases_accept_roundoff_but_reject_wrong_norms_and_correlations(dtype):
+    generator = torch.Generator().manual_seed(23)
+    exact, _ = torch.linalg.qr(
+        torch.randn(17, 3, generator=generator, dtype=torch.float64)
+    )
+    basis = exact.to(dtype)
+    check_orthonormal_basis(basis, 17)
+    scaled = basis.clone()
+    scaled[:, 0] *= 1.1
+    with pytest.raises(ValueError, match="orthonormal"):
+        check_orthonormal_basis(scaled, 17)
+    correlated = basis.clone()
+    correlated[:, 1] += 0.1 * correlated[:, 0]
+    correlated[:, 1] /= correlated[:, 1].norm()
+    with pytest.raises(ValueError, match="orthonormal"):
+        check_orthonormal_basis(correlated, 17)
+
+
+@pytest.mark.parametrize("dtype", [torch.float16, torch.bfloat16])
+def test_low_precision_group_basis_can_estimate_linear_credit(dtype):
+    basis = group_basis([[0, 1, 2], [3, 4]], SIZE, dtype=dtype)
+    gradient = torch.ones(BATCH, SIZE, dtype=dtype)
+
+    def loss(offset):
+        return (offset * gradient).sum(-1)
+
+    found = _estimate(loss, basis=basis, dtype=dtype, draws=[256], chunk=16)
+    estimate = found.estimates[256].float()
+    exact = gradient.float()
+    cosine = (estimate * exact).sum() / (estimate.norm() * exact.norm())
+    assert torch.isfinite(estimate).all()
+    assert cosine > 0.95
+
+
+@pytest.mark.parametrize(
     "groups, message",
     [
         ([[0, 1], [1, 2]], "disjoint"),
