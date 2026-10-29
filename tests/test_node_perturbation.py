@@ -149,6 +149,19 @@ def test_low_precision_group_basis_can_estimate_linear_credit(dtype):
     assert cosine > 0.95
 
 
+@pytest.mark.parametrize("dtype", [torch.float16, torch.bfloat16, torch.float32])
+def test_basis_validation_ignores_ambient_autocast(dtype):
+    generator = torch.Generator().manual_seed(23)
+    exact, _ = torch.linalg.qr(
+        torch.randn(17, 3, generator=generator, dtype=torch.float64)
+    )
+    basis = exact.to(dtype)
+    with torch.autocast("cpu", dtype=torch.bfloat16):
+        check_orthonormal_basis(basis, 17)
+        with pytest.raises(ValueError, match="orthonormal"):
+            check_orthonormal_basis(1.1 * basis, 17)
+
+
 @pytest.mark.parametrize(
     "groups, message",
     [
