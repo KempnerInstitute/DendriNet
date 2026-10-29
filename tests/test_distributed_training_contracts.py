@@ -1,5 +1,6 @@
 """Distributed topology and sharded checkpoint continuation use real processes."""
 
+import gc
 from datetime import timedelta
 
 import pytest
@@ -37,6 +38,7 @@ def _worker(rank, backend, protocol, rendezvous, checkpoint, kind):
         world_size=2,
         timeout=timedelta(seconds=90),
     )
+    model = optimizer = None
     try:
         torch.manual_seed(51 + rank)
         x = torch.randn(4, 6, device=device)
@@ -109,6 +111,12 @@ def _worker(rank, backend, protocol, rendezvous, checkpoint, kind):
             actual = model(x).detach()
             torch.testing.assert_close(actual, expected, rtol=0, atol=0)
     finally:
+        # The optimizer retains the DDP wrapper, whose reducer owns process-
+        # group resources. Release these objects while the group is live,
+        # rather than from frame cleanup after destroy_process_group().
+        optimizer = None
+        model = None
+        gc.collect()
         dist.destroy_process_group()
 
 

@@ -7,6 +7,7 @@ This module contains network architectures based on excitation-inhibition princi
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic import (
     AdaptiveInitConfig,
     BlockLinear,
+    CompartmentPerturbation,
     DeepSTConfig,
     DendriNet,
     DendriNetConfig,
@@ -20,6 +21,8 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic i
     ReactivationConfig,
     TopKConfig,
     analytical_expectation_dbl_init,
+    capture_analysis_currents,
+    perturb_compartments,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.ei_layer import (
     ExcitationInhibitionLayer,
@@ -55,6 +58,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.synapse imp
 __all__ = [
     "AdaptiveInitConfig",
     "BlockLinear",
+    "CompartmentPerturbation",
     "ConfigurableEINetwork",
     "CreditGatedDeepstLinear",
     "DeepSTConfig",
@@ -83,8 +87,10 @@ __all__ = [
     "TransferLayer",
     "VarianceTopKLinear",
     "analytical_expectation_dbl_init",
+    "capture_analysis_currents",
     "distance_kernel_probabilities",
     "normalize_pathway_name",
+    "perturb_compartments",
     "sample_configured_mask",
     "sample_distance_kernel_mask",
     "sample_fixed_indegree_mask",

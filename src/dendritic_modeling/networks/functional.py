@@ -71,7 +71,9 @@ def _check_operand(value, reference, name, *, nonnegative=True, positive=False):
         below_zero = nonnegative and not positive and bool((value < 0).any())
         at_or_below_zero = positive and bool((value <= 0).any())
     elif isinstance(value, Real) and not isinstance(value, bool):
-        finite = math.isfinite(value)
+        finite = math.isfinite(value) and math.isfinite(
+            torch.tensor(value, dtype=reference.dtype, device="cpu").item()
+        )
         below_zero = value < 0
         at_or_below_zero = value <= 0
     else:
@@ -109,7 +111,9 @@ def shunting_voltage(
     quotient, a partial-division exponent, or a post-voltage reactivation.
 
     Tensor operands must share excitation's dtype/device and broadcast to its
-    shape without expanding it. Autograd is preserved for every tensor input.
+    shape without expanding it. Scalar operands must remain finite in that
+    dtype; a positive leak must not round to zero. Autograd is preserved for
+    every tensor input.
     The returned shape, dtype and device match excitation. Validation reads
     tensor values, so this checked API is intended for explicit-current models
     and analyses, not as a replacement for the fused layer training path; for

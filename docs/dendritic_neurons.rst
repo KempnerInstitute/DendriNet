@@ -397,7 +397,9 @@ preserve autograd through currents, coupling conductance and tensor-valued leak.
    )
 
 All tensor operands share excitation's dtype and device and broadcast to its
-shape without expanding it. Excitatory and inhibitory currents and child
+shape without expanding it. Scalars, including leak and epsilon, must remain
+finite after conversion to excitation's dtype; a positive scalar leak must not
+round to zero. Excitatory and inhibitory currents and child
 conductance must be nonnegative; child current can be signed. Shunting requires
 positive leak and an explicit coupling conductance when child current is
 nonzero. Zero-leak quotients belong to mathematical analyses, not this neuronal
@@ -538,6 +540,92 @@ of active synapses per compartment of each pathway (``E``, ``I``, ``E_rec``,
 ``I_rec``) on that forward pass. ``realized_K`` can be smaller than the
 configured count when a connectivity mask or a dynamic synapse type leaves
 fewer active contacts.
+
+``layer.set_analysis_currents(True)`` instead keeps the forward's pre-gate
+excitatory, inhibitory and upstream currents, the pre-gate voltage and the
+post-gate output attached to the autograd graph (``pre_gate_excitation_current``,
+``pre_gate_inhibition_current``, ``pre_gate_recurrent_excitation_current``,
+``pre_gate_recurrent_inhibition_current``, ``pre_gate_upstream_current``,
+``pre_gate_voltage``, ``post_gate_output``), so an analysis can differentiate a
+loss with respect to compartment voltages or outputs; ``get_analysis_currents()``
+returns them. ``capture_analysis_currents(layers)`` enables the capture inside
+a ``with`` block, then restores each layer's setting and discards the tensors.
+Recurrent currents have separate fields; missing pathways are ``None``.
+Capture is supported through the branch layer's ``forward`` only: stateful
+steps, ``parallel_readout``, ``all_active_star`` and current-substitution
+methods raise an error rather than returning empty or stale captures.
+``forward_levels`` also rejects capture on an intervened level before running
+the model and clears that level's old records. Other levels can still capture
+their actual outputs in the intervened network. Information-analysis
+projections temporarily disable capture for their synthetic signals and
+restore the caller's setting, including on failure.
+
+Capture that would bypass a fused shunting gate requires ``torch.no_grad()``.
+Its forward output is unchanged, but the fused backward reconstructs voltage
+from a clamped logit and need not match the explicit voltage path. To analyze
+gradients, construct an unfused model with
+``reactivation.memory_efficient=False`` and compare against that model's
+training update. This is a different backward implementation, not a claim of
+equivalence to the fused update. The example below assumes an unfused model.
+
+.. code-block:: python
+
+   import torch
+   from dendritic_modeling.networks import capture_analysis_currents
+
+   layers = list(neuron.branch_layers)
+   with capture_analysis_currents(layers):
+       loss = torch.nn.functional.cross_entropy(model(x), y)
+       captured = [layer.get_analysis_currents() for layer in layers]
+       voltages = [currents["pre_gate_voltage"] for currents in captured]
+       credit = torch.autograd.grad(loss, voltages)
+
+.. _compartment-perturbations:
+
+Compartment perturbations
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``perturb_compartments({layer: CompartmentPerturbation(offset, coordinate)})``
+adds ``offset`` to a branch layer's compartments inside a ``with`` block,
+during the layer's own forward pass, so the layer still runs once. The
+coordinate is ``output`` (added after the layer's activation: the signal its
+parent receives), ``voltage`` (added before the activation, so the
+activation's slope applies) or, for shunting layers, ``current`` (an injected
+current added to the numerator of ``V = (N + J) / (D + epsilon)``, so the
+layer's total conductance attenuates it). The offset must broadcast to the
+layer's output ``[batch, compartments]`` and match its device and dtype;
+compartments left alone get zeros. On exit each layer returns to its previous
+perturbation. Perturbations change no parameter or buffer. While a
+perturbation is set, a shunting layer forms its voltage explicitly instead of
+through the fused gate, with the same output for a zero offset; with signal
+rounding, voltage and current offsets are rounded with the voltage and output
+offsets are added to the rounded output.
+
+Perturbations act only in ``DendriticBranchLayer.forward``. Paths that would
+not apply them raise while one is set: the stateful and recurrent current
+paths, voltages computed from given currents (``output_from_currents``), a
+``DendriNet.forward_levels`` intervention on the same level, and a ``current``
+perturbation under a branch rule override that does not read the shunting
+numerator (``raw_additive``, ``raw_additive_moment_matched``). The gradient of
+a loss with respect to a zero offset that requires gradients is the exact
+error of the compartments in that coordinate, as autograd computes it:
+gradient hooks (training-mode gradient scaling, ``soma_broadcast`` credit)
+change it as they change parameter gradients, so compute it in evaluation
+mode with exact credit:
+
+.. code-block:: python
+
+   import torch
+   from dendritic_modeling.networks import CompartmentPerturbation, perturb_compartments
+
+   layer = neuron.branch_layers[0]  # the terminal level
+   zero = torch.zeros(len(x), layer.branch_config.output_dim, requires_grad=True)
+   with perturb_compartments({layer: CompartmentPerturbation(zero, "current")}):
+       loss = torch.nn.functional.cross_entropy(model(x), y)
+   current_error = torch.autograd.grad(loss, zero)[0]
+
+Node-perturbation estimates of the same errors from loss changes are described
+in :ref:`node-perturbation`.
 
 Analysis-only rule overrides
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~

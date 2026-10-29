@@ -283,6 +283,9 @@ Explained in :ref:`analyzer-catalogue`. Class ``dendritic_modeling.config.analys
    * - ``branch_local_sensitivity``
      - ``BranchLocalSensitivityAnalysisConfig``
      - :ref:`analysis.branch_local_sensitivity <options-analysis-branch-local-sensitivity>`
+   * - ``node_perturbation_credit``
+     - ``NodePerturbationCreditAnalysisConfig``
+     - :ref:`analysis.node_perturbation_credit <options-analysis-node-perturbation-credit>`
    * - ``local_inhibitory_population_intervention``
      - ``LocalInhibitoryPopulationInterventionAnalysisConfig``
      - :ref:`analysis.local_inhibitory_population_intervention <options-analysis-local-inhibitory-population-intervention>`
@@ -886,6 +889,30 @@ Explained in :ref:`analyzer-catalogue`. Class ``dendritic_modeling.config.analys
    * - ``params``
      - ``BranchLocalSensitivityAnalysisParams``
      - :ref:`analysis.branch_local_sensitivity.params <options-analysis-branch-local-sensitivity-params>`
+
+.. _options-analysis-node-perturbation-credit:
+
+``analysis.node_perturbation_credit``
+-------------------------------------
+
+Explained in :ref:`analyzer-catalogue`. Class ``dendritic_modeling.config.analysis.NodePerturbationCreditAnalysisConfig``.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 33 33
+
+   * - Option
+     - Type
+     - Default
+   * - ``enabled``
+     - ``bool``
+     - ``false``
+   * - ``training``
+     - ``bool``
+     - ``false``
+   * - ``params``
+     - ``NodePerturbationCreditAnalysisParams``
+     - :ref:`analysis.node_perturbation_credit.params <options-analysis-node-perturbation-credit-params>`
 
 .. _options-analysis-local-inhibitory-population-intervention:
 
@@ -3148,6 +3175,54 @@ Explained in :ref:`analyzer-catalogue`. Class ``dendritic_modeling.config.analys
    * - ``include_soma``
      - ``bool``
      - ``false``
+
+.. _options-analysis-node-perturbation-credit-params:
+
+``analysis.node_perturbation_credit.params``
+--------------------------------------------
+
+Explained in :ref:`analyzer-catalogue`. Class ``dendritic_modeling.config.analysis.NodePerturbationCreditAnalysisParams``.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 33 33
+
+   * - Option
+     - Type
+     - Default
+   * - ``depths``
+     - ``list[int]``
+     - ``[1]``
+   * - ``module_name_prefix``
+     - ``Optional[str]``
+     - ``null``
+   * - ``coordinate``
+     - ``str``
+     - ``output``
+   * - ``dictionaries``
+     - ``list[str]``
+     - ``[independent]``
+   * - ``relative_scales``
+     - ``list[float]``
+     - ``[0.01]``
+   * - ``draws``
+     - ``list[int]``
+     - ``[1, 4, 16, 64]``
+   * - ``match_perturbation_energy``
+     - ``bool``
+     - ``false``
+   * - ``loss``
+     - ``str``
+     - ``cross_entropy``
+   * - ``max_samples``
+     - ``Optional[int]``
+     - ``256``
+   * - ``chunk``
+     - ``int``
+     - ``16``
+   * - ``seed``
+     - ``Optional[int]``
+     - ``null``
 
 .. _options-analysis-local-inhibitory-population-intervention-params:
 

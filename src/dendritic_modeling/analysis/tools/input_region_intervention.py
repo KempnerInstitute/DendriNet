@@ -497,8 +497,8 @@ class _ModelResponseCapture:
                 continue
             if module.branch_excitation is None and module.branch_inhibition is None:
                 continue
-            previous = getattr(module, "_store_analysis_currents", False)
-            module._store_analysis_currents = True
+            previous = module.analysis_currents_enabled
+            module.set_analysis_currents(True)
             self._branch_state.append((module, previous))
             self._handles.append(
                 module.register_forward_hook(
@@ -519,9 +519,8 @@ class _ModelResponseCapture:
             handle.remove()
         self._handles.clear()
         for module, previous in self._branch_state:
-            module._store_analysis_currents = previous
-            if hasattr(module, "_last_analysis_currents"):
-                delattr(module, "_last_analysis_currents")
+            module.set_analysis_currents(previous)
+            module.clear_analysis_currents()
         self._branch_state.clear()
 
     def _store(self, key: str, values: torch.Tensor, metadata: dict[str, Any]) -> None:
@@ -565,8 +564,8 @@ class _ModelResponseCapture:
         module_name: str,
         module: DendriticBranchLayer,
     ) -> None:
-        cached = getattr(module, "_last_analysis_currents", None)
-        if not isinstance(cached, dict):
+        cached = module.get_analysis_currents()
+        if not cached:
             raise RuntimeError(f"branch-current capture failed for {module_name}")
         network_index = _module_network_layer_index(module_name)
         population_name, population_polarity = _legacy_target_population(module_name)
