@@ -6,8 +6,10 @@
   pre-gate voltages from explicit currents without a layer-owner stand-in.
   They share arithmetic with the existing current-substitution/recurrent path,
   preserve autograd and check each current's shape, dtype, device, finiteness
-  and sign (not its physical units). Shunting leak stays strictly positive;
-  raw addition is not divided by leak.
+  and sign (not its physical units). Scalar operands, including leak and
+  epsilon, must remain finite in excitation's dtype. Shunting leak stays
+  strictly positive, rejecting scalar underflow; raw addition is not divided
+  by leak.
   Existing layer defaults, checkpoint layouts and fused forwards are unchanged.
 - Node-perturbation credit analysis rejects sample-rolled and permuted-
   denominator overrides anywhere in the model before forwarding, since its

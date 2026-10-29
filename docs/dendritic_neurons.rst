@@ -397,7 +397,9 @@ preserve autograd through currents, coupling conductance and tensor-valued leak.
    )
 
 All tensor operands share excitation's dtype and device and broadcast to its
-shape without expanding it. Excitatory and inhibitory currents and child
+shape without expanding it. Scalars, including leak and epsilon, must remain
+finite after conversion to excitation's dtype; a positive scalar leak must not
+round to zero. Excitatory and inhibitory currents and child
 conductance must be nonnegative; child current can be signed. Shunting requires
 positive leak and an explicit coupling conductance when child current is
 nonzero. Zero-leak quotients belong to mathematical analyses, not this neuronal
