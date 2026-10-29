@@ -183,6 +183,9 @@
     <span class="n">create_branch_sparse_layer</span><span class="p">,</span>
     <span class="n">create_registered_branch_sparse_layer</span><span class="p">,</span>
 <span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.compartment_perturbation</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">CompartmentPerturbation</span><span class="p">,</span>
+<span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.gradient_scaling</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">GradientScaler</span><span class="p">,</span>
 <span class="p">)</span>
@@ -601,6 +604,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_store_diagnostics</span> <span class="o">=</span> <span class="kc">False</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_last_branch_diagnostics</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_store_analysis_currents</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_compartment_perturbation</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_diag_g_tot</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_diag_numerator</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">topk_type</span> <span class="o">=</span> <span class="n">synapse_options</span><span class="p">[</span><span class="s2">"topk_type"</span><span class="p">]</span>
@@ -1413,6 +1417,48 @@
         <span class="k">return</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">"_last_analysis_currents"</span><span class="p">,</span> <span class="p">{}))</span></div>
 
 
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">compartment_perturbation</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CompartmentPerturbation</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""The perturbation this layer's forward applies, or ``None``."""</span>
+        <span class="k">return</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">"_compartment_perturbation"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+
+<div class="viewcode-block" id="DendriticBranchLayer.set_compartment_perturbation">
+<a class="viewcode-back" href="../../../../../../api_reference.html#dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer.DendriticBranchLayer.set_compartment_perturbation">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_compartment_perturbation</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">perturbation</span><span class="p">:</span> <span class="n">CompartmentPerturbation</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Add ``perturbation``'s offset in every forward until it is cleared.</span>
+
+<span class="sd">        The offset enters the layer's own forward pass once, in the</span>
+<span class="sd">        perturbation's coordinate (``output``, ``voltage`` or, for a shunting</span>
+<span class="sd">        layer, ``current``; see :mod:`.compartment_perturbation`). While a</span>
+<span class="sd">        perturbation is set, a shunting layer forms its voltage explicitly</span>
+<span class="sd">        instead of through the fused gate, with the same output for a zero</span>
+<span class="sd">        offset. ``None`` clears it.</span>
+<span class="sd">        """</span>
+        <span class="k">if</span> <span class="n">perturbation</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_compartment_perturbation</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="k">return</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">perturbation</span><span class="p">,</span> <span class="n">CompartmentPerturbation</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+                <span class="s2">"set_compartment_perturbation takes a CompartmentPerturbation, "</span>
+                <span class="sa">f</span><span class="s2">"got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">perturbation</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="n">perturbation</span><span class="o">.</span><span class="n">coordinate</span> <span class="o">==</span> <span class="s2">"current"</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">use_shunting</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">"a current perturbation needs a shunting layer; this layer "</span>
+                <span class="sa">f</span><span class="s2">"integrates with </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">additive_mode</span><span class="si">!r}</span><span class="s2">"</span>
+            <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_compartment_perturbation</span> <span class="o">=</span> <span class="n">perturbation</span></div>
+
+
+<div class="viewcode-block" id="DendriticBranchLayer.clear_compartment_perturbation">
+<a class="viewcode-back" href="../../../../../../api_reference.html#dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer.DendriticBranchLayer.clear_compartment_perturbation">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">clear_compartment_perturbation</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Stop perturbing this layer's forward."""</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_compartment_perturbation</span> <span class="o">=</span> <span class="kc">None</span></div>
+
+
     <span class="k">def</span><span class="w"> </span><span class="nf">_save_to_state_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">destination</span><span class="p">,</span> <span class="n">prefix</span><span class="p">,</span> <span class="n">keep_vars</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_save_to_state_dict</span><span class="p">(</span><span class="n">destination</span><span class="p">,</span> <span class="n">prefix</span><span class="p">,</span> <span class="n">keep_vars</span><span class="p">)</span>
         <span class="c1"># These are Python scalar priors, not learned gate parameters. Keep</span>
@@ -1700,7 +1746,45 @@
 
 
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"DendriticBranchLayer"</span><span class="p">,</span> <span class="s2">"capture_analysis_currents"</span><span class="p">]</span>
+<div class="viewcode-block" id="perturb_compartments">
+<a class="viewcode-back" href="../../../../../../api_reference.html#dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer.perturb_compartments">[docs]</a>
+<span class="nd">@contextmanager</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">perturb_compartments</span><span class="p">(</span><span class="n">perturbations</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Perturb branch-layer compartments in a block.</span>
+
+<span class="sd">    ``perturbations`` maps :class:`DendriticBranchLayer` modules to</span>
+<span class="sd">    :class:`CompartmentPerturbation` values. Inside the block every forward of</span>
+<span class="sd">    these layers adds its offset once, as</span>
+<span class="sd">    :meth:`~DendriticBranchLayer.set_compartment_perturbation` describes. On</span>
+<span class="sd">    exit, also after an error, every layer returns to its previous</span>
+<span class="sd">    perturbation (usually none). Yields the mapping.</span>
+<span class="sd">    """</span>
+    <span class="n">items</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="n">perturbations</span><span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">())</span>
+    <span class="k">for</span> <span class="n">layer</span><span class="p">,</span> <span class="n">perturbation</span> <span class="ow">in</span> <span class="n">items</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span> <span class="n">DendriticBranchLayer</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+                <span class="s2">"perturb_compartments takes DendriticBranchLayer modules, "</span>
+                <span class="sa">f</span><span class="s2">"got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">layer</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">perturbation</span><span class="p">,</span> <span class="n">CompartmentPerturbation</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+                <span class="s2">"perturb_compartments takes CompartmentPerturbation values, "</span>
+                <span class="sa">f</span><span class="s2">"got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">perturbation</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">)</span>
+    <span class="n">previous</span> <span class="o">=</span> <span class="p">[</span><span class="n">layer</span><span class="o">.</span><span class="n">compartment_perturbation</span> <span class="k">for</span> <span class="n">layer</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">items</span><span class="p">]</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">layer</span><span class="p">,</span> <span class="n">perturbation</span> <span class="ow">in</span> <span class="n">items</span><span class="p">:</span>
+            <span class="n">layer</span><span class="o">.</span><span class="n">set_compartment_perturbation</span><span class="p">(</span><span class="n">perturbation</span><span class="p">)</span>
+        <span class="k">yield</span> <span class="nb">dict</span><span class="p">(</span><span class="n">items</span><span class="p">)</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="c1"># The previous values were accepted when set; restoring them directly</span>
+        <span class="c1"># cannot fail and so cannot hide an error raised in the block.</span>
+        <span class="k">for</span> <span class="p">(</span><span class="n">layer</span><span class="p">,</span> <span class="n">_</span><span class="p">),</span> <span class="n">perturbation</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">items</span><span class="p">,</span> <span class="n">previous</span><span class="p">):</span>
+            <span class="n">layer</span><span class="o">.</span><span class="n">_compartment_perturbation</span> <span class="o">=</span> <span class="n">perturbation</span></div>
+
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"DendriticBranchLayer"</span><span class="p">,</span> <span class="s2">"capture_analysis_currents"</span><span class="p">,</span> <span class="s2">"perturb_compartments"</span><span class="p">]</span>
 
 
 <span class="n">_BRANCH_GEOMETRY_ARGUMENTS</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(</span>

@@ -137,6 +137,9 @@
     <span class="n">active_branch_rule_override</span><span class="p">,</span>
     <span class="n">check_branch_rule_override_target</span><span class="p">,</span>
 <span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.compartment_perturbation</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">active_compartment_perturbation</span><span class="p">,</span>
+<span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.utils.signal_rounding</span><span class="w"> </span><span class="kn">import</span> <span class="n">round_signal</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.plugins</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_plugins</span>
 
@@ -424,6 +427,7 @@
     <span class="n">store_diagnostics</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">owner</span><span class="p">,</span> <span class="s2">"_store_diagnostics"</span><span class="p">,</span> <span class="kc">False</span><span class="p">))</span>
     <span class="n">rounding</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">owner</span><span class="p">,</span> <span class="s2">"_signal_round_dtype"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
     <span class="n">analysis_rule</span> <span class="o">=</span> <span class="n">active_branch_rule_override</span><span class="p">(</span><span class="n">owner</span><span class="p">)</span>
+    <span class="n">perturbation</span> <span class="o">=</span> <span class="n">active_compartment_perturbation</span><span class="p">(</span><span class="n">owner</span><span class="p">)</span>
     <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">owner</span><span class="p">,</span> <span class="s2">"_store_analysis_currents"</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
         <span class="n">owner</span><span class="o">.</span><span class="n">_last_analysis_currents</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="k">if</span> <span class="p">(</span>
@@ -431,6 +435,7 @@
             <span class="ow">and</span> <span class="n">owner</span><span class="o">.</span><span class="n">use_shunting</span>
             <span class="ow">and</span> <span class="ow">not</span> <span class="n">store_diagnostics</span>
             <span class="ow">and</span> <span class="n">analysis_rule</span> <span class="ow">is</span> <span class="kc">None</span>
+            <span class="ow">and</span> <span class="n">perturbation</span> <span class="ow">is</span> <span class="kc">None</span>
             <span class="ow">and</span> <span class="n">rounding</span> <span class="ow">is</span> <span class="kc">None</span>
             <span class="ow">and</span> <span class="n">fused_shunt_reactivation</span><span class="p">(</span><span class="n">owner</span><span class="o">.</span><span class="n">reactivation</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
         <span class="p">):</span>
@@ -442,6 +447,17 @@
             <span class="p">)</span>
     <span class="k">if</span> <span class="n">analysis_rule</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">check_branch_rule_override_target</span><span class="p">(</span><span class="n">owner</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">perturbation</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">perturbation</span><span class="o">.</span><span class="n">coordinate</span> <span class="o">==</span> <span class="s2">"current"</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">owner</span><span class="o">.</span><span class="n">use_shunting</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">"a current perturbation needs a shunting layer; this layer "</span>
+                <span class="sa">f</span><span class="s2">"integrates with </span><span class="si">{</span><span class="n">owner</span><span class="o">.</span><span class="n">additive_mode</span><span class="si">!r}</span><span class="s2">"</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="n">analysis_rule</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">analysis_rule</span><span class="o">.</span><span class="n">reads_numerator</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"the </span><span class="si">{</span><span class="n">analysis_rule</span><span class="o">.</span><span class="n">rule</span><span class="si">!r}</span><span class="s2"> rule override does not read the "</span>
+                <span class="s2">"shunting numerator, so it would ignore an injected current"</span>
+            <span class="p">)</span>
     <span class="n">needs_components</span> <span class="o">=</span> <span class="p">(</span>
         <span class="n">store_diagnostics</span>
         <span class="ow">or</span> <span class="n">analysis_rule</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
@@ -532,6 +548,7 @@
         <span class="ow">and</span> <span class="ow">not</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">owner</span><span class="p">,</span> <span class="s2">"_store_analysis_currents"</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
         <span class="ow">and</span> <span class="n">analysis_rule</span> <span class="ow">is</span> <span class="kc">None</span>
         <span class="ow">and</span> <span class="n">rounding</span> <span class="ow">is</span> <span class="kc">None</span>
+        <span class="ow">and</span> <span class="n">perturbation</span> <span class="ow">is</span> <span class="kc">None</span>
     <span class="p">):</span>
         <span class="n">fused_shunt</span> <span class="o">=</span> <span class="n">fused_shunt_reactivation</span><span class="p">(</span><span class="n">owner</span><span class="o">.</span><span class="n">reactivation</span><span class="p">)</span>
 
@@ -541,6 +558,12 @@
         <span class="n">denominator</span> <span class="o">=</span> <span class="n">shunt_denominator</span>
     <span class="k">elif</span> <span class="n">owner</span><span class="o">.</span><span class="n">use_shunting</span><span class="p">:</span>
         <span class="n">denominator</span> <span class="o">=</span> <span class="n">shunt_denominator</span>
+        <span class="k">if</span> <span class="n">perturbation</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">perturbation</span><span class="o">.</span><span class="n">coordinate</span> <span class="o">==</span> <span class="s2">"current"</span><span class="p">:</span>
+            <span class="c1"># An injected current joins the numerator; the total conductance</span>
+            <span class="c1"># in the denominator attenuates it.</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">shunt_numerator</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+                <span class="n">shunt_numerator</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">denominator</span><span class="p">)</span>
+            <span class="n">shunt_numerator</span> <span class="o">=</span> <span class="n">perturbation</span><span class="o">.</span><span class="n">add_to</span><span class="p">(</span><span class="n">shunt_numerator</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">analysis_rule</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">voltage</span> <span class="o">=</span> <span class="n">shunt_numerator</span> <span class="o">/</span> <span class="p">(</span><span class="n">denominator</span> <span class="o">+</span> <span class="n">owner</span><span class="o">.</span><span class="n">epsilon</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
@@ -570,6 +593,8 @@
                 <span class="k">else</span> <span class="kc">None</span>
             <span class="p">),</span>
         <span class="p">)</span>
+    <span class="k">if</span> <span class="n">perturbation</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">perturbation</span><span class="o">.</span><span class="n">coordinate</span> <span class="o">==</span> <span class="s2">"voltage"</span><span class="p">:</span>
+        <span class="n">voltage</span> <span class="o">=</span> <span class="n">perturbation</span><span class="o">.</span><span class="n">add_to</span><span class="p">(</span><span class="n">voltage</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">rounding</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">voltage</span> <span class="o">=</span> <span class="n">round_signal</span><span class="p">(</span><span class="n">voltage</span><span class="p">,</span> <span class="n">rounding</span><span class="p">)</span>
 
@@ -609,6 +634,8 @@
         <span class="n">result</span> <span class="o">=</span> <span class="n">fused_shunt</span><span class="p">(</span><span class="n">shunt_numerator</span><span class="p">,</span> <span class="n">denominator</span><span class="p">,</span> <span class="n">owner</span><span class="o">.</span><span class="n">epsilon</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">result</span> <span class="o">=</span> <span class="n">round_signal</span><span class="p">(</span><span class="n">owner</span><span class="o">.</span><span class="n">reactivation</span><span class="p">(</span><span class="n">voltage</span><span class="p">),</span> <span class="n">rounding</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">perturbation</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">perturbation</span><span class="o">.</span><span class="n">coordinate</span> <span class="o">==</span> <span class="s2">"output"</span><span class="p">:</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">perturbation</span><span class="o">.</span><span class="n">add_to</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
     <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">owner</span><span class="p">,</span> <span class="s2">"_store_analysis_currents"</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
         <span class="n">owner</span><span class="o">.</span><span class="n">_last_analysis_currents</span> <span class="o">=</span> <span class="p">{</span>
             <span class="c1"># Canonical stage-explicit analysis names.</span>
@@ -646,6 +673,11 @@
 <span class="p">):</span>
 <span class="w">    </span><span class="sd">"""Compute raw feedforward and recurrent branch currents."""</span>
     <span class="n">_reject_analysis_capture_on_current_path</span><span class="p">(</span><span class="n">owner</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">active_compartment_perturbation</span><span class="p">(</span><span class="n">owner</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">"compartment perturbations act in DendriticBranchLayer.forward; the "</span>
+            <span class="s2">"stateful current path does not apply them"</span>
+        <span class="p">)</span>
     <span class="n">store_diagnostics</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">owner</span><span class="p">,</span> <span class="s2">"_store_diagnostics"</span><span class="p">,</span> <span class="kc">False</span><span class="p">))</span>
     <span class="n">active_pathways</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
     <span class="n">raw_E</span> <span class="o">=</span> <span class="mi">0</span>
@@ -735,6 +767,12 @@
     <span class="k">if</span> <span class="n">active_branch_rule_override</span><span class="p">(</span><span class="n">owner</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
             <span class="s2">"branch rule overrides apply to the feedforward forward pass; "</span>
+            <span class="s2">"voltages computed from currents (recurrent and stateful paths, "</span>
+            <span class="s2">"analyses that substitute currents) would ignore them"</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="n">active_compartment_perturbation</span><span class="p">(</span><span class="n">owner</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">"compartment perturbations act in DendriticBranchLayer.forward; "</span>
             <span class="s2">"voltages computed from currents (recurrent and stateful paths, "</span>
             <span class="s2">"analyses that substitute currents) would ignore them"</span>
         <span class="p">)</span>

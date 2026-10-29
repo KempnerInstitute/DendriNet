@@ -1,0 +1,608 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>dendritic_modeling.analysis.tools.node_perturbation_credit &mdash; DendriNet v0.3.0</title>
+      <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../../_static/documentation_options.js?v=e259d695"></script>
+      <script src="../../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../../index.html" class="icon icon-home">
+            DendriNet
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../examples.html">Example configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Building models</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../network_architectures.html">Model architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../dendritic_neurons.html">Dendritic neurons</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../synapses.html">Synapses and connectivity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../population_networks.html">Population networks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../temporal_dynamics.html">Temporal dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../structured_ei_cores.html">Structured E/I cores</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../conductance_options.html">Conductance options</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../comparison_models.html">Baselines and comparison models</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Configuration</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../configuration_guide.html">Configuration guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../config_reference.html">Annotated reference configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../training_strategies.html">Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../distributed_training.html">Distributed training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../performance_kernels.html">Sparse execution and performance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Data and analysis</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../datasets.html">Datasets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../analysis.html">Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../analyzers.html">Analyzer reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../checkpoint_analysis.html">Analyzing saved checkpoints</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Running experiments</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../runs_and_outputs.html">Runs and outputs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../sweeps.html">Parameter sweeps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../model_compression.html">Compact checkpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../project_provenance.html">Project provenance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../available_components.html">Component catalogue</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../options_reference.html">Options reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../cli_reference.html">Command-line reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../api_reference.html">Python API</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../extending.html">Extending DendriNet</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../engineering_architecture.html">Engineering architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../contributing.html">Contributing</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">DendriNet</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">dendritic_modeling.analysis.tools.node_perturbation_credit</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for dendritic_modeling.analysis.tools.node_perturbation_credit</h1><div class="highlight"><pre>
+<span></span><span class="sd">"""Node-perturbation estimates of compartment credit at a fixed checkpoint.</span>
+
+<span class="sd">For each selected level of one dendritic tree, the error of every compartment</span>
+<span class="sd">(the derivative of the loss with respect to the compartment's output, voltage</span>
+<span class="sd">or injected current) is estimated from loss changes under antithetic</span>
+<span class="sd">perturbations of that level</span>
+<span class="sd">(:func:`dendritic_modeling.training.node_perturbation.node_perturbation_estimates`</span>
+<span class="sd">with :func:`~dendritic_modeling.networks.perturb_compartments`) and compared</span>
+<span class="sd">with the exact error, the gradient of the loss with respect to a zero</span>
+<span class="sd">perturbation. Reported per level, dictionary, scale and draw count: cosine over</span>
+<span class="sd">all compartments, mean cosine within each neuron, sign agreement, relative</span>
+<span class="sd">error, norm ratio, for structured dictionaries the share of the exact error's</span>
+<span class="sd">energy in their span, the forward evaluations per example and the wall time</span>
+<span class="sd">per draw. Final-only. The perturbed levels must run</span>
+<span class="sd">``DendriticBranchLayer.forward`` once per model forward. Recurrent cores, cores</span>
+<span class="sd">whose autograd credit is not exact (``soma_broadcast``) and models with signal</span>
+<span class="sd">rounding are refused: their gradients are not the derivatives of the forward</span>
+<span class="sd">that the perturbations probe. Sample-rolled and permuted-denominator overrides</span>
+<span class="sd">are also refused anywhere in the model: their example coupling violates the</span>
+<span class="sd">estimator's independent-example assumption and changes when draws are batched.</span>
+<span class="sd">"""</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch.nn.functional</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">F</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.analysis.core.base</span><span class="w"> </span><span class="kn">import</span> <span class="n">AbstractAnalyzer</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.analysis.tools.path_matched_intervention</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">inventory_nested_tree</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.analysis.utils.runtime</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">analysis_device_context</span><span class="p">,</span>
+    <span class="n">materialize_dataset</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config.analysis</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">EvaluationRuntimeConfig</span><span class="p">,</span>
+    <span class="n">NodePerturbationCreditAnalysisParams</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">CompartmentPerturbation</span><span class="p">,</span>
+    <span class="n">capture_analysis_currents</span><span class="p">,</span>
+    <span class="n">perturb_compartments</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_rule_override</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">active_branch_rule_override</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.utils.signal_rounding</span><span class="w"> </span><span class="kn">import</span> <span class="n">signal_rounding_dtype</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.training.node_perturbation</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">group_basis</span><span class="p">,</span>
+    <span class="n">node_perturbation_estimates</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.utils.general</span><span class="w"> </span><span class="kn">import</span> <span class="n">save_dict</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.utils.stable_hash</span><span class="w"> </span><span class="kn">import</span> <span class="n">stable_seed_offset</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_output_tensor</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="p">(</span><span class="nb">tuple</span><span class="p">,</span> <span class="nb">list</span><span class="p">)):</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="n">value</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"the model returned </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">value</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">, not a tensor"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">value</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">per_example_loss</span><span class="p">(</span>
+    <span class="n">output</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">target</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">loss</span><span class="p">:</span> <span class="nb">str</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Unreduced loss of each example: ``cross_entropy`` (class labels) or ``mse``.</span>
+
+<span class="sd">    ``mse`` averages the squared error over an example's outputs, which may be a</span>
+<span class="sd">    single value per example (``[batch]``) or any trailing shape.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="n">loss</span> <span class="o">==</span> <span class="s2">"cross_entropy"</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">F</span><span class="o">.</span><span class="n">cross_entropy</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="n">target</span><span class="o">.</span><span class="n">long</span><span class="p">(),</span> <span class="n">reduction</span><span class="o">=</span><span class="s2">"none"</span><span class="p">)</span>
+    <span class="n">error</span> <span class="o">=</span> <span class="n">output</span> <span class="o">-</span> <span class="n">target</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">output</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">output</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">error</span><span class="o">.</span><span class="n">square</span><span class="p">()</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">output</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">agreement</span><span class="p">(</span>
+    <span class="n">estimate</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">exact</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">per_neuron</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">projection</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Agreement of an estimated error field ``[B, D]`` with the exact one.</span>
+
+<span class="sd">    ``within_neuron_cosine`` averages the cosine over (example, neuron) pairs</span>
+<span class="sd">    whose vectors of ``per_neuron`` compartments are nonzero.</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">cosine</span><span class="p">(</span><span class="n">a</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+        <span class="n">norm</span> <span class="o">=</span> <span class="n">a</span><span class="o">.</span><span class="n">norm</span><span class="p">()</span> <span class="o">*</span> <span class="n">b</span><span class="o">.</span><span class="n">norm</span><span class="p">()</span>
+        <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">b</span><span class="o">.</span><span class="n">flatten</span><span class="p">())</span> <span class="o">/</span> <span class="n">norm</span><span class="p">)</span> <span class="k">if</span> <span class="n">norm</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="n">math</span><span class="o">.</span><span class="n">nan</span>
+
+    <span class="n">batch</span> <span class="o">=</span> <span class="n">estimate</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">a</span> <span class="o">=</span> <span class="n">estimate</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">batch</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">per_neuron</span><span class="p">)</span>
+    <span class="n">b</span> <span class="o">=</span> <span class="n">exact</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">batch</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">per_neuron</span><span class="p">)</span>
+    <span class="n">norms</span> <span class="o">=</span> <span class="n">a</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">b</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">keep</span> <span class="o">=</span> <span class="n">norms</span> <span class="o">&gt;</span> <span class="mi">0</span>
+    <span class="n">within</span> <span class="o">=</span> <span class="p">(</span><span class="n">a</span> <span class="o">*</span> <span class="n">b</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)[</span><span class="n">keep</span><span class="p">]</span> <span class="o">/</span> <span class="n">norms</span><span class="p">[</span><span class="n">keep</span><span class="p">]</span>
+    <span class="n">nonzero</span> <span class="o">=</span> <span class="n">exact</span><span class="o">.</span><span class="n">abs</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mf">1e-12</span> <span class="o">*</span> <span class="n">exact</span><span class="o">.</span><span class="n">abs</span><span class="p">()</span><span class="o">.</span><span class="n">max</span><span class="p">()</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">"cosine"</span><span class="p">:</span> <span class="n">cosine</span><span class="p">(</span><span class="n">estimate</span><span class="p">,</span> <span class="n">exact</span><span class="p">),</span>
+        <span class="s2">"within_neuron_cosine"</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">within</span><span class="o">.</span><span class="n">mean</span><span class="p">())</span> <span class="k">if</span> <span class="n">within</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span> <span class="k">else</span> <span class="n">math</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span>
+        <span class="s2">"sign_agreement"</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span>
+            <span class="p">(</span><span class="n">estimate</span><span class="o">.</span><span class="n">sign</span><span class="p">()</span> <span class="o">==</span> <span class="n">exact</span><span class="o">.</span><span class="n">sign</span><span class="p">())[</span><span class="n">nonzero</span><span class="p">]</span><span class="o">.</span><span class="n">double</span><span class="p">()</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+        <span class="p">),</span>
+        <span class="s2">"relative_error"</span><span class="p">:</span> <span class="nb">float</span><span class="p">((</span><span class="n">estimate</span> <span class="o">-</span> <span class="n">exact</span><span class="p">)</span><span class="o">.</span><span class="n">norm</span><span class="p">()</span> <span class="o">/</span> <span class="n">exact</span><span class="o">.</span><span class="n">norm</span><span class="p">()),</span>
+        <span class="s2">"norm_ratio"</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">estimate</span><span class="o">.</span><span class="n">norm</span><span class="p">()</span> <span class="o">/</span> <span class="n">exact</span><span class="o">.</span><span class="n">norm</span><span class="p">()),</span>
+    <span class="p">}</span>
+    <span class="k">if</span> <span class="n">projection</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">result</span><span class="p">[</span><span class="s2">"projection_energy"</span><span class="p">]</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span>
+            <span class="n">projection</span><span class="o">.</span><span class="n">square</span><span class="p">()</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">/</span> <span class="n">exact</span><span class="o">.</span><span class="n">square</span><span class="p">()</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+        <span class="p">)</span>
+        <span class="n">result</span><span class="p">[</span><span class="s2">"cosine_to_projection"</span><span class="p">]</span> <span class="o">=</span> <span class="n">cosine</span><span class="p">(</span><span class="n">estimate</span><span class="p">,</span> <span class="n">projection</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">result</span>
+
+
+<div class="viewcode-block" id="NodePerturbationCreditAnalyzer">
+<a class="viewcode-back" href="../../../../api_reference.html#dendritic_modeling.analysis.tools.node_perturbation_credit.NodePerturbationCreditAnalyzer">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">NodePerturbationCreditAnalyzer</span><span class="p">(</span><span class="n">AbstractAnalyzer</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Estimate compartment credit by node perturbation and compare it with exact errors."""</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">params</span><span class="p">:</span> <span class="n">NodePerturbationCreditAnalysisParams</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="s2">"NodePerturbationCreditAnalyzer"</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">params</span> <span class="o">=</span> <span class="n">params</span>
+
+<div class="viewcode-block" id="NodePerturbationCreditAnalyzer.analyze">
+<a class="viewcode-back" href="../../../../api_reference.html#dendritic_modeling.analysis.tools.node_perturbation_credit.NodePerturbationCreditAnalyzer.analyze">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">analyze</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">model</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span>
+        <span class="n">test_dataset</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">Dataset</span><span class="p">,</span>
+        <span class="n">device</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">device</span> <span class="o">=</span> <span class="s2">"cpu"</span><span class="p">,</span>
+        <span class="n">save_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"final"</span><span class="p">,</span>
+        <span class="n">training</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">runtime</span><span class="p">:</span> <span class="n">EvaluationRuntimeConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="o">**</span><span class="n">_kwargs</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">"""Run every configured level, dictionary, scale and draw count."""</span>
+        <span class="k">if</span> <span class="n">training</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"node-perturbation credit is a final-only analysis"</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">module</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">named_modules</span><span class="p">():</span>
+            <span class="n">override</span> <span class="o">=</span> <span class="n">active_branch_rule_override</span><span class="p">(</span><span class="n">module</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">override</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">override</span><span class="o">.</span><span class="n">rule</span> <span class="ow">in</span> <span class="p">(</span>
+                <span class="s2">"sample_rolled_denominator"</span><span class="p">,</span>
+                <span class="s2">"sample_rolled_tangent"</span><span class="p">,</span>
+                <span class="s2">"permuted_current_denominator"</span><span class="p">,</span>
+            <span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s2">"node-perturbation credit requires independent examples; "</span>
+                    <span class="sa">f</span><span class="s2">"batch-dependent override </span><span class="si">{</span><span class="n">override</span><span class="o">.</span><span class="n">rule</span><span class="si">!r}</span><span class="s2"> on </span><span class="si">{</span><span class="n">name</span><span class="si">!r}</span><span class="s2"> "</span>
+                    <span class="s2">"changes the loss when perturbation draws are batched"</span>
+                <span class="p">)</span>
+        <span class="n">params</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">params</span>
+        <span class="n">is_recurrent</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span>
+            <span class="nb">getattr</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="s2">"core_network"</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span> <span class="s2">"is_recurrent"</span><span class="p">,</span> <span class="kc">False</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="nb">callable</span><span class="p">(</span><span class="n">is_recurrent</span><span class="p">):</span>
+            <span class="n">is_recurrent</span> <span class="o">=</span> <span class="n">is_recurrent</span><span class="p">()</span>
+        <span class="k">if</span> <span class="nb">bool</span><span class="p">(</span><span class="n">is_recurrent</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"node-perturbation credit requires a feedforward model"</span><span class="p">)</span>
+        <span class="n">surrogate</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span>
+            <span class="p">{</span>
+                <span class="nb">str</span><span class="p">(</span><span class="n">module</span><span class="o">.</span><span class="n">autograd_credit_mode</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">module</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">modules</span><span class="p">()</span>
+                <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="s2">"autograd_credit_mode"</span><span class="p">,</span> <span class="s2">"exact"</span><span class="p">)</span> <span class="o">!=</span> <span class="s2">"exact"</span>
+            <span class="p">}</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">surrogate</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">"node-perturbation credit compares estimates with exact errors, but "</span>
+                <span class="sa">f</span><span class="s2">"the model's autograd credit is </span><span class="si">{</span><span class="n">surrogate</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">)</span>
+        <span class="n">rounded</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span>
+            <span class="p">{</span>
+                <span class="n">module</span><span class="o">.</span><span class="n">signal_rounding</span>
+                <span class="k">for</span> <span class="n">module</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">modules</span><span class="p">()</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="s2">"signal_rounding"</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span> <span class="nb">str</span><span class="p">)</span>
+                <span class="ow">and</span> <span class="n">signal_rounding_dtype</span><span class="p">(</span><span class="n">module</span><span class="o">.</span><span class="n">signal_rounding</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="p">}</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">rounded</span><span class="p">:</span>
+            <span class="c1"># Rounding makes the forward piecewise constant, while autograd passes</span>
+            <span class="c1"># gradients through the casts: its errors are a surrogate there.</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">"node-perturbation credit compares estimates with exact errors, but "</span>
+                <span class="sa">f</span><span class="s2">"the model rounds its signals to </span><span class="si">{</span><span class="n">rounded</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">)</span>
+        <span class="n">modules</span><span class="p">,</span> <span class="n">n_somas</span><span class="p">,</span> <span class="n">branch_factors</span> <span class="o">=</span> <span class="n">inventory_nested_tree</span><span class="p">(</span>
+            <span class="n">model</span><span class="p">,</span> <span class="n">module_name_prefix</span><span class="o">=</span><span class="n">params</span><span class="o">.</span><span class="n">module_name_prefix</span>
+        <span class="p">)</span>
+        <span class="n">missing</span> <span class="o">=</span> <span class="p">[</span><span class="n">depth</span> <span class="k">for</span> <span class="n">depth</span> <span class="ow">in</span> <span class="n">params</span><span class="o">.</span><span class="n">depths</span> <span class="k">if</span> <span class="n">depth</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">modules</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">missing</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"the tree has depths </span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="n">modules</span><span class="p">)</span><span class="si">}</span><span class="s2">; not </span><span class="si">{</span><span class="n">missing</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="n">runtime</span> <span class="o">=</span> <span class="n">runtime</span> <span class="k">if</span> <span class="n">runtime</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">EvaluationRuntimeConfig</span><span class="p">()</span>
+        <span class="c1"># A row is one example under one draw; every forward takes at most this many.</span>
+        <span class="n">rows_per_forward</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">runtime</span><span class="o">.</span><span class="n">batch_size</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">rows_per_forward</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"analysis.runtime.batch_size must be positive"</span><span class="p">)</span>
+        <span class="n">tensors</span> <span class="o">=</span> <span class="n">materialize_dataset</span><span class="p">(</span>
+            <span class="n">test_dataset</span><span class="p">,</span> <span class="n">runtime</span><span class="p">,</span> <span class="n">explicit_max_samples</span><span class="o">=</span><span class="n">params</span><span class="o">.</span><span class="n">max_samples</span>
+        <span class="p">)</span>
+        <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">tensors</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">tensors</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">seed</span> <span class="o">=</span> <span class="mi">0</span> <span class="k">if</span> <span class="n">params</span><span class="o">.</span><span class="n">seed</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="nb">int</span><span class="p">(</span><span class="n">params</span><span class="o">.</span><span class="n">seed</span><span class="p">)</span>
+        <span class="n">rows</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">with</span> <span class="n">analysis_device_context</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">device</span><span class="p">)</span> <span class="k">as</span> <span class="n">target</span><span class="p">:</span>
+            <span class="c1"># Tensors carry a concrete device (cuda:0, not cuda).</span>
+            <span class="n">target</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">target</span><span class="p">)</span><span class="o">.</span><span class="n">device</span>
+            <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">target</span><span class="p">),</span> <span class="n">y</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">target</span><span class="p">)</span>
+            <span class="n">dtype</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">parameters</span><span class="p">())</span><span class="o">.</span><span class="n">dtype</span>
+            <span class="k">for</span> <span class="n">depth</span> <span class="ow">in</span> <span class="n">params</span><span class="o">.</span><span class="n">depths</span><span class="p">:</span>
+                <span class="n">name</span><span class="p">,</span> <span class="n">layer</span> <span class="o">=</span> <span class="n">modules</span><span class="p">[</span><span class="n">depth</span><span class="p">]</span>
+                <span class="n">rows</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_level</span><span class="p">(</span>
+                        <span class="n">model</span><span class="p">,</span>
+                        <span class="n">layer</span><span class="p">,</span>
+                        <span class="n">name</span><span class="p">,</span>
+                        <span class="n">depth</span><span class="p">,</span>
+                        <span class="n">x</span><span class="p">,</span>
+                        <span class="n">y</span><span class="p">,</span>
+                        <span class="n">n_somas</span><span class="p">,</span>
+                        <span class="n">branch_factors</span><span class="p">,</span>
+                        <span class="n">dtype</span><span class="p">,</span>
+                        <span class="n">target</span><span class="p">,</span>
+                        <span class="n">rows_per_forward</span><span class="p">,</span>
+                        <span class="n">seed</span><span class="p">,</span>
+                    <span class="p">)</span>
+                <span class="p">)</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">"coordinate"</span><span class="p">:</span> <span class="n">params</span><span class="o">.</span><span class="n">coordinate</span><span class="p">,</span>
+            <span class="s2">"loss"</span><span class="p">:</span> <span class="n">params</span><span class="o">.</span><span class="n">loss</span><span class="p">,</span>
+            <span class="s2">"n_examples"</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
+            <span class="s2">"n_somas"</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">n_somas</span><span class="p">),</span>
+            <span class="s2">"branch_factors"</span><span class="p">:</span> <span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">f</span><span class="p">)</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">branch_factors</span><span class="p">],</span>
+            <span class="s2">"modules"</span><span class="p">:</span> <span class="p">{</span><span class="nb">str</span><span class="p">(</span><span class="n">depth</span><span class="p">):</span> <span class="n">modules</span><span class="p">[</span><span class="n">depth</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">depth</span> <span class="ow">in</span> <span class="n">params</span><span class="o">.</span><span class="n">depths</span><span class="p">},</span>
+            <span class="s2">"seed"</span><span class="p">:</span> <span class="n">seed</span><span class="p">,</span>
+            <span class="s2">"device"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">target</span><span class="p">),</span>
+            <span class="s2">"dtype"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">dtype</span><span class="p">)</span><span class="o">.</span><span class="n">removeprefix</span><span class="p">(</span><span class="s2">"torch."</span><span class="p">),</span>
+            <span class="s2">"chunk"</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">params</span><span class="o">.</span><span class="n">chunk</span><span class="p">),</span>
+            <span class="s2">"rows_per_forward"</span><span class="p">:</span> <span class="n">rows_per_forward</span><span class="p">,</span>
+            <span class="s2">"rows"</span><span class="p">:</span> <span class="n">rows</span><span class="p">,</span>
+        <span class="p">}</span>
+        <span class="k">if</span> <span class="n">save_path</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">save_dict</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">save_path</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">Path</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span><span class="o">.</span><span class="n">stem</span><span class="si">}</span><span class="s2">.json"</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">result</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_level</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">model</span><span class="p">,</span>
+        <span class="n">layer</span><span class="p">,</span>
+        <span class="n">name</span><span class="p">,</span>
+        <span class="n">depth</span><span class="p">,</span>
+        <span class="n">x</span><span class="p">,</span>
+        <span class="n">y</span><span class="p">,</span>
+        <span class="n">n_somas</span><span class="p">,</span>
+        <span class="n">branch_factors</span><span class="p">,</span>
+        <span class="n">dtype</span><span class="p">,</span>
+        <span class="n">device</span><span class="p">,</span>
+        <span class="n">rows_per_forward</span><span class="p">,</span>
+        <span class="n">base_seed</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="n">params</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">params</span>
+        <span class="n">width</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">layer</span><span class="o">.</span><span class="n">branch_config</span><span class="o">.</span><span class="n">output_dim</span><span class="p">)</span>
+        <span class="n">per_neuron</span> <span class="o">=</span> <span class="n">width</span> <span class="o">//</span> <span class="n">n_somas</span>
+        <span class="n">batch</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">exact</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_exact_errors</span><span class="p">(</span>
+            <span class="n">model</span><span class="p">,</span> <span class="n">layer</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">width</span><span class="p">,</span> <span class="n">dtype</span><span class="p">,</span> <span class="n">device</span><span class="p">,</span> <span class="n">rows_per_forward</span>
+        <span class="p">)</span>
+        <span class="n">reference</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_coordinate_rms</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">layer</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">rows_per_forward</span><span class="p">)</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">loss</span><span class="p">(</span><span class="n">offset</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+            <span class="c1"># Copy-major rows: row r is draw r // batch of example r % batch.</span>
+            <span class="n">copies</span> <span class="o">=</span> <span class="n">offset</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">total</span> <span class="o">=</span> <span class="n">copies</span> <span class="o">*</span> <span class="n">batch</span>
+            <span class="n">offsets</span> <span class="o">=</span> <span class="n">offset</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">total</span><span class="p">,</span> <span class="n">width</span><span class="p">)</span>
+            <span class="n">losses</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">start</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">total</span><span class="p">,</span> <span class="n">rows_per_forward</span><span class="p">):</span>
+                <span class="n">stop</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">total</span><span class="p">,</span> <span class="n">start</span> <span class="o">+</span> <span class="n">rows_per_forward</span><span class="p">)</span>
+                <span class="n">index</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">stop</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">x</span><span class="o">.</span><span class="n">device</span><span class="p">)</span> <span class="o">%</span> <span class="n">batch</span>
+                <span class="n">perturbation</span> <span class="o">=</span> <span class="n">CompartmentPerturbation</span><span class="p">(</span>
+                    <span class="n">offsets</span><span class="p">[</span><span class="n">start</span><span class="p">:</span><span class="n">stop</span><span class="p">],</span> <span class="n">params</span><span class="o">.</span><span class="n">coordinate</span>
+                <span class="p">)</span>
+                <span class="k">with</span> <span class="n">perturb_compartments</span><span class="p">({</span><span class="n">layer</span><span class="p">:</span> <span class="n">perturbation</span><span class="p">}):</span>
+                    <span class="n">output</span> <span class="o">=</span> <span class="n">_output_tensor</span><span class="p">(</span><span class="n">model</span><span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="n">index</span><span class="p">]))</span>
+                <span class="n">losses</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">per_example_loss</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="n">y</span><span class="p">[</span><span class="n">index</span><span class="p">],</span> <span class="n">params</span><span class="o">.</span><span class="n">loss</span><span class="p">))</span>
+            <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">(</span><span class="n">losses</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">copies</span><span class="p">,</span> <span class="n">batch</span><span class="p">)</span>
+
+        <span class="n">rows</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">dictionary</span> <span class="ow">in</span> <span class="n">params</span><span class="o">.</span><span class="n">dictionaries</span><span class="p">:</span>
+            <span class="n">basis</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_basis</span><span class="p">(</span>
+                <span class="n">dictionary</span><span class="p">,</span> <span class="n">depth</span><span class="p">,</span> <span class="n">width</span><span class="p">,</span> <span class="n">n_somas</span><span class="p">,</span> <span class="n">branch_factors</span><span class="p">,</span> <span class="n">dtype</span><span class="p">,</span> <span class="n">device</span>
+            <span class="p">)</span>
+            <span class="n">projection</span> <span class="o">=</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">basis</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="p">(</span><span class="n">exact</span> <span class="o">@</span> <span class="n">basis</span><span class="p">)</span> <span class="o">@</span> <span class="n">basis</span><span class="o">.</span><span class="n">T</span>
+            <span class="n">energies</span> <span class="o">=</span> <span class="p">[(</span><span class="s2">"scalar"</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)]</span>
+            <span class="k">if</span> <span class="n">basis</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">params</span><span class="o">.</span><span class="n">match_perturbation_energy</span><span class="p">:</span>
+                <span class="n">energies</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="s2">"matched"</span><span class="p">,</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">width</span> <span class="o">/</span> <span class="n">basis</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])))</span>
+            <span class="k">for</span> <span class="n">energy</span><span class="p">,</span> <span class="n">factor</span> <span class="ow">in</span> <span class="n">energies</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">relative</span> <span class="ow">in</span> <span class="n">params</span><span class="o">.</span><span class="n">relative_scales</span><span class="p">:</span>
+                    <span class="n">scale</span> <span class="o">=</span> <span class="n">relative</span> <span class="o">*</span> <span class="n">reference</span> <span class="o">*</span> <span class="n">factor</span>
+                    <span class="n">seed</span> <span class="o">=</span> <span class="p">(</span>
+                        <span class="n">base_seed</span>
+                        <span class="o">+</span> <span class="n">stable_seed_offset</span><span class="p">(</span><span class="n">depth</span><span class="p">,</span> <span class="n">dictionary</span><span class="p">,</span> <span class="n">energy</span><span class="p">,</span> <span class="n">relative</span><span class="p">)</span>
+                    <span class="p">)</span> <span class="o">%</span> <span class="mi">2</span><span class="o">**</span><span class="mi">63</span>
+                    <span class="n">generator</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">Generator</span><span class="p">(</span><span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">manual_seed</span><span class="p">(</span><span class="n">seed</span><span class="p">)</span>
+                    <span class="n">_synchronize</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>
+                    <span class="n">started</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span>
+                    <span class="n">found</span> <span class="o">=</span> <span class="n">node_perturbation_estimates</span><span class="p">(</span>
+                        <span class="n">loss</span><span class="p">,</span>
+                        <span class="p">(</span><span class="n">batch</span><span class="p">,</span> <span class="n">width</span><span class="p">),</span>
+                        <span class="n">scale</span><span class="o">=</span><span class="n">scale</span><span class="p">,</span>
+                        <span class="n">draws</span><span class="o">=</span><span class="n">params</span><span class="o">.</span><span class="n">draws</span><span class="p">,</span>
+                        <span class="n">generator</span><span class="o">=</span><span class="n">generator</span><span class="p">,</span>
+                        <span class="n">basis</span><span class="o">=</span><span class="n">basis</span><span class="p">,</span>
+                        <span class="n">chunk</span><span class="o">=</span><span class="n">params</span><span class="o">.</span><span class="n">chunk</span><span class="p">,</span>
+                        <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">,</span>
+                        <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">,</span>
+                    <span class="p">)</span>
+                    <span class="n">_synchronize</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>
+                    <span class="n">seconds_per_draw</span> <span class="o">=</span> <span class="p">(</span><span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span> <span class="o">-</span> <span class="n">started</span><span class="p">)</span> <span class="o">/</span> <span class="nb">max</span><span class="p">(</span>
+                        <span class="n">found</span><span class="o">.</span><span class="n">estimates</span>
+                    <span class="p">)</span>
+                    <span class="k">for</span> <span class="n">draws</span><span class="p">,</span> <span class="n">estimate</span> <span class="ow">in</span> <span class="n">found</span><span class="o">.</span><span class="n">estimates</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                        <span class="n">rows</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                            <span class="p">{</span>
+                                <span class="s2">"depth"</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">depth</span><span class="p">),</span>
+                                <span class="s2">"module"</span><span class="p">:</span> <span class="n">name</span><span class="p">,</span>
+                                <span class="s2">"dictionary"</span><span class="p">:</span> <span class="n">dictionary</span><span class="p">,</span>
+                                <span class="s2">"energy"</span><span class="p">:</span> <span class="n">energy</span><span class="p">,</span>
+                                <span class="s2">"relative_scale"</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">relative</span><span class="p">),</span>
+                                <span class="s2">"scale"</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">scale</span><span class="p">),</span>
+                                <span class="s2">"seed"</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">seed</span><span class="p">),</span>
+                                <span class="s2">"rank"</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">found</span><span class="o">.</span><span class="n">rank</span><span class="p">),</span>
+                                <span class="s2">"draws"</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">draws</span><span class="p">),</span>
+                                <span class="s2">"evaluations_per_example"</span><span class="p">:</span> <span class="n">found</span><span class="o">.</span><span class="n">evaluations_per_example</span><span class="p">(</span>
+                                    <span class="n">draws</span>
+                                <span class="p">),</span>
+                                <span class="s2">"seconds_per_draw"</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">seconds_per_draw</span><span class="p">),</span>
+                                <span class="o">**</span><span class="n">agreement</span><span class="p">(</span><span class="n">estimate</span><span class="p">,</span> <span class="n">exact</span><span class="p">,</span> <span class="n">per_neuron</span><span class="p">,</span> <span class="n">projection</span><span class="p">),</span>
+                            <span class="p">}</span>
+                        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">rows</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_exact_errors</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">layer</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">width</span><span class="p">,</span> <span class="n">dtype</span><span class="p">,</span> <span class="n">device</span><span class="p">,</span> <span class="n">examples</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Gradients of the loss with respect to zero offsets, a batch of examples at a time."""</span>
+        <span class="n">calls</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">handle</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">register_forward_hook</span><span class="p">(</span><span class="k">lambda</span> <span class="o">*</span><span class="n">_</span><span class="p">,</span> <span class="n">calls</span><span class="o">=</span><span class="n">calls</span><span class="p">:</span> <span class="n">calls</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span>
+        <span class="n">errors</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">enable_grad</span><span class="p">():</span>
+                <span class="k">for</span> <span class="n">start</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">examples</span><span class="p">):</span>
+                    <span class="n">inputs</span><span class="p">,</span> <span class="n">targets</span> <span class="o">=</span> <span class="p">(</span>
+                        <span class="n">x</span><span class="p">[</span><span class="n">start</span> <span class="p">:</span> <span class="n">start</span> <span class="o">+</span> <span class="n">examples</span><span class="p">],</span>
+                        <span class="n">y</span><span class="p">[</span><span class="n">start</span> <span class="p">:</span> <span class="n">start</span> <span class="o">+</span> <span class="n">examples</span><span class="p">],</span>
+                    <span class="p">)</span>
+                    <span class="n">offset</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span>
+                        <span class="n">inputs</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+                        <span class="n">width</span><span class="p">,</span>
+                        <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">,</span>
+                        <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">,</span>
+                        <span class="n">requires_grad</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                    <span class="p">)</span>
+                    <span class="n">calls</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+                    <span class="k">with</span> <span class="n">perturb_compartments</span><span class="p">(</span>
+                        <span class="p">{</span><span class="n">layer</span><span class="p">:</span> <span class="n">CompartmentPerturbation</span><span class="p">(</span><span class="n">offset</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="o">.</span><span class="n">coordinate</span><span class="p">)}</span>
+                    <span class="p">):</span>
+                        <span class="n">output</span> <span class="o">=</span> <span class="n">_output_tensor</span><span class="p">(</span><span class="n">model</span><span class="p">(</span><span class="n">inputs</span><span class="p">))</span>
+                    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">calls</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+                        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> ran </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">calls</span><span class="p">)</span><span class="si">}</span><span class="s2"> times in one model forward; "</span>
+                            <span class="s2">"node-perturbation credit needs a level that runs once"</span>
+                        <span class="p">)</span>
+                    <span class="n">loss</span> <span class="o">=</span> <span class="n">per_example_loss</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="n">targets</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="o">.</span><span class="n">loss</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+                    <span class="k">if</span> <span class="n">loss</span><span class="o">.</span><span class="n">requires_grad</span><span class="p">:</span>
+                        <span class="n">gradient</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">autograd</span><span class="o">.</span><span class="n">grad</span><span class="p">(</span>
+                            <span class="n">loss</span><span class="p">,</span> <span class="n">offset</span><span class="p">,</span> <span class="n">allow_unused</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">materialize_grads</span><span class="o">=</span><span class="kc">True</span>
+                        <span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">gradient</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">offset</span><span class="p">)</span>
+                    <span class="n">errors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">gradient</span><span class="o">.</span><span class="n">detach</span><span class="p">())</span>
+        <span class="k">finally</span><span class="p">:</span>
+            <span class="n">handle</span><span class="o">.</span><span class="n">remove</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">(</span><span class="n">errors</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_coordinate_rms</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">layer</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">examples</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""RMS of the perturbed quantity on the analysed examples (the scales' unit)."""</span>
+        <span class="n">total</span><span class="p">,</span> <span class="n">count</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mi">0</span>
+        <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">(),</span> <span class="n">capture_analysis_currents</span><span class="p">(</span><span class="n">layer</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">start</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">examples</span><span class="p">):</span>
+                <span class="n">model</span><span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="n">start</span> <span class="p">:</span> <span class="n">start</span> <span class="o">+</span> <span class="n">examples</span><span class="p">])</span>
+                <span class="n">currents</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">get_analysis_currents</span><span class="p">()</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="o">.</span><span class="n">coordinate</span> <span class="o">==</span> <span class="s2">"output"</span><span class="p">:</span>
+                    <span class="n">value</span> <span class="o">=</span> <span class="n">currents</span><span class="p">[</span><span class="s2">"post_gate_output"</span><span class="p">]</span>
+                <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="o">.</span><span class="n">coordinate</span> <span class="o">==</span> <span class="s2">"voltage"</span><span class="p">:</span>
+                    <span class="n">value</span> <span class="o">=</span> <span class="n">currents</span><span class="p">[</span><span class="s2">"pre_gate_voltage"</span><span class="p">]</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="c1"># The shunting numerator that an injected current joins.</span>
+                    <span class="n">parts</span> <span class="o">=</span> <span class="p">[</span>
+                        <span class="n">currents</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
+                        <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="p">(</span>
+                            <span class="s2">"pre_gate_excitation_current"</span><span class="p">,</span>
+                            <span class="s2">"pre_gate_upstream_current"</span><span class="p">,</span>
+                        <span class="p">)</span>
+                        <span class="k">if</span> <span class="n">currents</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+                    <span class="p">]</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="n">parts</span><span class="p">:</span>
+                        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                            <span class="s2">"a current perturbation needs a layer with excitatory or "</span>
+                            <span class="s2">"upstream current"</span>
+                        <span class="p">)</span>
+                    <span class="n">value</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">parts</span><span class="p">)</span>
+                <span class="n">total</span> <span class="o">+=</span> <span class="nb">float</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">double</span><span class="p">()</span><span class="o">.</span><span class="n">square</span><span class="p">()</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span>
+                <span class="n">count</span> <span class="o">+=</span> <span class="n">value</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span>
+        <span class="n">rms</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">total</span> <span class="o">/</span> <span class="n">count</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">math</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">rms</span><span class="p">)</span> <span class="ow">or</span> <span class="n">rms</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"the perturbed quantity has RMS </span><span class="si">{</span><span class="n">rms</span><span class="si">}</span><span class="s2">; relative scales are undefined"</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="n">rms</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_basis</span><span class="p">(</span><span class="n">dictionary</span><span class="p">,</span> <span class="n">depth</span><span class="p">,</span> <span class="n">width</span><span class="p">,</span> <span class="n">n_somas</span><span class="p">,</span> <span class="n">branch_factors</span><span class="p">,</span> <span class="n">dtype</span><span class="p">,</span> <span class="n">device</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">dictionary</span> <span class="o">==</span> <span class="s2">"independent"</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">dictionary</span> <span class="o">==</span> <span class="s2">"neuron"</span><span class="p">:</span>
+            <span class="n">per_neuron</span> <span class="o">=</span> <span class="n">width</span> <span class="o">//</span> <span class="n">n_somas</span>
+            <span class="n">groups</span> <span class="o">=</span> <span class="p">[</span>
+                <span class="nb">range</span><span class="p">(</span><span class="n">s</span> <span class="o">*</span> <span class="n">per_neuron</span><span class="p">,</span> <span class="p">(</span><span class="n">s</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">per_neuron</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_somas</span><span class="p">)</span>
+            <span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>  <span class="c1"># siblings: the children of each parent, consecutive in the level's output</span>
+            <span class="k">if</span> <span class="n">depth</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"the soma level has no sibling groups"</span><span class="p">)</span>
+            <span class="n">factor</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">branch_factors</span><span class="p">[</span><span class="n">depth</span> <span class="o">-</span> <span class="mi">1</span><span class="p">])</span>
+            <span class="n">groups</span> <span class="o">=</span> <span class="p">[</span>
+                <span class="nb">range</span><span class="p">(</span><span class="n">g</span> <span class="o">*</span> <span class="n">factor</span><span class="p">,</span> <span class="p">(</span><span class="n">g</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">factor</span><span class="p">)</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">width</span> <span class="o">//</span> <span class="n">factor</span><span class="p">)</span>
+            <span class="p">]</span>
+        <span class="k">return</span> <span class="n">group_basis</span><span class="p">(</span>
+            <span class="p">[</span><span class="nb">list</span><span class="p">(</span><span class="n">group</span><span class="p">)</span> <span class="k">for</span> <span class="n">group</span> <span class="ow">in</span> <span class="n">groups</span><span class="p">],</span> <span class="n">width</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span>
+        <span class="p">)</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_synchronize</span><span class="p">(</span><span class="n">device</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">device</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Wait for queued CUDA work, so wall times cover it."""</span>
+    <span class="k">if</span> <span class="n">device</span><span class="o">.</span><span class="n">type</span> <span class="o">==</span> <span class="s2">"cuda"</span><span class="p">:</span>
+        <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">synchronize</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"NodePerturbationCreditAnalyzer"</span><span class="p">,</span> <span class="s2">"agreement"</span><span class="p">,</span> <span class="s2">"per_example_loss"</span><span class="p">]</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024-2026, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

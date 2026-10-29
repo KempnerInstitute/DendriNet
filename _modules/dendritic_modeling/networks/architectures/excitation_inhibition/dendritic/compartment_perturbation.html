@@ -1,0 +1,257 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.compartment_perturbation &mdash; DendriNet v0.3.0</title>
+      <link rel="stylesheet" type="text/css" href="../../../../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../../../../_static/documentation_options.js?v=e259d695"></script>
+      <script src="../../../../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../../../../index.html" class="icon icon-home">
+            DendriNet
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../examples.html">Example configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Building models</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../network_architectures.html">Model architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../dendritic_neurons.html">Dendritic neurons</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../synapses.html">Synapses and connectivity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../population_networks.html">Population networks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../temporal_dynamics.html">Temporal dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../structured_ei_cores.html">Structured E/I cores</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../conductance_options.html">Conductance options</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../comparison_models.html">Baselines and comparison models</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Configuration</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../configuration_guide.html">Configuration guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../config_reference.html">Annotated reference configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../training_strategies.html">Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../distributed_training.html">Distributed training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../performance_kernels.html">Sparse execution and performance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Data and analysis</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../datasets.html">Datasets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../analysis.html">Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../analyzers.html">Analyzer reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../checkpoint_analysis.html">Analyzing saved checkpoints</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Running experiments</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../runs_and_outputs.html">Runs and outputs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../sweeps.html">Parameter sweeps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../model_compression.html">Compact checkpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../project_provenance.html">Project provenance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../available_components.html">Component catalogue</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../options_reference.html">Options reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../cli_reference.html">Command-line reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../api_reference.html">Python API</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../extending.html">Extending DendriNet</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../engineering_architecture.html">Engineering architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../contributing.html">Contributing</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../../../index.html">DendriNet</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../../../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.compartment_perturbation</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.compartment_perturbation</h1><div class="highlight"><pre>
+<span></span><span class="sd">"""Additive perturbations of branch-layer compartments for causal analyses.</span>
+
+<span class="sd">A :class:`CompartmentPerturbation` set on a</span>
+<span class="sd">:class:`~dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer.DendriticBranchLayer`</span>
+<span class="sd">(``set_compartment_perturbation`` or ``perturb_compartments``) adds its</span>
+<span class="sd">offset to the layer's compartments during the layer's own forward pass, in one</span>
+<span class="sd">coordinate, so the perturbed layer runs once:</span>
+
+<span class="sd">``output``</span>
+<span class="sd">    added to the layer's output after its activation: the signal its parent,</span>
+<span class="sd">    or the readout, receives.</span>
+<span class="sd">``voltage``</span>
+<span class="sd">    added to the pre-activation voltage, so the activation's slope applies.</span>
+<span class="sd">``current``</span>
+<span class="sd">    an injected current added to the numerator of the shunting voltage</span>
+<span class="sd">    equation, ``V = (N + J) / (D + epsilon)``, so the layer's total</span>
+<span class="sd">    conductance ``D`` attenuates it. Shunting layers only.</span>
+
+<span class="sd">The offset must broadcast to the layer's output, ``[batch, compartments]``,</span>
+<span class="sd">without changing its shape, and must match its device and dtype; compartments</span>
+<span class="sd">left unperturbed get zeros. A perturbation changes no parameter or buffer.</span>
+<span class="sd">With signal rounding, voltage and current offsets are rounded with the</span>
+<span class="sd">voltage, and output offsets are added to the rounded output.</span>
+
+<span class="sd">Gradients of a loss with respect to a zero offset that requires gradients are</span>
+<span class="sd">the exact errors of the compartments in that coordinate, as autograd computes</span>
+<span class="sd">them: gradient hooks of the model (training-mode gradient scaling, or a core's</span>
+<span class="sd">``soma_broadcast`` credit) change them in the same way as parameter gradients.</span>
+
+<span class="sd">Perturbations act only in ``DendriticBranchLayer.forward``. Paths that would</span>
+<span class="sd">not apply them raise while one is set: stateful and recurrent currents,</span>
+<span class="sd">voltages computed from given currents, a ``DendriNet.forward_levels``</span>
+<span class="sd">intervention on the same level, and a current perturbation under a branch</span>
+<span class="sd">rule override that does not read the shunting numerator.</span>
+<span class="sd">"""</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Optional</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+
+<span class="n">COORDINATES</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"output"</span><span class="p">,</span> <span class="s2">"voltage"</span><span class="p">,</span> <span class="s2">"current"</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="CompartmentPerturbation">
+<a class="viewcode-back" href="../../../../../../api_reference.html#dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.compartment_perturbation.CompartmentPerturbation">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">eq</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">CompartmentPerturbation</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""An additive offset for one branch layer's compartments in one coordinate."""</span>
+
+    <span class="n">offset</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+    <span class="n">coordinate</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"output"</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">offset</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"the perturbation offset must be a tensor, got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">offset</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">coordinate</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">COORDINATES</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"unknown perturbation coordinate </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">coordinate</span><span class="si">!r}</span><span class="s2">; "</span>
+                <span class="sa">f</span><span class="s2">"use one of </span><span class="si">{</span><span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">COORDINATES</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_to</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""``value`` plus the offset, after checking that the offset fits it."""</span>
+        <span class="n">offset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">offset</span>
+        <span class="k">if</span> <span class="n">offset</span><span class="o">.</span><span class="n">device</span> <span class="o">!=</span> <span class="n">value</span><span class="o">.</span><span class="n">device</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"the </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">coordinate</span><span class="si">}</span><span class="s2"> perturbation is on </span><span class="si">{</span><span class="n">offset</span><span class="o">.</span><span class="n">device</span><span class="si">}</span><span class="s2">, the "</span>
+                <span class="sa">f</span><span class="s2">"layer computes on </span><span class="si">{</span><span class="n">value</span><span class="o">.</span><span class="n">device</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="n">offset</span><span class="o">.</span><span class="n">dtype</span> <span class="o">!=</span> <span class="n">value</span><span class="o">.</span><span class="n">dtype</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"the </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">coordinate</span><span class="si">}</span><span class="s2"> perturbation has dtype </span><span class="si">{</span><span class="n">offset</span><span class="o">.</span><span class="n">dtype</span><span class="si">}</span><span class="s2">, the "</span>
+                <span class="sa">f</span><span class="s2">"layer computes in </span><span class="si">{</span><span class="n">value</span><span class="o">.</span><span class="n">dtype</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">shape</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">broadcast_shapes</span><span class="p">(</span><span class="n">offset</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">value</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">RuntimeError</span><span class="p">:</span>
+            <span class="n">shape</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">shape</span> <span class="o">!=</span> <span class="n">value</span><span class="o">.</span><span class="n">shape</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"a </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">coordinate</span><span class="si">}</span><span class="s2"> perturbation of shape </span><span class="si">{</span><span class="nb">tuple</span><span class="p">(</span><span class="n">offset</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span><span class="si">}</span><span class="s2"> "</span>
+                <span class="sa">f</span><span class="s2">"does not broadcast to the layer's </span><span class="si">{</span><span class="nb">tuple</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="n">value</span> <span class="o">+</span> <span class="n">offset</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">active_compartment_perturbation</span><span class="p">(</span><span class="n">owner</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="n">CompartmentPerturbation</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""The perturbation a forward pass of ``owner`` applies, or ``None``."""</span>
+    <span class="n">perturbation</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">owner</span><span class="p">,</span> <span class="s2">"_compartment_perturbation"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">perturbation</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">perturbation</span><span class="p">,</span> <span class="n">CompartmentPerturbation</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">perturbation</span>
+    <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+        <span class="s2">"compartment perturbations are applied with perturb_compartments(...) or "</span>
+        <span class="s2">"DendriticBranchLayer.set_compartment_perturbation(...), not by setting "</span>
+        <span class="s2">"_compartment_perturbation"</span>
+    <span class="p">)</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"COORDINATES"</span><span class="p">,</span> <span class="s2">"CompartmentPerturbation"</span><span class="p">,</span> <span class="s2">"active_compartment_perturbation"</span><span class="p">]</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024-2026, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

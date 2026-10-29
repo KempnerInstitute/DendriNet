@@ -1,0 +1,385 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>dendritic_modeling.training.node_perturbation &mdash; DendriNet v0.3.0</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=e259d695"></script>
+      <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            DendriNet
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../examples.html">Example configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Building models</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../network_architectures.html">Model architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../dendritic_neurons.html">Dendritic neurons</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../synapses.html">Synapses and connectivity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../population_networks.html">Population networks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../temporal_dynamics.html">Temporal dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../structured_ei_cores.html">Structured E/I cores</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../conductance_options.html">Conductance options</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../comparison_models.html">Baselines and comparison models</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Configuration</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../configuration_guide.html">Configuration guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../config_reference.html">Annotated reference configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../training_strategies.html">Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../distributed_training.html">Distributed training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../performance_kernels.html">Sparse execution and performance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Data and analysis</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../datasets.html">Datasets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../analysis.html">Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../analyzers.html">Analyzer reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../checkpoint_analysis.html">Analyzing saved checkpoints</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Running experiments</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../runs_and_outputs.html">Runs and outputs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../sweeps.html">Parameter sweeps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../model_compression.html">Compact checkpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../project_provenance.html">Project provenance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../available_components.html">Component catalogue</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../options_reference.html">Options reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../cli_reference.html">Command-line reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api_reference.html">Python API</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../extending.html">Extending DendriNet</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../engineering_architecture.html">Engineering architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../contributing.html">Contributing</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">DendriNet</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">dendritic_modeling.training.node_perturbation</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for dendritic_modeling.training.node_perturbation</h1><div class="highlight"><pre>
+<span></span><span class="sd">"""Node-perturbation estimates of errors from loss changes.</span>
+
+<span class="sd">A node-perturbation estimate replaces the derivative of a loss with respect to</span>
+<span class="sd">perturbable quantities (activations, or the compartment coordinates of</span>
+<span class="sd">``perturb_compartments``) by the correlation of loss changes with random</span>
+<span class="sd">perturbations. For per-example losses ``l_b(h_b)`` and antithetic draws</span>
+<span class="sd">``n ~ N(0, I)`` of scale ``s``::</span>
+
+<span class="sd">    g_hat_b = mean over draws of [l_b(h_b + s n) - l_b(h_b - s n)] / (2 s) * n</span>
+
+<span class="sd">``g_hat`` is unbiased for the gradient when ``l_b`` is quadratic in ``h_b``;</span>
+<span class="sd">otherwise it estimates the gradient of the loss smoothed by the Gaussian</span>
+<span class="sd">perturbation, with a bias of order ``s**2``. With orthonormal basis columns</span>
+<span class="sd">``Q`` (perturbations ``Q z``, ``z ~ N(0, I_m)``) it estimates ``Q Q^T`` times</span>
+<span class="sd">that smoothed gradient, which approaches the projected gradient as ``s``</span>
+<span class="sd">vanishes. Each draw costs two loss evaluations per example; the examples of a</span>
+<span class="sd">batch are independent members of one evaluation.</span>
+<span class="sd">"""</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numbers</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Iterable</span><span class="p">,</span> <span class="n">Sequence</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_positive_int</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">object</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">bool</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">numbers</span><span class="o">.</span><span class="n">Integral</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> must be an integer, got </span><span class="si">{</span><span class="n">value</span><span class="si">!r}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">value</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> must be positive, got </span><span class="si">{</span><span class="n">value</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="NodePerturbationEstimate">
+<a class="viewcode-back" href="../../../api_reference.html#dendritic_modeling.training.node_perturbation.NodePerturbationEstimate">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">NodePerturbationEstimate</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Running estimates after each requested number of draws.</span>
+
+<span class="sd">    ``estimates`` maps a draw count to the estimate of shape ``[B, D]``;</span>
+<span class="sd">    ``rank`` is the number of perturbed directions per example (``D``, or the</span>
+<span class="sd">    basis width). One draw costs two loss evaluations per example.</span>
+<span class="sd">    """</span>
+
+    <span class="n">estimates</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span>
+    <span class="n">scale</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="n">rank</span><span class="p">:</span> <span class="nb">int</span>
+
+<div class="viewcode-block" id="NodePerturbationEstimate.evaluations_per_example">
+<a class="viewcode-back" href="../../../api_reference.html#dendritic_modeling.training.node_perturbation.NodePerturbationEstimate.evaluations_per_example">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">evaluations_per_example</span><span class="p">(</span><span class="n">draws</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Loss evaluations per example behind an estimate from ``draws`` draws."""</span>
+        <span class="k">return</span> <span class="mi">2</span> <span class="o">*</span> <span class="nb">int</span><span class="p">(</span><span class="n">draws</span><span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="group_basis">
+<a class="viewcode-back" href="../../../api_reference.html#dendritic_modeling.training.node_perturbation.group_basis">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">group_basis</span><span class="p">(</span>
+    <span class="n">groups</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]],</span>
+    <span class="n">size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">dtype</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span>
+    <span class="n">device</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">device</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Orthonormal columns that each average one group of coordinates.</span>
+
+<span class="sd">    Column ``k`` is the normalized indicator of ``groups[k]`` among ``size``</span>
+<span class="sd">    coordinates. Groups must be non-empty, disjoint and within range;</span>
+<span class="sd">    coordinates in no group are not perturbed.</span>
+<span class="sd">    """</span>
+    <span class="n">size</span> <span class="o">=</span> <span class="n">_positive_int</span><span class="p">(</span><span class="n">size</span><span class="p">,</span> <span class="s2">"size"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">groups</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"give at least one group"</span><span class="p">)</span>
+    <span class="n">seen</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="n">basis</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">size</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">groups</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">column</span><span class="p">,</span> <span class="n">group</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">groups</span><span class="p">):</span>
+        <span class="n">members</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">group</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span>
+            <span class="nb">isinstance</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="nb">bool</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="n">numbers</span><span class="o">.</span><span class="n">Integral</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">index</span> <span class="ow">in</span> <span class="n">members</span>
+        <span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"group </span><span class="si">{</span><span class="n">column</span><span class="si">}</span><span class="s2"> must hold integer indices, got </span><span class="si">{</span><span class="n">members</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="n">members</span> <span class="o">=</span> <span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">index</span><span class="p">)</span> <span class="k">for</span> <span class="n">index</span> <span class="ow">in</span> <span class="n">members</span><span class="p">]</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">members</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"group </span><span class="si">{</span><span class="n">column</span><span class="si">}</span><span class="s2"> is empty"</span><span class="p">)</span>
+        <span class="n">outside</span> <span class="o">=</span> <span class="p">[</span><span class="n">index</span> <span class="k">for</span> <span class="n">index</span> <span class="ow">in</span> <span class="n">members</span> <span class="k">if</span> <span class="ow">not</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">index</span> <span class="o">&lt;</span> <span class="n">size</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">outside</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"group </span><span class="si">{</span><span class="n">column</span><span class="si">}</span><span class="s2"> has indices outside [0, </span><span class="si">{</span><span class="n">size</span><span class="si">}</span><span class="s2">): </span><span class="si">{</span><span class="n">outside</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">)</span>
+        <span class="n">repeated</span> <span class="o">=</span> <span class="n">seen</span><span class="o">.</span><span class="n">intersection</span><span class="p">(</span><span class="n">members</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">members</span><span class="p">))</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">members</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">repeated</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"groups must be disjoint; group </span><span class="si">{</span><span class="n">column</span><span class="si">}</span><span class="s2"> repeats an index"</span>
+            <span class="p">)</span>
+        <span class="n">seen</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">members</span><span class="p">)</span>
+        <span class="n">basis</span><span class="p">[</span><span class="n">members</span><span class="p">,</span> <span class="n">column</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">members</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">basis</span></div>
+
+
+
+<div class="viewcode-block" id="check_orthonormal_basis">
+<a class="viewcode-back" href="../../../api_reference.html#dendritic_modeling.training.node_perturbation.check_orthonormal_basis">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">check_orthonormal_basis</span><span class="p">(</span><span class="n">basis</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">size</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Raise unless columns are orthonormal within the basis dtype's precision.</span>
+
+<span class="sd">    The absolute Gram-matrix tolerance is at least one dtype epsilon. Half-</span>
+<span class="sd">    precision Gram products accumulate in float32, with autocast disabled;</span>
+<span class="sd">    the basis itself is unchanged.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">basis</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="ow">or</span> <span class="n">basis</span><span class="o">.</span><span class="n">ndim</span> <span class="o">!=</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"a basis is a two-dimensional tensor [size, columns]"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">basis</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="n">size</span> <span class="ow">or</span> <span class="n">basis</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"a basis for </span><span class="si">{</span><span class="n">size</span><span class="si">}</span><span class="s2"> coordinates needs shape [</span><span class="si">{</span><span class="n">size</span><span class="si">}</span><span class="s2">, m] with m &gt;= 1, "</span>
+            <span class="sa">f</span><span class="s2">"got </span><span class="si">{</span><span class="nb">tuple</span><span class="p">(</span><span class="n">basis</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
+        <span class="p">)</span>
+    <span class="n">tolerance</span> <span class="o">=</span> <span class="mf">1e-10</span> <span class="k">if</span> <span class="n">basis</span><span class="o">.</span><span class="n">dtype</span> <span class="o">==</span> <span class="n">torch</span><span class="o">.</span><span class="n">float64</span> <span class="k">else</span> <span class="mf">1e-5</span>
+    <span class="k">if</span> <span class="n">basis</span><span class="o">.</span><span class="n">is_floating_point</span><span class="p">():</span>
+        <span class="n">tolerance</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">tolerance</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="n">basis</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span><span class="o">.</span><span class="n">eps</span><span class="p">)</span>
+    <span class="n">checked</span> <span class="o">=</span> <span class="n">basis</span><span class="o">.</span><span class="n">float</span><span class="p">()</span> <span class="k">if</span> <span class="n">basis</span><span class="o">.</span><span class="n">dtype</span> <span class="ow">in</span> <span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">float16</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">bfloat16</span><span class="p">)</span> <span class="k">else</span> <span class="n">basis</span>
+    <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">autocast</span><span class="p">(</span><span class="n">device_type</span><span class="o">=</span><span class="n">checked</span><span class="o">.</span><span class="n">device</span><span class="o">.</span><span class="n">type</span><span class="p">,</span> <span class="n">enabled</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="n">gram</span> <span class="o">=</span> <span class="n">checked</span><span class="o">.</span><span class="n">T</span> <span class="o">@</span> <span class="n">checked</span>
+    <span class="n">identity</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">basis</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">gram</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">gram</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">torch</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">gram</span><span class="p">,</span> <span class="n">identity</span><span class="p">,</span> <span class="n">atol</span><span class="o">=</span><span class="n">tolerance</span><span class="p">,</span> <span class="n">rtol</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"basis columns must be orthonormal"</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="node_perturbation_estimates">
+<a class="viewcode-back" href="../../../api_reference.html#dendritic_modeling.training.node_perturbation.node_perturbation_estimates">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">node_perturbation_estimates</span><span class="p">(</span>
+    <span class="n">loss</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span>
+    <span class="n">shape</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">scale</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">draws</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span>
+    <span class="n">generator</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Generator</span><span class="p">,</span>
+    <span class="n">basis</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">chunk</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">16</span><span class="p">,</span>
+    <span class="n">dtype</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span>
+    <span class="n">device</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">device</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">NodePerturbationEstimate</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Antithetic node-perturbation estimates of per-example errors.</span>
+
+<span class="sd">    ``loss(offset)`` maps perturbations of shape ``[c, B, D]`` (``shape`` is</span>
+<span class="sd">    ``(B, D)``) to per-example losses of shape ``[c, B]``, without reducing</span>
+<span class="sd">    over examples, and is called with ``+scale * noise`` and ``-scale *</span>
+<span class="sd">    noise`` for each chunk of at most ``chunk`` draws. ``basis`` restricts the</span>
+<span class="sd">    noise to orthonormal columns (``[D, m]``; see :func:`group_basis`).</span>
+<span class="sd">    ``generator`` makes the draws reproducible, independently of ``chunk``;</span>
+<span class="sd">    the draws are made on ``device``, by default the generator's, which must</span>
+<span class="sd">    be the generator's device. The estimates for all counts in ``draws`` share</span>
+<span class="sd">    the same draws in order, so larger counts extend smaller ones. Returns a</span>
+<span class="sd">    :class:`NodePerturbationEstimate`.</span>
+<span class="sd">    """</span>
+    <span class="n">shape</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"shape must be two positive sizes (B, D), got </span><span class="si">{</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="n">batch</span><span class="p">,</span> <span class="n">size</span> <span class="o">=</span> <span class="p">(</span><span class="n">_positive_int</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="s2">"each size in shape"</span><span class="p">)</span> <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">shape</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">scale</span><span class="p">,</span> <span class="nb">bool</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">scale</span><span class="p">,</span> <span class="n">numbers</span><span class="o">.</span><span class="n">Real</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"scale must be a number, got </span><span class="si">{</span><span class="n">scale</span><span class="si">!r}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="n">scale</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">scale</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">math</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">scale</span><span class="p">)</span> <span class="ow">or</span> <span class="n">scale</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"scale must be positive and finite, got </span><span class="si">{</span><span class="n">scale</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">draws</span><span class="p">,</span> <span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="nb">bytes</span><span class="p">))</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">draws</span><span class="p">,</span> <span class="n">Iterable</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"draws must be a collection of counts, got </span><span class="si">{</span><span class="n">draws</span><span class="si">!r}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="n">counts</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">({</span><span class="n">_positive_int</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="s2">"each draw count"</span><span class="p">)</span> <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">draws</span><span class="p">})</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">counts</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"give at least one draw count"</span><span class="p">)</span>
+    <span class="n">chunk</span> <span class="o">=</span> <span class="n">_positive_int</span><span class="p">(</span><span class="n">chunk</span><span class="p">,</span> <span class="s2">"chunk"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">generator</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Generator</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">"give a torch.Generator for reproducible draws"</span><span class="p">)</span>
+    <span class="c1"># Tensors carry a concrete device (cuda:0, not cuda); compare those.</span>
+    <span class="n">source</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">generator</span><span class="o">.</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">device</span>
+    <span class="n">device</span> <span class="o">=</span> <span class="n">source</span> <span class="k">if</span> <span class="n">device</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">torch</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">device</span>
+    <span class="k">if</span> <span class="n">source</span> <span class="o">!=</span> <span class="n">device</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"the generator is on </span><span class="si">{</span><span class="n">source</span><span class="si">}</span><span class="s2">, the draws are on </span><span class="si">{</span><span class="n">device</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">basis</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">basis</span><span class="o">.</span><span class="n">device</span> <span class="o">!=</span> <span class="n">device</span> <span class="ow">or</span> <span class="n">basis</span><span class="o">.</span><span class="n">dtype</span> <span class="o">!=</span> <span class="n">dtype</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"the basis must have the draws' device and dtype"</span><span class="p">)</span>
+        <span class="n">check_orthonormal_basis</span><span class="p">(</span><span class="n">basis</span><span class="p">,</span> <span class="n">size</span><span class="p">)</span>
+    <span class="n">width</span> <span class="o">=</span> <span class="n">size</span> <span class="k">if</span> <span class="n">basis</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">basis</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">evaluate</span><span class="p">(</span><span class="n">offset</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="n">loss</span><span class="p">(</span><span class="n">offset</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="ow">or</span> <span class="n">value</span><span class="o">.</span><span class="n">shape</span> <span class="o">!=</span> <span class="n">offset</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="mi">2</span><span class="p">]:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">"loss must return per-example losses of shape [draws, batch], "</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">tuple</span><span class="p">(</span><span class="n">offset</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="mi">2</span><span class="p">])</span><span class="si">}</span><span class="s2">; got "</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">tuple</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span><span class="w"> </span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="nb">type</span><span class="p">(</span><span class="n">value</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="n">value</span>
+
+    <span class="n">total</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">batch</span><span class="p">,</span> <span class="n">size</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">)</span>
+    <span class="n">estimates</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">done</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">target</span> <span class="ow">in</span> <span class="n">counts</span><span class="p">:</span>
+        <span class="k">while</span> <span class="n">done</span> <span class="o">&lt;</span> <span class="n">target</span><span class="p">:</span>
+            <span class="n">c</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">chunk</span><span class="p">,</span> <span class="n">target</span> <span class="o">-</span> <span class="n">done</span><span class="p">)</span>
+            <span class="c1"># One draw at a time: the sampler's values depend on the tensor</span>
+            <span class="c1"># size, so drawing per draw keeps estimates independent of chunk.</span>
+            <span class="n">z</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span>
+                <span class="p">[</span>
+                    <span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span>
+                        <span class="p">(</span><span class="n">batch</span><span class="p">,</span> <span class="n">width</span><span class="p">),</span> <span class="n">generator</span><span class="o">=</span><span class="n">generator</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span>
+                    <span class="p">)</span>
+                    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+                <span class="p">]</span>
+            <span class="p">)</span>
+            <span class="n">noise</span> <span class="o">=</span> <span class="n">z</span> <span class="k">if</span> <span class="n">basis</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">z</span> <span class="o">@</span> <span class="n">basis</span><span class="o">.</span><span class="n">T</span>
+            <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
+                <span class="n">change</span> <span class="o">=</span> <span class="p">(</span><span class="n">evaluate</span><span class="p">(</span><span class="n">scale</span> <span class="o">*</span> <span class="n">noise</span><span class="p">)</span> <span class="o">-</span> <span class="n">evaluate</span><span class="p">(</span><span class="o">-</span><span class="n">scale</span> <span class="o">*</span> <span class="n">noise</span><span class="p">))</span> <span class="o">/</span> <span class="mf">2.0</span>
+            <span class="n">total</span> <span class="o">+=</span> <span class="p">(</span><span class="n">change</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="n">noise</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">/</span> <span class="n">scale</span>
+            <span class="n">done</span> <span class="o">+=</span> <span class="n">c</span>
+        <span class="n">estimates</span><span class="p">[</span><span class="n">target</span><span class="p">]</span> <span class="o">=</span> <span class="n">total</span> <span class="o">/</span> <span class="n">target</span>
+    <span class="k">return</span> <span class="n">NodePerturbationEstimate</span><span class="p">(</span><span class="n">estimates</span><span class="o">=</span><span class="n">estimates</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="n">scale</span><span class="p">,</span> <span class="n">rank</span><span class="o">=</span><span class="n">width</span><span class="p">)</span></div>
+
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s2">"NodePerturbationEstimate"</span><span class="p">,</span>
+    <span class="s2">"check_orthonormal_basis"</span><span class="p">,</span>
+    <span class="s2">"group_basis"</span><span class="p">,</span>
+    <span class="s2">"node_perturbation_estimates"</span><span class="p">,</span>
+<span class="p">]</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024-2026, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

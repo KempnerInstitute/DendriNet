@@ -99,6 +99,7 @@
 <li class="toctree-l3"><a class="reference internal" href="#local-inhibitory-population-intervention"><code class="docutils literal notranslate"><span class="pre">local_inhibitory_population_intervention</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#input-region-intervention"><code class="docutils literal notranslate"><span class="pre">input_region_intervention</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#branch-local-sensitivity"><code class="docutils literal notranslate"><span class="pre">branch_local_sensitivity</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#node-perturbation-credit"><code class="docutils literal notranslate"><span class="pre">node_perturbation_credit</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#connectivity-and-weights">Connectivity and weights</a><ul>
@@ -215,33 +216,34 @@ defaults, an example, and its output files (<code class="docutils literal notran
 <li><p><a class="reference internal" href="#local-inhibitory-population-intervention" id="id18"><code class="docutils literal notranslate"><span class="pre">local_inhibitory_population_intervention</span></code></a></p></li>
 <li><p><a class="reference internal" href="#input-region-intervention" id="id19"><code class="docutils literal notranslate"><span class="pre">input_region_intervention</span></code></a></p></li>
 <li><p><a class="reference internal" href="#branch-local-sensitivity" id="id20"><code class="docutils literal notranslate"><span class="pre">branch_local_sensitivity</span></code></a></p></li>
+<li><p><a class="reference internal" href="#node-perturbation-credit" id="id21"><code class="docutils literal notranslate"><span class="pre">node_perturbation_credit</span></code></a></p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="#connectivity-and-weights" id="id21">Connectivity and weights</a></p>
+<li><p><a class="reference internal" href="#connectivity-and-weights" id="id22">Connectivity and weights</a></p>
 <ul>
-<li><p><a class="reference internal" href="#weight" id="id22"><code class="docutils literal notranslate"><span class="pre">weight</span></code></a></p></li>
-<li><p><a class="reference internal" href="#source-tuning-support" id="id23"><code class="docutils literal notranslate"><span class="pre">source_tuning_support</span></code></a></p></li>
-<li><p><a class="reference internal" href="#synapse-turnover" id="id24"><code class="docutils literal notranslate"><span class="pre">synapse_turnover</span></code></a></p></li>
-<li><p><a class="reference internal" href="#synapse-pruning" id="id25"><code class="docutils literal notranslate"><span class="pre">synapse_pruning</span></code></a></p></li>
-<li><p><a class="reference internal" href="#receptive-field" id="id26"><code class="docutils literal notranslate"><span class="pre">receptive_field</span></code></a></p></li>
-<li><p><a class="reference internal" href="#inhibitory-specialization" id="id27"><code class="docutils literal notranslate"><span class="pre">inhibitory_specialization</span></code></a></p></li>
+<li><p><a class="reference internal" href="#weight" id="id23"><code class="docutils literal notranslate"><span class="pre">weight</span></code></a></p></li>
+<li><p><a class="reference internal" href="#source-tuning-support" id="id24"><code class="docutils literal notranslate"><span class="pre">source_tuning_support</span></code></a></p></li>
+<li><p><a class="reference internal" href="#synapse-turnover" id="id25"><code class="docutils literal notranslate"><span class="pre">synapse_turnover</span></code></a></p></li>
+<li><p><a class="reference internal" href="#synapse-pruning" id="id26"><code class="docutils literal notranslate"><span class="pre">synapse_pruning</span></code></a></p></li>
+<li><p><a class="reference internal" href="#receptive-field" id="id27"><code class="docutils literal notranslate"><span class="pre">receptive_field</span></code></a></p></li>
+<li><p><a class="reference internal" href="#inhibitory-specialization" id="id28"><code class="docutils literal notranslate"><span class="pre">inhibitory_specialization</span></code></a></p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="#activity" id="id28">Activity</a></p>
+<li><p><a class="reference internal" href="#activity" id="id29">Activity</a></p>
 <ul>
-<li><p><a class="reference internal" href="#compartment-statistics" id="id29"><code class="docutils literal notranslate"><span class="pre">compartment_statistics</span></code></a></p></li>
-<li><p><a class="reference internal" href="#synaptic-activation" id="id30"><code class="docutils literal notranslate"><span class="pre">synaptic_activation</span></code></a></p></li>
-<li><p><a class="reference internal" href="#branch-activation" id="id31"><code class="docutils literal notranslate"><span class="pre">branch_activation</span></code></a></p></li>
+<li><p><a class="reference internal" href="#compartment-statistics" id="id30"><code class="docutils literal notranslate"><span class="pre">compartment_statistics</span></code></a></p></li>
+<li><p><a class="reference internal" href="#synaptic-activation" id="id31"><code class="docutils literal notranslate"><span class="pre">synaptic_activation</span></code></a></p></li>
+<li><p><a class="reference internal" href="#branch-activation" id="id32"><code class="docutils literal notranslate"><span class="pre">branch_activation</span></code></a></p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="#dynamics-and-learning" id="id32">Dynamics and learning</a></p>
+<li><p><a class="reference internal" href="#dynamics-and-learning" id="id33">Dynamics and learning</a></p>
 <ul>
-<li><p><a class="reference internal" href="#reactivation-dynamics" id="id33"><code class="docutils literal notranslate"><span class="pre">reactivation_dynamics</span></code></a></p></li>
-<li><p><a class="reference internal" href="#routing" id="id34"><code class="docutils literal notranslate"><span class="pre">routing</span></code></a></p></li>
-<li><p><a class="reference internal" href="#jacobian-spectrum" id="id35"><code class="docutils literal notranslate"><span class="pre">jacobian_spectrum</span></code></a></p></li>
-<li><p><a class="reference internal" href="#dendritic-timetraces" id="id36"><code class="docutils literal notranslate"><span class="pre">dendritic_timetraces</span></code></a></p></li>
-<li><p><a class="reference internal" href="#spike-train" id="id37"><code class="docutils literal notranslate"><span class="pre">spike_train</span></code></a></p></li>
-<li><p><a class="reference internal" href="#local-rule-components" id="id38"><code class="docutils literal notranslate"><span class="pre">local_rule_components</span></code></a></p></li>
+<li><p><a class="reference internal" href="#reactivation-dynamics" id="id34"><code class="docutils literal notranslate"><span class="pre">reactivation_dynamics</span></code></a></p></li>
+<li><p><a class="reference internal" href="#routing" id="id35"><code class="docutils literal notranslate"><span class="pre">routing</span></code></a></p></li>
+<li><p><a class="reference internal" href="#jacobian-spectrum" id="id36"><code class="docutils literal notranslate"><span class="pre">jacobian_spectrum</span></code></a></p></li>
+<li><p><a class="reference internal" href="#dendritic-timetraces" id="id37"><code class="docutils literal notranslate"><span class="pre">dendritic_timetraces</span></code></a></p></li>
+<li><p><a class="reference internal" href="#spike-train" id="id38"><code class="docutils literal notranslate"><span class="pre">spike_train</span></code></a></p></li>
+<li><p><a class="reference internal" href="#local-rule-components" id="id39"><code class="docutils literal notranslate"><span class="pre">local_rule_components</span></code></a></p></li>
 </ul>
 </li>
 </ul>
@@ -1053,11 +1055,84 @@ selection and architecture checks are those of <code class="docutils literal not
 <code class="docutils literal notranslate"><span class="pre">configs/examples/branch_local_sensitivity_analysis.yaml</span></code>. Collect checkpoint
 runs with <code class="docutils literal notranslate"><span class="pre">dendritic-collect-branch-sensitivities</span></code>.</p>
 </section>
+<section id="node-perturbation-credit">
+<span id="analyzer-node-perturbation-credit"></span><h3><a class="toc-backref" href="#id21" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">node_perturbation_credit</span></code></a><a class="headerlink" href="#node-perturbation-credit" title="Link to this heading"></a></h3>
+<p>Final-only. Estimates the error of every compartment of the selected
+soma-relative <code class="docutils literal notranslate"><span class="pre">depths</span></code> from loss changes under antithetic perturbations of
+that level (<a class="reference internal" href="training_strategies.html#node-perturbation"><span class="std std-ref">Node-perturbation estimates</span></a>, applied with
+<a class="reference internal" href="dendritic_neurons.html#compartment-perturbations"><span class="std std-ref">compartment perturbations</span></a>) and compares it
+with the exact error, the gradient of the loss with respect to a zero
+perturbation. <code class="docutils literal notranslate"><span class="pre">coordinate</span></code> is <code class="docutils literal notranslate"><span class="pre">output</span></code>, <code class="docutils literal notranslate"><span class="pre">voltage</span></code> or, for shunting
+levels, <code class="docutils literal notranslate"><span class="pre">current</span></code>. <code class="docutils literal notranslate"><span class="pre">dictionaries</span></code> sets the perturbation directions:
+<code class="docutils literal notranslate"><span class="pre">independent</span></code> (every compartment), <code class="docutils literal notranslate"><span class="pre">siblings</span></code> (one direction per group of
+children of a parent) or <code class="docutils literal notranslate"><span class="pre">neuron</span></code> (one per neuron). <code class="docutils literal notranslate"><span class="pre">relative_scales</span></code>
+multiply the RMS of the perturbed quantity over the level on the analysed
+examples (for <code class="docutils literal notranslate"><span class="pre">current</span></code>, the shunting numerator).
+<code class="docutils literal notranslate"><span class="pre">match_perturbation_energy</span></code> adds runs of the structured dictionaries scaled
+by sqrt(D / m), so their expected perturbation energy equals that of
+independent draws. <code class="docutils literal notranslate"><span class="pre">loss</span></code> is <code class="docutils literal notranslate"><span class="pre">cross_entropy</span></code> (class labels) or <code class="docutils literal notranslate"><span class="pre">mse</span></code>
+(any output shape, also one value per example). The first <code class="docutils literal notranslate"><span class="pre">max_samples</span></code>
+examples of the evaluation split are analysed (default 256; <code class="docutils literal notranslate"><span class="pre">null</span></code> for
+all), and every forward pass takes at most <code class="docutils literal notranslate"><span class="pre">analysis.runtime.batch_size</span></code>
+rows, a row being one example under one draw. <code class="docutils literal notranslate"><span class="pre">seed</span></code> fixes the draws; left
+unset, a run fills it from its probe seed (seed 0 without one), and every row
+records the seed of its draws.</p>
+<p>The tree selection and checks are those of <code class="docutils literal notranslate"><span class="pre">path_matched_intervention</span></code>.
+Each perturbed level must run <code class="docutils literal notranslate"><span class="pre">DendriticBranchLayer.forward</span></code> once per model
+forward (feedforward population networks qualify). Recurrent cores, stateful
+current paths, cores with <code class="docutils literal notranslate"><span class="pre">autograd_credit_mode:</span> <span class="pre">soma_broadcast</span></code> and models
+with <code class="docutils literal notranslate"><span class="pre">signal_rounding</span></code> are refused: their gradients are not the derivatives
+of the forward the perturbations probe (rounding makes it piecewise constant,
+while autograd passes gradients through the casts).</p>
+<p>The estimator assumes that examples are independent. Overrides
+<code class="docutils literal notranslate"><span class="pre">sample_rolled_denominator</span></code>, <code class="docutils literal notranslate"><span class="pre">sample_rolled_tangent</span></code> and
+<code class="docutils literal notranslate"><span class="pre">permuted_current_denominator</span></code> are refused anywhere in the model, including
+outside the selected tree: they can couple examples and change their pairings
+when perturbation draws are batched.</p>
+<p>A level that executes but does not influence the loss has zero exact credit,
+including when all model parameters are frozen and the loss has no gradient
+graph. Alignment to a zero reference is undefined. When both exact and
+estimated credit are zero, the cosines and relative metrics are reported as
+NaN.</p>
+<p>The scale is relative to the RMS over the level, while the effect of a
+perturbation depends on each compartment. For <code class="docutils literal notranslate"><span class="pre">current</span></code> the voltage
+response is the injected current divided by the compartment’s total
+conductance, so weakly driven, high-resistance compartments receive much
+larger relative perturbations, and a nonlinear tree can distort <code class="docutils literal notranslate"><span class="pre">current</span></code>
+estimates at scales where <code class="docutils literal notranslate"><span class="pre">output</span></code> and <code class="docutils literal notranslate"><span class="pre">voltage</span></code> estimates show no scale
+dependence. List several <code class="docutils literal notranslate"><span class="pre">relative_scales</span></code>: an estimate that changes with
+the scale is distorted by it.</p>
+<p>Each row reports a depth, dictionary, energy, relative scale and draw count:
+cosine with the exact error over all compartments, the mean cosine within each
+neuron, sign agreement, relative error, norm ratio, for structured
+dictionaries the share of the exact error’s energy in their span and the
+cosine with that projection, the forward evaluations per example (two per
+draw) and the wall time per draw (CUDA work included). The file also records
+the seed, device, dtype, <code class="docutils literal notranslate"><span class="pre">chunk</span></code> and rows per forward. These are
+measurements at a fixed state; they say nothing by themselves about learning
+with the estimates.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">analysis</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">node_perturbation_credit</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">depths</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">1</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">2</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">module_name_prefix</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">core_network.layers.0.excitatory_cells.branch_layers</span>
+<span class="w">      </span><span class="nt">coordinate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">output</span>
+<span class="w">      </span><span class="nt">dictionaries</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">independent</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">siblings</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">neuron</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">relative_scales</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0.01</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.1</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">draws</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">1</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">4</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">16</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">64</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">256</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">match_perturbation_energy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">max_samples</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">256</span>
+</pre></div>
+</div>
+<p>Output: <code class="docutils literal notranslate"><span class="pre">node_perturbation_credit/&lt;name&gt;.json</span></code>. Example profile:
+<code class="docutils literal notranslate"><span class="pre">configs/examples/node_perturbation_credit_analysis.yaml</span></code>.</p>
+</section>
 </section>
 <section id="connectivity-and-weights">
-<h2><a class="toc-backref" href="#id21" role="doc-backlink">Connectivity and weights</a><a class="headerlink" href="#connectivity-and-weights" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id22" role="doc-backlink">Connectivity and weights</a><a class="headerlink" href="#connectivity-and-weights" title="Link to this heading"></a></h2>
 <section id="weight">
-<span id="analyzer-weight"></span><h3><a class="toc-backref" href="#id22" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">weight</span></code></a><a class="headerlink" href="#weight" title="Link to this heading"></a></h3>
+<span id="analyzer-weight"></span><h3><a class="toc-backref" href="#id23" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">weight</span></code></a><a class="headerlink" href="#weight" title="Link to this heading"></a></h3>
 <p>Requires E/I dendritic branch layers; other models are skipped without a
 message. Statistics of the synaptic weights (<code class="docutils literal notranslate"><span class="pre">synapse_weights</span></code>) and of the
 branch coupling weights (<code class="docutils literal notranslate"><span class="pre">branch_weights</span></code>): means, variances, percentiles,
@@ -1117,7 +1192,7 @@ training, and the source-support and alignment files above. Example profiles:
 checkpoint runs with <code class="docutils literal notranslate"><span class="pre">dendritic-collect-synaptic-support</span></code>.</p>
 </section>
 <section id="source-tuning-support">
-<span id="analyzer-source-tuning-support"></span><h3><a class="toc-backref" href="#id23" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">source_tuning_support</span></code></a><a class="headerlink" href="#source-tuning-support" title="Link to this heading"></a></h3>
+<span id="analyzer-source-tuning-support"></span><h3><a class="toc-backref" href="#id24" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">source_tuning_support</span></code></a><a class="headerlink" href="#source-tuning-support" title="Link to this heading"></a></h3>
 <p>Final-only. Requires a feedforward <code class="docutils literal notranslate"><span class="pre">population_network</span></code>. Asks whether the
 exact source coordinates a synaptic pathway selects are tuned to the
 preferred class of their target soma. The preferred class is chosen on
@@ -1157,7 +1232,7 @@ summaries average target somas with equal weight and never pool trained
 seeds.</p>
 </section>
 <section id="synapse-turnover">
-<span id="analyzer-synapse-turnover"></span><h3><a class="toc-backref" href="#id24" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">synapse_turnover</span></code></a><a class="headerlink" href="#synapse-turnover" title="Link to this heading"></a></h3>
+<span id="analyzer-synapse-turnover"></span><h3><a class="toc-backref" href="#id25" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">synapse_turnover</span></code></a><a class="headerlink" href="#synapse-turnover" title="Link to this heading"></a></h3>
 <p>Requires <code class="docutils literal notranslate"><span class="pre">training:</span> <span class="pre">true</span></code> (the default). Counts the contacts of every
 synapse bank (<code class="docutils literal notranslate"><span class="pre">exc</span></code>, <code class="docutils literal notranslate"><span class="pre">inh</span></code>, <code class="docutils literal notranslate"><span class="pre">rec_exc</span></code>, <code class="docutils literal notranslate"><span class="pre">rec_inh</span></code>) of every dendritic
 branch layer that stay active, form and disappear. The first snapshot is the
@@ -1176,7 +1251,7 @@ raises when the model has no masked synapse banks.</p>
 <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;_turnover.png</span></code> and <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;_turnover_by_layer.png</span></code>.</p>
 </section>
 <section id="synapse-pruning">
-<span id="analyzer-synapse-pruning"></span><h3><a class="toc-backref" href="#id25" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">synapse_pruning</span></code></a><a class="headerlink" href="#synapse-pruning" title="Link to this heading"></a></h3>
+<span id="analyzer-synapse-pruning"></span><h3><a class="toc-backref" href="#id26" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">synapse_pruning</span></code></a><a class="headerlink" href="#synapse-pruning" title="Link to this heading"></a></h3>
 <p>Final-only. A census of the realized contacts of every synapse bank of every
 dendritic branch layer: a contact is realized when the bank’s mask selects it
 and its effective weight is nonzero, so contacts that pruning set to zero do
@@ -1196,7 +1271,7 @@ with <code class="docutils literal notranslate"><span class="pre">save_figures</
 standard deviation against depth.</p>
 </section>
 <section id="receptive-field">
-<span id="analyzer-receptive-field"></span><h3><a class="toc-backref" href="#id26" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">receptive_field</span></code></a><a class="headerlink" href="#receptive-field" title="Link to this heading"></a></h3>
+<span id="analyzer-receptive-field"></span><h3><a class="toc-backref" href="#id27" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">receptive_field</span></code></a><a class="headerlink" href="#receptive-field" title="Link to this heading"></a></h3>
 <p>Requires dendritic branch layers. Gathers the input-level receptive-field
 maps of all branch layers from the weights and plots sampled maps
 (<code class="docutils literal notranslate"><span class="pre">n_rows</span></code> by <code class="docutils literal notranslate"><span class="pre">n_cols</span></code>). Set <code class="docutils literal notranslate"><span class="pre">rf_shape</span></code> when excitatory and inhibitory
@@ -1233,7 +1308,7 @@ files, and after training <code class="docutils literal notranslate"><span class
 option.</p>
 </section>
 <section id="inhibitory-specialization">
-<span id="analyzer-inhibitory-specialization"></span><h3><a class="toc-backref" href="#id27" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">inhibitory_specialization</span></code></a><a class="headerlink" href="#inhibitory-specialization" title="Link to this heading"></a></h3>
+<span id="analyzer-inhibitory-specialization"></span><h3><a class="toc-backref" href="#id28" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">inhibitory_specialization</span></code></a><a class="headerlink" href="#inhibitory-specialization" title="Link to this heading"></a></h3>
 <p>Requires recurrent inhibition onto excitatory dendrites (a recurrent core with
 <code class="docutils literal notranslate"><span class="pre">branch_rec_inhibition</span></code> weights); other models are skipped with a warning.
 For each local recurrent I-to-E route it computes the gate index
@@ -1265,9 +1340,9 @@ populations.
 </section>
 </section>
 <section id="activity">
-<h2><a class="toc-backref" href="#id28" role="doc-backlink">Activity</a><a class="headerlink" href="#activity" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id29" role="doc-backlink">Activity</a><a class="headerlink" href="#activity" title="Link to this heading"></a></h2>
 <section id="compartment-statistics">
-<span id="analyzer-compartment-statistics"></span><h3><a class="toc-backref" href="#id29" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">compartment_statistics</span></code></a><a class="headerlink" href="#compartment-statistics" title="Link to this heading"></a></h3>
+<span id="analyzer-compartment-statistics"></span><h3><a class="toc-backref" href="#id30" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">compartment_statistics</span></code></a><a class="headerlink" href="#compartment-statistics" title="Link to this heading"></a></h3>
 <p>Requires dendritic branch layers; other models are skipped (recorded as
 <code class="docutils literal notranslate"><span class="pre">skipped</span></code> in <code class="docutils literal notranslate"><span class="pre">analysis_status.json</span></code>, see <a class="reference internal" href="analysis.html#analysis-status"><span class="std std-ref">Completion status</span></a>).
 Statistics (mean, variance, percentiles, minimum and maximum, entropy) of the
@@ -1295,7 +1370,7 @@ ratio figure. What was left out is logged and listed under
 <code class="docutils literal notranslate"><span class="pre">missing_outputs</span></code> in <code class="docutils literal notranslate"><span class="pre">analysis_status.json</span></code>.</p>
 </section>
 <section id="synaptic-activation">
-<span id="analyzer-synaptic-activation"></span><h3><a class="toc-backref" href="#id30" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">synaptic_activation</span></code></a><a class="headerlink" href="#synaptic-activation" title="Link to this heading"></a></h3>
+<span id="analyzer-synaptic-activation"></span><h3><a class="toc-backref" href="#id31" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">synaptic_activation</span></code></a><a class="headerlink" href="#synaptic-activation" title="Link to this heading"></a></h3>
 <p>Requires dendritic branch layers; other models are skipped without a message.
 Records the activation of every synapse (input times effective weight) of the
 excitatory, inhibitory and recurrent Top-K synapse banks on the test split,
@@ -1316,7 +1391,7 @@ layers use <code class="docutils literal notranslate"><span class="pre">TopKLine
 <p>Output: <code class="docutils literal notranslate"><span class="pre">synaptic_activation_analysis/&lt;name&gt;</span></code> (JSON).</p>
 </section>
 <section id="branch-activation">
-<span id="analyzer-branch-activation"></span><h3><a class="toc-backref" href="#id31" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">branch_activation</span></code></a><a class="headerlink" href="#branch-activation" title="Link to this heading"></a></h3>
+<span id="analyzer-branch-activation"></span><h3><a class="toc-backref" href="#id32" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">branch_activation</span></code></a><a class="headerlink" href="#branch-activation" title="Link to this heading"></a></h3>
 <p>Requires dendritic branch layers; other models are skipped without a message.
 Records, per branch layer, the excitatory current, the inhibitory current
 (when the layer has inhibitory input) and the branch output on the test split,
@@ -1335,9 +1410,9 @@ with the summary, <code class="docutils literal notranslate"><span class="pre">l
 </section>
 </section>
 <section id="dynamics-and-learning">
-<h2><a class="toc-backref" href="#id32" role="doc-backlink">Dynamics and learning</a><a class="headerlink" href="#dynamics-and-learning" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id33" role="doc-backlink">Dynamics and learning</a><a class="headerlink" href="#dynamics-and-learning" title="Link to this heading"></a></h2>
 <section id="reactivation-dynamics">
-<span id="analyzer-reactivation-dynamics"></span><h3><a class="toc-backref" href="#id33" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">reactivation_dynamics</span></code></a><a class="headerlink" href="#reactivation-dynamics" title="Link to this heading"></a></h3>
+<span id="analyzer-reactivation-dynamics"></span><h3><a class="toc-backref" href="#id34" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">reactivation_dynamics</span></code></a><a class="headerlink" href="#reactivation-dynamics" title="Link to this heading"></a></h3>
 <p>Runs after every epoch by default (<code class="docutils literal notranslate"><span class="pre">training:</span> <span class="pre">true</span></code>). Tracks every gate
 (reactivation) module built from a <code class="docutils literal notranslate"><span class="pre">param_*</span></code> or <code class="docutils literal notranslate"><span class="pre">linear_*</span></code> activation
 type, <code class="docutils literal notranslate"><span class="pre">residual_silu</span></code> or <code class="docutils literal notranslate"><span class="pre">endpoint_tanh</span></code>; a model without such gates
@@ -1365,7 +1440,7 @@ distribution.</p>
 and soma-relative depth of each gate as columns.</p>
 </section>
 <section id="routing">
-<span id="analyzer-routing"></span><h3><a class="toc-backref" href="#id34" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">routing</span></code></a><a class="headerlink" href="#routing" title="Link to this heading"></a></h3>
+<span id="analyzer-routing"></span><h3><a class="toc-backref" href="#id35" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">routing</span></code></a><a class="headerlink" href="#routing" title="Link to this heading"></a></h3>
 <p>Recurrent dendritic cores only (a recurrent structured E/I core or a recurrent
 <code class="docutils literal notranslate"><span class="pre">population_network</span></code>); others are skipped. For each population it reports
 the share of activity in each dendritic level, as raw L2 norms and as
@@ -1381,7 +1456,7 @@ batches of 128). <code class="docutils literal notranslate"><span class="pre">ro
 <p>Output: <code class="docutils literal notranslate"><span class="pre">routing_analysis/&lt;name&gt;</span></code> (JSON).</p>
 </section>
 <section id="jacobian-spectrum">
-<span id="analyzer-jacobian-spectrum"></span><h3><a class="toc-backref" href="#id35" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">jacobian_spectrum</span></code></a><a class="headerlink" href="#jacobian-spectrum" title="Link to this heading"></a></h3>
+<span id="analyzer-jacobian-spectrum"></span><h3><a class="toc-backref" href="#id36" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">jacobian_spectrum</span></code></a><a class="headerlink" href="#jacobian-spectrum" title="Link to this heading"></a></h3>
 <p>Requires recurrent excitation or inhibition onto dendrites; other models are
 skipped. The <code class="docutils literal notranslate"><span class="pre">top_k</span></code> (default 16) singular values and the spectral radii of
 the effective recurrent excitatory and inhibitory weights at each dendritic
@@ -1400,7 +1475,7 @@ differentiates the complete state update instead.</p>
 <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;.pdf</span></code>.</p>
 </section>
 <section id="dendritic-timetraces">
-<span id="analyzer-dendritic-timetraces"></span><h3><a class="toc-backref" href="#id36" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">dendritic_timetraces</span></code></a><a class="headerlink" href="#dendritic-timetraces" title="Link to this heading"></a></h3>
+<span id="analyzer-dendritic-timetraces"></span><h3><a class="toc-backref" href="#id37" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">dendritic_timetraces</span></code></a><a class="headerlink" href="#dendritic-timetraces" title="Link to this heading"></a></h3>
 <p>Simulates how the learned dendritic cascade responds to a synthetic two-pulse
 input, using the trained per-level time constants and <code class="docutils literal notranslate"><span class="pre">ParametricTanh</span></code> gate
 parameters; populations without per-level time constants or with other gates
@@ -1421,7 +1496,7 @@ population networks report keys such as
 <p>Output: <code class="docutils literal notranslate"><span class="pre">dendritic_timetraces/&lt;name&gt;.json</span></code> and one PDF per layer.</p>
 </section>
 <section id="spike-train">
-<span id="analyzer-spike-train"></span><h3><a class="toc-backref" href="#id37" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">spike_train</span></code></a><a class="headerlink" href="#spike-train" title="Link to this heading"></a></h3>
+<span id="analyzer-spike-train"></span><h3><a class="toc-backref" href="#id38" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">spike_train</span></code></a><a class="headerlink" href="#spike-train" title="Link to this heading"></a></h3>
 <p>For models with spiking somas (<code class="docutils literal notranslate"><span class="pre">LIFSoma</span></code> modules; see
 <a class="reference internal" href="temporal_dynamics.html#spiking-soma"><span class="std std-ref">Spiking soma</span></a>); others are skipped. The analyzer hooks the soma
 directly, so it works with <code class="docutils literal notranslate"><span class="pre">spike_readout</span></code> set to <code class="docutils literal notranslate"><span class="pre">spikes</span></code>, <code class="docutils literal notranslate"><span class="pre">rate</span></code> or
@@ -1443,7 +1518,7 @@ Options: <code class="docutils literal notranslate"><span class="pre">dt</span><
 <p>Output: <code class="docutils literal notranslate"><span class="pre">spike_train_analysis/&lt;name&gt;.json</span></code>.</p>
 </section>
 <section id="local-rule-components">
-<span id="analyzer-local-rule-components"></span><h3><a class="toc-backref" href="#id38" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">local_rule_components</span></code></a><a class="headerlink" href="#local-rule-components" title="Link to this heading"></a></h3>
+<span id="analyzer-local-rule-components"></span><h3><a class="toc-backref" href="#id39" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">local_rule_components</span></code></a><a class="headerlink" href="#local-rule-components" title="Link to this heading"></a></h3>
 <p>The factors of the local learning rule of <code class="docutils literal notranslate"><span class="pre">local_ca</span></code> (see
 <a class="reference internal" href="training_strategies.html#local-credit-assignment"><span class="std std-ref">Local credit assignment</span></a>) by dendritic depth and synapse type: branch
 voltage, input resistance, excitatory and inhibitory driving forces,

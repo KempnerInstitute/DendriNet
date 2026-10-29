@@ -63,6 +63,7 @@
 <li class="toctree-l3"><a class="reference internal" href="#selecting-the-rule">Selecting the rule</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#tangent-anchors">Tangent anchors</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#branch-diagnostics">Branch diagnostics</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#compartment-perturbations">Compartment perturbations</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#analysis-only-rule-overrides">Analysis-only rule overrides</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#training-support">Training support</a></li>
 </ul>
@@ -162,17 +163,17 @@ themselves are described in <a class="reference internal" href="synapses.html"><
 <nav class="contents local" id="on-this-page">
 <p class="topic-title">On this page</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="#configuration-keys" id="id5">Configuration keys</a></p></li>
-<li><p><a class="reference internal" href="#the-dendritic-tree" id="id6">The dendritic tree</a></p></li>
-<li><p><a class="reference internal" href="#branch-layers" id="id7">Branch layers</a></p></li>
-<li><p><a class="reference internal" href="#integration-modes" id="id8">Integration modes</a></p></li>
-<li><p><a class="reference internal" href="#activation-functions" id="id9">Activation functions</a></p></li>
-<li><p><a class="reference internal" href="#gate-initialization-and-maintenance" id="id10">Gate initialization and maintenance</a></p></li>
-<li><p><a class="reference internal" href="#comparing-integration-rules" id="id11">Comparing integration rules</a></p></li>
+<li><p><a class="reference internal" href="#configuration-keys" id="id6">Configuration keys</a></p></li>
+<li><p><a class="reference internal" href="#the-dendritic-tree" id="id7">The dendritic tree</a></p></li>
+<li><p><a class="reference internal" href="#branch-layers" id="id8">Branch layers</a></p></li>
+<li><p><a class="reference internal" href="#integration-modes" id="id9">Integration modes</a></p></li>
+<li><p><a class="reference internal" href="#activation-functions" id="id10">Activation functions</a></p></li>
+<li><p><a class="reference internal" href="#gate-initialization-and-maintenance" id="id11">Gate initialization and maintenance</a></p></li>
+<li><p><a class="reference internal" href="#comparing-integration-rules" id="id12">Comparing integration rules</a></p></li>
 </ul>
 </nav>
 <section id="configuration-keys">
-<span id="dendritic-neuron-options"></span><h2><a class="toc-backref" href="#id5" role="doc-backlink">Configuration keys</a><a class="headerlink" href="#configuration-keys" title="Link to this heading"></a></h2>
+<span id="dendritic-neuron-options"></span><h2><a class="toc-backref" href="#id6" role="doc-backlink">Configuration keys</a><a class="headerlink" href="#configuration-keys" title="Link to this heading"></a></h2>
 <p>Structured E/I cores read the neuron options from <code class="docutils literal notranslate"><span class="pre">model.core.morphology</span></code>
 and <code class="docutils literal notranslate"><span class="pre">model.core.reactivation</span></code>. Population networks read the same options as
 population fields, in <code class="docutils literal notranslate"><span class="pre">model.core.population_network.layers[].population_defaults</span></code>
@@ -265,13 +266,13 @@ population fields in <code class="docutils literal notranslate"><span class="pre
 connectivity masks) have the same two spellings; see <a class="reference internal" href="synapses.html"><span class="doc">Synapses and connectivity</span></a>.</p>
 </section>
 <section id="the-dendritic-tree">
-<span id="dendritic-tree"></span><h2><a class="toc-backref" href="#id6" role="doc-backlink">The dendritic tree</a><a class="headerlink" href="#the-dendritic-tree" title="Link to this heading"></a></h2>
+<span id="dendritic-tree"></span><h2><a class="toc-backref" href="#id7" role="doc-backlink">The dendritic tree</a><a class="headerlink" href="#the-dendritic-tree" title="Link to this heading"></a></h2>
 <p><code class="docutils literal notranslate"><span class="pre">branch_factors</span></code> defines the tree of each neuron, listed from the soma
 outwards: <code class="docutils literal notranslate"><span class="pre">[3,</span> <span class="pre">2]</span></code> gives the soma three proximal branches and each proximal
 branch two distal branches, six distal branches in all. <code class="docutils literal notranslate"><span class="pre">branch_factors:</span> <span class="pre">[]</span></code>
 gives a point neuron that has only a soma. The class <code class="docutils literal notranslate"><span class="pre">DendriNet</span></code> builds a
 population of <code class="docutils literal notranslate"><span class="pre">n_soma</span></code> such trees.</p>
-<figure class="align-default" id="id3">
+<figure class="align-default" id="id4">
 <a class="reference internal image-reference" href="_images/dendritic-single-neuron.svg"><img alt="One dendritic neuron with branch factors 3 and 2: six distal branches, three proximal branches and the soma, with their synapse banks and child aggregation." src="_images/dendritic-single-neuron.svg" style="width: 100%;" />
 </a>
 <figcaption>
@@ -280,7 +281,7 @@ from the soma. Every dendritic level has its own excitatory and inhibitory
 synapse banks, which read the same inputs; the soma has them only with
 <code class="docutils literal notranslate"><span class="pre">somatic_synapses</span></code>. Each parent level also receives the output of its
 children through <code class="docutils literal notranslate"><span class="pre">BlockLinear</span></code>. In code, all compartments of one depth
-share one feature axis of a <code class="docutils literal notranslate"><span class="pre">DendriticBranchLayer</span></code>.</span><a class="headerlink" href="#id3" title="Link to this image"></a></p>
+share one feature axis of a <code class="docutils literal notranslate"><span class="pre">DendriticBranchLayer</span></code>.</span><a class="headerlink" href="#id4" title="Link to this image"></a></p>
 </figcaption>
 </figure>
 <p>The tree is computed level by level, from the distal branches to the soma:</p>
@@ -450,7 +451,7 @@ interventions.</p>
 </section>
 </section>
 <section id="branch-layers">
-<span id="dendritic-branch-layer"></span><h2><a class="toc-backref" href="#id7" role="doc-backlink">Branch layers</a><a class="headerlink" href="#branch-layers" title="Link to this heading"></a></h2>
+<span id="dendritic-branch-layer"></span><h2><a class="toc-backref" href="#id8" role="doc-backlink">Branch layers</a><a class="headerlink" href="#branch-layers" title="Link to this heading"></a></h2>
 <p><code class="docutils literal notranslate"><span class="pre">DendriticBranchLayer</span></code> computes one level of the trees. Its forward pass,
 <code class="docutils literal notranslate"><span class="pre">layer(x,</span> <span class="pre">inhibitory_input,</span> <span class="pre">branch_input,</span> <span class="pre">recurrent_input,</span>
 <span class="pre">rec_inhibitory_input)</span></code>, returns the gated output of every compartment of the
@@ -486,13 +487,13 @@ branches (every level except the most distal).</p></td>
 </tr>
 </tbody>
 </table>
-<figure class="align-default" id="id4">
+<figure class="align-default" id="id5">
 <a class="reference internal image-reference" href="_images/dendritic-operator-details.svg"><img alt="Detail view of the TopKLinear and BlockLinear operators." src="_images/dendritic-operator-details.svg" style="width: 100%;" />
 </a>
 <figcaption>
 <p><span class="caption-text"><code class="docutils literal notranslate"><span class="pre">TopKLinear</span></code> keeps <code class="docutils literal notranslate"><span class="pre">K</span></code> external synapses per branch, selected from the
 raw parameters. <code class="docutils literal notranslate"><span class="pre">BlockLinear</span></code> adds the outputs of sibling branches to
-their parent with one coupling conductance per child.</span><a class="headerlink" href="#id4" title="Link to this image"></a></p>
+their parent with one coupling conductance per child.</span><a class="headerlink" href="#id5" title="Link to this image"></a></p>
 </figcaption>
 </figure>
 <p>The two operators are independent controls: <code class="docutils literal notranslate"><span class="pre">K</span></code> sets how many external
@@ -500,7 +501,7 @@ inputs each compartment uses, and the branch factor sets how many child
 branches each parent aggregates.</p>
 </section>
 <section id="integration-modes">
-<span id="id1"></span><h2><a class="toc-backref" href="#id8" role="doc-backlink">Integration modes</a><a class="headerlink" href="#integration-modes" title="Link to this heading"></a></h2>
+<span id="id1"></span><h2><a class="toc-backref" href="#id9" role="doc-backlink">Integration modes</a><a class="headerlink" href="#integration-modes" title="Link to this heading"></a></h2>
 <p>A compartment combines four quantities: the excitatory synaptic current
 <span class="math notranslate nohighlight">\(E\)</span> (feedforward plus recurrent), the inhibitory current <span class="math notranslate nohighlight">\(I\)</span>
 (feedforward plus recurrent), the current from its child branches
@@ -707,6 +708,47 @@ equivalence to the fused update. The example below assumes an unfused model.</p>
 </pre></div>
 </div>
 </section>
+<section id="compartment-perturbations">
+<span id="id2"></span><h3>Compartment perturbations<a class="headerlink" href="#compartment-perturbations" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">perturb_compartments({layer:</span> <span class="pre">CompartmentPerturbation(offset,</span> <span class="pre">coordinate)})</span></code>
+adds <code class="docutils literal notranslate"><span class="pre">offset</span></code> to a branch layer’s compartments inside a <code class="docutils literal notranslate"><span class="pre">with</span></code> block,
+during the layer’s own forward pass, so the layer still runs once. The
+coordinate is <code class="docutils literal notranslate"><span class="pre">output</span></code> (added after the layer’s activation: the signal its
+parent receives), <code class="docutils literal notranslate"><span class="pre">voltage</span></code> (added before the activation, so the
+activation’s slope applies) or, for shunting layers, <code class="docutils literal notranslate"><span class="pre">current</span></code> (an injected
+current added to the numerator of <code class="docutils literal notranslate"><span class="pre">V</span> <span class="pre">=</span> <span class="pre">(N</span> <span class="pre">+</span> <span class="pre">J)</span> <span class="pre">/</span> <span class="pre">(D</span> <span class="pre">+</span> <span class="pre">epsilon)</span></code>, so the
+layer’s total conductance attenuates it). The offset must broadcast to the
+layer’s output <code class="docutils literal notranslate"><span class="pre">[batch,</span> <span class="pre">compartments]</span></code> and match its device and dtype;
+compartments left alone get zeros. On exit each layer returns to its previous
+perturbation. Perturbations change no parameter or buffer. While a
+perturbation is set, a shunting layer forms its voltage explicitly instead of
+through the fused gate, with the same output for a zero offset; with signal
+rounding, voltage and current offsets are rounded with the voltage and output
+offsets are added to the rounded output.</p>
+<p>Perturbations act only in <code class="docutils literal notranslate"><span class="pre">DendriticBranchLayer.forward</span></code>. Paths that would
+not apply them raise while one is set: the stateful and recurrent current
+paths, voltages computed from given currents (<code class="docutils literal notranslate"><span class="pre">output_from_currents</span></code>), a
+<code class="docutils literal notranslate"><span class="pre">DendriNet.forward_levels</span></code> intervention on the same level, and a <code class="docutils literal notranslate"><span class="pre">current</span></code>
+perturbation under a branch rule override that does not read the shunting
+numerator (<code class="docutils literal notranslate"><span class="pre">raw_additive</span></code>, <code class="docutils literal notranslate"><span class="pre">raw_additive_moment_matched</span></code>). The gradient of
+a loss with respect to a zero offset that requires gradients is the exact
+error of the compartments in that coordinate, as autograd computes it:
+gradient hooks (training-mode gradient scaling, <code class="docutils literal notranslate"><span class="pre">soma_broadcast</span></code> credit)
+change it as they change parameter gradients, so compute it in evaluation
+mode with exact credit:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks</span><span class="w"> </span><span class="kn">import</span> <span class="n">CompartmentPerturbation</span><span class="p">,</span> <span class="n">perturb_compartments</span>
+
+<span class="n">layer</span> <span class="o">=</span> <span class="n">neuron</span><span class="o">.</span><span class="n">branch_layers</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>  <span class="c1"># the terminal level</span>
+<span class="n">zero</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="n">layer</span><span class="o">.</span><span class="n">branch_config</span><span class="o">.</span><span class="n">output_dim</span><span class="p">,</span> <span class="n">requires_grad</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">with</span> <span class="n">perturb_compartments</span><span class="p">({</span><span class="n">layer</span><span class="p">:</span> <span class="n">CompartmentPerturbation</span><span class="p">(</span><span class="n">zero</span><span class="p">,</span> <span class="s2">"current"</span><span class="p">)}):</span>
+    <span class="n">loss</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">functional</span><span class="o">.</span><span class="n">cross_entropy</span><span class="p">(</span><span class="n">model</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="n">y</span><span class="p">)</span>
+<span class="n">current_error</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">autograd</span><span class="o">.</span><span class="n">grad</span><span class="p">(</span><span class="n">loss</span><span class="p">,</span> <span class="n">zero</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+</pre></div>
+</div>
+<p>Node-perturbation estimates of the same errors from loss changes are described
+in <a class="reference internal" href="training_strategies.html#node-perturbation"><span class="std std-ref">Node-perturbation estimates</span></a>.</p>
+</section>
 <section id="analysis-only-rule-overrides">
 <h3>Analysis-only rule overrides<a class="headerlink" href="#analysis-only-rule-overrides" title="Link to this heading"></a></h3>
 <p>Rule overrides replace the voltage algebra of trained shunting layers while
@@ -793,7 +835,7 @@ and <code class="docutils literal notranslate"><span class="pre">indexed_release
 </section>
 </section>
 <section id="activation-functions">
-<span id="activation-types"></span><h2><a class="toc-backref" href="#id9" role="doc-backlink">Activation functions</a><a class="headerlink" href="#activation-functions" title="Link to this heading"></a></h2>
+<span id="activation-types"></span><h2><a class="toc-backref" href="#id10" role="doc-backlink">Activation functions</a><a class="headerlink" href="#activation-functions" title="Link to this heading"></a></h2>
 <p>The gate <span class="math notranslate nohighlight">\(f\)</span> turns the voltage of every compartment into its output.
 Structured E/I cores set it with <code class="docutils literal notranslate"><span class="pre">model.core.reactivation.type</span></code>
 (<code class="docutils literal notranslate"><span class="pre">enabled:</span> <span class="pre">false</span></code> removes every gate). Population networks and unified E/I
@@ -897,7 +939,7 @@ adds a type (<a class="reference internal" href="available_components.html#exten
 </ul>
 </section>
 <section id="gate-initialization-and-maintenance">
-<span id="gate-initialization"></span><h2><a class="toc-backref" href="#id10" role="doc-backlink">Gate initialization and maintenance</a><a class="headerlink" href="#gate-initialization-and-maintenance" title="Link to this heading"></a></h2>
+<span id="gate-initialization"></span><h2><a class="toc-backref" href="#id11" role="doc-backlink">Gate initialization and maintenance</a><a class="headerlink" href="#gate-initialization-and-maintenance" title="Link to this heading"></a></h2>
 <p>The slope <span class="math notranslate nohighlight">\(m\)</span> and midpoint <span class="math notranslate nohighlight">\(b\)</span> of the gates decide where the gate
 is sensitive at the start of training. <code class="docutils literal notranslate"><span class="pre">reactivation.init_policy</span></code>
 (population field <code class="docutils literal notranslate"><span class="pre">reactivation_init_policy</span></code>) selects how they are set:</p>
@@ -1142,7 +1184,7 @@ updates of <span class="math notranslate nohighlight">\((m, b)\)</span> and <cod
 </section>
 </section>
 <section id="comparing-integration-rules">
-<span id="id2"></span><h2><a class="toc-backref" href="#id11" role="doc-backlink">Comparing integration rules</a><a class="headerlink" href="#comparing-integration-rules" title="Link to this heading"></a></h2>
+<span id="id3"></span><h2><a class="toc-backref" href="#id12" role="doc-backlink">Comparing integration rules</a><a class="headerlink" href="#comparing-integration-rules" title="Link to this heading"></a></h2>
 <p>Shunting and additive layers produce voltages on different scales, so an
 initializer of the same name does not place their gates at the same operating
 point. A comparison between rules therefore has to state which question it

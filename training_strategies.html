@@ -96,6 +96,7 @@
 <li class="toctree-l3"><a class="reference internal" href="#synapses-and-components">Synapses and components</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#gradients-without-a-step">Gradients without a step</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#delivered-errors-with-autograd-eligibilities">Delivered errors with autograd eligibilities</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#node-perturbation-estimates">Node-perturbation estimates</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#warm-up-strategies">Warm-up strategies</a></li>
@@ -1469,6 +1470,45 @@ the product, over its ancestors up to and including the soma, of activation
 slope, coupling ratio and relative resistance; the tests check this against
 autograd. Which products a rule uses, and any permutation, binning or noise
 applied to them, belongs to the protocol.</p>
+</section>
+<section id="node-perturbation-estimates">
+<span id="node-perturbation"></span><h3>Node-perturbation estimates<a class="headerlink" href="#node-perturbation-estimates" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">dendritic_modeling.training.node_perturbation</span></code> estimates errors from loss
+changes instead of derivatives. For per-example losses <code class="docutils literal notranslate"><span class="pre">l_b(h_b)</span></code> and
+antithetic draws <code class="docutils literal notranslate"><span class="pre">n</span> <span class="pre">~</span> <span class="pre">N(0,</span> <span class="pre">I)</span></code> of scale <code class="docutils literal notranslate"><span class="pre">s</span></code>,</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>g_hat_b = mean over draws of [l_b(h_b + s n) - l_b(h_b - s n)] / (2 s) * n
+</pre></div>
+</div>
+<p>is unbiased for the gradient when <code class="docutils literal notranslate"><span class="pre">l_b</span></code> is quadratic in <code class="docutils literal notranslate"><span class="pre">h_b</span></code>; otherwise
+it estimates the gradient of the loss smoothed by the perturbation, with a
+bias of order <code class="docutils literal notranslate"><span class="pre">s**2</span></code>. With orthonormal basis columns <code class="docutils literal notranslate"><span class="pre">Q</span></code> (perturbations
+<code class="docutils literal notranslate"><span class="pre">Q</span> <span class="pre">z</span></code>) it estimates <code class="docutils literal notranslate"><span class="pre">Q</span> <span class="pre">Q^T</span></code> times that smoothed gradient, which approaches
+the projected gradient as <code class="docutils literal notranslate"><span class="pre">s</span></code> vanishes. Each draw costs two loss evaluations
+per example.</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">node_perturbation_estimates(loss,</span> <span class="pre">(B,</span> <span class="pre">D),</span> <span class="pre">scale=,</span> <span class="pre">draws=,</span> <span class="pre">generator=,</span>
+<span class="pre">basis=None,</span> <span class="pre">chunk=16)</span></code>: <code class="docutils literal notranslate"><span class="pre">loss</span></code> maps perturbations <code class="docutils literal notranslate"><span class="pre">[c,</span> <span class="pre">B,</span> <span class="pre">D]</span></code> to
+unreduced per-example losses <code class="docutils literal notranslate"><span class="pre">[c,</span> <span class="pre">B]</span></code>; the result holds the estimate for
+every count in <code class="docutils literal notranslate"><span class="pre">draws</span></code> (larger counts extend the draws of smaller ones)
+and <code class="docutils literal notranslate"><span class="pre">evaluations_per_example(draws)</span></code>. The draws come from <code class="docutils literal notranslate"><span class="pre">generator</span></code>
+one at a time, so they do not depend on <code class="docutils literal notranslate"><span class="pre">chunk</span></code>, and are made on
+<code class="docutils literal notranslate"><span class="pre">device</span></code> (by default the generator’s; <code class="docutils literal notranslate"><span class="pre">&quot;cuda&quot;</span></code> means the current CUDA
+device). Scales, integer counts and chunk, the generator’s device, the
+basis’s device, dtype, shape and orthonormality are checked;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">group_basis(groups,</span> <span class="pre">size)</span></code>: orthonormal columns averaging disjoint groups
+of coordinates (for example the children of each parent); overlapping,
+empty or out-of-range groups raise.</p></li>
+</ul>
+<p>Basis validation allows absolute Gram-matrix error up to the larger of the
+dtype’s machine epsilon and <code class="docutils literal notranslate"><span class="pre">1e-5</span></code> (<code class="docutils literal notranslate"><span class="pre">1e-10</span></code> for float64). For float16 and
+bfloat16, the Gram product is evaluated in float32 to separate accumulation
+roundoff from the precision of the supplied basis. Autocast is disabled for
+this validation calculation. This does not normalize or change the basis used
+for perturbations.</p>
+<p>With <a class="reference internal" href="dendritic_neurons.html#compartment-perturbations"><span class="std std-ref">compartment perturbations</span></a> the loss can
+perturb compartment outputs, voltages or injected currents. The
+<code class="docutils literal notranslate"><span class="pre">node_perturbation_credit</span></code> analysis (<a class="reference internal" href="analyzers.html#analyzer-node-perturbation-credit"><span class="std std-ref">node_perturbation_credit</span></a>)
+compares such estimates with exact errors at a checkpoint.</p>
 </section>
 </section>
 <section id="warm-up-strategies">

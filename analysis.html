@@ -218,12 +218,13 @@ option, so per-epoch analyses add their cost to every epoch.</p>
 </dl>
 <p>Two analyzers default to <code class="docutils literal notranslate"><span class="pre">training:</span> <span class="pre">true</span></code>: <code class="docutils literal notranslate"><span class="pre">synapse_turnover</span></code>, which
 compares snapshots taken during training and raises with <code class="docutils literal notranslate"><span class="pre">training:</span> <span class="pre">false</span></code>,
-and <code class="docutils literal notranslate"><span class="pre">reactivation_dynamics</span></code>. Nine analyzers are final-only and raise with
+and <code class="docutils literal notranslate"><span class="pre">reactivation_dynamics</span></code>. Ten analyzers are final-only and raise with
 <code class="docutils literal notranslate"><span class="pre">training:</span> <span class="pre">true</span></code>: <code class="docutils literal notranslate"><span class="pre">representation_accessibility</span></code>,
 <code class="docutils literal notranslate"><span class="pre">source_tuning_support</span></code>, <code class="docutils literal notranslate"><span class="pre">input_region_intervention</span></code>,
 <code class="docutils literal notranslate"><span class="pre">synapse_pruning</span></code>, <code class="docutils literal notranslate"><span class="pre">path_matched_intervention</span></code>,
-<code class="docutils literal notranslate"><span class="pre">branch_local_sensitivity</span></code>, <code class="docutils literal notranslate"><span class="pre">local_inhibitory_population_intervention</span></code>,
-<code class="docutils literal notranslate"><span class="pre">path_matched_information</span></code> and <code class="docutils literal notranslate"><span class="pre">gain_load_perturbation</span></code>. Both errors are
+<code class="docutils literal notranslate"><span class="pre">branch_local_sensitivity</span></code>, <code class="docutils literal notranslate"><span class="pre">node_perturbation_credit</span></code>,
+<code class="docutils literal notranslate"><span class="pre">local_inhibitory_population_intervention</span></code>, <code class="docutils literal notranslate"><span class="pre">path_matched_information</span></code>
+and <code class="docutils literal notranslate"><span class="pre">gain_load_perturbation</span></code>. Both errors are
 raised before training starts.</p>
 <p>Other rules:</p>
 <ul class="simple">
@@ -525,6 +526,7 @@ skips the model leaves no directory.</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">&lt;name&gt;.json</span></code>: <code class="docutils literal notranslate"><span class="pre">performance</span></code>, <code class="docutils literal notranslate"><span class="pre">representation_accessibility</span></code>,
 <code class="docutils literal notranslate"><span class="pre">source_tuning_support</span></code>, <code class="docutils literal notranslate"><span class="pre">input_region_intervention</span></code>, <code class="docutils literal notranslate"><span class="pre">ablation</span></code>,
 <code class="docutils literal notranslate"><span class="pre">path_matched_intervention</span></code>, <code class="docutils literal notranslate"><span class="pre">branch_local_sensitivity</span></code>,
+<code class="docutils literal notranslate"><span class="pre">node_perturbation_credit</span></code>,
 <code class="docutils literal notranslate"><span class="pre">local_inhibitory_population_intervention</span></code>, <code class="docutils literal notranslate"><span class="pre">path_matched_information</span></code>,
 <code class="docutils literal notranslate"><span class="pre">compartment_snr</span></code>, <code class="docutils literal notranslate"><span class="pre">multiplicative_gain</span></code>, <code class="docutils literal notranslate"><span class="pre">gain_load_perturbation</span></code>,
 <code class="docutils literal notranslate"><span class="pre">inhibitory_specialization</span></code>, <code class="docutils literal notranslate"><span class="pre">jacobian_spectrum</span></code>,
@@ -706,91 +708,97 @@ run directory.</p>
 <td><p>test</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">branch_local_sensitivity</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="analyzers.html#analyzer-weight"><span class="std std-ref">weight</span></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="analyzers.html#analyzer-node-perturbation-credit"><span class="std std-ref">node_perturbation_credit</span></a></p></td>
+<td><p>Compartment errors estimated from loss changes, against exact errors</p></td>
+<td><p>no</p></td>
+<td><p>test</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">node_perturbation_credit</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="analyzers.html#analyzer-weight"><span class="std std-ref">weight</span></a></p></td>
 <td><p>Weight statistics; optional exact source-support profiles</p></td>
 <td><p>yes</p></td>
 <td><p>none (alignment: validation)</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">weight_analysis</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="analyzers.html#analyzer-source-tuning-support"><span class="std std-ref">source_tuning_support</span></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="analyzers.html#analyzer-source-tuning-support"><span class="std std-ref">source_tuning_support</span></a></p></td>
 <td><p>Class tuning of the inputs each sparse pathway selects</p></td>
 <td><p>no</p></td>
 <td><p>train, validation</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">source_tuning_support_analysis</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="analyzers.html#analyzer-synapse-turnover"><span class="std std-ref">synapse_turnover</span></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="analyzers.html#analyzer-synapse-turnover"><span class="std std-ref">synapse_turnover</span></a></p></td>
 <td><p>Contacts kept, formed and removed during training</p></td>
 <td><p>required (default <code class="docutils literal notranslate"><span class="pre">true</span></code>)</p></td>
 <td><p>none</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">synapse_turnover_analysis</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="analyzers.html#analyzer-synapse-pruning"><span class="std std-ref">synapse_pruning</span></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="analyzers.html#analyzer-synapse-pruning"><span class="std std-ref">synapse_pruning</span></a></p></td>
 <td><p>Census of realized contacts and of pruning steps</p></td>
 <td><p>no</p></td>
 <td><p>none</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">synapse_pruning_analysis</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="analyzers.html#analyzer-receptive-field"><span class="std std-ref">receptive_field</span></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="analyzers.html#analyzer-receptive-field"><span class="std std-ref">receptive_field</span></a></p></td>
 <td><p>Receptive-field maps of branch layers</p></td>
 <td><p>yes</p></td>
 <td><p>none (tuning options: test)</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">receptive_field_analysis</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="analyzers.html#analyzer-inhibitory-specialization"><span class="std std-ref">inhibitory_specialization</span></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="analyzers.html#analyzer-inhibitory-specialization"><span class="std std-ref">inhibitory_specialization</span></a></p></td>
 <td><p>Targeting of recurrent inhibition across dendritic levels</p></td>
 <td><p>yes</p></td>
 <td><p>none</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">inhibitory_specialization</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="analyzers.html#analyzer-compartment-statistics"><span class="std std-ref">compartment_statistics</span></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="analyzers.html#analyzer-compartment-statistics"><span class="std std-ref">compartment_statistics</span></a></p></td>
 <td><p>Statistics of weights, inputs and activations</p></td>
 <td><p>yes</p></td>
 <td><p>test</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">compartment_statistics_analysis</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="analyzers.html#analyzer-synaptic-activation"><span class="std std-ref">synaptic_activation</span></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="analyzers.html#analyzer-synaptic-activation"><span class="std std-ref">synaptic_activation</span></a></p></td>
 <td><p>Distributions of synaptic activations</p></td>
 <td><p>yes</p></td>
 <td><p>test</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">synaptic_activation_analysis</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="analyzers.html#analyzer-branch-activation"><span class="std std-ref">branch_activation</span></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="analyzers.html#analyzer-branch-activation"><span class="std std-ref">branch_activation</span></a></p></td>
 <td><p>Distributions of branch currents and outputs</p></td>
 <td><p>yes</p></td>
 <td><p>test</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">branch_activation_analysis</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="analyzers.html#analyzer-reactivation-dynamics"><span class="std std-ref">reactivation_dynamics</span></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="analyzers.html#analyzer-reactivation-dynamics"><span class="std std-ref">reactivation_dynamics</span></a></p></td>
 <td><p>Gate parameters and pre-gate voltage statistics</p></td>
 <td><p>default <code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
 <td><p>train during training, test after</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">reactivation_dynamics</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="analyzers.html#analyzer-routing"><span class="std std-ref">routing</span></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="analyzers.html#analyzer-routing"><span class="std std-ref">routing</span></a></p></td>
 <td><p>Activity shares of dendritic levels in recurrent cores</p></td>
 <td><p>yes</p></td>
 <td><p>test</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">routing_analysis</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="analyzers.html#analyzer-jacobian-spectrum"><span class="std std-ref">jacobian_spectrum</span></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="analyzers.html#analyzer-jacobian-spectrum"><span class="std std-ref">jacobian_spectrum</span></a></p></td>
 <td><p>Singular values of recurrent weights per level</p></td>
 <td><p>yes</p></td>
 <td><p>none</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">jacobian_spectrum</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="analyzers.html#analyzer-dendritic-timetraces"><span class="std std-ref">dendritic_timetraces</span></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="analyzers.html#analyzer-dendritic-timetraces"><span class="std std-ref">dendritic_timetraces</span></a></p></td>
 <td><p>Simulated responses of the learned dendritic cascade</p></td>
 <td><p>yes</p></td>
 <td><p>synthetic input</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">dendritic_timetraces</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="analyzers.html#analyzer-spike-train"><span class="std std-ref">spike_train</span></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="analyzers.html#analyzer-spike-train"><span class="std std-ref">spike_train</span></a></p></td>
 <td><p>Firing statistics of spiking somas</p></td>
 <td><p>yes</p></td>
 <td><p>test</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">spike_train_analysis</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="analyzers.html#analyzer-local-rule-components"><span class="std std-ref">local_rule_components</span></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="analyzers.html#analyzer-local-rule-components"><span class="std std-ref">local_rule_components</span></a></p></td>
 <td><p>Factors of the local learning rule by depth</p></td>
 <td><p>yes</p></td>
 <td><p>train during training, test after</p></td>

@@ -312,6 +312,21 @@
         <span class="p">),</span>
     <span class="p">),</span>
     <span class="n">AnalyzerSpec</span><span class="p">(</span>
+        <span class="n">name</span><span class="o">=</span><span class="s2">"node_perturbation_credit"</span><span class="p">,</span>
+        <span class="n">config_field</span><span class="o">=</span><span class="s2">"node_perturbation_credit"</span><span class="p">,</span>
+        <span class="n">class_path</span><span class="o">=</span><span class="p">(</span>
+            <span class="s2">"dendritic_modeling.analysis.tools.node_perturbation_credit."</span>
+            <span class="s2">"NodePerturbationCreditAnalyzer"</span>
+        <span class="p">),</span>
+        <span class="n">attribute_name</span><span class="o">=</span><span class="s2">"node_perturbation_credit_analyzer"</span><span class="p">,</span>
+        <span class="n">save_subdir</span><span class="o">=</span><span class="s2">"node_perturbation_credit"</span><span class="p">,</span>
+        <span class="n">supports_training</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+            <span class="s2">"Compartment errors estimated from loss changes under antithetic "</span>
+            <span class="s2">"perturbations, compared with the exact errors"</span>
+        <span class="p">),</span>
+    <span class="p">),</span>
+    <span class="n">AnalyzerSpec</span><span class="p">(</span>
         <span class="n">name</span><span class="o">=</span><span class="s2">"local_inhibitory_population_intervention"</span><span class="p">,</span>
         <span class="n">config_field</span><span class="o">=</span><span class="s2">"local_inhibitory_population_intervention"</span><span class="p">,</span>
         <span class="n">class_path</span><span class="o">=</span><span class="p">(</span>

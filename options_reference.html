@@ -112,6 +112,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#analysis-ablation"><code class="docutils literal notranslate"><span class="pre">analysis.ablation</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#analysis-path-matched-intervention"><code class="docutils literal notranslate"><span class="pre">analysis.path_matched_intervention</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#analysis-branch-local-sensitivity"><code class="docutils literal notranslate"><span class="pre">analysis.branch_local_sensitivity</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#analysis-node-perturbation-credit"><code class="docutils literal notranslate"><span class="pre">analysis.node_perturbation_credit</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#analysis-local-inhibitory-population-intervention"><code class="docutils literal notranslate"><span class="pre">analysis.local_inhibitory_population_intervention</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#analysis-path-matched-information"><code class="docutils literal notranslate"><span class="pre">analysis.path_matched_information</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#analysis-weight"><code class="docutils literal notranslate"><span class="pre">analysis.weight</span></code></a></li>
@@ -165,6 +166,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#analysis-ablation-params"><code class="docutils literal notranslate"><span class="pre">analysis.ablation.params</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#analysis-path-matched-intervention-params"><code class="docutils literal notranslate"><span class="pre">analysis.path_matched_intervention.params</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#analysis-branch-local-sensitivity-params"><code class="docutils literal notranslate"><span class="pre">analysis.branch_local_sensitivity.params</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#analysis-node-perturbation-credit-params"><code class="docutils literal notranslate"><span class="pre">analysis.node_perturbation_credit.params</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#analysis-local-inhibitory-population-intervention-params"><code class="docutils literal notranslate"><span class="pre">analysis.local_inhibitory_population_intervention.params</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#analysis-path-matched-information-params"><code class="docutils literal notranslate"><span class="pre">analysis.path_matched_information.params</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#analysis-weight-params"><code class="docutils literal notranslate"><span class="pre">analysis.weight.params</span></code></a></li>
@@ -631,99 +633,103 @@ that plugins provide are described in <a class="reference internal" href="extend
 <td><p><code class="docutils literal notranslate"><span class="pre">BranchLocalSensitivityAnalysisConfig</span></code></p></td>
 <td><p><a class="reference internal" href="#options-analysis-branch-local-sensitivity"><span class="std std-ref">analysis.branch_local_sensitivity</span></a></p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">local_inhibitory_population_intervention</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">node_perturbation_credit</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">NodePerturbationCreditAnalysisConfig</span></code></p></td>
+<td><p><a class="reference internal" href="#options-analysis-node-perturbation-credit"><span class="std std-ref">analysis.node_perturbation_credit</span></a></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">local_inhibitory_population_intervention</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">LocalInhibitoryPopulationInterventionAnalysisConfig</span></code></p></td>
 <td><p><a class="reference internal" href="#options-analysis-local-inhibitory-population-intervention"><span class="std std-ref">analysis.local_inhibitory_population_intervention</span></a></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">path_matched_information</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">path_matched_information</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">PathMatchedInformationAnalysisConfig</span></code></p></td>
 <td><p><a class="reference internal" href="#options-analysis-path-matched-information"><span class="std std-ref">analysis.path_matched_information</span></a></p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">weight</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">weight</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">WeightAnalysisConfig</span></code></p></td>
 <td><p><a class="reference internal" href="#options-analysis-weight"><span class="std std-ref">analysis.weight</span></a></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">compartment_statistics</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">compartment_statistics</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">CompartmentStatisticsAnalysisConfig</span></code></p></td>
 <td><p><a class="reference internal" href="#options-analysis-compartment-statistics"><span class="std std-ref">analysis.compartment_statistics</span></a></p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">compartment_snr</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">compartment_snr</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">CompartmentSNRAnalysisConfig</span></code></p></td>
 <td><p><a class="reference internal" href="#options-analysis-compartment-snr"><span class="std std-ref">analysis.compartment_snr</span></a></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">multiplicative_gain</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">multiplicative_gain</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">MultiplicativeGainAnalysisConfig</span></code></p></td>
 <td><p><a class="reference internal" href="#options-analysis-multiplicative-gain"><span class="std std-ref">analysis.multiplicative_gain</span></a></p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">gain_load_perturbation</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">gain_load_perturbation</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">GainLoadPerturbationAnalysisConfig</span></code></p></td>
 <td><p><a class="reference internal" href="#options-analysis-gain-load-perturbation"><span class="std std-ref">analysis.gain_load_perturbation</span></a></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">synaptic_activation</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">synaptic_activation</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">SynapticActivationAnalysisConfig</span></code></p></td>
 <td><p><a class="reference internal" href="#options-analysis-synaptic-activation"><span class="std std-ref">analysis.synaptic_activation</span></a></p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">branch_activation</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">branch_activation</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">BranchActivationAnalysisConfig</span></code></p></td>
 <td><p><a class="reference internal" href="#options-analysis-branch-activation"><span class="std std-ref">analysis.branch_activation</span></a></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">local_rule_components</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">local_rule_components</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">LocalRuleComponentAnalysisConfig</span></code></p></td>
 <td><p><a class="reference internal" href="#options-analysis-local-rule-components"><span class="std std-ref">analysis.local_rule_components</span></a></p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">information</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">information</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">InformationAnalysisConfig</span></code></p></td>
 <td><p><a class="reference internal" href="#options-analysis-information"><span class="std std-ref">analysis.information</span></a></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">representation_accessibility</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">representation_accessibility</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">RepresentationAccessibilityAnalysisConfig</span></code></p></td>
 <td><p><a class="reference internal" href="#options-analysis-representation-accessibility"><span class="std std-ref">analysis.representation_accessibility</span></a></p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">source_tuning_support</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">source_tuning_support</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">SourceTuningSupportAnalysisConfig</span></code></p></td>
 <td><p><a class="reference internal" href="#options-analysis-source-tuning-support"><span class="std std-ref">analysis.source_tuning_support</span></a></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">input_region_intervention</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">input_region_intervention</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">InputRegionInterventionAnalysisConfig</span></code></p></td>
 <td><p><a class="reference internal" href="#options-analysis-input-region-intervention"><span class="std std-ref">analysis.input_region_intervention</span></a></p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">receptive_field</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">receptive_field</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">ReceptiveFieldAnalysisConfig</span></code></p></td>
 <td><p><a class="reference internal" href="#options-analysis-receptive-field"><span class="std std-ref">analysis.receptive_field</span></a></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">reactivation_dynamics</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">reactivation_dynamics</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">ReactivationDynamicsAnalysisConfig</span></code></p></td>
 <td><p><a class="reference internal" href="#options-analysis-reactivation-dynamics"><span class="std std-ref">analysis.reactivation_dynamics</span></a></p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">correlation</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">correlation</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">CorrelationAnalysisConfig</span></code></p></td>
 <td><p><a class="reference internal" href="#options-analysis-correlation"><span class="std std-ref">analysis.correlation</span></a></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">routing</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">routing</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">RoutingAnalysisConfig</span></code></p></td>
 <td><p><a class="reference internal" href="#options-analysis-routing"><span class="std std-ref">analysis.routing</span></a></p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">inhibitory_specialization</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">inhibitory_specialization</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">InhibitorySpecializationAnalysisConfig</span></code></p></td>
 <td><p><a class="reference internal" href="#options-analysis-inhibitory-specialization"><span class="std std-ref">analysis.inhibitory_specialization</span></a></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">jacobian_spectrum</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">jacobian_spectrum</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">JacobianSpectrumAnalysisConfig</span></code></p></td>
 <td><p><a class="reference internal" href="#options-analysis-jacobian-spectrum"><span class="std std-ref">analysis.jacobian_spectrum</span></a></p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dendritic_timetraces</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">dendritic_timetraces</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">DendriticTimetracesAnalysisConfig</span></code></p></td>
 <td><p><a class="reference internal" href="#options-analysis-dendritic-timetraces"><span class="std std-ref">analysis.dendritic_timetraces</span></a></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">spike_train</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">spike_train</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">SpikeTrainAnalysisConfig</span></code></p></td>
 <td><p><a class="reference internal" href="#options-analysis-spike-train"><span class="std std-ref">analysis.spike_train</span></a></p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">adversarial_robustness</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">adversarial_robustness</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">AdversarialRobustnessAnalysisConfig</span></code></p></td>
 <td><p><a class="reference internal" href="#options-analysis-adversarial-robustness"><span class="std std-ref">analysis.adversarial_robustness</span></a></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">extensions</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">extensions</span></code></p></td>
 <td><p>plugin sections</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">{}</span></code>; <a class="reference internal" href="extending.html#plugin-config-sections"><span class="std std-ref">Configuration sections</span></a></p></td>
 </tr>
@@ -1412,6 +1418,37 @@ that plugins provide are described in <a class="reference internal" href="extend
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">params</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">BranchLocalSensitivityAnalysisParams</span></code></p></td>
 <td><p><a class="reference internal" href="#options-analysis-branch-local-sensitivity-params"><span class="std std-ref">analysis.branch_local_sensitivity.params</span></a></p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="analysis-node-perturbation-credit">
+<span id="options-analysis-node-perturbation-credit"></span><h2><code class="docutils literal notranslate"><span class="pre">analysis.node_perturbation_credit</span></code><a class="headerlink" href="#analysis-node-perturbation-credit" title="Link to this heading"></a></h2>
+<p>Explained in <a class="reference internal" href="analysis.html#analyzer-catalogue"><span class="std std-ref">Analyzer catalogue</span></a>. Class <code class="docutils literal notranslate"><span class="pre">dendritic_modeling.config.analysis.NodePerturbationCreditAnalysisConfig</span></code>.</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 34.0%" />
+<col style="width: 33.0%" />
+<col style="width: 33.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Option</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">enabled</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">bool</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">training</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">bool</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">params</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">NodePerturbationCreditAnalysisParams</span></code></p></td>
+<td><p><a class="reference internal" href="#options-analysis-node-perturbation-credit-params"><span class="std std-ref">analysis.node_perturbation_credit.params</span></a></p></td>
 </tr>
 </tbody>
 </table>
@@ -4263,6 +4300,69 @@ that plugins provide are described in <a class="reference internal" href="extend
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">include_soma</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">bool</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="analysis-node-perturbation-credit-params">
+<span id="options-analysis-node-perturbation-credit-params"></span><h2><code class="docutils literal notranslate"><span class="pre">analysis.node_perturbation_credit.params</span></code><a class="headerlink" href="#analysis-node-perturbation-credit-params" title="Link to this heading"></a></h2>
+<p>Explained in <a class="reference internal" href="analysis.html#analyzer-catalogue"><span class="std std-ref">Analyzer catalogue</span></a>. Class <code class="docutils literal notranslate"><span class="pre">dendritic_modeling.config.analysis.NodePerturbationCreditAnalysisParams</span></code>.</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 34.0%" />
+<col style="width: 33.0%" />
+<col style="width: 33.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Option</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">depths</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">list[int]</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[1]</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">module_name_prefix</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">Optional[str]</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">null</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">coordinate</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">str</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">output</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">dictionaries</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">list[str]</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[independent]</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">relative_scales</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">list[float]</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[0.01]</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">draws</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">list[int]</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[1,</span> <span class="pre">4,</span> <span class="pre">16,</span> <span class="pre">64]</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">match_perturbation_energy</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">bool</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">loss</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">str</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">cross_entropy</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">max_samples</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">Optional[int]</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">256</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">chunk</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">int</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">16</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">seed</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">Optional[int]</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">null</span></code></p></td>
 </tr>
 </tbody>
 </table>

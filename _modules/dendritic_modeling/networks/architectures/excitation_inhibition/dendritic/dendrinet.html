@@ -907,10 +907,11 @@
 <span class="sd">        depends on through the graph (local learning rules differentiate</span>
 <span class="sd">        these outputs). ``interventions`` maps a level's depth (0 = soma) to a</span>
 <span class="sd">        labelled intervention such as ``CurrentInjection``; the level's output</span>
-<span class="sd">        is replaced by the intervention's and passed on to its parent.</span>
-<span class="sd">        Current capture on an intervened level raises before any forward and</span>
-<span class="sd">        clears its old captures; other levels can still capture their outputs.</span>
-<span class="sd">        Without these options the last output equals ``forward``.</span>
+<span class="sd">        is replaced by the intervention's and passed on to its parent, so a</span>
+<span class="sd">        level cannot also carry a compartment perturbation. Current capture</span>
+<span class="sd">        on an intervened level raises before any forward and clears its old</span>
+<span class="sd">        captures; other levels can still capture their outputs. Without these</span>
+<span class="sd">        options the last output equals ``forward``.</span>
 <span class="sd">        """</span>
         <span class="n">interventions</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">interventions</span> <span class="ow">or</span> <span class="p">{})</span>
         <span class="n">depths</span> <span class="o">=</span> <span class="p">{</span><span class="n">layer</span><span class="o">.</span><span class="n">layer_idx</span> <span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_layers</span><span class="p">}</span>
@@ -930,6 +931,17 @@
                 <span class="s2">"analysis current capture is unsupported on intervened levels: "</span>
                 <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="p">[</span><span class="n">layer</span><span class="o">.</span><span class="n">layer_idx</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">layer</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">captured_interventions</span><span class="p">]</span><span class="si">}</span><span class="s2">; "</span>
                 <span class="s2">"the intervention replaces their ordinary forward computation"</span>
+            <span class="p">)</span>
+        <span class="n">perturbed</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span>
+            <span class="n">layer</span><span class="o">.</span><span class="n">layer_idx</span>
+            <span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_layers</span>
+            <span class="k">if</span> <span class="n">layer</span><span class="o">.</span><span class="n">layer_idx</span> <span class="ow">in</span> <span class="n">interventions</span>
+            <span class="ow">and</span> <span class="n">layer</span><span class="o">.</span><span class="n">compartment_perturbation</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">perturbed</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">"an intervention replaces its level's output, which would drop the "</span>
+                <span class="sa">f</span><span class="s2">"compartment perturbation set on levels </span><span class="si">{</span><span class="n">perturbed</span><span class="si">}</span><span class="s2">"</span>
             <span class="p">)</span>
         <span class="n">outputs</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="n">output</span> <span class="o">=</span> <span class="kc">None</span>

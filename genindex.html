@@ -131,6 +131,7 @@
  | <a href="#G"><strong>G</strong></a>
  | <a href="#L"><strong>L</strong></a>
  | <a href="#M"><strong>M</strong></a>
+ | <a href="#N"><strong>N</strong></a>
  | <a href="#P"><strong>P</strong></a>
  | <a href="#R"><strong>R</strong></a>
  | <a href="#S"><strong>S</strong></a>
@@ -152,6 +153,8 @@
       <li><a href="api_reference.html#dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_dynamics.AdditiveRule">AdditiveRule (class in dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_dynamics)</a>
 </li>
       <li><a href="api_reference.html#dendritic_modeling.analysis.managers.analysis_manager.AnalysisManager">AnalysisManager (class in dendritic_modeling.analysis.managers.analysis_manager)</a>
+</li>
+      <li><a href="api_reference.html#dendritic_modeling.analysis.tools.node_perturbation_credit.NodePerturbationCreditAnalyzer.analyze">analyze() (dendritic_modeling.analysis.tools.node_perturbation_credit.NodePerturbationCreditAnalyzer method)</a>
 </li>
       <li><a href="api_reference.html#dendritic_modeling.training.strategies.local_learning.LocalCreditAssignment.assign_gradients">assign_gradients() (dendritic_modeling.training.strategies.local_learning.LocalCreditAssignment method)</a>
 </li>
@@ -185,11 +188,17 @@
 </li>
       <li><a href="api_reference.html#dendritic_modeling.utils.project_evidence.check_evidence">check_evidence() (in module dendritic_modeling.utils.project_evidence)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api_reference.html#dendritic_modeling.training.node_perturbation.check_orthonormal_basis">check_orthonormal_basis() (in module dendritic_modeling.training.node_perturbation)</a>
+</li>
       <li><a href="api_reference.html#dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer.DendriticBranchLayer.clear_analysis_currents">clear_analysis_currents() (dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer.DendriticBranchLayer method)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api_reference.html#dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer.DendriticBranchLayer.clear_compartment_perturbation">clear_compartment_perturbation() (dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer.DendriticBranchLayer method)</a>
+</li>
       <li><a href="api_reference.html#dendritic_modeling.networks.checkpoints.compact_sparse_bitmask_state_dict">compact_sparse_bitmask_state_dict() (in module dendritic_modeling.networks.checkpoints)</a>
+</li>
+      <li><a href="api_reference.html#dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.compartment_perturbation.CompartmentPerturbation">CompartmentPerturbation (class in dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.compartment_perturbation)</a>
 </li>
       <li><a href="api_reference.html#dendritic_modeling.config.config_from_mapping">config_from_mapping() (in module dendritic_modeling.config)</a>
 </li>
@@ -219,10 +228,12 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api_reference.html#dendritic_modeling.networks.architectures.excitation_inhibition.synapse.indexed_sparse.IndexedSparseLinear.effective_sparse_weight">effective_sparse_weight() (dendritic_modeling.networks.architectures.excitation_inhibition.synapse.indexed_sparse.IndexedSparseLinear method)</a>
 </li>
-      <li><a href="api_reference.html#dendritic_modeling.utils.project_evidence.EvidenceError">EvidenceError</a>
+      <li><a href="api_reference.html#dendritic_modeling.training.node_perturbation.NodePerturbationEstimate.evaluations_per_example">evaluations_per_example() (dendritic_modeling.training.node_perturbation.NodePerturbationEstimate static method)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api_reference.html#dendritic_modeling.utils.project_evidence.EvidenceError">EvidenceError</a>
+</li>
       <li><a href="api_reference.html#dendritic_modeling.training.local_delivery.expand_to_children">expand_to_children() (in module dendritic_modeling.training.local_delivery)</a>
 </li>
       <li><a href="api_reference.html#dendritic_modeling.utils.project_export.export_project">export_project() (in module dendritic_modeling.utils.project_export)</a>
@@ -252,6 +263,8 @@
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api_reference.html#dendritic_modeling.networks.architectures.factory.get_architecture">get_architecture() (in module dendritic_modeling.networks.architectures.factory)</a>
+</li>
+      <li><a href="api_reference.html#dendritic_modeling.training.node_perturbation.group_basis">group_basis() (in module dendritic_modeling.training.node_perturbation)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -292,15 +305,31 @@
   </ul></td>
 </tr></table>
 
+<h2 id="N">N</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api_reference.html#dendritic_modeling.training.node_perturbation.node_perturbation_estimates">node_perturbation_estimates() (in module dendritic_modeling.training.node_perturbation)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api_reference.html#dendritic_modeling.analysis.tools.node_perturbation_credit.NodePerturbationCreditAnalyzer">NodePerturbationCreditAnalyzer (class in dendritic_modeling.analysis.tools.node_perturbation_credit)</a>
+</li>
+      <li><a href="api_reference.html#dendritic_modeling.training.node_perturbation.NodePerturbationEstimate">NodePerturbationEstimate (class in dendritic_modeling.training.node_perturbation)</a>
+</li>
+  </ul></td>
+</tr></table>
+
 <h2 id="P">P</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api_reference.html#dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.passive_equilibrium.passive_star_soma_voltage">passive_star_soma_voltage() (in module dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.passive_equilibrium)</a>
 </li>
-      <li><a href="api_reference.html#dendritic_modeling.plugins.PluginLoadError">PluginLoadError</a>
+      <li><a href="api_reference.html#dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer.perturb_compartments">perturb_compartments() (in module dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api_reference.html#dendritic_modeling.plugins.PluginLoadError">PluginLoadError</a>
+</li>
       <li><a href="api_reference.html#dendritic_modeling.plugins.PluginRecord">PluginRecord (class in dendritic_modeling.plugins)</a>
 </li>
       <li><a href="api_reference.html#dendritic_modeling.networks.architectures.excitation_inhibition.synapse.indexed_sparse.IndexedSparseLinear.project_with_weights">project_with_weights() (dendritic_modeling.networks.architectures.excitation_inhibition.synapse.indexed_sparse.IndexedSparseLinear method)</a>
@@ -358,6 +387,8 @@
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api_reference.html#dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer.DendriticBranchLayer.set_analysis_currents">set_analysis_currents() (dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer.DendriticBranchLayer method)</a>
+</li>
+      <li><a href="api_reference.html#dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer.DendriticBranchLayer.set_compartment_perturbation">set_compartment_perturbation() (dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer.DendriticBranchLayer method)</a>
 </li>
       <li><a href="api_reference.html#dendritic_modeling.utils.project_evidence.sha256_file">sha256_file() (in module dendritic_modeling.utils.project_evidence)</a>
 </li>
