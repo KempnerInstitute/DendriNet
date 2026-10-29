@@ -9,6 +9,74 @@
   and sign (not its physical units). Shunting leak stays strictly positive;
   raw addition is not divided by leak.
   Existing layer defaults, checkpoint layouts and fused forwards are unchanged.
+- Node-perturbation credit analysis rejects sample-rolled and permuted-
+  denominator overrides anywhere in the model before forwarding, since its
+  estimates require independent examples. Unused offsets and losses without
+  gradient graphs give zero exact credit; alignment to zero remains undefined.
+- Orthonormal-basis validation accounts for the supplied dtype's precision,
+  evaluating float16 and bfloat16 Gram matrices in float32 with autocast
+  disabled during validation. Valid rounded
+  dictionaries are accepted without changing the perturbations or relaxing
+  the existing float32/float64 tolerances.
+- Branch-layer compartments can be perturbed for causal analyses:
+  ``perturb_compartments({layer: CompartmentPerturbation(offset, coordinate)})``
+  (``dendritic_modeling.networks``; also
+  ``DendriticBranchLayer.set_compartment_perturbation``) adds an offset to a
+  layer's ``output``, its pre-activation ``voltage`` or, for shunting layers,
+  an injected ``current`` in the voltage equation's numerator, inside the
+  layer's own forward pass (the layer runs once). Offsets are checked for
+  shape, device and dtype. Paths that would not apply a perturbation raise
+  while one is set: stateful and recurrent currents, voltages computed from
+  given currents, a ``forward_levels`` intervention on the same level, and a
+  current perturbation under the ``raw_additive`` rule overrides. Off by
+  default; forward outputs are unchanged without a perturbation and with a
+  zero offset.
+- ``dendritic_modeling.training.node_perturbation`` estimates errors from loss
+  changes: ``node_perturbation_estimates`` (antithetic Gaussian draws from a
+  given generator, on its device by default, optional orthonormal basis,
+  per-example losses, estimates for several draw counts and their evaluation
+  counts) and ``group_basis`` (orthonormal group averages; overlapping groups
+  raise).
+- New final-only analyzer ``node_perturbation_credit`` (typed section
+  ``analysis.node_perturbation_credit``; example
+  ``configs/examples/node_perturbation_credit_analysis.yaml``): compartment
+  errors of chosen tree levels estimated by node perturbation with
+  independent, sibling or neuron dictionaries (optionally at matched
+  perturbation energy), compared with the exact errors; reports agreement,
+  evaluation counts and wall time per draw. Forward passes take at most
+  ``analysis.runtime.batch_size`` rows (an example under one draw is one row);
+  levels that run more than once per forward, cores with ``soma_broadcast``
+  credit and models with signal rounding are refused; an unset ``seed``
+  follows the analysis seed policy.
+- Reject graph capture on intervened ``forward_levels`` levels before any
+  forward and clear their old records. Information-analysis projections
+  temporarily disable capture and restore the caller's setting on exit.
+- ``assign_gradients`` reapplies the configured gate policy on every frozen-core
+  call, including encoder/decoder gates, and clears stale gradients even for
+  parameters outside the optimizer's groups.
+- Analysis current capture exposes separate recurrent excitation and inhibition
+  tensors. It rejects stateful, parallel/star and current-substitution paths,
+  and requires ``torch.no_grad()`` when capture would bypass a fused shunting
+  backward. These restrictions prevent incomplete records and comparisons
+  against a different training gradient; default execution is unchanged.
+- ``assign_gradients`` applies HSIC warmup at its resolved epoch and restores
+  the trainer's counter afterwards. With ``core_update_mode: none``, preserve
+  gate trainability from before initialization, including on failure.
+- Branch layers expose their graph-connected forward currents for analyses:
+  ``DendriticBranchLayer.set_analysis_currents``, ``get_analysis_currents``,
+  ``clear_analysis_currents`` and the context manager
+  ``capture_analysis_currents(layers)`` (``dendritic_modeling.networks``)
+  keep the pre-gate currents, the pre-gate voltage and the post-gate output
+  attached to the autograd graph, which the detached branch diagnostics do
+  not. The information, branch-activation and input-region analyses now use
+  them. Capture is off by default and does not change forward outputs.
+- ``LocalCreditAssignment.assign_gradients(model, inputs, targets, epoch=None)``
+  assigns one batch's training update to ``.grad`` without the optimizer step,
+  for example to compare it with backpropagated gradients; ``epoch`` (from 1)
+  selects the epoch whose update modes apply. Under ``core_update_mode: none``
+  it holds the core fixed as training does (core parameters without gradients,
+  forward under ``frozen_sparse_state``). Training runs the same code for
+  every batch and is unchanged.
 
 - Paper-code exports accept explicitly allow-listed, committed `LICENSE`
   and `Makefile` files. Other extensionless inputs and copied library paths

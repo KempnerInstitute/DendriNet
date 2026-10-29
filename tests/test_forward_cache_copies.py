@@ -85,7 +85,10 @@ def _build(name):
     for module in model.modules():
         if isinstance(module, DendriticBranchLayer):
             module.set_branch_diagnostics(True)
-            module._store_analysis_currents = True
+            # Stateful steps bypass branch.forward and reject graph capture.
+            # They still populate routing/state caches, tested below.
+            if name not in {"population_recurrent_routing", "recurrent_ei_routing"}:
+                module.set_analysis_currents(True)
     return model, shape
 
 
