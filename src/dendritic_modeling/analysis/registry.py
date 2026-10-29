@@ -190,6 +190,21 @@ _BUILTIN_ANALYZERS: tuple[AnalyzerSpec, ...] = (
         ),
     ),
     AnalyzerSpec(
+        name="node_perturbation_credit",
+        config_field="node_perturbation_credit",
+        class_path=(
+            "dendritic_modeling.analysis.tools.node_perturbation_credit."
+            "NodePerturbationCreditAnalyzer"
+        ),
+        attribute_name="node_perturbation_credit_analyzer",
+        save_subdir="node_perturbation_credit",
+        supports_training=False,
+        description=(
+            "Compartment errors estimated from loss changes under antithetic "
+            "perturbations, compared with the exact errors"
+        ),
+    ),
+    AnalyzerSpec(
         name="local_inhibitory_population_intervention",
         config_field="local_inhibitory_population_intervention",
         class_path=(

@@ -2,6 +2,45 @@
 
 ## Unreleased
 
+- Node-perturbation credit analysis rejects sample-rolled and permuted-
+  denominator overrides anywhere in the model before forwarding, since its
+  estimates require independent examples. Unused offsets and losses without
+  gradient graphs give zero exact credit; alignment to zero remains undefined.
+- Orthonormal-basis validation accounts for the supplied dtype's precision,
+  evaluating float16 and bfloat16 Gram matrices in float32 with autocast
+  disabled during validation. Valid rounded
+  dictionaries are accepted without changing the perturbations or relaxing
+  the existing float32/float64 tolerances.
+- Branch-layer compartments can be perturbed for causal analyses:
+  ``perturb_compartments({layer: CompartmentPerturbation(offset, coordinate)})``
+  (``dendritic_modeling.networks``; also
+  ``DendriticBranchLayer.set_compartment_perturbation``) adds an offset to a
+  layer's ``output``, its pre-activation ``voltage`` or, for shunting layers,
+  an injected ``current`` in the voltage equation's numerator, inside the
+  layer's own forward pass (the layer runs once). Offsets are checked for
+  shape, device and dtype. Paths that would not apply a perturbation raise
+  while one is set: stateful and recurrent currents, voltages computed from
+  given currents, a ``forward_levels`` intervention on the same level, and a
+  current perturbation under the ``raw_additive`` rule overrides. Off by
+  default; forward outputs are unchanged without a perturbation and with a
+  zero offset.
+- ``dendritic_modeling.training.node_perturbation`` estimates errors from loss
+  changes: ``node_perturbation_estimates`` (antithetic Gaussian draws from a
+  given generator, on its device by default, optional orthonormal basis,
+  per-example losses, estimates for several draw counts and their evaluation
+  counts) and ``group_basis`` (orthonormal group averages; overlapping groups
+  raise).
+- New final-only analyzer ``node_perturbation_credit`` (typed section
+  ``analysis.node_perturbation_credit``; example
+  ``configs/examples/node_perturbation_credit_analysis.yaml``): compartment
+  errors of chosen tree levels estimated by node perturbation with
+  independent, sibling or neuron dictionaries (optionally at matched
+  perturbation energy), compared with the exact errors; reports agreement,
+  evaluation counts and wall time per draw. Forward passes take at most
+  ``analysis.runtime.batch_size`` rows (an example under one draw is one row);
+  levels that run more than once per forward, cores with ``soma_broadcast``
+  credit and models with signal rounding are refused; an unset ``seed``
+  follows the analysis seed policy.
 - Reject graph capture on intervened ``forward_levels`` levels before any
   forward and clear their old records. Information-analysis projections
   temporarily disable capture and restore the caller's setting on exit.

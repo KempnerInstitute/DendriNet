@@ -61,6 +61,9 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.b
     create_branch_sparse_layer,
     create_registered_branch_sparse_layer,
 )
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.compartment_perturbation import (
+    CompartmentPerturbation,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.gradient_scaling import (
     GradientScaler,
 )
@@ -479,6 +482,7 @@ class DendriticBranchLayer(nn.Module):
         self._store_diagnostics = False
         self._last_branch_diagnostics: dict = {}
         self._store_analysis_currents = False
+        self._compartment_perturbation = None
         self._diag_g_tot = None
         self._diag_numerator = None
         self.topk_type = synapse_options["topk_type"]
@@ -1282,6 +1286,42 @@ class DendriticBranchLayer(nn.Module):
         """
         return dict(getattr(self, "_last_analysis_currents", {}))
 
+    @property
+    def compartment_perturbation(self) -> CompartmentPerturbation | None:
+        """The perturbation this layer's forward applies, or ``None``."""
+        return getattr(self, "_compartment_perturbation", None)
+
+    def set_compartment_perturbation(
+        self, perturbation: CompartmentPerturbation | None
+    ) -> None:
+        """Add ``perturbation``'s offset in every forward until it is cleared.
+
+        The offset enters the layer's own forward pass once, in the
+        perturbation's coordinate (``output``, ``voltage`` or, for a shunting
+        layer, ``current``; see :mod:`.compartment_perturbation`). While a
+        perturbation is set, a shunting layer forms its voltage explicitly
+        instead of through the fused gate, with the same output for a zero
+        offset. ``None`` clears it.
+        """
+        if perturbation is None:
+            self._compartment_perturbation = None
+            return
+        if not isinstance(perturbation, CompartmentPerturbation):
+            raise TypeError(
+                "set_compartment_perturbation takes a CompartmentPerturbation, "
+                f"got {type(perturbation).__name__}"
+            )
+        if perturbation.coordinate == "current" and not self.use_shunting:
+            raise ValueError(
+                "a current perturbation needs a shunting layer; this layer "
+                f"integrates with {self.additive_mode!r}"
+            )
+        self._compartment_perturbation = perturbation
+
+    def clear_compartment_perturbation(self) -> None:
+        """Stop perturbing this layer's forward."""
+        self._compartment_perturbation = None
+
     def _save_to_state_dict(self, destination, prefix, keep_vars):
         super()._save_to_state_dict(destination, prefix, keep_vars)
         # These are Python scalar priors, not learned gate parameters. Keep
@@ -1566,7 +1606,42 @@ def capture_analysis_currents(layers):
             layer.clear_analysis_currents()
 
 
-__all__ = ["DendriticBranchLayer", "capture_analysis_currents"]
+@contextmanager
+def perturb_compartments(perturbations):
+    """Perturb branch-layer compartments in a block.
+
+    ``perturbations`` maps :class:`DendriticBranchLayer` modules to
+    :class:`CompartmentPerturbation` values. Inside the block every forward of
+    these layers adds its offset once, as
+    :meth:`~DendriticBranchLayer.set_compartment_perturbation` describes. On
+    exit, also after an error, every layer returns to its previous
+    perturbation (usually none). Yields the mapping.
+    """
+    items = list(dict(perturbations).items())
+    for layer, perturbation in items:
+        if not isinstance(layer, DendriticBranchLayer):
+            raise TypeError(
+                "perturb_compartments takes DendriticBranchLayer modules, "
+                f"got {type(layer).__name__}"
+            )
+        if not isinstance(perturbation, CompartmentPerturbation):
+            raise TypeError(
+                "perturb_compartments takes CompartmentPerturbation values, "
+                f"got {type(perturbation).__name__}"
+            )
+    previous = [layer.compartment_perturbation for layer, _ in items]
+    try:
+        for layer, perturbation in items:
+            layer.set_compartment_perturbation(perturbation)
+        yield dict(items)
+    finally:
+        # The previous values were accepted when set; restoring them directly
+        # cannot fail and so cannot hide an error raised in the block.
+        for (layer, _), perturbation in zip(items, previous):
+            layer._compartment_perturbation = perturbation
+
+
+__all__ = ["DendriticBranchLayer", "capture_analysis_currents", "perturb_compartments"]
 
 
 _BRANCH_GEOMETRY_ARGUMENTS = frozenset(
