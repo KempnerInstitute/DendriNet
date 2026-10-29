@@ -140,6 +140,10 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.compartment_perturbation</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">active_compartment_perturbation</span><span class="p">,</span>
 <span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.functional</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">_raw_current_sum</span><span class="p">,</span>
+    <span class="n">_shunting_current_components</span><span class="p">,</span>
+<span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.utils.signal_rounding</span><span class="w"> </span><span class="kn">import</span> <span class="n">round_signal</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.plugins</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_plugins</span>
 
@@ -789,27 +793,21 @@
                 <span class="s2">"coupling conductance (branches_to_output.sum_conductances()) in "</span>
                 <span class="s2">"the denominator; pass branch_conductance"</span>
             <span class="p">)</span>
-        <span class="n">N</span> <span class="o">=</span> <span class="n">trace_E</span> <span class="o">+</span> <span class="n">trace_E_rec</span>
-        <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">is_tensor</span><span class="p">(</span><span class="n">trace_branch</span><span class="p">):</span>
-            <span class="n">N</span> <span class="o">=</span> <span class="n">N</span> <span class="o">+</span> <span class="n">trace_branch</span>
-        <span class="k">elif</span> <span class="n">trace_branch</span><span class="p">:</span>
-            <span class="n">N</span> <span class="o">=</span> <span class="n">N</span> <span class="o">+</span> <span class="n">trace_branch</span>
-
-        <span class="n">denominator</span> <span class="o">=</span> <span class="n">owner</span><span class="o">.</span><span class="n">effective_leak</span> <span class="o">+</span> <span class="n">trace_E</span>
-        <span class="c1"># Scalars count as well as tensors (zero scalars add nothing).</span>
-        <span class="k">for</span> <span class="n">term</span> <span class="ow">in</span> <span class="p">(</span><span class="n">trace_E_rec</span><span class="p">,</span> <span class="n">trace_I</span><span class="p">,</span> <span class="n">trace_I_rec</span><span class="p">):</span>
-            <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">is_tensor</span><span class="p">(</span><span class="n">term</span><span class="p">)</span> <span class="ow">or</span> <span class="n">term</span><span class="p">:</span>
-                <span class="n">denominator</span> <span class="o">=</span> <span class="n">denominator</span> <span class="o">+</span> <span class="n">term</span>
-        <span class="k">if</span> <span class="n">branch_conductance</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">denominator</span> <span class="o">=</span> <span class="n">denominator</span> <span class="o">+</span> <span class="n">branch_conductance</span>
+        <span class="n">N</span><span class="p">,</span> <span class="n">denominator</span> <span class="o">=</span> <span class="n">_shunting_current_components</span><span class="p">(</span>
+            <span class="n">trace_E</span><span class="p">,</span>
+            <span class="n">trace_E_rec</span><span class="p">,</span>
+            <span class="n">trace_I</span><span class="p">,</span>
+            <span class="n">trace_I_rec</span><span class="p">,</span>
+            <span class="n">trace_branch</span><span class="p">,</span>
+            <span class="n">branch_conductance</span><span class="p">,</span>
+            <span class="n">owner</span><span class="o">.</span><span class="n">effective_leak</span><span class="p">,</span>
+        <span class="p">)</span>
         <span class="n">T</span> <span class="o">=</span> <span class="n">denominator</span> <span class="o">-</span> <span class="n">owner</span><span class="o">.</span><span class="n">effective_leak</span>
         <span class="n">voltage</span> <span class="o">=</span> <span class="n">N</span> <span class="o">/</span> <span class="p">(</span><span class="n">denominator</span> <span class="o">+</span> <span class="n">owner</span><span class="o">.</span><span class="n">epsilon</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="n">raw_voltage</span> <span class="o">=</span> <span class="n">trace_E</span> <span class="o">+</span> <span class="n">trace_E_rec</span> <span class="o">-</span> <span class="n">trace_I</span> <span class="o">-</span> <span class="n">trace_I_rec</span>
-        <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">is_tensor</span><span class="p">(</span><span class="n">trace_branch</span><span class="p">):</span>
-            <span class="n">raw_voltage</span> <span class="o">=</span> <span class="n">raw_voltage</span> <span class="o">+</span> <span class="n">trace_branch</span>
-        <span class="k">elif</span> <span class="n">trace_branch</span><span class="p">:</span>
-            <span class="n">raw_voltage</span> <span class="o">=</span> <span class="n">raw_voltage</span> <span class="o">+</span> <span class="n">trace_branch</span>
+        <span class="n">raw_voltage</span> <span class="o">=</span> <span class="n">_raw_current_sum</span><span class="p">(</span>
+            <span class="n">trace_E</span><span class="p">,</span> <span class="n">trace_E_rec</span><span class="p">,</span> <span class="n">trace_I</span><span class="p">,</span> <span class="n">trace_I_rec</span><span class="p">,</span> <span class="n">trace_branch</span>
+        <span class="p">)</span>
 
         <span class="k">if</span> <span class="n">store_diagnostics</span> <span class="ow">or</span> <span class="n">owner</span><span class="o">.</span><span class="n">additive_mode</span> <span class="o">!=</span> <span class="s2">"raw"</span><span class="p">:</span>
             <span class="n">E</span> <span class="o">=</span> <span class="n">trace_E</span> <span class="o">+</span> <span class="n">trace_E_rec</span>

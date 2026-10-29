@@ -60,6 +60,7 @@
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#branch-layers">Branch layers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#integration-modes">Integration modes</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#explicit-current-computations">Explicit-current computations</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#selecting-the-rule">Selecting the rule</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#tangent-anchors">Tangent anchors</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#branch-diagnostics">Branch diagnostics</a></li>
@@ -556,6 +557,42 @@ the value and the derivatives of the shunting voltage at that point.</p></td>
 <p>Plugins can register further additive rules; <code class="docutils literal notranslate"><span class="pre">additive_mode</span></code> names one and
 <code class="docutils literal notranslate"><span class="pre">additive_options</span></code> sets its options (<a class="reference internal" href="extending.html#plugin-additive-rules"><span class="std std-ref">Additive integration rules</span></a>). The
 built-in rules take no <code class="docutils literal notranslate"><span class="pre">additive_options</span></code>.</p>
+<section id="explicit-current-computations">
+<h3>Explicit-current computations<a class="headerlink" href="#explicit-current-computations" title="Link to this heading"></a></h3>
+<p>Use <code class="docutils literal notranslate"><span class="pre">dendritic_modeling.networks.functional.shunting_voltage</span></code> and
+<code class="docutils literal notranslate"><span class="pre">additive_voltage</span></code> when the currents are already known. These public functions
+need no layer object and share arithmetic with the native
+<code class="docutils literal notranslate"><span class="pre">voltage_from_currents</span></code> path. They return voltages before reactivation and
+preserve autograd through currents, coupling conductance and tensor-valued leak.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.functional</span><span class="w"> </span><span class="kn">import</span> <span class="n">shunting_voltage</span>
+
+<span class="n">e</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([[</span><span class="mf">0.4</span><span class="p">,</span> <span class="mf">0.8</span><span class="p">]],</span> <span class="n">requires_grad</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">i</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([[</span><span class="mf">0.2</span><span class="p">]])</span>  <span class="c1"># a shared inhibitory sensor broadcasts over branches</span>
+<span class="n">v</span> <span class="o">=</span> <span class="n">shunting_voltage</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">leak</span><span class="o">=</span><span class="mf">0.25</span><span class="p">,</span> <span class="n">epsilon</span><span class="o">=</span><span class="mf">0.0</span><span class="p">)</span>
+<span class="n">soma</span> <span class="o">=</span> <span class="n">shunting_voltage</span><span class="p">(</span>
+    <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span> <span class="n">child_current</span><span class="o">=</span><span class="mf">2.0</span> <span class="o">*</span> <span class="n">v</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">),</span>
+    <span class="n">child_conductance</span><span class="o">=</span><span class="mf">4.0</span><span class="p">,</span> <span class="n">leak</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">epsilon</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>All tensor operands share excitation’s dtype and device and broadcast to its
+shape without expanding it. Scalars, including leak and epsilon, must remain
+finite after conversion to excitation’s dtype; a positive scalar leak must not
+round to zero. Excitatory and inhibitory currents and child
+conductance must be nonnegative; child current can be signed. Shunting requires
+positive leak and an explicit coupling conductance when child current is
+nonzero. Zero-leak quotients belong to mathematical analyses, not this neuronal
+API. The raw additive function computes <code class="docutils literal notranslate"><span class="pre">E</span> <span class="pre">+</span> <span class="pre">E_rec</span> <span class="pre">-</span> <span class="pre">I</span> <span class="pre">-</span> <span class="pre">I_rec</span> <span class="pre">+</span> <span class="pre">C</span></code>: it can
+return negative values and has no implicit leak division or z-score.</p>
+<p>These are functional components, not newly configured network architectures or
+learning strategies. They do not perform routing, synapse sampling, integration
+over time, plasticity, or gating. They validate tensor values and may therefore
+synchronize the device, and for the same reason they do not run under
+<code class="docutils literal notranslate"><span class="pre">torch.func</span></code> transforms such as <code class="docutils literal notranslate"><span class="pre">vmap</span></code>; native layers keep their existing
+unchecked arithmetic and fused training path. Use <code class="docutils literal notranslate"><span class="pre">DendriNet</span></code> or <code class="docutils literal notranslate"><span class="pre">DendriticBranchLayer</span></code> when
+synapses, state, training rules or checkpoint interventions are required.</p>
+</section>
 <section id="selecting-the-rule">
 <h3>Selecting the rule<a class="headerlink" href="#selecting-the-rule" title="Link to this heading"></a></h3>
 <p>A structured E/I core type fixes the rule: <code class="docutils literal notranslate"><span class="pre">dendritic_shunting</span></code> and
