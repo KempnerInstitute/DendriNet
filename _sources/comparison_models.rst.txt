@@ -198,8 +198,10 @@ The options of ``model.core.affine_mlp``:
        other modes.
    * - ``initialization``
      - ``kaiming_normal``
-     - ``kaiming_normal``, or ``kaiming_uniform_xavier_readout`` (``dense``
-       only: Kaiming-uniform hidden layers and a Xavier-uniform last layer).
+     - ``kaiming_normal``; or, in ``dense`` mode only,
+       ``kaiming_uniform_xavier_readout`` (Kaiming-uniform hidden layers,
+       Xavier-uniform last layer) or ``pytorch_default`` (retain the Linear
+       constructors' weights and biases).
    * - ``activation``
      - ``relu``
      - ``relu`` or ``leaky_relu``.
@@ -223,7 +225,7 @@ The options of ``model.core.affine_mlp``:
      - Execution settings of ``fixed`` layers (see :ref:`indexed-backends`);
        the other modes do not read them.
 
-Initialization: ``dense`` mode constructs all layers, then draws every weight
+By default, ``dense`` mode constructs all layers, then draws every weight
 with Kaiming-normal initialization (the ReLU gain, also for ``leaky_relu``)
 and sets the biases to zero. ``fixed`` layers draw normal weights with
 standard deviation ``sqrt(2 / fanin)``. ``topk`` layers draw standard-normal
@@ -232,6 +234,16 @@ have squared norm 2. All modes then multiply the last layer's weights by
 ``output_weight_scale``. The weights come from the global PyTorch random
 stream, which the builder does not reseed; ``connectivity_seeds`` fix only the
 support of ``fixed`` layers.
+
+For a conventional readout initialized by ``torch.nn.Linear``, explicitly select
+``initialization: pytorch_default``. This skips reinitialization, preserving the
+constructors' bias values and random draw order. With ``output_weight_scale: 1``
+it makes no further weight mutation; another scale still rescales the last
+weight matrix but not its bias, which this policy leaves nonzero, so the
+initial output is not scaled uniformly. Sparse modes reject this policy. For a Linear--ReLU--Linear
+classifier, set ``dimensions`` to the three layer widths, ``activation: relu``,
+``activate_output: false`` and ``dropout: null``. This reuses the affine builder;
+it does not add feature normalization or a dendritic computation.
 
 The built model is a flat ``nn.Sequential`` (numeric checkpoint keys) that
 also forwards the weight decay, weight boosting and rewiring steps of the
@@ -431,6 +443,58 @@ are reported separately; the scalar specialization does not automatically
 remove its stored projection and outer weights. Arithmetic counts describe
 sparse MACs and shunting divisions, excluding weight transforms, normalization,
 checks and training overhead; they are not measured FLOPs or latency.
+
+Feature normalization readouts
+------------------------------
+
+``core.type: feature_readout`` composes the existing dense affine builder
+with an explicit normalization of fixed feature maps. This is a conventional
+control, not a biological E/I neuron. The optional ``core.feature_readout``
+section defaults to ``None`` in all other cores.
+
+The ``input_shape`` excludes the batch and starts with channels. Inputs may
+have this shape or be flattened; the latter are reshaped before normalization.
+``readout`` is an :class:`~dendritic_modeling.config.affine_mlp.AffineMLPConfig`.
+Its first dimension must equal the product of ``input_shape``. The readout is
+constructed before the normalizer. A single unactivated Linear uses
+``readout.weight`` and ``readout.bias`` checkpoint keys; an MLP retains the
+builder's numeric module keys under ``readout``. Training builds the readout
+from the run's global random stream (after any encoder draws), as it builds an
+``affine_mlp`` core, so ``normalization: none`` starts from the weights of the
+equivalent ``affine_mlp`` control. An explicit ``core.initialization_seed``
+draws the readout from a CPU stream keyed by that seed and the core type.
+This construction stays on CPU even under a CUDA default device, preserving
+the caller's CPU/CUDA random streams and default device. Move the resulting
+model to the desired device afterwards, as the standard training setup does.
+
+Four normalization choices are supported:
+
+* ``none`` leaves features unchanged.
+* ``layer_norm`` uses PyTorch LayerNorm across the entire feature map.
+* ``group_norm`` uses PyTorch GroupNorm across contiguous channel groups and
+  spatial sites.
+* ``group_mean`` divides each feature by ``divisor_offset + max(group_mean, 0)``.
+  The mean includes channels within its group and every spatial site. This
+  operation does not center features or use their absolute values. It is
+  distinct from the existing L1 input normalizer and from the E/I shunting rule.
+
+Grouped modes require ``groups`` to divide the channel count. Only group-mean
+division accepts ``divisor_offset``, which must remain finite and strictly
+positive in the input dtype; values that overflow or round to zero raise before
+division. LayerNorm and
+GroupNorm use ``normalization_epsilon`` (default ``1e-5``) and
+``normalization_affine`` (default true). Irrelevant non-default options raise.
+For group-mean division, ``forward`` and ``representation`` also accept an
+explicit ``divisor_noise`` multiplier of shape ``[batch, groups]``. It multiplies
+the mean before clamping; it must be finite, nonnegative and match the input's
+dtype and device. No noise is sampled by the model.
+
+``configs/examples/feature_readout.yaml`` is a runnable example. It uses the
+standard backpropagation trainer and existing synthetic data; it does not
+reproduce an image-feature experiment. Other training strategies and sparse
+readouts are currently rejected. Existing affine initialization defaults remain
+unchanged; select ``readout.initialization: pytorch_default`` explicitly when
+reproducing plain PyTorch Linear initialization, including its random biases.
 
 Paired E/I routing controls
 ---------------------------

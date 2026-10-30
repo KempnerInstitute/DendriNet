@@ -64,6 +64,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#recurrent-baselines">Recurrent baselines</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#mlp-building-blocks">MLP building blocks</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#shared-projections-and-native-shunting-banks">Shared projections and native shunting banks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#feature-normalization-readouts">Feature normalization readouts</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#paired-e-i-routing-controls">Paired E/I routing controls</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#parameter-budget-model-families">Parameter-budget model families</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#signed-readouts">Signed readouts</a></li>
@@ -347,8 +348,10 @@ other modes.</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">initialization</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">kaiming_normal</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">kaiming_normal</span></code>, or <code class="docutils literal notranslate"><span class="pre">kaiming_uniform_xavier_readout</span></code> (<code class="docutils literal notranslate"><span class="pre">dense</span></code>
-only: Kaiming-uniform hidden layers and a Xavier-uniform last layer).</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">kaiming_normal</span></code>; or, in <code class="docutils literal notranslate"><span class="pre">dense</span></code> mode only,
+<code class="docutils literal notranslate"><span class="pre">kaiming_uniform_xavier_readout</span></code> (Kaiming-uniform hidden layers,
+Xavier-uniform last layer) or <code class="docutils literal notranslate"><span class="pre">pytorch_default</span></code> (retain the Linear
+constructors’ weights and biases).</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">activation</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">relu</span></code></p></td>
@@ -380,7 +383,7 @@ the other modes do not read them.</p></td>
 </tr>
 </tbody>
 </table>
-<p>Initialization: <code class="docutils literal notranslate"><span class="pre">dense</span></code> mode constructs all layers, then draws every weight
+<p>By default, <code class="docutils literal notranslate"><span class="pre">dense</span></code> mode constructs all layers, then draws every weight
 with Kaiming-normal initialization (the ReLU gain, also for <code class="docutils literal notranslate"><span class="pre">leaky_relu</span></code>)
 and sets the biases to zero. <code class="docutils literal notranslate"><span class="pre">fixed</span></code> layers draw normal weights with
 standard deviation <code class="docutils literal notranslate"><span class="pre">sqrt(2</span> <span class="pre">/</span> <span class="pre">fanin)</span></code>. <code class="docutils literal notranslate"><span class="pre">topk</span></code> layers draw standard-normal
@@ -389,6 +392,15 @@ have squared norm 2. All modes then multiply the last layer’s weights by
 <code class="docutils literal notranslate"><span class="pre">output_weight_scale</span></code>. The weights come from the global PyTorch random
 stream, which the builder does not reseed; <code class="docutils literal notranslate"><span class="pre">connectivity_seeds</span></code> fix only the
 support of <code class="docutils literal notranslate"><span class="pre">fixed</span></code> layers.</p>
+<p>For a conventional readout initialized by <code class="docutils literal notranslate"><span class="pre">torch.nn.Linear</span></code>, explicitly select
+<code class="docutils literal notranslate"><span class="pre">initialization:</span> <span class="pre">pytorch_default</span></code>. This skips reinitialization, preserving the
+constructors’ bias values and random draw order. With <code class="docutils literal notranslate"><span class="pre">output_weight_scale:</span> <span class="pre">1</span></code>
+it makes no further weight mutation; another scale still rescales the last
+weight matrix but not its bias, which this policy leaves nonzero, so the
+initial output is not scaled uniformly. Sparse modes reject this policy. For a Linear–ReLU–Linear
+classifier, set <code class="docutils literal notranslate"><span class="pre">dimensions</span></code> to the three layer widths, <code class="docutils literal notranslate"><span class="pre">activation:</span> <span class="pre">relu</span></code>,
+<code class="docutils literal notranslate"><span class="pre">activate_output:</span> <span class="pre">false</span></code> and <code class="docutils literal notranslate"><span class="pre">dropout:</span> <span class="pre">null</span></code>. This reuses the affine builder;
+it does not add feature normalization or a dendritic computation.</p>
 <p>The built model is a flat <code class="docutils literal notranslate"><span class="pre">nn.Sequential</span></code> (numeric checkpoint keys) that
 also forwards the weight decay, weight boosting and rewiring steps of the
 optimizer to its sparse layers. The same model can be built from Python:</p>
@@ -568,6 +580,54 @@ are reported separately; the scalar specialization does not automatically
 remove its stored projection and outer weights. Arithmetic counts describe
 sparse MACs and shunting divisions, excluding weight transforms, normalization,
 checks and training overhead; they are not measured FLOPs or latency.</p>
+</section>
+<section id="feature-normalization-readouts">
+<h2>Feature normalization readouts<a class="headerlink" href="#feature-normalization-readouts" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">core.type:</span> <span class="pre">feature_readout</span></code> composes the existing dense affine builder
+with an explicit normalization of fixed feature maps. This is a conventional
+control, not a biological E/I neuron. The optional <code class="docutils literal notranslate"><span class="pre">core.feature_readout</span></code>
+section defaults to <code class="docutils literal notranslate"><span class="pre">None</span></code> in all other cores.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">input_shape</span></code> excludes the batch and starts with channels. Inputs may
+have this shape or be flattened; the latter are reshaped before normalization.
+<code class="docutils literal notranslate"><span class="pre">readout</span></code> is an <code class="xref py py-class docutils literal notranslate"><span class="pre">AffineMLPConfig</span></code>.
+Its first dimension must equal the product of <code class="docutils literal notranslate"><span class="pre">input_shape</span></code>. The readout is
+constructed before the normalizer. A single unactivated Linear uses
+<code class="docutils literal notranslate"><span class="pre">readout.weight</span></code> and <code class="docutils literal notranslate"><span class="pre">readout.bias</span></code> checkpoint keys; an MLP retains the
+builder’s numeric module keys under <code class="docutils literal notranslate"><span class="pre">readout</span></code>. Training builds the readout
+from the run’s global random stream (after any encoder draws), as it builds an
+<code class="docutils literal notranslate"><span class="pre">affine_mlp</span></code> core, so <code class="docutils literal notranslate"><span class="pre">normalization:</span> <span class="pre">none</span></code> starts from the weights of the
+equivalent <code class="docutils literal notranslate"><span class="pre">affine_mlp</span></code> control. An explicit <code class="docutils literal notranslate"><span class="pre">core.initialization_seed</span></code>
+draws the readout from a CPU stream keyed by that seed and the core type.
+This construction stays on CPU even under a CUDA default device, preserving
+the caller’s CPU/CUDA random streams and default device. Move the resulting
+model to the desired device afterwards, as the standard training setup does.</p>
+<p>Four normalization choices are supported:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">none</span></code> leaves features unchanged.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">layer_norm</span></code> uses PyTorch LayerNorm across the entire feature map.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">group_norm</span></code> uses PyTorch GroupNorm across contiguous channel groups and
+spatial sites.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">group_mean</span></code> divides each feature by <code class="docutils literal notranslate"><span class="pre">divisor_offset</span> <span class="pre">+</span> <span class="pre">max(group_mean,</span> <span class="pre">0)</span></code>.
+The mean includes channels within its group and every spatial site. This
+operation does not center features or use their absolute values. It is
+distinct from the existing L1 input normalizer and from the E/I shunting rule.</p></li>
+</ul>
+<p>Grouped modes require <code class="docutils literal notranslate"><span class="pre">groups</span></code> to divide the channel count. Only group-mean
+division accepts <code class="docutils literal notranslate"><span class="pre">divisor_offset</span></code>, which must remain finite and strictly
+positive in the input dtype; values that overflow or round to zero raise before
+division. LayerNorm and
+GroupNorm use <code class="docutils literal notranslate"><span class="pre">normalization_epsilon</span></code> (default <code class="docutils literal notranslate"><span class="pre">1e-5</span></code>) and
+<code class="docutils literal notranslate"><span class="pre">normalization_affine</span></code> (default true). Irrelevant non-default options raise.
+For group-mean division, <code class="docutils literal notranslate"><span class="pre">forward</span></code> and <code class="docutils literal notranslate"><span class="pre">representation</span></code> also accept an
+explicit <code class="docutils literal notranslate"><span class="pre">divisor_noise</span></code> multiplier of shape <code class="docutils literal notranslate"><span class="pre">[batch,</span> <span class="pre">groups]</span></code>. It multiplies
+the mean before clamping; it must be finite, nonnegative and match the input’s
+dtype and device. No noise is sampled by the model.</p>
+<p><code class="docutils literal notranslate"><span class="pre">configs/examples/feature_readout.yaml</span></code> is a runnable example. It uses the
+standard backpropagation trainer and existing synthetic data; it does not
+reproduce an image-feature experiment. Other training strategies and sparse
+readouts are currently rejected. Existing affine initialization defaults remain
+unchanged; select <code class="docutils literal notranslate"><span class="pre">readout.initialization:</span> <span class="pre">pytorch_default</span></code> explicitly when
+reproducing plain PyTorch Linear initialization, including its random biases.</p>
 </section>
 <section id="paired-e-i-routing-controls">
 <h2>Paired E/I routing controls<a class="headerlink" href="#paired-e-i-routing-controls" title="Link to this heading"></a></h2>

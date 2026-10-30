@@ -470,6 +470,44 @@
     <span class="k">return</span> <span class="n">parameters</span>
 
 
+<span class="k">def</span><span class="w"> </span><span class="nf">_build_feature_readout_architecture</span><span class="p">(</span><span class="nb">type</span><span class="p">,</span> <span class="n">parameters</span><span class="p">,</span> <span class="n">input_dim</span><span class="p">,</span> <span class="n">suffix_input_dim</span><span class="p">):</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config.core_sections</span><span class="w"> </span><span class="kn">import</span> <span class="n">reject_unread_core_sections</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config.feature_readout</span><span class="w"> </span><span class="kn">import</span> <span class="n">FeatureReadoutConfig</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config.keys</span><span class="w"> </span><span class="kn">import</span> <span class="n">build_section</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config.model</span><span class="w"> </span><span class="kn">import</span> <span class="n">CoreConfig</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.classical.feature_readout</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+        <span class="n">build_feature_readout</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="n">raw</span> <span class="o">=</span> <span class="n">_to_plain_mapping</span><span class="p">(</span><span class="n">parameters</span><span class="p">)</span>
+    <span class="k">if</span> <span class="s2">"feature_readout"</span> <span class="ow">in</span> <span class="n">raw</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">str</span><span class="p">(</span><span class="n">raw</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"type"</span><span class="p">,</span> <span class="nb">type</span><span class="p">))</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="o">!=</span> <span class="nb">type</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">"feature_readout builder and configured core type disagree"</span>
+            <span class="p">)</span>
+        <span class="n">core</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">parameters</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">parameters</span><span class="p">,</span> <span class="n">CoreConfig</span><span class="p">)</span>
+            <span class="k">else</span> <span class="n">CoreConfig</span><span class="p">(</span><span class="o">**</span><span class="p">{</span><span class="s2">"type"</span><span class="p">:</span> <span class="nb">type</span><span class="p">,</span> <span class="o">**</span><span class="n">raw</span><span class="p">})</span>
+        <span class="p">)</span>
+        <span class="n">reject_unread_core_sections</span><span class="p">(</span><span class="n">core</span><span class="p">,</span> <span class="n">raw</span><span class="p">)</span>
+    <span class="n">payload</span> <span class="o">=</span> <span class="n">raw</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"feature_readout"</span><span class="p">,</span> <span class="n">raw</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">payload</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"feature_readout requires its configuration section"</span><span class="p">)</span>
+    <span class="n">config</span> <span class="o">=</span> <span class="n">build_section</span><span class="p">(</span><span class="n">FeatureReadoutConfig</span><span class="p">,</span> <span class="n">payload</span><span class="p">,</span> <span class="n">section</span><span class="o">=</span><span class="s2">"feature_readout"</span><span class="p">)</span>
+    <span class="n">config</span><span class="o">.</span><span class="n">validate</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">input_dim</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">input_dim</span> <span class="o">!=</span> <span class="n">math</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">input_shape</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"feature_readout input dimension does not match the encoder"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="p">(</span>
+        <span class="n">suffix_input_dim</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="ow">and</span> <span class="n">suffix_input_dim</span> <span class="o">!=</span> <span class="n">config</span><span class="o">.</span><span class="n">readout</span><span class="o">.</span><span class="n">dimensions</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"feature_readout output dimension does not match the decoder"</span><span class="p">)</span>
+    <span class="n">seed</span> <span class="o">=</span> <span class="n">raw</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"initialization_seed"</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">_keyed_initialization_stream</span><span class="p">(</span><span class="n">seed</span><span class="p">,</span> <span class="s2">"feature_readout"</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">build_feature_readout</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
+
+
 <span class="k">def</span><span class="w"> </span><span class="nf">_build_affine_mlp_architecture</span><span class="p">(</span><span class="nb">type</span><span class="p">,</span> <span class="n">parameters</span><span class="p">,</span> <span class="n">input_dim</span><span class="p">,</span> <span class="n">suffix_input_dim</span><span class="p">):</span>
     <span class="k">del</span> <span class="nb">type</span>
     <span class="n">raw</span> <span class="o">=</span> <span class="n">_to_plain_mapping</span><span class="p">(</span><span class="n">parameters</span><span class="p">)</span>
@@ -756,6 +794,7 @@
             <span class="s2">"point_mlp"</span><span class="p">:</span> <span class="n">_build_point_mlp_architecture</span><span class="p">,</span>
             <span class="s2">"mlp"</span><span class="p">:</span> <span class="n">_build_flat_mlp_architecture</span><span class="p">,</span>
             <span class="s2">"affine_mlp"</span><span class="p">:</span> <span class="n">_build_affine_mlp_architecture</span><span class="p">,</span>
+            <span class="s2">"feature_readout"</span><span class="p">:</span> <span class="n">_build_feature_readout_architecture</span><span class="p">,</span>
             <span class="s2">"shared_projection_shunting"</span><span class="p">:</span> <span class="n">_build_shared_projection_architecture</span><span class="p">,</span>
             <span class="s2">"routed_ei"</span><span class="p">:</span> <span class="n">_build_routed_ei_architecture</span><span class="p">,</span>
             <span class="s2">"total_param_mlp"</span><span class="p">:</span> <span class="n">_build_total_param_mlp</span><span class="p">,</span>
