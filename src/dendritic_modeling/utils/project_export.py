@@ -9,11 +9,20 @@ if __name__ == "__main__" and not __package__:
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 import subprocess
 import zipfile
 from pathlib import Path, PurePosixPath
+
+# Load the sibling utility by filename so direct execution and paper adapters
+# share path validation without importing DendriNet or an installed package.
+_SOURCE_SPEC = importlib.util.spec_from_file_location(
+    "_project_export_source", Path(__file__).with_name("project_source.py")
+)
+_SOURCE = importlib.util.module_from_spec(_SOURCE_SPEC)
+_SOURCE_SPEC.loader.exec_module(_SOURCE)
 
 MANUSCRIPT_SUFFIXES = {
     ".tex",
@@ -67,57 +76,16 @@ def _git(root: Path, *args: str) -> bytes:
     )
 
 
-def _check_manifest_path(root: Path, relative: Path) -> None:
-    """Check each symlink hop below a canonical root, allowing missing files."""
-
-    def walk(current: Path, parts: tuple[str, ...], active: set[Path]) -> Path:
-        for part in parts:
-            if part == "..":
-                if current == root:
-                    raise ValueError("The manifest must stay inside the paper root")
-                current = current.parent
-                continue
-            current /= part
-            if not current.is_symlink():
-                continue
-            link = current
-            if link in active:
-                raise ValueError(f"Symlink loop in manifest path: {link}")
-            target = link.readlink()
-            if target.is_absolute():
-                if not target.is_relative_to(root):
-                    raise ValueError("The manifest must stay inside the paper root")
-                current = root
-                target = target.relative_to(root)
-            else:
-                current = link.parent
-            current = walk(current, target.parts, active | {link})
-        return current
-
-    walk(root, relative.parts, set())
-
-
 def export_project(
     manifest: Path, commit: str, output: Path, *, paper_root: Path | None = None
 ) -> dict:
     """Write committed Git blobs; ``paper_root`` opts into a nested manifest."""
-    requested = manifest.absolute()
-    if paper_root is None:
-        # Normalize the inferred repository only; Git must still select the
-        # requested filename rather than its working-tree symlink target.
-        requested = requested.parent.resolve() / requested.name
-    root = (requested.parent if paper_root is None else paper_root).resolve()
-    # Resolve aliases to the repository root, but retain every component below
-    # it: a working-tree symlink must not select a different committed manifest.
-    for parent in reversed(requested.parents):
-        if parent.resolve() == root:
-            relative = requested.relative_to(parent)
-            break
-    else:
-        raise ValueError("The manifest must be inside the paper root")
-    if ".." in relative.parts:
-        raise ValueError("The manifest must be inside the paper root")
-    _check_manifest_path(root, relative)
+    try:
+        root, relative = _SOURCE._project_path(
+            manifest, paper_root, allow_symlinks=True
+        )
+    except _SOURCE.SourceContractError as error:
+        raise ValueError(str(error)) from error
     output = output.resolve()
     if (
         Path(_git(root, "rev-parse", "--show-toplevel").decode().strip()).resolve()
@@ -183,6 +151,9 @@ def export_project(
         "paper_commit": sha,
         "manifest_sha256": hashlib.sha256(raw_manifest).hexdigest(),
         "exporter_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        "source_checker_sha256": hashlib.sha256(
+            Path(_SOURCE.__file__).read_bytes()
+        ).hexdigest(),
         "files": [],
     }
     if kind == "paper-code":

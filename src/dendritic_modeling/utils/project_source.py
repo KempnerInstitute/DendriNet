@@ -28,12 +28,104 @@ import os
 import re
 import runpy
 import subprocess
+from collections import deque
 from pathlib import Path
 from typing import Any
 
 
 class SourceContractError(RuntimeError):
     """The selected source does not satisfy a project's declared dependency."""
+
+
+def _project_path(
+    path: Path, paper_root: Path | None, *, allow_symlinks: bool = False
+) -> tuple[Path, Path]:
+    """Validate traversal and retain the requested path within a canonical root.
+
+    Root inference must not normalize the request: doing so could hide an
+    internal symlink. Walk from the filesystem anchor, allowing directory
+    aliases before entering the repository. After first entry, never leave it;
+    contracts reject all symlinks and exports permit only contained hops.
+    The recorded Git path precedes any internal symlink expansion.
+    """
+    requested = path.absolute()
+    kind = "manifest" if allow_symlinks else "contract"
+    boundary_error = f"The {kind} must stay inside the paper root"
+    try:
+        root = (requested.parent if paper_root is None else paper_root).resolve()
+    except RuntimeError as error:
+        raise SourceContractError(f"Symlink loop in {kind} path: {path}") from error
+    current = Path(requested.anchor)
+    entered = False
+    relative_parts: tuple[str, ...] = ()
+    active: set[Path] = set()
+
+    def walk(parts: tuple[str, ...]) -> None:
+        nonlocal current, entered, relative_parts
+        # Path tokens mark the end of a symlink expansion. Removing a link
+        # then permits later non-cyclic reuse, e.g. link/../link/file.
+        pending: deque[str | Path] = deque(parts)
+        while True:
+            if not entered and current == root:
+                entered = True
+                relative_parts = (
+                    *(part for part in pending if isinstance(part, str)),
+                    requested.name,
+                )
+            if not pending:
+                return
+            part = pending.popleft()
+            if isinstance(part, Path):
+                active.remove(part)
+                continue
+            if part == "..":
+                if entered and current == root:
+                    raise SourceContractError(boundary_error)
+                current = current.parent
+                continue
+            current /= part
+            if not current.is_symlink():
+                continue
+            link = current
+            if entered and not allow_symlinks:
+                raise SourceContractError(
+                    f"Source symlink requires explicit resolution: {link}"
+                )
+            if link in active:
+                raise SourceContractError(f"Symlink loop in {kind} path: {link}")
+            active.add(link)
+            target = link.readlink()
+            if target.is_absolute():
+                if entered:
+                    if not target.is_relative_to(root):
+                        raise SourceContractError(boundary_error)
+                    current = root
+                    target_parts = target.relative_to(root).parts
+                else:
+                    current = Path(target.anchor)
+                    target_parts = target.parts[1:]
+            else:
+                current = link.parent
+                target_parts = target.parts
+            pending.extendleft(reversed((*target_parts, link)))
+
+    walk(requested.parent.parts[1:])
+    # Only directory aliases may lead into the root; an outside file symlink
+    # pointing at a contract/manifest is not a repository alias.
+    if not entered:
+        raise SourceContractError(boundary_error)
+    walk((requested.name,))
+    # Normalize safe parent components only after their traversal was checked.
+    # This is a Git path, so internal symlink targets never select other blobs.
+    normalized: list[str] = []
+    for part in relative_parts:
+        if part == "..":
+            if not normalized:
+                raise SourceContractError(boundary_error)
+            normalized.pop()
+        else:
+            normalized.append(part)
+    return root, Path(*normalized)
 
 
 def _git(root: Path, *args: str) -> str:
@@ -272,22 +364,7 @@ def verify_contract(
     when one is declared), the package and configuration roots and the
     interpreter. Raises :class:`SourceContractError` when a check fails.
     """
-    requested = contract_path.absolute()
-    if paper_root is None:
-        # The parent selects the repository; normalize ../ and root aliases,
-        # but keep the filename unresolved so a contract symlink is checked.
-        requested = requested.parent.resolve() / requested.name
-    paper = (requested.parent if paper_root is None else paper_root).resolve()
-    # Root aliases are allowed; aliases within the repository are source and
-    # must not disappear before checking the caller's requested path.
-    for parent in reversed(requested.parents):
-        if parent.resolve() == paper:
-            relative = requested.relative_to(parent)
-            break
-    else:
-        raise SourceContractError("The contract must be inside the paper root")
-    if ".." in relative.parts or not requested.resolve().is_relative_to(paper):
-        raise SourceContractError("The contract must be inside the paper root")
+    paper, relative = _project_path(contract_path, paper_root)
     contract_relative = relative.as_posix()
     contract_path = _inside(paper, contract_relative)
     root = library_root.resolve()

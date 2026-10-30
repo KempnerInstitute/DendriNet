@@ -159,10 +159,12 @@
   repository, and use literal Git pathspecs for ownership and cleanliness.
   Exports select the requested regular manifest in the committed tree, so
   working-tree symlinks cannot redirect the allow-list to a different file.
-  Filesystem aliases to the repository root remain supported.
-  Isolate literal path checks from inherited Git pathspec settings, normalize
-  inferred parent directories for ``../contract`` and ``../manifest`` calls,
-  and reject manifest symlink hops that escape the root even if they return.
+  External directory aliases into the repository remain supported; shared
+  traversal validates every component after first entry, including when the
+  root is inferred. Internal contract symlinks and manifest hops leaving the
+  root are rejected even if they return. Normalize safe ``..`` components only
+  after traversal validation, preserving parent-relative calls. Export receipts
+  hash both tooling files. Literal Git checks ignore inherited pathspec settings.
 
 - ``DendriNet`` levels can differ from the shared settings through
   ``level_overrides`` (constructor argument and ``DendriNetConfig`` field;

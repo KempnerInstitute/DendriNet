@@ -1,5 +1,6 @@
 """Publication boundaries: committed inputs only, no source leak or overwrite."""
 
+import hashlib
 import importlib.util
 import json
 import os
@@ -64,7 +65,14 @@ def test_exact_committed_inputs_determinism_and_no_overwrite(paper, tmp_path):
     with zipfile.ZipFile(outputs[0]) as archive:
         assert set(archive.namelist()) == {"main.tex", "EXPORT_SOURCE.json"}
         assert archive.read("main.tex") == b"Committed manuscript\n"
-        assert json.loads(archive.read("EXPORT_SOURCE.json"))["paper_commit"] == commit
+        receipt = json.loads(archive.read("EXPORT_SOURCE.json"))
+        assert receipt["paper_commit"] == commit
+        assert (
+            receipt["source_checker_sha256"]
+            == hashlib.sha256(
+                Path(export.__file__).with_name("project_source.py").read_bytes()
+            ).hexdigest()
+        )
     with pytest.raises(FileExistsError):
         export.export_project(manifest, commit, outputs[0])
 
@@ -319,8 +327,9 @@ def test_export_allows_repository_root_alias(
 
 
 @pytest.mark.parametrize("entry", ["api", "cli"])
+@pytest.mark.parametrize("explicit_root", [False, True])
 def test_export_infers_root_from_parent_relative_path(
-    paper, tmp_path, monkeypatch, entry
+    paper, tmp_path, monkeypatch, entry, explicit_root
 ):
     root, manifest, git = paper
     sha = git("rev-parse", "HEAD")
@@ -332,7 +341,9 @@ def test_export_infers_root_from_parent_relative_path(
     requested = Path("..") / manifest.name
     output = tmp_path / "parent_relative.zip"
     if entry == "api":
-        export.export_project(requested, sha, output)
+        export.export_project(
+            requested, sha, output, paper_root=root if explicit_root else None
+        )
     else:
         subprocess.run(
             [
@@ -344,10 +355,82 @@ def test_export_infers_root_from_parent_relative_path(
                 sha,
                 "--output",
                 str(output),
+                *(["--paper-root", str(root)] if explicit_root else []),
             ],
             check=True,
         )
     assert output.read_bytes() == expected.read_bytes()
+
+
+@pytest.mark.parametrize("explicit_root", [False, True])
+@pytest.mark.parametrize("nested_alias", [False, True])
+@pytest.mark.parametrize("relative_target", [False, True])
+def test_export_checks_first_repository_entry(
+    paper, tmp_path, explicit_root, nested_alias, relative_target
+):
+    root, manifest, git = paper
+    outside = tmp_path / "outside"
+    outside.symlink_to(root)
+    parent = root
+    requested_parent = root
+    if nested_alias:
+        parent = root / "nested"
+        parent.mkdir()
+        requested_parent = tmp_path / "alias"
+        requested_parent.symlink_to(parent)
+    target = Path(os.path.relpath(outside, parent)) if relative_target else outside
+    (parent / "detour").symlink_to(target)
+    requested = requested_parent / "detour" / manifest.name
+    assert requested.resolve() == manifest
+    output = tmp_path / "bad.zip"
+    with pytest.raises(ValueError, match="inside the paper root"):
+        export.export_project(
+            requested,
+            git("rev-parse", "HEAD"),
+            output,
+            paper_root=root if explicit_root else None,
+        )
+    assert not output.exists()
+
+
+def test_export_allows_external_alias_to_nested_directory(paper, tmp_path):
+    root, manifest, git = paper
+    nested = root / "nested" / manifest.name
+    nested.parent.mkdir()
+    nested.write_text(
+        json.dumps({"schema_version": 1, "kind": "manuscript", "files": ["other.tex"]})
+    )
+    (root / "other.tex").write_text("Nested selection\n")
+    git("add", "--", "nested", "other.tex")
+    git("commit", "-qm", "Record nested selection", "--", "nested", "other.tex")
+    alias = tmp_path / "alias"
+    alias.symlink_to(nested.parent)
+    sha = git("rev-parse", "HEAD")
+    expected = tmp_path / "expected.zip"
+    output = tmp_path / "aliased.zip"
+    export.export_project(nested, sha, expected, paper_root=root)
+    export.export_project(alias / manifest.name, sha, output, paper_root=root)
+    assert output.read_bytes() == expected.read_bytes()
+    with zipfile.ZipFile(output) as archive:
+        assert archive.read("other.tex") == b"Nested selection\n"
+        assert "main.tex" not in archive.namelist()
+
+
+@pytest.mark.parametrize("explicit_root", [False, True])
+def test_export_rejects_parent_detour_outside_repository(
+    paper, tmp_path, explicit_root
+):
+    root, manifest, git = paper
+    requested = root / ".." / root.name / manifest.name
+    output = tmp_path / "bad.zip"
+    with pytest.raises(ValueError, match="inside the paper root"):
+        export.export_project(
+            requested,
+            git("rev-parse", "HEAD"),
+            output,
+            paper_root=root if explicit_root else None,
+        )
+    assert not output.exists()
 
 
 @pytest.mark.parametrize("kind", ["file", "directory", "chain", "parent_detour"])

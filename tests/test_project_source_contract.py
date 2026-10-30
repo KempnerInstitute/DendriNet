@@ -187,7 +187,7 @@ def test_nested_contract_rejects_symlink_escape(project, tmp_path):
     outside.write_bytes(contract.read_bytes())
     alias = paper / "alias.json"
     alias.symlink_to(outside)
-    with pytest.raises(source.SourceContractError, match="inside"):
+    with pytest.raises(source.SourceContractError, match="Source symlink"):
         source.verify_contract(alias, library, paper_root=paper)
 
 
@@ -212,13 +212,69 @@ def test_contract_rejects_requested_symlink_components(project, file_link, retar
         source.verify_contract(requested, library, paper_root=paper)
 
 
-def test_contract_rejects_internal_alias_to_repository_root(project):
+@pytest.mark.parametrize("explicit_root", [False, True])
+def test_contract_rejects_internal_alias_to_repository_root(project, explicit_root):
     library, paper, contract = project
     link = paper / "repro"
     link.symlink_to(".")
     commit(paper, link.name)
     with pytest.raises(source.SourceContractError, match="Source symlink"):
-        source.verify_contract(link / contract.name, library, paper_root=paper)
+        source.verify_contract(
+            link / contract.name, library, paper_root=paper if explicit_root else None
+        )
+
+
+@pytest.mark.parametrize("explicit_root", [False, True])
+@pytest.mark.parametrize("detour", ["internal", "escaping"])
+def test_contract_checks_first_repository_entry(
+    project, tmp_path, explicit_root, detour
+):
+    library, paper, contract = project
+    nested = paper / "nested"
+    nested.mkdir()
+    alias = tmp_path / "alias"
+    alias.symlink_to(nested)
+    target = paper
+    if detour == "escaping":
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        target = outside / "back"
+        target.symlink_to(paper)
+    (nested / "to-root").symlink_to(target)
+    commit(paper, "nested")
+    requested = alias / "to-root" / contract.name
+    assert requested.resolve() == contract
+    with pytest.raises(source.SourceContractError, match="Source symlink"):
+        source.verify_contract(
+            requested, library, paper_root=paper if explicit_root else None
+        )
+
+
+def test_contract_allows_external_alias_to_nested_directory(project, tmp_path):
+    library, paper, contract = project
+    nested = paper / "repro" / contract.name
+    nested.parent.mkdir()
+    nested.write_bytes(contract.read_bytes())
+    commit(paper, "repro")
+    alias = tmp_path / "alias"
+    alias.symlink_to(nested.parent)
+    assert source.verify_contract(alias / contract.name, library, paper_root=paper) == (
+        source.verify_contract(nested, library, paper_root=paper)
+    )
+
+
+@pytest.mark.parametrize("explicit_root", [False, True])
+def test_contract_checks_symlink_before_parent_cancellation(project, explicit_root):
+    library, paper, contract = project
+    (paper / "nested").mkdir()
+    (paper / "link").symlink_to("nested")
+    commit(paper, "link")
+    with pytest.raises(source.SourceContractError, match="Source symlink"):
+        source.verify_contract(
+            paper / "link/.." / contract.name,
+            library,
+            paper_root=paper if explicit_root else None,
+        )
 
 
 def test_contract_ownership_uses_literal_filename(project):
@@ -249,6 +305,12 @@ def test_contract_cleanliness_uses_literal_paths(project, changed):
     data["entry_points"] = {"evaluate": "scripts[1]/evaluate.py"}
     nested.write_text(json.dumps(data))
     commit(paper, ":(literal)repro/paper[1]", ":(literal)scripts[1]")
+    # Plain Git pathspecs would match these dirty siblings instead of the
+    # bracketed names, making the success assertion fail before any mutation.
+    for sibling in ("repro/paper1/contract.json", "scripts1/evaluate.py"):
+        other = paper / sibling
+        other.parent.mkdir(parents=True)
+        other.write_text("untracked wildcard match\n")
     assert (
         source.verify_contract(nested, library, paper_root=paper)["status"]
         == "source_verified"
@@ -318,13 +380,23 @@ def test_contract_checks_remain_case_sensitive(project, monkeypatch):
     assert source.verify_contract(contract, library) == expected
 
 
-def test_contract_infers_root_from_parent_relative_path(project, monkeypatch):
+@pytest.mark.parametrize("explicit_root", [False, True])
+def test_contract_infers_root_from_parent_relative_path(
+    project, monkeypatch, explicit_root
+):
     library, paper, contract = project
     expected = source.verify_contract(contract, library)
     subdirectory = paper / "work"
     subdirectory.mkdir()
     monkeypatch.chdir(subdirectory)
-    assert source.verify_contract(Path("..") / contract.name, library) == expected
+    assert (
+        source.verify_contract(
+            Path("..") / contract.name,
+            library,
+            paper_root=paper if explicit_root else None,
+        )
+        == expected
+    )
 
 
 def test_parent_relative_contract_still_rejects_filename_symlink(project, monkeypatch):
