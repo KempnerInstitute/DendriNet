@@ -223,7 +223,7 @@ def test_omitted_section_and_explicit_none_leave_existing_core_unchanged():
     assert all(torch.equal(v, new.state_dict()[k]) for k, v in old.state_dict().items())
 
 
-def test_explicit_seed_selects_a_keyed_stream_and_copies_the_config():
+def test_explicit_seed_selects_a_keyed_stream():
     config = spec("group_mean")
     rng = torch.get_rng_state().clone()
     raw = {"feature_readout": asdict(config), "initialization_seed": 5}
@@ -239,8 +239,23 @@ def test_explicit_seed_selects_a_keyed_stream_and_copies_the_config():
         built.append(build_feature_readout(config).readout.weight)
     assert torch.equal(a.readout.weight, built[0])
     assert not torch.equal(a.readout.weight, built[1])
+
+
+def test_direct_construction_copies_nested_config():
+    torch.manual_seed(26)
+    config = spec("group_mean")
+    expected_config = asdict(config)
+    direct = build_feature_readout(config)
+    x = torch.linspace(-0.2, 2.4, 64).reshape(2, 8, 2, 2)
+    expected_output = direct(x).detach().clone()
+
     config.input_shape[0] = 99
-    assert a.config.input_shape == [8, 2, 2]
+    config.readout.dimensions[0] = 99
+    config.divisor_offset = 1000.0
+
+    assert asdict(direct.config) == expected_config
+    assert direct.feature_readout_config == expected_config
+    torch.testing.assert_close(direct(x), expected_output, rtol=0, atol=0)
 
 
 def test_training_initializes_the_readout_like_the_affine_mlp_control():

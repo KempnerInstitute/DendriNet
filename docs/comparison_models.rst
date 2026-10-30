@@ -198,9 +198,10 @@ The options of ``model.core.affine_mlp``:
        other modes.
    * - ``initialization``
      - ``kaiming_normal``
-     - ``kaiming_normal``; ``kaiming_uniform_xavier_readout`` (dense hidden
-       layers Kaiming-uniform, last layer Xavier-uniform); or ``pytorch_default``
-       (dense only, retain the Linear constructors' weights and biases).
+     - ``kaiming_normal``; or, in ``dense`` mode only,
+       ``kaiming_uniform_xavier_readout`` (Kaiming-uniform hidden layers,
+       Xavier-uniform last layer) or ``pytorch_default`` (retain the Linear
+       constructors' weights and biases).
    * - ``activation``
      - ``relu``
      - ``relu`` or ``leaky_relu``.
