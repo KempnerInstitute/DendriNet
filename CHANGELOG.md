@@ -160,6 +160,9 @@
   Exports select the requested regular manifest in the committed tree, so
   working-tree symlinks cannot redirect the allow-list to a different file.
   Filesystem aliases to the repository root remain supported.
+  Isolate literal path checks from inherited Git pathspec settings, normalize
+  inferred parent directories for ``../contract`` and ``../manifest`` calls,
+  and reject manifest symlink hops that escape the root even if they return.
 
 - ``DendriNet`` levels can differ from the shared settings through
   ``level_overrides`` (constructor argument and ``DendriNetConfig`` field;

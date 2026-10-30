@@ -67,11 +67,45 @@ def _git(root: Path, *args: str) -> bytes:
     )
 
 
+def _check_manifest_path(root: Path, relative: Path) -> None:
+    """Check each symlink hop below a canonical root, allowing missing files."""
+
+    def walk(current: Path, parts: tuple[str, ...], active: set[Path]) -> Path:
+        for part in parts:
+            if part == "..":
+                if current == root:
+                    raise ValueError("The manifest must stay inside the paper root")
+                current = current.parent
+                continue
+            current /= part
+            if not current.is_symlink():
+                continue
+            link = current
+            if link in active:
+                raise ValueError(f"Symlink loop in manifest path: {link}")
+            target = link.readlink()
+            if target.is_absolute():
+                if not target.is_relative_to(root):
+                    raise ValueError("The manifest must stay inside the paper root")
+                current = root
+                target = target.relative_to(root)
+            else:
+                current = link.parent
+            current = walk(current, target.parts, active | {link})
+        return current
+
+    walk(root, relative.parts, set())
+
+
 def export_project(
     manifest: Path, commit: str, output: Path, *, paper_root: Path | None = None
 ) -> dict:
     """Write committed Git blobs; ``paper_root`` opts into a nested manifest."""
     requested = manifest.absolute()
+    if paper_root is None:
+        # Normalize the inferred repository only; Git must still select the
+        # requested filename rather than its working-tree symlink target.
+        requested = requested.parent.resolve() / requested.name
     root = (requested.parent if paper_root is None else paper_root).resolve()
     # Resolve aliases to the repository root, but retain every component below
     # it: a working-tree symlink must not select a different committed manifest.
@@ -81,8 +115,9 @@ def export_project(
             break
     else:
         raise ValueError("The manifest must be inside the paper root")
-    if ".." in relative.parts or not requested.resolve().is_relative_to(root):
+    if ".." in relative.parts:
         raise ValueError("The manifest must be inside the paper root")
+    _check_manifest_path(root, relative)
     output = output.resolve()
     if (
         Path(_git(root, "rev-parse", "--show-toplevel").decode().strip()).resolve()

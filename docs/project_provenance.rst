@@ -118,7 +118,11 @@ the declared repository, including through a symlink. Within that repository,
 the contract and each component of its requested path must be free of symlinks;
 name the actual tracked file instead. A filesystem alias to the repository
 root itself is allowed. Ownership and cleanliness checks treat filenames
-literally, including names containing Git wildcard characters.
+literally, including names containing Git wildcard characters. Inherited Git
+pathspec settings cannot change those checks; the caller's environment remains
+unchanged. Without ``--paper-root``, the inferred parent directory is normalized,
+so ``../dendrinet.project.json`` works from a paper subdirectory while a symlink
+at the filename is still rejected.
 
 ``check`` verifies, and fails with ``SourceContractError`` at the first
 problem:
@@ -253,10 +257,14 @@ revisions changes the recorded exporter hash, not the exported file contents.
 The requested repository-relative manifest path selects a regular file in the
 specified commit. Working-tree symlinks cannot redirect that selection: a
 contained link still selects the original committed path, while a link outside
-the repository is rejected. The manifest need not still exist in the working
-tree. As with source contracts, an alias to the repository root is allowed;
-paths containing parent-directory components (``..``) must be rewritten
-relative to that root.
+the repository is rejected, even if a later link points back inside. Each hop
+below the canonical repository root is checked, and symlink loops are rejected.
+The manifest need not still exist in the working tree. As with source contracts,
+an alias to the repository root is allowed. Without ``--paper-root``, the parent
+directory is normalized, so ``../manuscript_export.json`` works from a paper
+subdirectory without following the manifest filename. With an explicit root,
+paths containing parent-directory components (``..``) must be rewritten relative
+to that root.
 
 .. code-block:: json
 

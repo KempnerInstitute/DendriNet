@@ -276,6 +276,69 @@ def test_contract_allows_repository_root_alias(
     assert actual == expected
 
 
+@pytest.mark.parametrize(
+    "settings",
+    [
+        ["GIT_LITERAL_PATHSPECS"],
+        ["GIT_GLOB_PATHSPECS"],
+        ["GIT_NOGLOB_PATHSPECS"],
+        ["GIT_ICASE_PATHSPECS"],
+        [
+            "GIT_LITERAL_PATHSPECS",
+            "GIT_GLOB_PATHSPECS",
+            "GIT_NOGLOB_PATHSPECS",
+            "GIT_ICASE_PATHSPECS",
+        ],
+    ],
+)
+def test_contract_checks_ignore_inherited_pathspec_modes(
+    project, monkeypatch, settings
+):
+    library, paper, contract = project
+    expected = source.verify_contract(contract, library)
+    for setting in settings:
+        monkeypatch.setenv(setting, "1")
+    assert source.verify_contract(contract, library) == expected
+    script = paper / "scripts/evaluate.py"
+    script.write_text(script.read_text() + "\n")
+    with pytest.raises(source.SourceContractError, match="Uncommitted source"):
+        source.verify_contract(contract, library)
+    assert all(os.environ[setting] == "1" for setting in settings)
+
+
+def test_contract_checks_remain_case_sensitive(project, monkeypatch):
+    library, paper, contract = project
+    other = paper / "Scripts/unrelated.py"
+    other.parent.mkdir()
+    other.write_text("pass\n")
+    commit(paper, "Scripts")
+    expected = source.verify_contract(contract, library)
+    other.write_text("# outside the declared source paths\n")
+    monkeypatch.setenv("GIT_ICASE_PATHSPECS", "1")
+    assert source.verify_contract(contract, library) == expected
+
+
+def test_contract_infers_root_from_parent_relative_path(project, monkeypatch):
+    library, paper, contract = project
+    expected = source.verify_contract(contract, library)
+    subdirectory = paper / "work"
+    subdirectory.mkdir()
+    monkeypatch.chdir(subdirectory)
+    assert source.verify_contract(Path("..") / contract.name, library) == expected
+
+
+def test_parent_relative_contract_still_rejects_filename_symlink(project, monkeypatch):
+    library, paper, contract = project
+    link = paper / "alias.json"
+    link.symlink_to(contract.name)
+    commit(paper, link.name)
+    subdirectory = paper / "work"
+    subdirectory.mkdir()
+    monkeypatch.chdir(subdirectory)
+    with pytest.raises(source.SourceContractError, match="Source symlink"):
+        source.verify_contract(Path("..") / link.name, library)
+
+
 @pytest.mark.parametrize("location", ["library", "paper"])
 def test_rejects_modified_source(project, location):
     library, paper, contract = project

@@ -41,7 +41,14 @@ def _git(root: Path, *args: str) -> str:
         raise SourceContractError(f"No Git marker at declared source root: {root}")
     result = subprocess.run(
         ["git", "-C", str(root), *args],
-        env=dict(os.environ, GIT_OPTIONAL_LOCKS="0"),
+        env=dict(
+            os.environ,
+            GIT_OPTIONAL_LOCKS="0",
+            GIT_LITERAL_PATHSPECS="0",
+            GIT_GLOB_PATHSPECS="0",
+            GIT_NOGLOB_PATHSPECS="0",
+            GIT_ICASE_PATHSPECS="0",
+        ),
         text=True,
         capture_output=True,
         check=False,
@@ -266,6 +273,10 @@ def verify_contract(
     interpreter. Raises :class:`SourceContractError` when a check fails.
     """
     requested = contract_path.absolute()
+    if paper_root is None:
+        # The parent selects the repository; normalize ../ and root aliases,
+        # but keep the filename unresolved so a contract symlink is checked.
+        requested = requested.parent.resolve() / requested.name
     paper = (requested.parent if paper_root is None else paper_root).resolve()
     # Root aliases are allowed; aliases within the repository are source and
     # must not disappear before checking the caller's requested path.

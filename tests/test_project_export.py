@@ -4,6 +4,7 @@ import importlib.util
 import json
 import os
 import subprocess
+import sys
 import zipfile
 from pathlib import Path
 
@@ -315,3 +316,97 @@ def test_export_allows_repository_root_alias(
         paper_root=alias if alias_root else root,
     )
     assert output.read_bytes() == expected.read_bytes()
+
+
+@pytest.mark.parametrize("entry", ["api", "cli"])
+def test_export_infers_root_from_parent_relative_path(
+    paper, tmp_path, monkeypatch, entry
+):
+    root, manifest, git = paper
+    sha = git("rev-parse", "HEAD")
+    expected = tmp_path / "expected.zip"
+    export.export_project(manifest, sha, expected)
+    subdirectory = root / "work"
+    subdirectory.mkdir()
+    monkeypatch.chdir(subdirectory)
+    requested = Path("..") / manifest.name
+    output = tmp_path / "parent_relative.zip"
+    if entry == "api":
+        export.export_project(requested, sha, output)
+    else:
+        subprocess.run(
+            [
+                sys.executable,
+                export.__file__,
+                "--manifest",
+                str(requested),
+                "--commit",
+                sha,
+                "--output",
+                str(output),
+            ],
+            check=True,
+        )
+    assert output.read_bytes() == expected.read_bytes()
+
+
+@pytest.mark.parametrize("kind", ["file", "directory", "chain", "parent_detour"])
+def test_export_rejects_links_that_escape_then_return(paper, tmp_path, kind):
+    root, manifest, git = paper
+    requested = root / "old" / manifest.name
+    requested.parent.mkdir()
+    requested.write_bytes(manifest.read_bytes())
+    git("add", "--", "old")
+    git("commit", "-qm", "Record nested manifest fixture", "--", "old")
+    sha = git("rev-parse", "HEAD")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / manifest.name).symlink_to(manifest)
+    requested.unlink()
+    if kind == "file":
+        requested.symlink_to(outside / manifest.name)
+    elif kind == "parent_detour":
+        # This relative target first leaves the root, then comes back into it.
+        requested.symlink_to(Path("../..") / root.name / manifest.name)
+    else:
+        requested.parent.rmdir()
+        target = outside
+        if kind == "chain":
+            target = root / "intermediate"
+            target.symlink_to(outside)
+        requested.parent.symlink_to(target)
+    assert requested.resolve() == manifest
+    output = tmp_path / "rejected.zip"
+    with pytest.raises(ValueError, match="inside the paper root"):
+        export.export_project(requested, sha, output, paper_root=root)
+    assert not output.exists()
+
+
+def test_export_allows_contained_link_chain(paper, tmp_path):
+    root, manifest, git = paper
+    sha = git("rev-parse", "HEAD")
+    expected = tmp_path / "expected.zip"
+    export.export_project(manifest, sha, expected)
+    target = root / "version/manifest.json"
+    target.parent.mkdir()
+    target.write_bytes(manifest.read_bytes())
+    bridge = root / "bridge"
+    bridge.symlink_to("version")
+    manifest.unlink()
+    # The same directory symlink occurs twice, but does not form a cycle.
+    manifest.symlink_to("bridge/../bridge/manifest.json")
+    output = tmp_path / "contained.zip"
+    export.export_project(manifest, sha, output)
+    assert output.read_bytes() == expected.read_bytes()
+
+
+def test_export_rejects_symlink_loop(paper, tmp_path):
+    root, manifest, git = paper
+    sha = git("rev-parse", "HEAD")
+    manifest.unlink()
+    manifest.symlink_to("loop.json")
+    (root / "loop.json").symlink_to(manifest.name)
+    output = tmp_path / "loop.zip"
+    with pytest.raises(ValueError, match="Symlink loop"):
+        export.export_project(manifest, sha, output)
+    assert not output.exists()
