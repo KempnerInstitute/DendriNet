@@ -136,6 +136,7 @@ from dendritic_modeling.config.regularization import (
     RegularizationConfig,
     SelectiveConfig,
 )
+from dendritic_modeling.config.routed_ei import RoutedEIConfig
 from dendritic_modeling.config.shared_projection import SharedProjectionShuntingConfig
 from dendritic_modeling.config.training import (
     CommonTrainerConfig,
@@ -258,6 +259,7 @@ __all__ = [
     "RepresentationProbeConfig",
     "RepresentationProjectionConfig",
     "RepresentationSubsetProbeConfig",
+    "RoutedEIConfig",
     "RoutingAnalysisConfig",
     "SelectiveConfig",
     "SharedProjectionShuntingConfig",

@@ -654,6 +654,27 @@ def validate_loaded_config(config: Any) -> None:
         _validate_legacy_ei_core(core, errors)
     elif core_type in _POPULATION_NETWORK_TYPES:
         _validate_population_network_core(core, errors)
+    elif core_type == "routed_ei":
+        from dendritic_modeling.config.routed_ei import RoutedEIConfig
+
+        payload = _get(core, "routed_ei", None)
+        if payload is None:
+            errors.append("routed_ei requires its configuration section")
+        else:
+            try:
+                RoutedEIConfig(**to_plain_dict(payload)).validate()
+            except (TypeError, ValueError) as exc:
+                errors.append(str(exc))
+        main = _get(_get(config, "training", {}), "main", {})
+        if _get(main, "strategy", "standard") != "standard":
+            errors.append(
+                "routed_ei supports only the standard backpropagation trainer"
+            )
+        if _get(_get(main, "common", {}), "use_amp", False):
+            errors.append(
+                "routed_ei computes in its parameter dtype; set "
+                "training.main.common.use_amp: false"
+            )
     elif core_type == "shared_projection_shunting":
         from dendritic_modeling.config.shared_projection import (
             SharedProjectionShuntingConfig,

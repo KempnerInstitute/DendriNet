@@ -224,12 +224,15 @@ def _seed_named_population_initialization(
 # Feedforward core types built through ``prepare_ei_network_params``. Their
 # builders ignored ``core.initialization_seed`` before 2026-10-04, so training
 # leaves it unset and keeps their historical global-stream initialization; an
-# explicitly configured seed selects keyed initialization.
+# explicitly configured seed selects keyed initialization. The comparison
+# control ``routed_ei`` uses the global stream too, so training initializes it
+# as direct construction after ``torch.manual_seed(model_seed)`` and any
+# encoder draws would.
 _GLOBAL_STREAM_FEEDFORWARD_CORE_TYPES = frozenset(
     set(_EINET_TYPES)
     | set(SPATIAL_DENDRITIC_TYPES)
     | set(SPATIAL_DENDRITIC_CONV_TYPES)
-    | {"ss_mlp", "ss_mlp_flat"}
+    | {"ss_mlp", "ss_mlp_flat", "routed_ei"}
 )
 
 

@@ -1,0 +1,51 @@
+# Small runnable example using the existing branch-local gain/load dataset.
+# This binary task is not the historical multiclass routing-paper protocol.
+# dendritic-train configs/examples/routed_ei.yaml
+config_version: 4
+experiment:
+  seed: 17
+  checkpointing: {enabled: false}
+data:
+  dataset_name: branch_local_gain_load
+  dataset_params:
+    branch_local_gain_load:
+      n_samples: 256
+      stream_dim: 8
+      n_gain_groups: 2
+      train_gain_sigma: 0.4
+      test_gain_sigma: 0.8
+      valid_split_mode: train
+model:
+  task: classification
+  output_scale_mode: fixed
+  encoder: {type: identity, params: {input_dim: 16}}
+  core:
+    type: routed_ei
+    biological_neuron: false
+    routed_ei:
+      features: 8
+      branches: 3
+      output_dim: 2
+      mechanism: shunting
+      routing: learned
+      hard_routing: true
+      temperature: 1.0
+      leak_conductance: 1.0
+  decoder: {type: identity}
+training:
+  main:
+    strategy: standard
+    common:
+      epochs: 10
+      batch_size: 32
+      loss_function: ce
+      synapse_decay_rate: 0.0
+      weight_boosting: false
+      plot_losses: false
+    regularization:
+      routing_entropy_weight: 0.0
+      routing_balance_weight: 0.0
+    optimizer: {name: adam}
+outputs:
+  run_name: routed_ei_example
+  results_dir: outputs/examples

@@ -2,6 +2,53 @@
 
 ## Unreleased
 
+- Extend the opt-in routed E/I control with a signed tanh gate, fixed or learned
+  softplus slopes and offsets, and explicit branch-response diagnostics. The
+  gate defaults to absent: no new parameters, buffers, random draws or diagnostic
+  work in existing forwards. This is not the unit-range neuronal reactivation;
+  substituting that gate would change both outputs and optimization dynamics.
+
+- Add the opt-in `routed_ei` comparison core: one source-to-branch assignment
+  shared by paired E/I channels, positive weights divided by their branch sums,
+  existing shunting/additive current integration and an affine readout. Its
+  typed payload is `None` in other cores; unsupported training, mixed
+  precision, unused sections, options that fixed routing ignores and a leak
+  that rounds to zero in the model's dtype raise. Leak and epsilon must also
+  remain finite in that dtype, including in branch-response diagnostics.
+  Fixed/learned routing, a global-mean inhibitory control and an explicit
+  clamped-sum normalization floor support historical reduced-model replay.
+  Non-list fixed assignments are rejected before any initialization draws.
+  Explicit normalization floors must remain finite and strictly positive in
+  the weight dtype, both in routed models and the shared normalization helpers.
+  Sum-based normalization also rejects nonfinite row totals, including overflow
+  from finite weights, before division can silently zero a nonempty branch.
+  Routing temperatures and branch-affine constants are checked in their tensor
+  dtype, with positive temperature, scale and divisor. Shared routing rejects
+  nonfinite scaled logits before softmax, including in pathway routers and
+  routing diagnostics. Initialization spreads and gate constants are checked
+  in the construction dtype before any random draws. Valid arithmetic and
+  initialization streams are unchanged.
+  Dividing by the sum (`networks.utils.weight_normalization.divide_rows_by_sum`,
+  shared with `normalize_weight_rows(sum_floor=...)`) keeps the normalization's
+  derivative at the zero entries of hard-routed rows. Parameters a
+  configuration never reads keep their checkpoint keys but do not require
+  gradients, so distributed training does not wait for them. Training
+  initializes the control from the global stream; an explicit
+  `core.initialization_seed` selects a CPU stream keyed by the seed and core type.
+  Explicit-seed construction stays on CPU under a CUDA default device and
+  preserves the caller's CPU/CUDA random states and device setting. Unseeded
+  construction retains its original device and random draws.
+  Pathway routing now shares its unchanged soft-assignment arithmetic with this
+  control.
+- Add optional routing-entropy and balance penalties to the existing
+  regularization manager. Both default to zero and do no routing work unless
+  requested; a requested penalty needs a learned router, since fixed routers
+  return no statistics. No existing model, initialization stream or checkpoint
+  changes.
+  The configured-step benchmark checks enabled penalties through the
+  regularization manager and rejects them before initialization, including
+  routing penalties in typed and legacy mapping configurations.
+
 - Public `networks.functional.shunting_voltage` and `additive_voltage` evaluate
   pre-gate voltages from explicit currents without a layer-owner stand-in.
   They share arithmetic with the existing current-substitution/recurrent path,

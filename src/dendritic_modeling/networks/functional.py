@@ -21,10 +21,11 @@ def _shunting_current_components(
     child_conductance,
     leak,
 ):
-    """Unchecked arithmetic shared with the recurrent/current-substitution path.
+    """Unchecked arithmetic shared by the checked API and the training paths.
 
-    Keep the order and the scalar-zero shortcuts: regrouping sums can change
-    last bits in existing models and checkpoint analyses.
+    The recurrent/current-substitution path and the routed E/I control call it
+    directly. Keep the order and the scalar-zero shortcuts: regrouping sums can
+    change last bits in existing models and checkpoint analyses.
     """
     numerator = excitation + recurrent_excitation
     if torch.is_tensor(child_current) or child_current:

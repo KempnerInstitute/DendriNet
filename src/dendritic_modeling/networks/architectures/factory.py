@@ -2,8 +2,10 @@ import dataclasses
 import logging
 import math
 from collections.abc import Callable
+from contextlib import contextmanager
 from typing import Any, Optional, Union
 
+import torch
 import torch.nn as nn
 from omegaconf import DictConfig
 
@@ -13,6 +15,7 @@ from dendritic_modeling.config.conversion import to_plain_dict as _to_plain_mapp
 from dendritic_modeling.config.core_sections import BUILTIN_CORE_TYPES
 from dendritic_modeling.config.model_aliases import get_core_morphology_alias_overrides
 from dendritic_modeling.config.recurrence import _STRUCTURED_EI_TYPES, _UNIFIED_EI_TYPES
+from dendritic_modeling.config.seeds import derive_seed
 from dendritic_modeling.config.shared_projection import SharedProjectionShuntingConfig
 from dendritic_modeling.networks.architectures.biological_constraints import (
     enforce_biological_neuron,
@@ -103,6 +106,23 @@ ArchitectureBuilder = Callable[
     [str, Union[dict[str, Any], DictConfig], Optional[int], Optional[int]],
     nn.Module,
 ]
+
+
+@contextmanager
+def _keyed_initialization_stream(seed, core_type):
+    """Construct a control core from a CPU stream keyed by an explicit seed.
+
+    ``None`` keeps the caller's global stream. The key keeps a seed equal to
+    the run's model seed from replaying the draws of an encoder built from it.
+    """
+    if seed is None:
+        yield
+        return
+    with torch.device("cpu"), torch.random.fork_rng(devices=[]):
+        torch.random.default_generator.manual_seed(
+            derive_seed(int(seed), f"core.{core_type}.initialization")
+        )
+        yield
 
 
 def _build_einet_architecture(
@@ -376,6 +396,42 @@ def _build_shared_projection_architecture(
     return build_shared_projection_shunting(config)
 
 
+def _build_routed_ei_architecture(type, parameters, input_dim, suffix_input_dim):
+    from dendritic_modeling.config.core_sections import reject_unread_core_sections
+    from dendritic_modeling.config.routed_ei import RoutedEIConfig
+    from dendritic_modeling.networks.architectures.excitation_inhibition.routed_ei import (
+        build_routed_ei,
+    )
+
+    raw = _to_plain_mapping(parameters)
+    if "routed_ei" in raw:
+        from dendritic_modeling.config.model import CoreConfig
+
+        if str(raw.get("type", type)).strip().lower() != type:
+            raise ValueError("routed_ei builder and configured core type disagree")
+        # Keep typed nested sections so the shared validator recognizes the
+        # topology seeds filled by training setup, rather than warning that
+        # those default-only sections were explicitly requested by the user.
+        core = (
+            parameters
+            if isinstance(parameters, CoreConfig)
+            else CoreConfig(**{"type": type, **raw})
+        )
+        reject_unread_core_sections(core, raw)
+    payload = raw.get("routed_ei", raw)
+    if payload is None:
+        raise ValueError("routed_ei requires its configuration section")
+    config = RoutedEIConfig(**payload)
+    config.validate()
+    if input_dim is not None and input_dim != 2 * config.features:
+        raise ValueError("routed_ei encoder output must contain concatenated [E, I]")
+    if suffix_input_dim is not None and suffix_input_dim != config.output_dim:
+        raise ValueError("routed_ei output dimension does not match the decoder")
+    seed = raw.get("initialization_seed")
+    with _keyed_initialization_stream(seed, "routed_ei"):
+        return build_routed_ei(config)
+
+
 def _build_flat_mlp_architecture(
     type: str,
     parameters: Union[dict[str, Any], DictConfig],
@@ -579,6 +635,7 @@ def _build_builtin_architecture_registry() -> dict[str, ArchitectureBuilder]:
             "mlp": _build_flat_mlp_architecture,
             "affine_mlp": _build_affine_mlp_architecture,
             "shared_projection_shunting": _build_shared_projection_architecture,
+            "routed_ei": _build_routed_ei_architecture,
             "total_param_mlp": _build_total_param_mlp,
             "active_param_mlp": _build_active_param_mlp,
             "ss_mlp": _build_sparse_structured_mlp,
