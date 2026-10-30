@@ -462,6 +462,9 @@ from the run's global random stream (after any encoder draws), as it builds an
 ``affine_mlp`` core, so ``normalization: none`` starts from the weights of the
 equivalent ``affine_mlp`` control. An explicit ``core.initialization_seed``
 draws the readout from a CPU stream keyed by that seed and the core type.
+This construction stays on CPU even under a CUDA default device, preserving
+the caller's CPU/CUDA random streams and default device. Move the resulting
+model to the desired device afterwards, as the standard training setup does.
 
 Four normalization choices are supported:
 
@@ -475,7 +478,9 @@ Four normalization choices are supported:
   distinct from the existing L1 input normalizer and from the E/I shunting rule.
 
 Grouped modes require ``groups`` to divide the channel count. Only group-mean
-division accepts ``divisor_offset``, which must be positive. LayerNorm and
+division accepts ``divisor_offset``, which must remain finite and strictly
+positive in the input dtype; values that overflow or round to zero raise before
+division. LayerNorm and
 GroupNorm use ``normalization_epsilon`` (default ``1e-5``) and
 ``normalization_affine`` (default true). Irrelevant non-default options raise.
 For group-mean division, ``forward`` and ``representation`` also accept an

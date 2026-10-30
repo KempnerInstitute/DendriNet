@@ -9,7 +9,10 @@
   an explicit runtime input. It does not change physical shunting, L1 input
   normalization, existing cores or their default random streams. Training
   initializes it from the global stream, like `affine_mlp`; an explicit
-  `core.initialization_seed` selects a stream keyed by the seed and core type.
+  `core.initialization_seed` selects a CPU stream keyed by the seed and core type,
+  preserving the caller's CPU/CUDA RNG states under a CUDA default device.
+  The group-mean divisor offset must remain finite and strictly positive in
+  the input dtype; overflow or rounding to zero raises before division.
 
 - Add opt-in `affine_mlp.initialization: pytorch_default` for dense controls.
   It retains the original Linear constructor weights, biases and RNG draws;

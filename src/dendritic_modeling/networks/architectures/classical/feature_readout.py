@@ -9,6 +9,7 @@ from torch import nn
 
 from dendritic_modeling.config.feature_readout import FeatureReadoutConfig
 from dendritic_modeling.networks.architectures.classical.mlp import build_affine_mlp
+from dendritic_modeling.networks.functional import _check_operand
 
 
 class FeatureReadout(nn.Module):
@@ -74,6 +75,9 @@ class FeatureReadout(nn.Module):
             if not torch.isfinite(divisor_noise).all() or (divisor_noise < 0).any():
                 raise ValueError("divisor_noise must be finite and nonnegative")
         if self.config.normalization == "group_mean":
+            _check_operand(
+                self.config.divisor_offset, x, "divisor_offset", positive=True
+            )
             groups = self.config.groups
             grouped = x.reshape(x.shape[0], groups, shape[0] // groups, *shape[1:])
             divisor = grouped.mean(dim=tuple(range(2, grouped.ndim)), keepdim=True)

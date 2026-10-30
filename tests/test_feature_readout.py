@@ -69,22 +69,25 @@ class Reference(nn.Module):
 )
 @pytest.mark.parametrize("hidden", [False, True])
 @pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
+@pytest.mark.parametrize(
+    "device", ["cpu", pytest.param("cuda", marks=pytest.mark.requires_gpu)]
+)
 def test_initialization_gradients_updates_and_checkpoint_exact(
-    normalization, hidden, dtype
+    normalization, hidden, dtype, device
 ):
     config = spec(normalization, hidden)
     torch.manual_seed(23)
-    old = Reference(config).to(dtype)
+    old = Reference(config).to(device=device, dtype=dtype)
     rng = torch.get_rng_state().clone()
     torch.manual_seed(23)
-    new = build_feature_readout(config).to(dtype)
+    new = build_feature_readout(config).to(device=device, dtype=dtype)
     assert torch.equal(rng, torch.get_rng_state())
     assert list(old.state_dict()) == list(new.state_dict())
     assert list(dict(old.named_parameters())) == list(dict(new.named_parameters()))
     assert all(torch.equal(v, new.state_dict()[k]) for k, v in old.state_dict().items())
-    x = torch.linspace(-0.2, 2.4, 96, dtype=dtype).reshape(3, 8, 2, 2)
+    x = torch.linspace(-0.2, 2.4, 96, dtype=dtype, device=device).reshape(3, 8, 2, 2)
     noise = (
-        torch.linspace(0.2, 2, 6, dtype=dtype).reshape(3, 2)
+        torch.linspace(0.2, 2, 6, dtype=dtype, device=device).reshape(3, 2)
         if normalization == "group_mean"
         else None
     )
@@ -322,3 +325,50 @@ def test_group_divisor_noise_validation_and_gradient():
         model(torch.zeros(2, 4, 8, dtype=torch.float64))
     with pytest.raises(TypeError, match="floating"):
         model(torch.zeros(2, 32, dtype=torch.int64))
+
+
+@pytest.mark.parametrize(
+    "dtype, offset",
+    [
+        (torch.float16, 1e-8),
+        (torch.float16, 1e5),
+        (torch.bfloat16, 1e-42),
+        (torch.bfloat16, 1e40),
+        (torch.float32, 1e-50),
+        (torch.float32, 1e40),
+    ],
+)
+@pytest.mark.parametrize(
+    "device", ["cpu", pytest.param("cuda", marks=pytest.mark.requires_gpu)]
+)
+def test_group_mean_offset_must_remain_positive_and_finite(dtype, offset, device):
+    config = replace(spec("group_mean"), divisor_offset=offset)
+    model = build_feature_readout(config).to(device=device, dtype=torch.float64)
+    x = torch.zeros(2, 32, device=device, dtype=torch.float64)
+    assert torch.isfinite(model(x)).all()
+    model.to(dtype)
+    for call in (model, model.representation):
+        with pytest.raises(ValueError, match="divisor_offset"):
+            call(x.to(dtype))
+
+
+@pytest.mark.requires_gpu
+@pytest.mark.parametrize(
+    "normalization", ["none", "group_mean", "layer_norm", "group_norm"]
+)
+def test_explicit_seed_under_cuda_default_preserves_caller_state(normalization):
+    raw = {"feature_readout": asdict(spec(normalization)), "initialization_seed": 7}
+    reference = get_architecture("feature_readout", raw)
+    cpu_rng = torch.get_rng_state().clone()
+    cuda_rng = torch.cuda.get_rng_state().clone()
+    with torch.device("cuda"):
+        first = get_architecture("feature_readout", raw)
+        second = get_architecture("feature_readout", raw)
+        assert torch.empty(0).device.type == "cuda"
+        assert torch.equal(cpu_rng, torch.get_rng_state())
+        assert torch.equal(cuda_rng, torch.cuda.get_rng_state())
+        for name, value in reference.state_dict().items():
+            for model in (first, second):
+                actual = model.state_dict()[name]
+                assert actual.device.type == "cpu"
+                torch.testing.assert_close(actual, value, rtol=0, atol=0)
