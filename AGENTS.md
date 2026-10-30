@@ -1,7 +1,8 @@
 # AGENTS.md
 
 Guidance for coding agents and contributors working in this repository.
-`CLAUDE.md` links here. Human-oriented detail lives in
+Tools that read `CLAUDE.md` can use a local, untracked link to this file
+(`ln -s AGENTS.md CLAUDE.md`). Human-oriented detail lives in
 [`docs/contributing.rst`](docs/contributing.rst).
 
 ## Project
@@ -91,6 +92,12 @@ benchmarks.
   training rules and analysis primitives belong here. Study protocols, sweeps,
   recipes, figure scripts and paper-specific analyses belong in the studies'
   own repositories, which pin a library revision.
+- **Reuse before adding.** Inspect existing implementations and their contracts
+  before adding a method, control or tool. Prefer composition or a small opt-in
+  extension over a parallel implementation. Document the mathematical or API
+  gap when a new component is necessary. A better existing method may replace
+  paper code only after numerical comparisons; do not silently change the
+  paper's equations or historical behavior to fit it.
 - **Keep features working.** Do not remove a feature because no current study
   uses it; make it correct and tested. Remove only unreachable code and record
   each removal in `CHANGELOG.md`.
@@ -122,6 +129,7 @@ benchmarks.
 
 ## Commits and changes
 
+- Name new branches for their topic or capability, not `codex/...`.
 - Make small, focused commits with one-line imperative messages, staging
   explicit paths. Run the hooks and the relevant tests before committing.
 - Never commit results, checkpoints, datasets, generated figures or files over

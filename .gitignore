@@ -67,7 +67,9 @@ cover/
 *.lprof
 /docs/_build/
 
-# Editor, notebook and agent state; shared contributor instructions stay tracked.
+# Editor, notebook and agent state. AGENTS.md, the shared contributor
+# instructions, stays tracked; CLAUDE.md is a local link to it.
+/CLAUDE.md
 .DS_Store
 .idea/
 .vscode/
