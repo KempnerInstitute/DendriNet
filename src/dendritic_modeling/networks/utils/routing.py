@@ -3,11 +3,15 @@
 import torch
 from torch.nn import functional as F
 
+from dendritic_modeling.networks.functional import _check_operand
+
 
 def routing_assignments(logits, temperature, *, dim=-1, hard=False, training=False):
     """Softmax over destinations, optionally one-hot with a straight-through VJP.
 
-    Callers validate their configuration. The default is the original pathway
+    Temperature must remain positive and finite in the logits dtype, and
+    division by it must leave finite logits. Checking the latter reads tensor
+    values and may synchronize the device. The default is the original pathway
     router's soft assignment, with unchanged arithmetic and no random draws.
     Hard training uses ``discrete + soft - soft.detach()``, the expression of
     the reduced models it replays; a selected entry can then differ from one in
@@ -15,7 +19,11 @@ def routing_assignments(logits, temperature, *, dim=-1, hard=False, training=Fal
     Evaluation uses exact one-hot entries. This is not Top-K contact selection
     within a row.
     """
-    soft = torch.softmax(logits / temperature, dim=dim)
+    _check_operand(temperature, logits, "temperature", positive=True)
+    scaled_logits = logits / temperature
+    if not bool(torch.isfinite(scaled_logits).all()):
+        raise ValueError("scaled routing logits must be finite before softmax")
+    soft = torch.softmax(scaled_logits, dim=dim)
     if not hard:
         return soft
     discrete = F.one_hot(soft.argmax(dim=dim), num_classes=logits.shape[dim])

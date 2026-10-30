@@ -20,6 +20,12 @@
   Non-list fixed assignments are rejected before any initialization draws.
   Explicit normalization floors must remain finite and strictly positive in
   the weight dtype, both in routed models and the shared normalization helpers.
+  Routing temperatures and branch-affine constants are checked in their tensor
+  dtype, with positive temperature, scale and divisor. Shared routing rejects
+  nonfinite scaled logits before softmax, including in pathway routers and
+  routing diagnostics. Initialization spreads and gate constants are checked
+  in the construction dtype before any random draws. Valid arithmetic and
+  initialization streams are unchanged.
   Dividing by the sum (`networks.utils.weight_normalization.divide_rows_by_sum`,
   shared with `normalize_weight_rows(sum_floor=...)`) keeps the normalization's
   derivative at the zero entries of hard-routed rows. Parameters a

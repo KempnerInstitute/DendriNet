@@ -483,6 +483,11 @@ initialization draws any random numbers. Fixed routing does not read
 ``temperature``, ``hard_routing`` or ``route_init_std``, so
 their non-default values raise. Assigning ``model.temperature`` re-validates
 the configuration, so a temperature schedule applies to learned routing only.
+At use, temperature must remain finite and strictly positive in the logits
+dtype. The shared routing helper rejects nonfinite scaled logits before
+softmax; this also protects statistics, inferred assignments and learned
+``pathway_router`` assignments. This check reads tensor values and may
+synchronize the device. Valid assignments keep their original arithmetic.
 Empty branches have zero drive; no implicit balancing or reassignment occurs.
 ``inhibitory_support: global_mean`` is a shunting-only control that replaces
 each branch's inhibitory drive by the unweighted mean of the input I channels.
@@ -493,7 +498,9 @@ to zero. Raw addition is
 ``E - I``; nondefault leak/epsilon values and global-mean support are rejected
 because this comparator does not use them. The optional output transformation is
 ``branch_scale * (voltage - branch_center) / branch_divisor``; its default is
-the identity. No gate, across-feature normalization or learned output scale is
+the identity. All three constants must remain finite in the voltage dtype,
+with scale and divisor strictly positive after conversion. Signed centers
+are supported. No gate, across-feature normalization or learned output scale is
 implicit in this core. Set the outer model's ``output_scale_mode: fixed``
 and use identity encoder/decoder modules to retain that contract. The control
 computes in its parameter dtype: ``training.main.common.use_amp: true`` raises
@@ -505,6 +512,10 @@ An explicit ``branch_activation: tanh`` applies
 before the affine readout. The initial raw slope defaults to ``0.5413249``
 (approximately unit softplus slope) and the offset to zero. These per-branch
 values are fixed buffers unless ``trainable_activation: true`` is requested.
+Initialization spreads and the optional gate's initial constants must be
+finite in the default dtype used to construct parameters. An invalid value
+raises before initialization draws any random numbers. This check does not
+rescale the specified values or change valid initialization streams.
 This signed gate is not the neuronal ``ParametricTanh``: that gate has a
 unit-range output, an exponential slope and a voltage midpoint. Substituting
 one for the other changes optimization even when an operating-point response

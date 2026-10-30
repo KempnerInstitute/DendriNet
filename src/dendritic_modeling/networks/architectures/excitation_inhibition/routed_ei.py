@@ -41,6 +41,16 @@ class RoutedEIReadout(nn.Module):
         super().__init__()
         config = RoutedEIConfig(**asdict(config))
         config.validate()  # Fail before drawing or registering parameters.
+        # These scalars are materialized during initialization, before callers
+        # can convert the model to another dtype. Validate before any RNG draws.
+        reference = torch.empty(0, dtype=torch.get_default_dtype(), device="cpu")
+        for name in ("route_init_std", "weight_init_std"):
+            _check_operand(getattr(config, name), reference, name)
+        if config.branch_activation != "none":
+            for name in ("activation_slope_raw", "activation_offset"):
+                _check_operand(
+                    getattr(config, name), reference, name, nonnegative=False
+                )
         self.config = config
         self.features = config.features
         self.branches = config.branches
@@ -227,6 +237,13 @@ class RoutedEIReadout(nn.Module):
                 e, 0.0, i, 0.0, 0.0, None, leak
             )
             voltage = numerator / (denominator + self.config.epsilon)
+        _check_operand(self.config.branch_scale, voltage, "branch_scale", positive=True)
+        _check_operand(
+            self.config.branch_center, voltage, "branch_center", nonnegative=False
+        )
+        _check_operand(
+            self.config.branch_divisor, voltage, "branch_divisor", positive=True
+        )
         preactivation = (
             self.config.branch_scale
             * (voltage - self.config.branch_center)
