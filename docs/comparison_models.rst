@@ -544,6 +544,9 @@ Replaying a clamped-sum model therefore requires its original floor. The floor
 must remain finite and strictly positive in the weight dtype; values that
 overflow or round to zero raise before division. The same check applies to
 ``divide_rows_by_sum`` and ``normalize_weight_rows(..., sum_floor=...)``.
+These sum-based paths also reject nonfinite row sums before division, including
+overflow from finite weights, instead of silently zeroing a nonempty branch.
+Finite sums retain the original normalization arithmetic and gradients.
 
 The fixed-assignment and global-mean controls keep the unused route-logit or
 I-weight parameters and their initialization draws, so all variants share one
@@ -561,7 +564,11 @@ No production paper pin is changed merely by selecting this architecture.
 Training builds the control from the run's global random stream, as direct
 construction after ``torch.manual_seed(model_seed)`` and any encoder draws
 would. An explicit ``core.initialization_seed`` instead draws it from a CPU
-stream keyed by that seed and the core type.
+stream keyed by that seed and the core type. Explicit-seed construction takes
+place on CPU even when the caller's default device is CUDA, and restores both
+the caller's device setting and random streams. Move the constructed core to
+the desired device afterwards, as the standard training setup does. Without
+an explicit seed, construction retains the caller's default device and stream.
 
 Routing regularization is opt-in under
 ``training.main.regularization``. ``routing_entropy_weight`` penalizes
@@ -574,6 +581,9 @@ penalty on a model without a learned router raises. Both weights default to
 zero, which performs no routing discovery or computation in existing runs.
 ``routing_regularizer(entropy_weight=..., balance_weight=...)`` evaluates the
 same term for a direct training loop; its weights have no defaults.
+The configured-step benchmark supports no additional regularization and rejects
+these penalties before model initialization, using the trainer's regularization
+manager to determine which terms are enabled.
 
 Parameter-budget model families
 -------------------------------

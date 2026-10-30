@@ -118,7 +118,7 @@ def _keyed_initialization_stream(seed, core_type):
     if seed is None:
         yield
         return
-    with torch.random.fork_rng(devices=[]):
+    with torch.device("cpu"), torch.random.fork_rng(devices=[]):
         torch.random.default_generator.manual_seed(
             derive_seed(int(seed), f"core.{core_type}.initialization")
         )

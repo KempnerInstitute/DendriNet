@@ -57,3 +57,46 @@ def test_representable_floor_keeps_literal_values_and_gradients(operator, dtype,
     torch.testing.assert_close(actual, expected, rtol=0, atol=0)
     torch.testing.assert_close(actual_grad, expected_grad, rtol=0, atol=0)
     assert torch.isfinite(actual).all() and torch.isfinite(actual_grad).all()
+
+
+@pytest.mark.parametrize(
+    "operator, floor",
+    [(divide_rows_by_sum, None), (divide_rows_by_sum, 1.0), (_normalize, 1.0)],
+)
+@pytest.mark.parametrize(
+    "dtype", [torch.float16, torch.bfloat16, torch.float32, torch.float64]
+)
+@pytest.mark.parametrize(
+    "device", ["cpu", pytest.param("cuda", marks=pytest.mark.requires_gpu)]
+)
+def test_finite_weights_with_overflowing_sums_are_rejected(
+    operator, floor, dtype, device
+):
+    large = torch.finfo(dtype).max * 0.75
+    weight = torch.tensor([[0.0, 0.0], [large, large]], dtype=dtype, device=device)
+    assert torch.isfinite(weight).all()
+    assert not torch.isfinite(weight.sum(-1)).all()
+    with pytest.raises(ValueError, match="row sums must be finite"):
+        operator(weight, floor)
+
+
+@pytest.mark.parametrize("floor", [None, 1.0])
+@pytest.mark.parametrize(
+    "device", ["cpu", pytest.param("cuda", marks=pytest.mark.requires_gpu)]
+)
+def test_routed_drives_reject_overflowing_weight_sums(floor, device):
+    from dendritic_modeling.config import RoutedEIConfig
+    from dendritic_modeling.networks.architectures.excitation_inhibition.routed_ei import (
+        build_routed_ei,
+    )
+
+    torch.manual_seed(29)
+    model = build_routed_ei(
+        RoutedEIConfig(features=2, branches=1, weight_normalization_floor=floor)
+    ).to(device=device, dtype=torch.float16)
+    with torch.no_grad():
+        model.e_weight_raw.fill_(40000)
+    x = torch.ones(2, 4, device=device, dtype=torch.float16)
+    for call in (model, model.drives, model.branch_values, model.branch_response):
+        with pytest.raises(ValueError, match="row sums must be finite"):
+            call(x)

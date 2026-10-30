@@ -163,7 +163,9 @@ def divide_rows_by_sum(
     convention, so rows below the floor shrink. The scalar floor must remain
     finite and strictly positive in ``weight.dtype``. Callers guarantee finite,
     nonnegative weights; ``normalize_weight_rows(..., sum_floor=...)`` checks
-    them first.
+    them first. Nonfinite row sums raise before division, including overflow
+    from finite weights. This check reads tensor values and may synchronize
+    the device; finite sums retain their original arithmetic.
     """
     if floor is not None:
         if (
@@ -177,6 +179,8 @@ def divide_rows_by_sum(
         if not math.isfinite(converted) or converted <= 0:
             raise ValueError(f"floor must remain finite and positive in {weight.dtype}")
     total = weight.sum(dim=-1, keepdim=True)
+    if not bool(torch.isfinite(total).all()):
+        raise ValueError("weight row sums must be finite before normalization")
     if floor is None:
         return weight / torch.where(total > 0, total, torch.ones_like(total))
     return weight / total.clamp_min(floor)
