@@ -93,6 +93,27 @@ Analysis
 .. autoclass:: dendritic_modeling.analysis.utils.streaming_covariance.StreamingCovariance
    :members:
 
+.. autofunction:: dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer.capture_analysis_currents
+
+.. automethod:: dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer.DendriticBranchLayer.set_analysis_currents
+
+.. automethod:: dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer.DendriticBranchLayer.get_analysis_currents
+
+.. automethod:: dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer.DendriticBranchLayer.clear_analysis_currents
+
+.. autoclass:: dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.compartment_perturbation.CompartmentPerturbation
+
+.. autofunction:: dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer.perturb_compartments
+
+.. automethod:: dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer.DendriticBranchLayer.set_compartment_perturbation
+
+.. automethod:: dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer.DendriticBranchLayer.clear_compartment_perturbation
+
+.. autoclass:: dendritic_modeling.analysis.tools.node_perturbation_credit.NodePerturbationCreditAnalyzer
+   :members: analyze
+
+.. automethod:: dendritic_modeling.training.strategies.local_learning.LocalCreditAssignment.assign_gradients
+
 Training state
 --------------
 
@@ -133,6 +154,17 @@ delivered-error building blocks.
 .. autofunction:: dendritic_modeling.training.local_delivery.activation_slope
 
 .. autofunction:: dendritic_modeling.training.local_delivery.expand_to_children
+
+:ref:`node-perturbation` describes the node-perturbation estimates.
+
+.. autofunction:: dendritic_modeling.training.node_perturbation.node_perturbation_estimates
+
+.. autoclass:: dendritic_modeling.training.node_perturbation.NodePerturbationEstimate
+   :members: evaluations_per_example
+
+.. autofunction:: dendritic_modeling.training.node_perturbation.group_basis
+
+.. autofunction:: dendritic_modeling.training.node_perturbation.check_orthonormal_basis
 
 Comparison models
 -----------------

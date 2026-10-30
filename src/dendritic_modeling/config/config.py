@@ -39,6 +39,7 @@ from dendritic_modeling.config.extensions import (
     config_section_builder,
     registered_named_sections,
 )
+from dendritic_modeling.config.feature_readout import FeatureReadoutConfig
 from dendritic_modeling.config.inhibitory_wiring import check_retired_inhibitory_routing
 from dendritic_modeling.config.io_params import (
     IDENTITY_TYPES,
@@ -92,6 +93,7 @@ from dendritic_modeling.config.recurrence import (
 )
 from dendritic_modeling.config.recurrent_payloads import check_recurrent_payloads
 from dendritic_modeling.config.regularization import PruningConfig, RegularizationConfig
+from dendritic_modeling.config.routed_ei import RoutedEIConfig
 from dendritic_modeling.config.shared_projection import SharedProjectionShuntingConfig
 from dendritic_modeling.config.structured_connectivity import canonical_rule
 from dendritic_modeling.config.training import (
@@ -654,6 +656,16 @@ def _build_core_config(core_data: Any) -> CoreConfig:
     core = CoreConfig(
         type=core_type,
         affine_mlp=None if affine_mlp is None else typed("affine_mlp", AffineMLPConfig),
+        feature_readout=(
+            None
+            if core_dict.get("feature_readout") is None
+            else typed("feature_readout", FeatureReadoutConfig)
+        ),
+        routed_ei=(
+            None
+            if core_dict.get("routed_ei") is None
+            else typed("routed_ei", RoutedEIConfig)
+        ),
         shared_projection_shunting=(
             None
             if core_dict.get("shared_projection_shunting") is None

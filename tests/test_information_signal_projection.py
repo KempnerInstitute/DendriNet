@@ -17,7 +17,7 @@ from test_operator_config_contract import _config
 from dendritic_modeling.analysis.core.information_parts.information_signal_projection import (
     compute_projected_branch_output,
 )
-from dendritic_modeling.networks import DendriticBranchLayer
+from dendritic_modeling.networks import DendriticBranchLayer, capture_analysis_currents
 from dendritic_modeling.networks.architectures.factory import get_architecture
 
 
@@ -42,19 +42,26 @@ def _recorded(record, name):
     ["shunting", "raw", "legacy_zscore", "conductance_normalized", "tangent_matched"],
 )
 @pytest.mark.parametrize("gate", ["identity", "param_tanh"])
-def test_projection_of_recorded_currents_reproduces_each_layer(rule, gate, leak):
+@pytest.mark.parametrize("capture_was_enabled", [False, True])
+def test_projection_of_recorded_currents_reproduces_each_layer(
+    rule, gate, leak, capture_was_enabled
+):
     if leak != 1.0 and rule != "shunting":
         pytest.skip("a non-unit leak requires shunting integration")
     network = _network(rule, gate, leak)
     branches = [m for m in network.modules() if isinstance(m, DendriticBranchLayer)]
     for branch in branches:
-        branch._store_analysis_currents = True
-    with torch.no_grad():
+        branch.set_analysis_currents(capture_was_enabled)
+    with torch.no_grad(), capture_analysis_currents(branches):
         network(torch.rand(5, 6, generator=torch.Generator().manual_seed(2)))
+        records = {branch: branch.get_analysis_currents() for branch in branches}
 
+    # Projection substitutes currents after collection, as the analyzer does;
+    # it is not another capture of the model's actual forward compartments.
     non_leaf = 0
     for branch in branches:
-        record = branch._last_analysis_currents
+        assert branch.analysis_currents_enabled == capture_was_enabled
+        record = records[branch]
         projected = compute_projected_branch_output(
             branch,
             *(
@@ -69,8 +76,28 @@ def test_projection_of_recorded_currents_reproduces_each_layer(rule, gate, leak)
         np.testing.assert_allclose(
             projected, record["post_gate_output"].double().numpy(), rtol=1e-5, atol=1e-6
         )
+        assert branch.analysis_currents_enabled == capture_was_enabled
+        assert branch.get_analysis_currents() == {}
         non_leaf += bool(branch.input_branches)
     assert non_leaf >= 2  # the soma and the middle level have child branches
+
+
+@pytest.mark.parametrize("capture_was_enabled", [False, True])
+def test_projection_restores_capture_after_an_error(monkeypatch, capture_was_enabled):
+    network = _network("shunting", "identity", 1.0)
+    branch = next(m for m in network.modules() if isinstance(m, DendriticBranchLayer))
+    branch.set_analysis_currents(capture_was_enabled)
+
+    def fail(*args, **kwargs):
+        assert not branch.analysis_currents_enabled
+        raise RuntimeError("projection failed")
+
+    monkeypatch.setattr(branch, "output_from_currents", fail)
+    with pytest.raises(RuntimeError, match="projection failed"):
+        compute_projected_branch_output(
+            branch, np.ones((2, 1)), np.ones((2, 1)), np.ones((2, 1))
+        )
+    assert branch.analysis_currents_enabled == capture_was_enabled
 
 
 @pytest.mark.parametrize(

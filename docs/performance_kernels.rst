@@ -638,7 +638,8 @@ tools; each prints its results and can write them as JSON.
    epoch length that schedules rewiring. The configuration needs an
    ``identity`` encoder, a classification task, the ``standard`` or
    ``presentation_stream`` strategy, full precision (``use_amp: false``), no
-   NaN checking, no additional regularization, backpropagated reactivation
+   NaN checking, no additional regularization (including routing entropy and
+   balance penalties), backpropagated reactivation
    updates and no ``initial_checkpoint``. The output records the resolved
    configuration, library commit, device, precision flags, the number of
    layers on each configured and each resolved backend, synchronized step

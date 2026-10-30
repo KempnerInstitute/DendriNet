@@ -42,6 +42,8 @@ from dendritic_modeling.config.analysis import (
     LocalRuleComponentAnalysisParams,
     MultiplicativeGainAnalysisConfig,
     MultiplicativeGainAnalysisParams,
+    NodePerturbationCreditAnalysisConfig,
+    NodePerturbationCreditAnalysisParams,
     NoisePerturbationAnalysisConfig,
     NoisePerturbationAnalysisParams,
     PathMatchedInformationAnalysisConfig,
@@ -104,6 +106,7 @@ from dendritic_modeling.config.conversion import (
     normalize_sparsity_type,
     to_plain_dict,
 )
+from dendritic_modeling.config.feature_readout import FeatureReadoutConfig
 from dendritic_modeling.config.keys import UnknownConfigKeyError
 from dendritic_modeling.config.model import (
     ArchitectureConfig,
@@ -134,6 +137,7 @@ from dendritic_modeling.config.regularization import (
     RegularizationConfig,
     SelectiveConfig,
 )
+from dendritic_modeling.config.routed_ei import RoutedEIConfig
 from dendritic_modeling.config.shared_projection import SharedProjectionShuntingConfig
 from dendritic_modeling.config.training import (
     CommonTrainerConfig,
@@ -199,6 +203,7 @@ __all__ = [
     "EvaluationRuntimeConfig",
     "ExperimentConfig",
     "FSDPConfig",
+    "FeatureReadoutConfig",
     "FreezeBranchKLStrategyConfig",
     "FreezeBranchesStrategyConfig",
     "FreezeLayersStrategyConfig",
@@ -227,6 +232,8 @@ __all__ = [
     "MultiStageStrategyConfig",
     "MultiplicativeGainAnalysisConfig",
     "MultiplicativeGainAnalysisParams",
+    "NodePerturbationCreditAnalysisConfig",
+    "NodePerturbationCreditAnalysisParams",
     "NoisePerturbationAnalysisConfig",
     "NoisePerturbationAnalysisParams",
     "OptimizerConfig",
@@ -254,6 +261,7 @@ __all__ = [
     "RepresentationProbeConfig",
     "RepresentationProjectionConfig",
     "RepresentationSubsetProbeConfig",
+    "RoutedEIConfig",
     "RoutingAnalysisConfig",
     "SelectiveConfig",
     "SharedProjectionShuntingConfig",

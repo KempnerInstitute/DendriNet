@@ -198,8 +198,10 @@ The options of ``model.core.affine_mlp``:
        other modes.
    * - ``initialization``
      - ``kaiming_normal``
-     - ``kaiming_normal``, or ``kaiming_uniform_xavier_readout`` (``dense``
-       only: Kaiming-uniform hidden layers and a Xavier-uniform last layer).
+     - ``kaiming_normal``; or, in ``dense`` mode only,
+       ``kaiming_uniform_xavier_readout`` (Kaiming-uniform hidden layers,
+       Xavier-uniform last layer) or ``pytorch_default`` (retain the Linear
+       constructors' weights and biases).
    * - ``activation``
      - ``relu``
      - ``relu`` or ``leaky_relu``.
@@ -223,7 +225,7 @@ The options of ``model.core.affine_mlp``:
      - Execution settings of ``fixed`` layers (see :ref:`indexed-backends`);
        the other modes do not read them.
 
-Initialization: ``dense`` mode constructs all layers, then draws every weight
+By default, ``dense`` mode constructs all layers, then draws every weight
 with Kaiming-normal initialization (the ReLU gain, also for ``leaky_relu``)
 and sets the biases to zero. ``fixed`` layers draw normal weights with
 standard deviation ``sqrt(2 / fanin)``. ``topk`` layers draw standard-normal
@@ -232,6 +234,16 @@ have squared norm 2. All modes then multiply the last layer's weights by
 ``output_weight_scale``. The weights come from the global PyTorch random
 stream, which the builder does not reseed; ``connectivity_seeds`` fix only the
 support of ``fixed`` layers.
+
+For a conventional readout initialized by ``torch.nn.Linear``, explicitly select
+``initialization: pytorch_default``. This skips reinitialization, preserving the
+constructors' bias values and random draw order. With ``output_weight_scale: 1``
+it makes no further weight mutation; another scale still rescales the last
+weight matrix but not its bias, which this policy leaves nonzero, so the
+initial output is not scaled uniformly. Sparse modes reject this policy. For a Linear--ReLU--Linear
+classifier, set ``dimensions`` to the three layer widths, ``activation: relu``,
+``activate_output: false`` and ``dropout: null``. This reuses the affine builder;
+it does not add feature normalization or a dendritic computation.
 
 The built model is a flat ``nn.Sequential`` (numeric checkpoint keys) that
 also forwards the weight decay, weight boosting and rewiring steps of the
@@ -431,6 +443,211 @@ are reported separately; the scalar specialization does not automatically
 remove its stored projection and outer weights. Arithmetic counts describe
 sparse MACs and shunting divisions, excluding weight transforms, normalization,
 checks and training overhead; they are not measured FLOPs or latency.
+
+Feature normalization readouts
+------------------------------
+
+``core.type: feature_readout`` composes the existing dense affine builder
+with an explicit normalization of fixed feature maps. This is a conventional
+control, not a biological E/I neuron. The optional ``core.feature_readout``
+section defaults to ``None`` in all other cores.
+
+The ``input_shape`` excludes the batch and starts with channels. Inputs may
+have this shape or be flattened; the latter are reshaped before normalization.
+``readout`` is an :class:`~dendritic_modeling.config.affine_mlp.AffineMLPConfig`.
+Its first dimension must equal the product of ``input_shape``. The readout is
+constructed before the normalizer. A single unactivated Linear uses
+``readout.weight`` and ``readout.bias`` checkpoint keys; an MLP retains the
+builder's numeric module keys under ``readout``. Training builds the readout
+from the run's global random stream (after any encoder draws), as it builds an
+``affine_mlp`` core, so ``normalization: none`` starts from the weights of the
+equivalent ``affine_mlp`` control. An explicit ``core.initialization_seed``
+draws the readout from a CPU stream keyed by that seed and the core type.
+This construction stays on CPU even under a CUDA default device, preserving
+the caller's CPU/CUDA random streams and default device. Move the resulting
+model to the desired device afterwards, as the standard training setup does.
+
+Four normalization choices are supported:
+
+* ``none`` leaves features unchanged.
+* ``layer_norm`` uses PyTorch LayerNorm across the entire feature map.
+* ``group_norm`` uses PyTorch GroupNorm across contiguous channel groups and
+  spatial sites.
+* ``group_mean`` divides each feature by ``divisor_offset + max(group_mean, 0)``.
+  The mean includes channels within its group and every spatial site. This
+  operation does not center features or use their absolute values. It is
+  distinct from the existing L1 input normalizer and from the E/I shunting rule.
+
+Grouped modes require ``groups`` to divide the channel count. Only group-mean
+division accepts ``divisor_offset``, which must remain finite and strictly
+positive in the input dtype; values that overflow or round to zero raise before
+division. LayerNorm and
+GroupNorm use ``normalization_epsilon`` (default ``1e-5``) and
+``normalization_affine`` (default true). Irrelevant non-default options raise.
+For group-mean division, ``forward`` and ``representation`` also accept an
+explicit ``divisor_noise`` multiplier of shape ``[batch, groups]``. It multiplies
+the mean before clamping; it must be finite, nonnegative and match the input's
+dtype and device. No noise is sampled by the model.
+
+``configs/examples/feature_readout.yaml`` is a runnable example. It uses the
+standard backpropagation trainer and existing synthetic data; it does not
+reproduce an image-feature experiment. Other training strategies and sparse
+readouts are currently rejected. Existing affine initialization defaults remain
+unchanged; select ``readout.initialization: pytorch_default`` explicitly when
+reproducing plain PyTorch Linear initialization, including its random biases.
+
+Paired E/I routing controls
+---------------------------
+
+``core.type: routed_ei`` builds a reduced rate-model control from
+``core.routed_ei``. Each source has an excitatory and an inhibitory channel;
+one assignment sends both channels to the same branch. Positive E and I
+weights are normalized separately within each branch. The branches use
+``networks.functional.shunting_voltage`` or ``additive_voltage``, followed by
+a fixed affine rescaling and a learned affine decoder. The decoder has signed
+weights: this control is not a biological population network or a multilevel
+dendritic tree.
+
+This composition reuses the library's softplus weight transform, row-sum
+division, current-integration arithmetic, architecture factory and standard
+trainer.
+It differs from ``pathway_router``, which applies signed projections, and from
+Top-K synapses, which select contacts within a branch rather than assign each
+source to a destination. Both routers share the same soft-assignment utility.
+
+``configs/examples/routed_ei.yaml`` runs with ``dendritic-train`` and reuses
+the existing ``branch_local_gain_load`` dataset. Validation uses the training
+gain distribution; only the test set has the larger gain fluctuations. This
+binary example is not a replay of a paper's multiclass routing task. Other
+datasets must supply finite nonnegative concatenated inputs ``[E, I]`` of
+width ``2 * features``. Direct callers can supply the streams separately:
+
+.. code-block:: python
+
+   from dendritic_modeling.config import RoutedEIConfig
+   from dendritic_modeling.networks.architectures.excitation_inhibition.routed_ei import (
+       build_routed_ei,
+   )
+
+   config = RoutedEIConfig(features=8, branches=3, output_dim=2)
+   model = build_routed_ei(config)
+   logits = model(excitation, inhibition)  # Each input: [batch, 8].
+
+``routing: learned`` uses a softmax over branch destinations. With
+``hard_routing: true`` (the default), training uses one-hot assignments with
+the softmax surrogate derivative, computed as ``one_hot + soft -
+soft.detach()`` like the reduced models this control replays (a selected
+entry can differ from one in its last bit); evaluation uses exact one-hot
+assignments. With ``hard_routing: false``, both use soft assignments.
+``inferred_assignment()`` returns each source's branch under hard routing and
+resolves near-ties as the forward does. ``routing: fixed``
+requires a ``fixed_assignment`` list containing one branch index per feature.
+Learned routing requires an empty list; non-list values are rejected before
+initialization draws any random numbers. Fixed routing does not read
+``temperature``, ``hard_routing`` or ``route_init_std``, so
+their non-default values raise. Assigning ``model.temperature`` re-validates
+the configuration, so a temperature schedule applies to learned routing only.
+At use, temperature must remain finite and strictly positive in the logits
+dtype. The shared routing helper rejects nonfinite scaled logits before
+softmax; this also protects statistics, inferred assignments and learned
+``pathway_router`` assignments. This check reads tensor values and may
+synchronize the device. Valid assignments keep their original arithmetic.
+Empty branches have zero drive; no implicit balancing or reassignment occurs.
+``inhibitory_support: global_mean`` is a shunting-only control that replaces
+each branch's inhibitory drive by the unweighted mean of the input I channels.
+
+Shunting defaults to positive unit leak and epsilon ``1e-8``; a forward call
+raises if either constant overflows in the model's dtype or the leak rounds
+to zero. Raw addition is
+``E - I``; nondefault leak/epsilon values and global-mean support are rejected
+because this comparator does not use them. The optional output transformation is
+``branch_scale * (voltage - branch_center) / branch_divisor``; its default is
+the identity. All three constants must remain finite in the voltage dtype,
+with scale and divisor strictly positive after conversion. Signed centers
+are supported. No gate, across-feature normalization or learned output scale is
+implicit in this core. Set the outer model's ``output_scale_mode: fixed``
+and use identity encoder/decoder modules to retain that contract. The control
+computes in its parameter dtype: ``training.main.common.use_amp: true`` raises
+when the configuration loads, and so does a forward call under
+``torch.autocast``.
+
+An explicit ``branch_activation: tanh`` applies
+``tanh(softplus(activation_slope_raw) * preactivation + activation_offset)``
+before the affine readout. The initial raw slope defaults to ``0.5413249``
+(approximately unit softplus slope) and the offset to zero. These per-branch
+values are fixed buffers unless ``trainable_activation: true`` is requested.
+Initialization spreads and the optional gate's initial constants must be
+finite in the default dtype used to construct parameters. An invalid value
+raises before initialization draws any random numbers. This check does not
+rescale the specified values or change valid initialization streams.
+This signed gate is not the neuronal ``ParametricTanh``: that gate has a
+unit-range output, an exponential slope and a voltage midpoint. Substituting
+one for the other changes optimization even when an operating-point response
+matches. Only the routed backpropagation control supports these new fields.
+
+The default ``branch_activation: none`` registers no gate state and draws no
+random numbers. Nondefault gate parameters with this setting raise rather
+than being ignored. ``branch_response(E, I)`` explicitly returns currents,
+preactivation, activation and the derivative of the gate with respect to its
+preactivation. Ordinary forward calls do not calculate this diagnostic.
+``activate_branches(x)`` exposes the same configured gate to analysis-only
+interventions without reimplementing its arithmetic. The original resolved
+configuration and a strict state-dict round trip recover fixed or learned
+gates, including their initial parameterization.
+
+``weight_normalization_floor: null`` divides each branch's E and I weights by
+their sum; an empty branch keeps zero weights. Unlike the robust p-norm
+normalization of dendritic layers, the sum is also differentiated at the zero
+entries of hard-routed rows, so the surrogate routing gradient keeps each
+branch's normalization (competition) term. An explicit positive floor selects
+division by ``max(sum(weights), floor)``, the clamped-sum convention of earlier
+reduced-model runs. The two conventions agree exactly, in values and
+gradients, while every branch's weight sum exceeds the floor; below it,
+including at empty branches, the floor convention divides by the floor instead.
+Replaying a clamped-sum model therefore requires its original floor. The floor
+must remain finite and strictly positive in the weight dtype; values that
+overflow or round to zero raise before division. The same check applies to
+``divide_rows_by_sum`` and ``normalize_weight_rows(..., sum_floor=...)``.
+These sum-based paths also reject nonfinite row sums before division, including
+overflow from finite weights, instead of silently zeroing a nonempty branch.
+Finite sums retain the original normalization arithmetic and gradients.
+
+The fixed-assignment and global-mean controls keep the unused route-logit or
+I-weight parameters and their initialization draws, so all variants share one
+checkpoint layout. These parameters do not require gradients: optimizers leave
+them unchanged, and distributed data-parallel training does not wait for their
+gradients. ``drives(E, I)`` returns the currents the forward integrates; under
+global-mean inhibition its I current is the single shared mean, of shape
+``[batch, 1]``. Store the resolved configuration alongside the state dict,
+including any scheduled temperature changes.
+
+Only ordinary backpropagation with the standard trainer is qualified.
+LocalCA, feedback alignment and recurrent configurations raise during loading.
+The affine readout prevents a ``biological_neuron: true`` declaration.
+No production paper pin is changed merely by selecting this architecture.
+Training builds the control from the run's global random stream, as direct
+construction after ``torch.manual_seed(model_seed)`` and any encoder draws
+would. An explicit ``core.initialization_seed`` instead draws it from a CPU
+stream keyed by that seed and the core type. Explicit-seed construction takes
+place on CPU even when the caller's default device is CUDA, and restores both
+the caller's device setting and random streams. Move the constructed core to
+the desired device afterwards, as the standard training setup does. Without
+an explicit seed, construction retains the caller's default device and stream.
+
+Routing regularization is opt-in under
+``training.main.regularization``. ``routing_entropy_weight`` penalizes
+mean source-assignment entropy; ``routing_balance_weight`` penalizes mean
+squared deviation from equal branch mass. The regularization manager applies
+these terms to modules exposing ``routing_statistics()``, currently the paired
+E/I and pathway routers. Positive weights request minimization of those
+statistics. Fixed routers return no statistics, and requesting a routing
+penalty on a model without a learned router raises. Both weights default to
+zero, which performs no routing discovery or computation in existing runs.
+``routing_regularizer(entropy_weight=..., balance_weight=...)`` evaluates the
+same term for a direct training loop; its weights have no defaults.
+The configured-step benchmark supports no additional regularization and rejects
+these penalties before model initialization, using the trainer's regularization
+manager to determine which terms are enabled.
 
 Parameter-budget model families
 -------------------------------

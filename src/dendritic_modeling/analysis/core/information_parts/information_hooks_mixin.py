@@ -97,19 +97,18 @@ def _has_analyzable_branch_signals(module: DendriticBranchLayer) -> bool:
     return has_synapses or module.input_branches
 
 
-def _enable_analysis_current_capture(module: DendriticBranchLayer) -> object:
-    previous_store = getattr(module, "_store_analysis_currents", False)
-    module._store_analysis_currents = True
+def _enable_analysis_current_capture(module: DendriticBranchLayer) -> bool:
+    previous_store = module.analysis_currents_enabled
+    module.set_analysis_currents(True)
     return previous_store
 
 
 def _restore_analysis_current_capture(
     module: DendriticBranchLayer,
-    previous_store: object,
+    previous_store: bool,
 ) -> None:
-    module._store_analysis_currents = previous_store
-    if hasattr(module, "_last_analysis_currents"):
-        delattr(module, "_last_analysis_currents")
+    module.set_analysis_currents(previous_store)
+    module.clear_analysis_currents()
 
 
 def _prepare_branch_hook_capture(
@@ -332,7 +331,7 @@ class InformationHooksMixin(ForwardHookRemovalMixin):
             "branch_input", input_args[2] if len(input_args) > 2 else None
         )
 
-        cached_currents = getattr(module, "_last_analysis_currents", None)
+        cached_currents = module.get_analysis_currents() or None
         (
             excitation_per_branch,
             inhibition_per_branch,

@@ -1176,6 +1176,40 @@ Under DDP, ``local_ca`` averages its assigned gradients across ranks before
 clipping and the optimizer step, because they do not come from a
 ``backward()`` call whose gradients DDP reduces.
 
+Gradients without a step
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+``trainer.assign_gradients(model, inputs, targets)`` performs a training
+step's gradient assignment and stops before the optimizer step: the local
+rule's gradients, the encoder and decoder updates, the distributed average and
+clipping, by the same code and in the same order as training. It leaves the
+update in ``.grad`` and returns the batch loss. ``epoch=`` (counted from 1, as
+in training) selects whose update modes and HSIC warmup apply (freeze windows,
+``training_schedule``); by default the trainer's current epoch, or the first
+before ``train`` has run, in which case the trainer first prepares the model as
+``train`` does. The model keeps its mode; in ``train()`` mode the forward also
+updates sparse synapse statistics, as in training. Under ``core_update_mode:
+none`` the core is held fixed as training holds it: during the call its
+parameters do not require gradients and the forward leaves its Top-K
+statistics, release tracking and dense-to-sparse schedules unchanged. The
+epoch counter and, with the core held fixed, the pre-call trainability are
+restored on exit, even if initialization or the batch fails. With the trainer
+built from a run's configuration, as the training
+script builds it (``get_trainer``), the gradients are the update that
+configuration trains with, for example for a comparison with backpropagation:
+
+.. code-block:: python
+
+   model.eval()
+   trainer.assign_gradients(model, x, y)
+   local = {
+       name: parameter.grad.clone()
+       for name, parameter in model.named_parameters()
+       if parameter.grad is not None
+   }
+   model.zero_grad(set_to_none=True)
+   torch.nn.functional.cross_entropy(model(x), y).backward()
+
 .. _local-delivery:
 
 Delivered errors with autograd eligibilities
@@ -1211,6 +1245,51 @@ the product, over its ancestors up to and including the soma, of activation
 slope, coupling ratio and relative resistance; the tests check this against
 autograd. Which products a rule uses, and any permutation, binning or noise
 applied to them, belongs to the protocol.
+
+.. _node-perturbation:
+
+Node-perturbation estimates
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``dendritic_modeling.training.node_perturbation`` estimates errors from loss
+changes instead of derivatives. For per-example losses ``l_b(h_b)`` and
+antithetic draws ``n ~ N(0, I)`` of scale ``s``,
+
+.. code-block:: text
+
+   g_hat_b = mean over draws of [l_b(h_b + s n) - l_b(h_b - s n)] / (2 s) * n
+
+is unbiased for the gradient when ``l_b`` is quadratic in ``h_b``; otherwise
+it estimates the gradient of the loss smoothed by the perturbation, with a
+bias of order ``s**2``. With orthonormal basis columns ``Q`` (perturbations
+``Q z``) it estimates ``Q Q^T`` times that smoothed gradient, which approaches
+the projected gradient as ``s`` vanishes. Each draw costs two loss evaluations
+per example.
+
+- ``node_perturbation_estimates(loss, (B, D), scale=, draws=, generator=,
+  basis=None, chunk=16)``: ``loss`` maps perturbations ``[c, B, D]`` to
+  unreduced per-example losses ``[c, B]``; the result holds the estimate for
+  every count in ``draws`` (larger counts extend the draws of smaller ones)
+  and ``evaluations_per_example(draws)``. The draws come from ``generator``
+  one at a time, so they do not depend on ``chunk``, and are made on
+  ``device`` (by default the generator's; ``"cuda"`` means the current CUDA
+  device). Scales, integer counts and chunk, the generator's device, the
+  basis's device, dtype, shape and orthonormality are checked;
+- ``group_basis(groups, size)``: orthonormal columns averaging disjoint groups
+  of coordinates (for example the children of each parent); overlapping,
+  empty or out-of-range groups raise.
+
+Basis validation allows absolute Gram-matrix error up to the larger of the
+dtype's machine epsilon and ``1e-5`` (``1e-10`` for float64). For float16 and
+bfloat16, the Gram product is evaluated in float32 to separate accumulation
+roundoff from the precision of the supplied basis. Autocast is disabled for
+this validation calculation. This does not normalize or change the basis used
+for perturbations.
+
+With :ref:`compartment perturbations <compartment-perturbations>` the loss can
+perturb compartment outputs, voltages or injected currents. The
+``node_perturbation_credit`` analysis (:ref:`analyzer-node-perturbation-credit`)
+compares such estimates with exact errors at a checkpoint.
 
 Warm-up strategies
 ------------------
