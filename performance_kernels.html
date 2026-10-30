@@ -772,7 +772,8 @@ weight maintenance and impact rewiring; <code class="docutils literal notranslat
 epoch length that schedules rewiring. The configuration needs an
 <code class="docutils literal notranslate"><span class="pre">identity</span></code> encoder, a classification task, the <code class="docutils literal notranslate"><span class="pre">standard</span></code> or
 <code class="docutils literal notranslate"><span class="pre">presentation_stream</span></code> strategy, full precision (<code class="docutils literal notranslate"><span class="pre">use_amp:</span> <span class="pre">false</span></code>), no
-NaN checking, no additional regularization, backpropagated reactivation
+NaN checking, no additional regularization (including routing entropy and
+balance penalties), backpropagated reactivation
 updates and no <code class="docutils literal notranslate"><span class="pre">initial_checkpoint</span></code>. The output records the resolved
 configuration, library commit, device, precision flags, the number of
 layers on each configured and each resolved backend, synchronized step

@@ -322,36 +322,41 @@ dendritic classifier.</p></td>
 <td><p>Dense, fixed-sparse or learned Top-K multilayer perceptron.</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">model.core.affine_mlp</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">point_mlp</span></code>, <code class="docutils literal notranslate"><span class="pre">total_param_mlp</span></code>, <code class="docutils literal notranslate"><span class="pre">active_param_mlp</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">routed_ei</span></code></p></td>
+<td><p>Paired nonnegative E/I source routing, shunting or additive branches,
+and an affine readout; a reduced control, not a population network.</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">model.core.routed_ei</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">point_mlp</span></code>, <code class="docutils literal notranslate"><span class="pre">total_param_mlp</span></code>, <code class="docutils literal notranslate"><span class="pre">active_param_mlp</span></code></p></td>
 <td><p>Point-neuron MLPs matched to the parameter count of a dendritic
 reference.</p></td>
 <td><p>Structured E/I sections or <code class="docutils literal notranslate"><span class="pre">model.core.population_network</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ss_mlp</span></code>, <code class="docutils literal notranslate"><span class="pre">ss_mlp_flat</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ss_mlp</span></code>, <code class="docutils literal notranslate"><span class="pre">ss_mlp_flat</span></code></p></td>
 <td><p>Sparse structured MLPs with the branch structure of a structured E/I
 reference.</p></td>
 <td><p>Structured E/I sections</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">sparse_active_matched_point</span></code>, <code class="docutils literal notranslate"><span class="pre">direct_active_matched_point</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">sparse_active_matched_point</span></code>, <code class="docutils literal notranslate"><span class="pre">direct_active_matched_point</span></code></p></td>
 <td><p>One-layer point controls matched to the effective parameter count of a
 structured E/I reference.</p></td>
 <td><p>Structured E/I sections</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">sparse_active_matched_point_conv</span></code> (alias
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">sparse_active_matched_point_conv</span></code> (alias
 <code class="docutils literal notranslate"><span class="pre">spatial_sparse_active_matched_point</span></code>)</p></td>
 <td><p>The sparse matched control applied to local image patches.</p></td>
 <td><p>Structured E/I sections and <code class="docutils literal notranslate"><span class="pre">model.core.spatial</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">gru</span></code>, <code class="docutils literal notranslate"><span class="pre">lstm</span></code>, <code class="docutils literal notranslate"><span class="pre">vanilla_rnn</span></code> (alias <code class="docutils literal notranslate"><span class="pre">rnn</span></code>)</p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">gru</span></code>, <code class="docutils literal notranslate"><span class="pre">lstm</span></code>, <code class="docutils literal notranslate"><span class="pre">vanilla_rnn</span></code> (alias <code class="docutils literal notranslate"><span class="pre">rnn</span></code>)</p></td>
 <td><p>PyTorch recurrent networks.</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">model.core.baseline_rnn</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">heterogeneous_leak_ctrnn</span></code> (alias <code class="docutils literal notranslate"><span class="pre">heterogeneous_ctrnn</span></code>)</p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">heterogeneous_leak_ctrnn</span></code> (alias <code class="docutils literal notranslate"><span class="pre">heterogeneous_ctrnn</span></code>)</p></td>
 <td><p>Sparse point-neuron E/I network with leaky channels of several time
 constants.</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">model.core.heterogeneous_leak_ctrnn</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">legendre_memory</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">legendre_memory</span></code></p></td>
 <td><p>Fixed Legendre delay-network memory with sparse learned input and
 readout.</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">model.core.legendre_memory</span></code></p></td>

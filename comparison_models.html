@@ -64,6 +64,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#recurrent-baselines">Recurrent baselines</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#mlp-building-blocks">MLP building blocks</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#shared-projections-and-native-shunting-banks">Shared projections and native shunting banks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#paired-e-i-routing-controls">Paired E/I routing controls</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#parameter-budget-model-families">Parameter-budget model families</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#signed-readouts">Signed readouts</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#readout-initialization">Readout initialization</a></li>
@@ -567,6 +568,147 @@ are reported separately; the scalar specialization does not automatically
 remove its stored projection and outer weights. Arithmetic counts describe
 sparse MACs and shunting divisions, excluding weight transforms, normalization,
 checks and training overhead; they are not measured FLOPs or latency.</p>
+</section>
+<section id="paired-e-i-routing-controls">
+<h2>Paired E/I routing controls<a class="headerlink" href="#paired-e-i-routing-controls" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">core.type:</span> <span class="pre">routed_ei</span></code> builds a reduced rate-model control from
+<code class="docutils literal notranslate"><span class="pre">core.routed_ei</span></code>. Each source has an excitatory and an inhibitory channel;
+one assignment sends both channels to the same branch. Positive E and I
+weights are normalized separately within each branch. The branches use
+<code class="docutils literal notranslate"><span class="pre">networks.functional.shunting_voltage</span></code> or <code class="docutils literal notranslate"><span class="pre">additive_voltage</span></code>, followed by
+a fixed affine rescaling and a learned affine decoder. The decoder has signed
+weights: this control is not a biological population network or a multilevel
+dendritic tree.</p>
+<p>This composition reuses the library’s softplus weight transform, row-sum
+division, current-integration arithmetic, architecture factory and standard
+trainer.
+It differs from <code class="docutils literal notranslate"><span class="pre">pathway_router</span></code>, which applies signed projections, and from
+Top-K synapses, which select contacts within a branch rather than assign each
+source to a destination. Both routers share the same soft-assignment utility.</p>
+<p><code class="docutils literal notranslate"><span class="pre">configs/examples/routed_ei.yaml</span></code> runs with <code class="docutils literal notranslate"><span class="pre">dendritic-train</span></code> and reuses
+the existing <code class="docutils literal notranslate"><span class="pre">branch_local_gain_load</span></code> dataset. Validation uses the training
+gain distribution; only the test set has the larger gain fluctuations. This
+binary example is not a replay of a paper’s multiclass routing task. Other
+datasets must supply finite nonnegative concatenated inputs <code class="docutils literal notranslate"><span class="pre">[E,</span> <span class="pre">I]</span></code> of
+width <code class="docutils literal notranslate"><span class="pre">2</span> <span class="pre">*</span> <span class="pre">features</span></code>. Direct callers can supply the streams separately:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">RoutedEIConfig</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.excitation_inhibition.routed_ei</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">build_routed_ei</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">config</span> <span class="o">=</span> <span class="n">RoutedEIConfig</span><span class="p">(</span><span class="n">features</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span> <span class="n">branches</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">output_dim</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+<span class="n">model</span> <span class="o">=</span> <span class="n">build_routed_ei</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
+<span class="n">logits</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="n">excitation</span><span class="p">,</span> <span class="n">inhibition</span><span class="p">)</span>  <span class="c1"># Each input: [batch, 8].</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">routing:</span> <span class="pre">learned</span></code> uses a softmax over branch destinations. With
+<code class="docutils literal notranslate"><span class="pre">hard_routing:</span> <span class="pre">true</span></code> (the default), training uses one-hot assignments with
+the softmax surrogate derivative, computed as <code class="docutils literal notranslate"><span class="pre">one_hot</span> <span class="pre">+</span> <span class="pre">soft</span> <span class="pre">-</span>
+<span class="pre">soft.detach()</span></code> like the reduced models this control replays (a selected
+entry can differ from one in its last bit); evaluation uses exact one-hot
+assignments. With <code class="docutils literal notranslate"><span class="pre">hard_routing:</span> <span class="pre">false</span></code>, both use soft assignments.
+<code class="docutils literal notranslate"><span class="pre">inferred_assignment()</span></code> returns each source’s branch under hard routing and
+resolves near-ties as the forward does. <code class="docutils literal notranslate"><span class="pre">routing:</span> <span class="pre">fixed</span></code>
+requires a <code class="docutils literal notranslate"><span class="pre">fixed_assignment</span></code> list containing one branch index per feature.
+Learned routing requires an empty list; non-list values are rejected before
+initialization draws any random numbers. Fixed routing does not read
+<code class="docutils literal notranslate"><span class="pre">temperature</span></code>, <code class="docutils literal notranslate"><span class="pre">hard_routing</span></code> or <code class="docutils literal notranslate"><span class="pre">route_init_std</span></code>, so
+their non-default values raise. Assigning <code class="docutils literal notranslate"><span class="pre">model.temperature</span></code> re-validates
+the configuration, so a temperature schedule applies to learned routing only.
+At use, temperature must remain finite and strictly positive in the logits
+dtype. The shared routing helper rejects nonfinite scaled logits before
+softmax; this also protects statistics, inferred assignments and learned
+<code class="docutils literal notranslate"><span class="pre">pathway_router</span></code> assignments. This check reads tensor values and may
+synchronize the device. Valid assignments keep their original arithmetic.
+Empty branches have zero drive; no implicit balancing or reassignment occurs.
+<code class="docutils literal notranslate"><span class="pre">inhibitory_support:</span> <span class="pre">global_mean</span></code> is a shunting-only control that replaces
+each branch’s inhibitory drive by the unweighted mean of the input I channels.</p>
+<p>Shunting defaults to positive unit leak and epsilon <code class="docutils literal notranslate"><span class="pre">1e-8</span></code>; a forward call
+raises if either constant overflows in the model’s dtype or the leak rounds
+to zero. Raw addition is
+<code class="docutils literal notranslate"><span class="pre">E</span> <span class="pre">-</span> <span class="pre">I</span></code>; nondefault leak/epsilon values and global-mean support are rejected
+because this comparator does not use them. The optional output transformation is
+<code class="docutils literal notranslate"><span class="pre">branch_scale</span> <span class="pre">*</span> <span class="pre">(voltage</span> <span class="pre">-</span> <span class="pre">branch_center)</span> <span class="pre">/</span> <span class="pre">branch_divisor</span></code>; its default is
+the identity. All three constants must remain finite in the voltage dtype,
+with scale and divisor strictly positive after conversion. Signed centers
+are supported. No gate, across-feature normalization or learned output scale is
+implicit in this core. Set the outer model’s <code class="docutils literal notranslate"><span class="pre">output_scale_mode:</span> <span class="pre">fixed</span></code>
+and use identity encoder/decoder modules to retain that contract. The control
+computes in its parameter dtype: <code class="docutils literal notranslate"><span class="pre">training.main.common.use_amp:</span> <span class="pre">true</span></code> raises
+when the configuration loads, and so does a forward call under
+<code class="docutils literal notranslate"><span class="pre">torch.autocast</span></code>.</p>
+<p>An explicit <code class="docutils literal notranslate"><span class="pre">branch_activation:</span> <span class="pre">tanh</span></code> applies
+<code class="docutils literal notranslate"><span class="pre">tanh(softplus(activation_slope_raw)</span> <span class="pre">*</span> <span class="pre">preactivation</span> <span class="pre">+</span> <span class="pre">activation_offset)</span></code>
+before the affine readout. The initial raw slope defaults to <code class="docutils literal notranslate"><span class="pre">0.5413249</span></code>
+(approximately unit softplus slope) and the offset to zero. These per-branch
+values are fixed buffers unless <code class="docutils literal notranslate"><span class="pre">trainable_activation:</span> <span class="pre">true</span></code> is requested.
+Initialization spreads and the optional gate’s initial constants must be
+finite in the default dtype used to construct parameters. An invalid value
+raises before initialization draws any random numbers. This check does not
+rescale the specified values or change valid initialization streams.
+This signed gate is not the neuronal <code class="docutils literal notranslate"><span class="pre">ParametricTanh</span></code>: that gate has a
+unit-range output, an exponential slope and a voltage midpoint. Substituting
+one for the other changes optimization even when an operating-point response
+matches. Only the routed backpropagation control supports these new fields.</p>
+<p>The default <code class="docutils literal notranslate"><span class="pre">branch_activation:</span> <span class="pre">none</span></code> registers no gate state and draws no
+random numbers. Nondefault gate parameters with this setting raise rather
+than being ignored. <code class="docutils literal notranslate"><span class="pre">branch_response(E,</span> <span class="pre">I)</span></code> explicitly returns currents,
+preactivation, activation and the derivative of the gate with respect to its
+preactivation. Ordinary forward calls do not calculate this diagnostic.
+<code class="docutils literal notranslate"><span class="pre">activate_branches(x)</span></code> exposes the same configured gate to analysis-only
+interventions without reimplementing its arithmetic. The original resolved
+configuration and a strict state-dict round trip recover fixed or learned
+gates, including their initial parameterization.</p>
+<p><code class="docutils literal notranslate"><span class="pre">weight_normalization_floor:</span> <span class="pre">null</span></code> divides each branch’s E and I weights by
+their sum; an empty branch keeps zero weights. Unlike the robust p-norm
+normalization of dendritic layers, the sum is also differentiated at the zero
+entries of hard-routed rows, so the surrogate routing gradient keeps each
+branch’s normalization (competition) term. An explicit positive floor selects
+division by <code class="docutils literal notranslate"><span class="pre">max(sum(weights),</span> <span class="pre">floor)</span></code>, the clamped-sum convention of earlier
+reduced-model runs. The two conventions agree exactly, in values and
+gradients, while every branch’s weight sum exceeds the floor; below it,
+including at empty branches, the floor convention divides by the floor instead.
+Replaying a clamped-sum model therefore requires its original floor. The floor
+must remain finite and strictly positive in the weight dtype; values that
+overflow or round to zero raise before division. The same check applies to
+<code class="docutils literal notranslate"><span class="pre">divide_rows_by_sum</span></code> and <code class="docutils literal notranslate"><span class="pre">normalize_weight_rows(...,</span> <span class="pre">sum_floor=...)</span></code>.
+These sum-based paths also reject nonfinite row sums before division, including
+overflow from finite weights, instead of silently zeroing a nonempty branch.
+Finite sums retain the original normalization arithmetic and gradients.</p>
+<p>The fixed-assignment and global-mean controls keep the unused route-logit or
+I-weight parameters and their initialization draws, so all variants share one
+checkpoint layout. These parameters do not require gradients: optimizers leave
+them unchanged, and distributed data-parallel training does not wait for their
+gradients. <code class="docutils literal notranslate"><span class="pre">drives(E,</span> <span class="pre">I)</span></code> returns the currents the forward integrates; under
+global-mean inhibition its I current is the single shared mean, of shape
+<code class="docutils literal notranslate"><span class="pre">[batch,</span> <span class="pre">1]</span></code>. Store the resolved configuration alongside the state dict,
+including any scheduled temperature changes.</p>
+<p>Only ordinary backpropagation with the standard trainer is qualified.
+LocalCA, feedback alignment and recurrent configurations raise during loading.
+The affine readout prevents a <code class="docutils literal notranslate"><span class="pre">biological_neuron:</span> <span class="pre">true</span></code> declaration.
+No production paper pin is changed merely by selecting this architecture.
+Training builds the control from the run’s global random stream, as direct
+construction after <code class="docutils literal notranslate"><span class="pre">torch.manual_seed(model_seed)</span></code> and any encoder draws
+would. An explicit <code class="docutils literal notranslate"><span class="pre">core.initialization_seed</span></code> instead draws it from a CPU
+stream keyed by that seed and the core type. Explicit-seed construction takes
+place on CPU even when the caller’s default device is CUDA, and restores both
+the caller’s device setting and random streams. Move the constructed core to
+the desired device afterwards, as the standard training setup does. Without
+an explicit seed, construction retains the caller’s default device and stream.</p>
+<p>Routing regularization is opt-in under
+<code class="docutils literal notranslate"><span class="pre">training.main.regularization</span></code>. <code class="docutils literal notranslate"><span class="pre">routing_entropy_weight</span></code> penalizes
+mean source-assignment entropy; <code class="docutils literal notranslate"><span class="pre">routing_balance_weight</span></code> penalizes mean
+squared deviation from equal branch mass. The regularization manager applies
+these terms to modules exposing <code class="docutils literal notranslate"><span class="pre">routing_statistics()</span></code>, currently the paired
+E/I and pathway routers. Positive weights request minimization of those
+statistics. Fixed routers return no statistics, and requesting a routing
+penalty on a model without a learned router raises. Both weights default to
+zero, which performs no routing discovery or computation in existing runs.
+<code class="docutils literal notranslate"><span class="pre">routing_regularizer(entropy_weight=...,</span> <span class="pre">balance_weight=...)</span></code> evaluates the
+same term for a direct training loop; its weights have no defaults.
+The configured-step benchmark supports no additional regularization and rejects
+these penalties before model initialization, using the trainer’s regularization
+manager to determine which terms are enabled.</p>
 </section>
 <section id="parameter-budget-model-families">
 <h2>Parameter-budget model families<a class="headerlink" href="#parameter-budget-model-families" title="Link to this heading"></a></h2>

@@ -124,8 +124,10 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">contextlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">contextmanager</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Union</span>
 
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">torch.nn</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">nn</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">omegaconf</span><span class="w"> </span><span class="kn">import</span> <span class="n">DictConfig</span>
 
@@ -135,6 +137,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config.core_sections</span><span class="w"> </span><span class="kn">import</span> <span class="n">BUILTIN_CORE_TYPES</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config.model_aliases</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_core_morphology_alias_overrides</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config.recurrence</span><span class="w"> </span><span class="kn">import</span> <span class="n">_STRUCTURED_EI_TYPES</span><span class="p">,</span> <span class="n">_UNIFIED_EI_TYPES</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config.seeds</span><span class="w"> </span><span class="kn">import</span> <span class="n">derive_seed</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config.shared_projection</span><span class="w"> </span><span class="kn">import</span> <span class="n">SharedProjectionShuntingConfig</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.biological_constraints</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">enforce_biological_neuron</span><span class="p">,</span>
@@ -225,6 +228,23 @@
     <span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Union</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">DictConfig</span><span class="p">],</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]],</span>
     <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span>
 <span class="p">]</span>
+
+
+<span class="nd">@contextmanager</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_keyed_initialization_stream</span><span class="p">(</span><span class="n">seed</span><span class="p">,</span> <span class="n">core_type</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Construct a control core from a CPU stream keyed by an explicit seed.</span>
+
+<span class="sd">    ``None`` keeps the caller's global stream. The key keeps a seed equal to</span>
+<span class="sd">    the run's model seed from replaying the draws of an encoder built from it.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="n">seed</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">yield</span>
+        <span class="k">return</span>
+    <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">device</span><span class="p">(</span><span class="s2">"cpu"</span><span class="p">),</span> <span class="n">torch</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">fork_rng</span><span class="p">(</span><span class="n">devices</span><span class="o">=</span><span class="p">[]):</span>
+        <span class="n">torch</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_generator</span><span class="o">.</span><span class="n">manual_seed</span><span class="p">(</span>
+            <span class="n">derive_seed</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">seed</span><span class="p">),</span> <span class="sa">f</span><span class="s2">"core.</span><span class="si">{</span><span class="n">core_type</span><span class="si">}</span><span class="s2">.initialization"</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="k">yield</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_build_einet_architecture</span><span class="p">(</span>
@@ -498,6 +518,42 @@
     <span class="k">return</span> <span class="n">build_shared_projection_shunting</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
 
 
+<span class="k">def</span><span class="w"> </span><span class="nf">_build_routed_ei_architecture</span><span class="p">(</span><span class="nb">type</span><span class="p">,</span> <span class="n">parameters</span><span class="p">,</span> <span class="n">input_dim</span><span class="p">,</span> <span class="n">suffix_input_dim</span><span class="p">):</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config.core_sections</span><span class="w"> </span><span class="kn">import</span> <span class="n">reject_unread_core_sections</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config.routed_ei</span><span class="w"> </span><span class="kn">import</span> <span class="n">RoutedEIConfig</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.excitation_inhibition.routed_ei</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+        <span class="n">build_routed_ei</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="n">raw</span> <span class="o">=</span> <span class="n">_to_plain_mapping</span><span class="p">(</span><span class="n">parameters</span><span class="p">)</span>
+    <span class="k">if</span> <span class="s2">"routed_ei"</span> <span class="ow">in</span> <span class="n">raw</span><span class="p">:</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config.model</span><span class="w"> </span><span class="kn">import</span> <span class="n">CoreConfig</span>
+
+        <span class="k">if</span> <span class="nb">str</span><span class="p">(</span><span class="n">raw</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"type"</span><span class="p">,</span> <span class="nb">type</span><span class="p">))</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="o">!=</span> <span class="nb">type</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"routed_ei builder and configured core type disagree"</span><span class="p">)</span>
+        <span class="c1"># Keep typed nested sections so the shared validator recognizes the</span>
+        <span class="c1"># topology seeds filled by training setup, rather than warning that</span>
+        <span class="c1"># those default-only sections were explicitly requested by the user.</span>
+        <span class="n">core</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">parameters</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">parameters</span><span class="p">,</span> <span class="n">CoreConfig</span><span class="p">)</span>
+            <span class="k">else</span> <span class="n">CoreConfig</span><span class="p">(</span><span class="o">**</span><span class="p">{</span><span class="s2">"type"</span><span class="p">:</span> <span class="nb">type</span><span class="p">,</span> <span class="o">**</span><span class="n">raw</span><span class="p">})</span>
+        <span class="p">)</span>
+        <span class="n">reject_unread_core_sections</span><span class="p">(</span><span class="n">core</span><span class="p">,</span> <span class="n">raw</span><span class="p">)</span>
+    <span class="n">payload</span> <span class="o">=</span> <span class="n">raw</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"routed_ei"</span><span class="p">,</span> <span class="n">raw</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">payload</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"routed_ei requires its configuration section"</span><span class="p">)</span>
+    <span class="n">config</span> <span class="o">=</span> <span class="n">RoutedEIConfig</span><span class="p">(</span><span class="o">**</span><span class="n">payload</span><span class="p">)</span>
+    <span class="n">config</span><span class="o">.</span><span class="n">validate</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">input_dim</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">input_dim</span> <span class="o">!=</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">config</span><span class="o">.</span><span class="n">features</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"routed_ei encoder output must contain concatenated [E, I]"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">suffix_input_dim</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">suffix_input_dim</span> <span class="o">!=</span> <span class="n">config</span><span class="o">.</span><span class="n">output_dim</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"routed_ei output dimension does not match the decoder"</span><span class="p">)</span>
+    <span class="n">seed</span> <span class="o">=</span> <span class="n">raw</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"initialization_seed"</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">_keyed_initialization_stream</span><span class="p">(</span><span class="n">seed</span><span class="p">,</span> <span class="s2">"routed_ei"</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">build_routed_ei</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
+
+
 <span class="k">def</span><span class="w"> </span><span class="nf">_build_flat_mlp_architecture</span><span class="p">(</span>
     <span class="nb">type</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">parameters</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">DictConfig</span><span class="p">],</span>
@@ -701,6 +757,7 @@
             <span class="s2">"mlp"</span><span class="p">:</span> <span class="n">_build_flat_mlp_architecture</span><span class="p">,</span>
             <span class="s2">"affine_mlp"</span><span class="p">:</span> <span class="n">_build_affine_mlp_architecture</span><span class="p">,</span>
             <span class="s2">"shared_projection_shunting"</span><span class="p">:</span> <span class="n">_build_shared_projection_architecture</span><span class="p">,</span>
+            <span class="s2">"routed_ei"</span><span class="p">:</span> <span class="n">_build_routed_ei_architecture</span><span class="p">,</span>
             <span class="s2">"total_param_mlp"</span><span class="p">:</span> <span class="n">_build_total_param_mlp</span><span class="p">,</span>
             <span class="s2">"active_param_mlp"</span><span class="p">:</span> <span class="n">_build_active_param_mlp</span><span class="p">,</span>
             <span class="s2">"ss_mlp"</span><span class="p">:</span> <span class="n">_build_sparse_structured_mlp</span><span class="p">,</span>
