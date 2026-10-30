@@ -165,6 +165,10 @@
   root are rejected even if they return. Normalize safe ``..`` components only
   after traversal validation, preserving parent-relative calls. Export receipts
   hash both tooling files. Literal Git checks ignore inherited pathspec settings.
+  Require the original contract request to name a regular file before using its
+  normalized path, so missing or non-directory components before ``..`` fail
+  consistently in verification and execution. Export manifests can still be
+  absent from the working tree.
 
 - ``DendriNet`` levels can differ from the shared settings through
   ``level_overrides`` (constructor argument and ``DendriNetConfig`` field;

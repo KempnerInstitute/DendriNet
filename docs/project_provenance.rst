@@ -127,6 +127,10 @@ request. The original traversal is checked before normalizing safe ``..``
 components, so ``../dendrinet.project.json`` works from a paper subdirectory
 without hiding internal symlinks. Once inside the repository, traversal cannot
 leave it, even temporarily.
+The original contract path must also name a regular file: ``missing/../contract.json``
+and ``file/../contract.json`` are rejected even if normalization would find a valid
+contract. This check applies to both ``check`` and ``run`` before reading the contract
+or creating a run receipt. Export manifests retain their separate committed-file rules.
 
 ``check`` verifies, and fails with ``SourceContractError`` at the first
 problem:

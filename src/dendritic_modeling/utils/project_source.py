@@ -365,6 +365,8 @@ def verify_contract(
     interpreter. Raises :class:`SourceContractError` when a check fails.
     """
     paper, relative = _project_path(contract_path, paper_root)
+    if not contract_path.is_file():
+        raise SourceContractError(f"Contract is not a regular file: {contract_path}")
     contract_relative = relative.as_posix()
     contract_path = _inside(paper, contract_relative)
     root = library_root.resolve()

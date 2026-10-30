@@ -125,6 +125,7 @@ def test_nested_contract_cli_preserves_numerical_execution(project, tmp_path):
     nested.parent.mkdir()
     nested.write_bytes(contract.read_bytes())
     commit(paper, str(nested.relative_to(paper)))
+    (paper / "work").mkdir()
     cmd = [
         sys.executable,
         str(TOOL),
@@ -138,6 +139,7 @@ def test_nested_contract_cli_preserves_numerical_execution(project, tmp_path):
     for name, path, extra in (
         ("root", contract, []),
         ("nested", nested, ["--paper-root", str(paper)]),
+        ("parent_relative", paper / "work/.." / contract.name, []),
     ):
         outputs.append(
             subprocess.check_output(
@@ -152,7 +154,7 @@ def test_nested_contract_cli_preserves_numerical_execution(project, tmp_path):
                 text=True,
             )
         )
-    assert outputs[0] == outputs[1]
+    assert outputs[0] == outputs[1] == outputs[2]
     with pytest.raises(subprocess.CalledProcessError):
         subprocess.check_output(
             [
@@ -409,6 +411,61 @@ def test_parent_relative_contract_still_rejects_filename_symlink(project, monkey
     monkeypatch.chdir(subdirectory)
     with pytest.raises(source.SourceContractError, match="Source symlink"):
         source.verify_contract(Path("..") / link.name, library)
+
+
+@pytest.mark.parametrize("component", ["missing", "file"])
+@pytest.mark.parametrize("explicit_root", [False, True])
+@pytest.mark.parametrize("action", ["verify", "check", "run"])
+def test_contract_rejects_unopenable_original_path(
+    project, tmp_path, component, explicit_root, action
+):
+    library, paper, contract = project
+    parent = paper / "obstacle"
+    if component == "file":
+        parent.write_text("not a directory\n")
+    requested = parent / ".." / contract.name
+    # Normalization finds a valid contract, but the original path cannot open.
+    assert requested.resolve() == contract
+    assert not requested.is_file()
+    receipt = tmp_path / "rejected_run.json"
+    with pytest.raises(
+        source.SourceContractError, match="Contract is not a regular file"
+    ):
+        if action == "verify":
+            source.verify_contract(
+                requested, library, paper_root=paper if explicit_root else None
+            )
+        else:
+            source.main(
+                [
+                    action,
+                    "--contract",
+                    str(requested),
+                    "--library-root",
+                    str(library),
+                    "--entry",
+                    "evaluate",
+                    "--receipt",
+                    str(receipt),
+                    *(["--paper-root", str(paper)] if explicit_root else []),
+                ]
+            )
+    assert not receipt.exists()
+
+
+@pytest.mark.parametrize("kind", ["missing", "directory"])
+@pytest.mark.parametrize("explicit_root", [False, True])
+def test_contract_requires_regular_file(project, kind, explicit_root):
+    library, paper, _ = project
+    requested = paper / "not_a_contract.json"
+    if kind == "directory":
+        requested.mkdir()
+    with pytest.raises(
+        source.SourceContractError, match="Contract is not a regular file"
+    ):
+        source.verify_contract(
+            requested, library, paper_root=paper if explicit_root else None
+        )
 
 
 @pytest.mark.parametrize("location", ["library", "paper"])
