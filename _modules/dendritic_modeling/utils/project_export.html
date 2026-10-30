@@ -131,11 +131,20 @@
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">hashlib</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">importlib.util</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">subprocess</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">zipfile</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span><span class="p">,</span> <span class="n">PurePosixPath</span>
+
+<span class="c1"># Load the sibling utility by filename so direct execution and paper adapters</span>
+<span class="c1"># share path validation without importing DendriNet or an installed package.</span>
+<span class="n">_SOURCE_SPEC</span> <span class="o">=</span> <span class="n">importlib</span><span class="o">.</span><span class="n">util</span><span class="o">.</span><span class="n">spec_from_file_location</span><span class="p">(</span>
+    <span class="s2">"_project_export_source"</span><span class="p">,</span> <span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">with_name</span><span class="p">(</span><span class="s2">"project_source.py"</span><span class="p">)</span>
+<span class="p">)</span>
+<span class="n">_SOURCE</span> <span class="o">=</span> <span class="n">importlib</span><span class="o">.</span><span class="n">util</span><span class="o">.</span><span class="n">module_from_spec</span><span class="p">(</span><span class="n">_SOURCE_SPEC</span><span class="p">)</span>
+<span class="n">_SOURCE_SPEC</span><span class="o">.</span><span class="n">loader</span><span class="o">.</span><span class="n">exec_module</span><span class="p">(</span><span class="n">_SOURCE</span><span class="p">)</span>
 
 <span class="n">MANUSCRIPT_SUFFIXES</span> <span class="o">=</span> <span class="p">{</span>
     <span class="s2">".tex"</span><span class="p">,</span>
@@ -191,16 +200,22 @@
 
 <div class="viewcode-block" id="export_project">
 <a class="viewcode-back" href="../../../api_reference.html#dendritic_modeling.utils.project_export.export_project">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">export_project</span><span class="p">(</span><span class="n">manifest</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">commit</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">output</span><span class="p">:</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Write exact allow-listed Git blobs and their provenance to a new ZIP."""</span>
-    <span class="n">manifest</span> <span class="o">=</span> <span class="n">manifest</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
-    <span class="n">root</span> <span class="o">=</span> <span class="n">manifest</span><span class="o">.</span><span class="n">parent</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">export_project</span><span class="p">(</span>
+    <span class="n">manifest</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">commit</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">output</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">paper_root</span><span class="p">:</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Write committed Git blobs; ``paper_root`` opts into a nested manifest."""</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">root</span><span class="p">,</span> <span class="n">relative</span> <span class="o">=</span> <span class="n">_SOURCE</span><span class="o">.</span><span class="n">_project_path</span><span class="p">(</span>
+            <span class="n">manifest</span><span class="p">,</span> <span class="n">paper_root</span><span class="p">,</span> <span class="n">allow_symlinks</span><span class="o">=</span><span class="kc">True</span>
+        <span class="p">)</span>
+    <span class="k">except</span> <span class="n">_SOURCE</span><span class="o">.</span><span class="n">SourceContractError</span> <span class="k">as</span> <span class="n">error</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">error</span><span class="p">))</span> <span class="kn">from</span><span class="w"> </span><span class="nn">error</span>
     <span class="n">output</span> <span class="o">=</span> <span class="n">output</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
     <span class="k">if</span> <span class="p">(</span>
         <span class="n">Path</span><span class="p">(</span><span class="n">_git</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="s2">"rev-parse"</span><span class="p">,</span> <span class="s2">"--show-toplevel"</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
         <span class="o">!=</span> <span class="n">root</span>
     <span class="p">):</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"The export manifest must live at its repository root"</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"The declared paper root must be a Git repository root"</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">output</span><span class="o">.</span><span class="n">is_relative_to</span><span class="p">(</span><span class="n">root</span><span class="p">)</span> <span class="ow">or</span> <span class="n">output</span><span class="o">.</span><span class="n">is_relative_to</span><span class="p">(</span>
         <span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span><span class="o">.</span><span class="n">parents</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span>
     <span class="p">):</span>
@@ -208,7 +223,15 @@
             <span class="s2">"Export archives belong outside paper and library repositories"</span>
         <span class="p">)</span>
     <span class="n">sha</span> <span class="o">=</span> <span class="n">_git</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="s2">"rev-parse"</span><span class="p">,</span> <span class="s2">"--verify"</span><span class="p">,</span> <span class="n">commit</span> <span class="o">+</span> <span class="s2">"^</span><span class="si">{commit}</span><span class="s2">"</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
-    <span class="n">raw_manifest</span> <span class="o">=</span> <span class="n">_git</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="s2">"show"</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">sha</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">manifest</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="n">entries</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">_git</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="s2">"ls-tree"</span><span class="p">,</span> <span class="s2">"-rz"</span><span class="p">,</span> <span class="n">sha</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="sa">b</span><span class="s2">"</span><span class="se">\0</span><span class="s2">"</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">row</span><span class="p">:</span>
+            <span class="n">meta</span><span class="p">,</span> <span class="n">name</span> <span class="o">=</span> <span class="n">row</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="sa">b</span><span class="s2">"</span><span class="se">\t</span><span class="s2">"</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="n">entries</span><span class="p">[</span><span class="n">name</span><span class="o">.</span><span class="n">decode</span><span class="p">()]</span> <span class="o">=</span> <span class="n">meta</span><span class="o">.</span><span class="n">split</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span>
+    <span class="n">manifest_name</span> <span class="o">=</span> <span class="n">relative</span><span class="o">.</span><span class="n">as_posix</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">entries</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">manifest_name</span><span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">"100644"</span><span class="p">,</span> <span class="s2">"100755"</span><span class="p">}:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Not a regular committed manifest: </span><span class="si">{</span><span class="n">manifest_name</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="n">raw_manifest</span> <span class="o">=</span> <span class="n">_git</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="s2">"show"</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">sha</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">manifest_name</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
     <span class="n">data</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">raw_manifest</span><span class="p">)</span>
     <span class="n">kind</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"kind"</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"schema_version"</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span> <span class="ow">or</span> <span class="n">kind</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">"manuscript"</span><span class="p">,</span> <span class="s2">"paper-code"</span><span class="p">}:</span>
@@ -230,11 +253,6 @@
         <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="n">paths</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">paths</span><span class="p">))</span>
     <span class="p">):</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Expected a nonempty, unique file allow-list"</span><span class="p">)</span>
-    <span class="n">entries</span> <span class="o">=</span> <span class="p">{}</span>
-    <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">_git</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="s2">"ls-tree"</span><span class="p">,</span> <span class="s2">"-rz"</span><span class="p">,</span> <span class="n">sha</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="sa">b</span><span class="s2">"</span><span class="se">\0</span><span class="s2">"</span><span class="p">):</span>
-        <span class="k">if</span> <span class="n">row</span><span class="p">:</span>
-            <span class="n">meta</span><span class="p">,</span> <span class="n">name</span> <span class="o">=</span> <span class="n">row</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="sa">b</span><span class="s2">"</span><span class="se">\t</span><span class="s2">"</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
-            <span class="n">entries</span><span class="p">[</span><span class="n">name</span><span class="o">.</span><span class="n">decode</span><span class="p">()]</span> <span class="o">=</span> <span class="n">meta</span><span class="o">.</span><span class="n">split</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span>
     <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">paths</span><span class="p">:</span>
         <span class="n">path</span> <span class="o">=</span> <span class="n">PurePosixPath</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
         <span class="k">if</span> <span class="p">(</span>
@@ -257,6 +275,9 @@
         <span class="s2">"paper_commit"</span><span class="p">:</span> <span class="n">sha</span><span class="p">,</span>
         <span class="s2">"manifest_sha256"</span><span class="p">:</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha256</span><span class="p">(</span><span class="n">raw_manifest</span><span class="p">)</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">(),</span>
         <span class="s2">"exporter_sha256"</span><span class="p">:</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha256</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">read_bytes</span><span class="p">())</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">(),</span>
+        <span class="s2">"source_checker_sha256"</span><span class="p">:</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha256</span><span class="p">(</span>
+            <span class="n">Path</span><span class="p">(</span><span class="n">_SOURCE</span><span class="o">.</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">read_bytes</span><span class="p">()</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">(),</span>
         <span class="s2">"files"</span><span class="p">:</span> <span class="p">[],</span>
     <span class="p">}</span>
     <span class="k">if</span> <span class="n">kind</span> <span class="o">==</span> <span class="s2">"paper-code"</span><span class="p">:</span>
@@ -293,10 +314,17 @@
 <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
     <span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="vm">__doc__</span><span class="p">)</span>
     <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"--manifest"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Path</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s2">"--paper-root"</span><span class="p">,</span>
+        <span class="nb">type</span><span class="o">=</span><span class="n">Path</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">"explicit Git repository root for a manifest stored in a subdirectory"</span><span class="p">,</span>
+    <span class="p">)</span>
     <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"--commit"</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
     <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"--output"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Path</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
     <span class="n">args</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
-    <span class="n">receipt</span> <span class="o">=</span> <span class="n">export_project</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">manifest</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">commit</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="p">)</span>
+    <span class="n">receipt</span> <span class="o">=</span> <span class="n">export_project</span><span class="p">(</span>
+        <span class="n">args</span><span class="o">.</span><span class="n">manifest</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">commit</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="p">,</span> <span class="n">paper_root</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">paper_root</span>
+    <span class="p">)</span>
     <span class="nb">print</span><span class="p">(</span>
         <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span>
             <span class="p">{</span>
