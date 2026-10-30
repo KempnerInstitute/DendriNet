@@ -179,6 +179,7 @@ def test_core_config_asdict_keys():
         "affine_mlp",
         "shared_projection_shunting",
         "routed_ei",
+        "feature_readout",
         "initialization_seed",
         "architecture",
         "connectivity",
@@ -204,6 +205,7 @@ def test_core_config_asdict_keys():
     assert expected_keys == set(d.keys())
     assert d["shared_projection_shunting"] is None
     assert d["routed_ei"] is None
+    assert d["feature_readout"] is None
 
 
 # ---------------------------------------------------------------------------

@@ -94,8 +94,10 @@ def build_affine_mlp(config: AffineMLPConfig) -> nn.Sequential:
 
     The flat Sequential layout preserves ordinary numeric checkpoint keys.
     No enclosing layers prefix is introduced. Dense construction precedes
-    explicit initialization of all dense layers; sparse initialization occurs
-    inside each affine constructor. Neither path changes the existing MLP API.
+    explicit initialization of all dense layers, unless ``pytorch_default``
+    retains each Linear constructor's weights and biases. Sparse initialization
+    occurs inside each affine constructor. Neither path changes the existing
+    MLP API.
     """
 
     config.validate()
@@ -128,6 +130,8 @@ def build_affine_mlp(config: AffineMLPConfig) -> nn.Sequential:
     model = AffineMLP(*modules)
     if config.mode == "dense":
         for layer in affine_layers:
+            if config.initialization == "pytorch_default":
+                continue
             if config.initialization == "kaiming_normal":
                 nn.init.kaiming_normal_(layer.weight)
             elif layer is affine_layers[-1]:
@@ -138,8 +142,11 @@ def build_affine_mlp(config: AffineMLPConfig) -> nn.Sequential:
         final_weight = affine_layers[-1].weight
     else:
         final_weight = affine_layers[-1].linear.pre_w
-    with torch.no_grad():
-        final_weight.mul_(config.output_weight_scale)
+    # Keep existing policies' operation order, but do not mutate a native
+    # Linear tensor's version counter for an explicitly unscaled replay.
+    if config.initialization != "pytorch_default" or config.output_weight_scale != 1.0:
+        with torch.no_grad():
+            final_weight.mul_(config.output_weight_scale)
     model.input_dim = config.dimensions[0]
     model.output_dim = config.dimensions[-1]
     model.affine_mlp_config = asdict(config)

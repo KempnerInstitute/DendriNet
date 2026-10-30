@@ -499,6 +499,9 @@ Explained in :ref:`core-types`. Class ``dendritic_modeling.config.model.CoreConf
    * - ``routed_ei``
      - ``Optional[RoutedEIConfig]``
      - ``None``; :ref:`model.core.routed_ei <options-model-core-routed-ei>`
+   * - ``feature_readout``
+     - ``Optional[FeatureReadoutConfig]``
+     - ``None``; :ref:`model.core.feature_readout <options-model-core-feature-readout>`
    * - ``target_active_parameters``
      - ``Optional[int]``
      - ``null``
@@ -1768,6 +1771,42 @@ Explained in :doc:`comparison_models`. Class ``dendritic_modeling.config.routed_
    * - ``activation_offset``
      - ``float``
      - ``0.0``
+
+.. _options-model-core-feature-readout:
+
+``model.core.feature_readout``
+------------------------------
+
+Explained in :doc:`comparison_models`. Class ``dendritic_modeling.config.feature_readout.FeatureReadoutConfig``.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 33 33
+
+   * - Option
+     - Type
+     - Default
+   * - ``input_shape``
+     - ``list[int]``
+     - ``[]``
+   * - ``readout``
+     - ``AffineMLPConfig``
+     - :ref:`model.core.feature_readout.readout <options-model-core-feature-readout-readout>`
+   * - ``normalization``
+     - ``str``
+     - ``none``
+   * - ``groups``
+     - ``int | None``
+     - ``null``
+   * - ``divisor_offset``
+     - ``float | None``
+     - ``null``
+   * - ``normalization_epsilon``
+     - ``float``
+     - ``1.0e-05``
+   * - ``normalization_affine``
+     - ``bool``
+     - ``true``
 
 .. _options-model-core-architecture:
 
@@ -4405,6 +4444,60 @@ Explained in :ref:`analyzer-catalogue`. Class ``dendritic_modeling.config.analys
    * - ``batch_size``
      - ``int``
      - ``256``
+
+.. _options-model-core-feature-readout-readout:
+
+``model.core.feature_readout.readout``
+--------------------------------------
+
+Explained in :doc:`comparison_models`. Class ``dendritic_modeling.config.affine_mlp.AffineMLPConfig``.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 33 33
+
+   * - Option
+     - Type
+     - Default
+   * - ``dimensions``
+     - ``list[int]``
+     - ``[]``
+   * - ``mode``
+     - ``str``
+     - ``dense``
+   * - ``initialization``
+     - ``str``
+     - ``kaiming_normal``
+   * - ``fanin``
+     - ``list[int]``
+     - ``[]``
+   * - ``connectivity_seeds``
+     - ``list[int]``
+     - ``[]``
+   * - ``activation``
+     - ``str``
+     - ``relu``
+   * - ``negative_slope``
+     - ``float``
+     - ``0.1``
+   * - ``activate_output``
+     - ``bool``
+     - ``true``
+   * - ``dropout``
+     - ``float | None``
+     - ``null``
+   * - ``output_weight_scale``
+     - ``float``
+     - ``1.0``
+   * - ``projection_backend``
+     - ``str``
+     - ``eager``
+   * - ``workspace_mb``
+     - ``float``
+     - ``128.0``
+   * - ``index_dtype``
+     - ``str``
+     - ``int32``
 
 .. _options-model-core-connectivity-structured:
 

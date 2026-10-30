@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+- Add the opt-in `feature_readout` conventional control. It composes the
+  existing dense affine builder with PyTorch LayerNorm/GroupNorm or explicit
+  group-mean division, retaining constructor order and checkpoint keys.
+  Normalization, groups and divisor offset are typed configuration; noise is
+  an explicit runtime input. It does not change physical shunting, L1 input
+  normalization, existing cores or their default random streams. Training
+  initializes it from the global stream, like `affine_mlp`; an explicit
+  `core.initialization_seed` selects a CPU stream keyed by the seed and core type,
+  preserving the caller's CPU/CUDA RNG states under a CUDA default device.
+  The group-mean divisor offset must remain finite and strictly positive in
+  the input dtype; overflow or rounding to zero raises before division.
+
+- Add opt-in `affine_mlp.initialization: pytorch_default` for dense controls.
+  It retains the original Linear constructor weights, biases and RNG draws;
+  no reinitialization or implicit bias centering occurs. Existing initialization
+  defaults and sparse controls are unchanged. This permits conventional
+  readouts to reuse the affine builder without a second MLP implementation.
+
 - Extend the opt-in routed E/I control with a signed tanh gate, fixed or learned
   softplus slopes and offsets, and explicit branch-response diagnostics. The
   gate defaults to absent: no new parameters, buffers, random draws or diagnostic
