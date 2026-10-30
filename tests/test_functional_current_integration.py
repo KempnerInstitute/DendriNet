@@ -253,12 +253,72 @@ def test_invalid_additive_operands_fail_explicitly(kwargs):
         additive_voltage(torch.ones(2, 3), **kwargs)
 
 
-def test_scalar_leak_must_stay_positive_in_the_excitation_dtype():
-    e = torch.ones(2, dtype=torch.float16)
+@pytest.mark.parametrize(
+    "operator, name, sign",
+    [
+        (shunting_voltage, "inhibition", 1),
+        (shunting_voltage, "recurrent_excitation", 1),
+        (shunting_voltage, "recurrent_inhibition", 1),
+        (shunting_voltage, "child_current", 1),
+        (shunting_voltage, "child_current", -1),
+        (shunting_voltage, "child_conductance", 1),
+        (shunting_voltage, "leak", 1),
+        (shunting_voltage, "epsilon", 1),
+        (additive_voltage, "inhibition", 1),
+        (additive_voltage, "recurrent_excitation", 1),
+        (additive_voltage, "recurrent_inhibition", 1),
+        (additive_voltage, "child_current", 1),
+        (additive_voltage, "child_current", -1),
+    ],
+)
+@pytest.mark.parametrize(
+    "dtype, value",
+    [(torch.float16, 1e5), (torch.bfloat16, 1e40), (torch.float32, 1e40)],
+)
+def test_scalar_operands_must_be_finite_in_the_excitation_dtype(
+    operator, name, sign, dtype, value
+):
+    e = torch.ones(2, dtype=dtype)
+    kwargs = {name: sign * value}
+    if name == "child_current" and operator is shunting_voltage:
+        kwargs["child_conductance"] = 1.0
+    with pytest.raises(ValueError, match=f"{name} must be finite"):
+        operator(e, **kwargs)
+    # The same scalar is valid in a dtype that can represent it.
+    expected = (
+        _literal_shunting(
+            e.double(),
+            kwargs.get("recurrent_excitation", 0),
+            kwargs.get("inhibition", 0),
+            kwargs.get("recurrent_inhibition", 0),
+            kwargs.get("child_current", 0),
+            kwargs.get("child_conductance"),
+            kwargs.get("leak", 1),
+            kwargs.get("epsilon", 1e-8),
+        )
+        if operator is shunting_voltage
+        else _literal_additive(
+            e.double(),
+            kwargs.get("recurrent_excitation", 0),
+            kwargs.get("inhibition", 0),
+            kwargs.get("recurrent_inhibition", 0),
+            kwargs.get("child_current", 0),
+        )
+    )
+    torch.testing.assert_close(operator(e.double(), **kwargs), expected, rtol=0, atol=0)
+    assert torch.isfinite(expected).all()
+
+
+@pytest.mark.parametrize(
+    "dtype, tiny_leak",
+    [(torch.float16, 1e-8), (torch.bfloat16, 1e-42), (torch.float32, 1e-50)],
+)
+def test_scalar_leak_must_stay_positive_in_the_excitation_dtype(dtype, tiny_leak):
+    e = torch.ones(2, dtype=dtype)
     with pytest.raises(ValueError, match="rounds to zero"):
-        shunting_voltage(e, leak=1e-8)
+        shunting_voltage(e, leak=tiny_leak)
     assert torch.isfinite(shunting_voltage(e, leak=1e-4)).all()
-    assert torch.isfinite(shunting_voltage(e.double(), leak=1e-8)).all()
+    assert torch.isfinite(shunting_voltage(e.double(), leak=tiny_leak)).all()
 
 
 def test_signed_child_current_and_zero_current_without_coupling_are_valid():

@@ -250,6 +250,11 @@ _POST_REACTIVATION_TEST_DATASET_ANALYSES = (
         require_analyzer=True,
     ),
     _TestDatasetAnalysisRunner(
+        "node_perturbation_credit",
+        pass_training=True,
+        require_analyzer=True,
+    ),
+    _TestDatasetAnalysisRunner(
         "compartment_statistics",
         pass_training=True,
     ),

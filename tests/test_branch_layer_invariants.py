@@ -172,12 +172,12 @@ class TestReactivation:
             reactivation_type="param_tanh",
             reactivation_memory_efficient=True,
         )
-        layer._store_analysis_currents = True
-
-        layer(torch.rand(2, 20))
+        layer.set_analysis_currents(True)
+        with torch.no_grad():
+            layer(torch.rand(2, 20))
 
         assert isinstance(
-            layer._last_analysis_currents["pre_gate_voltage"], torch.Tensor
+            layer.get_analysis_currents()["pre_gate_voltage"], torch.Tensor
         )
 
     def test_additive_default_reactivation_init_is_legacy(self):

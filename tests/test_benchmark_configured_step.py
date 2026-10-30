@@ -6,6 +6,7 @@ import pytest
 import torch
 
 from dendritic_modeling.config import load_config
+from dendritic_modeling.config.regularization import RegularizationConfig
 from dendritic_modeling.scripts.benchmarks.benchmark_configured_step import (
     build_step,
     measure_step,
@@ -81,3 +82,32 @@ def test_legacy_mapping_regularization_and_pruning_are_supported():
             device=torch.device("cpu"),
             steps_per_epoch=4,
         )
+
+
+@pytest.mark.parametrize("as_mapping", [False, True])
+@pytest.mark.parametrize(
+    "penalty",
+    [
+        {"l1_weight": 0.1},
+        {"l2_weight": 0.1},
+        {"routing_entropy_weight": 0.1},
+        {"routing_balance_weight": 0.1},
+        {"enforce_ei_weight_ratio": True},
+        {"split_params": True, "param_group_weights": {"decoder": {"l2_weight": 0.1}}},
+    ],
+)
+def test_all_enabled_penalties_rejected_before_initialization(penalty, as_mapping):
+    config = small_config()
+    config.training.main.regularization = (
+        penalty if as_mapping else RegularizationConfig(**penalty)
+    )
+    rng = torch.get_rng_state().clone()
+    with pytest.raises(ValueError, match="additional regularization"):
+        build_step(
+            config,
+            input_dim=8,
+            classes=3,
+            device=torch.device("cpu"),
+            steps_per_epoch=4,
+        )
+    assert torch.equal(rng, torch.get_rng_state())

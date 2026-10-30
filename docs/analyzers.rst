@@ -922,6 +922,89 @@ Output: ``branch_local_sensitivity/<name>.json``. Example profile:
 ``configs/examples/branch_local_sensitivity_analysis.yaml``. Collect checkpoint
 runs with ``dendritic-collect-branch-sensitivities``.
 
+.. _analyzer-node-perturbation-credit:
+
+``node_perturbation_credit``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Final-only. Estimates the error of every compartment of the selected
+soma-relative ``depths`` from loss changes under antithetic perturbations of
+that level (:ref:`node-perturbation`, applied with
+:ref:`compartment perturbations <compartment-perturbations>`) and compares it
+with the exact error, the gradient of the loss with respect to a zero
+perturbation. ``coordinate`` is ``output``, ``voltage`` or, for shunting
+levels, ``current``. ``dictionaries`` sets the perturbation directions:
+``independent`` (every compartment), ``siblings`` (one direction per group of
+children of a parent) or ``neuron`` (one per neuron). ``relative_scales``
+multiply the RMS of the perturbed quantity over the level on the analysed
+examples (for ``current``, the shunting numerator).
+``match_perturbation_energy`` adds runs of the structured dictionaries scaled
+by sqrt(D / m), so their expected perturbation energy equals that of
+independent draws. ``loss`` is ``cross_entropy`` (class labels) or ``mse``
+(any output shape, also one value per example). The first ``max_samples``
+examples of the evaluation split are analysed (default 256; ``null`` for
+all), and every forward pass takes at most ``analysis.runtime.batch_size``
+rows, a row being one example under one draw. ``seed`` fixes the draws; left
+unset, a run fills it from its probe seed (seed 0 without one), and every row
+records the seed of its draws.
+
+The tree selection and checks are those of ``path_matched_intervention``.
+Each perturbed level must run ``DendriticBranchLayer.forward`` once per model
+forward (feedforward population networks qualify). Recurrent cores, stateful
+current paths, cores with ``autograd_credit_mode: soma_broadcast`` and models
+with ``signal_rounding`` are refused: their gradients are not the derivatives
+of the forward the perturbations probe (rounding makes it piecewise constant,
+while autograd passes gradients through the casts).
+
+The estimator assumes that examples are independent. Overrides
+``sample_rolled_denominator``, ``sample_rolled_tangent`` and
+``permuted_current_denominator`` are refused anywhere in the model, including
+outside the selected tree: they can couple examples and change their pairings
+when perturbation draws are batched.
+
+A level that executes but does not influence the loss has zero exact credit,
+including when all model parameters are frozen and the loss has no gradient
+graph. Alignment to a zero reference is undefined. When both exact and
+estimated credit are zero, the cosines and relative metrics are reported as
+NaN.
+
+The scale is relative to the RMS over the level, while the effect of a
+perturbation depends on each compartment. For ``current`` the voltage
+response is the injected current divided by the compartment's total
+conductance, so weakly driven, high-resistance compartments receive much
+larger relative perturbations, and a nonlinear tree can distort ``current``
+estimates at scales where ``output`` and ``voltage`` estimates show no scale
+dependence. List several ``relative_scales``: an estimate that changes with
+the scale is distorted by it.
+
+Each row reports a depth, dictionary, energy, relative scale and draw count:
+cosine with the exact error over all compartments, the mean cosine within each
+neuron, sign agreement, relative error, norm ratio, for structured
+dictionaries the share of the exact error's energy in their span and the
+cosine with that projection, the forward evaluations per example (two per
+draw) and the wall time per draw (CUDA work included). The file also records
+the seed, device, dtype, ``chunk`` and rows per forward. These are
+measurements at a fixed state; they say nothing by themselves about learning
+with the estimates.
+
+.. code-block:: yaml
+
+   analysis:
+     node_perturbation_credit:
+       enabled: true
+       params:
+         depths: [1, 2]
+         module_name_prefix: core_network.layers.0.excitatory_cells.branch_layers
+         coordinate: output
+         dictionaries: [independent, siblings, neuron]
+         relative_scales: [0.01, 0.1]
+         draws: [1, 4, 16, 64, 256]
+         match_perturbation_energy: true
+         max_samples: 256
+
+Output: ``node_perturbation_credit/<name>.json``. Example profile:
+``configs/examples/node_perturbation_credit_analysis.yaml``.
+
 Connectivity and weights
 ------------------------
 

@@ -535,20 +535,30 @@ entry can differ from one in its last bit); evaluation uses exact one-hot
 assignments. With ``hard_routing: false``, both use soft assignments.
 ``inferred_assignment()`` returns each source's branch under hard routing and
 resolves near-ties as the forward does. ``routing: fixed``
-requires a ``fixed_assignment`` list containing one branch index per feature;
-it does not read ``temperature``, ``hard_routing`` or ``route_init_std``, so
+requires a ``fixed_assignment`` list containing one branch index per feature.
+Learned routing requires an empty list; non-list values are rejected before
+initialization draws any random numbers. Fixed routing does not read
+``temperature``, ``hard_routing`` or ``route_init_std``, so
 their non-default values raise. Assigning ``model.temperature`` re-validates
 the configuration, so a temperature schedule applies to learned routing only.
+At use, temperature must remain finite and strictly positive in the logits
+dtype. The shared routing helper rejects nonfinite scaled logits before
+softmax; this also protects statistics, inferred assignments and learned
+``pathway_router`` assignments. This check reads tensor values and may
+synchronize the device. Valid assignments keep their original arithmetic.
 Empty branches have zero drive; no implicit balancing or reassignment occurs.
 ``inhibitory_support: global_mean`` is a shunting-only control that replaces
 each branch's inhibitory drive by the unweighted mean of the input I channels.
 
 Shunting defaults to positive unit leak and epsilon ``1e-8``; a forward call
-raises if the leak rounds to zero in the model's dtype. Raw addition is
+raises if either constant overflows in the model's dtype or the leak rounds
+to zero. Raw addition is
 ``E - I``; nondefault leak/epsilon values and global-mean support are rejected
 because this comparator does not use them. The optional output transformation is
 ``branch_scale * (voltage - branch_center) / branch_divisor``; its default is
-the identity. No gate, across-feature normalization or learned output scale is
+the identity. All three constants must remain finite in the voltage dtype,
+with scale and divisor strictly positive after conversion. Signed centers
+are supported. No gate, across-feature normalization or learned output scale is
 implicit in this core. Set the outer model's ``output_scale_mode: fixed``
 and use identity encoder/decoder modules to retain that contract. The control
 computes in its parameter dtype: ``training.main.common.use_amp: true`` raises
@@ -560,6 +570,10 @@ An explicit ``branch_activation: tanh`` applies
 before the affine readout. The initial raw slope defaults to ``0.5413249``
 (approximately unit softplus slope) and the offset to zero. These per-branch
 values are fixed buffers unless ``trainable_activation: true`` is requested.
+Initialization spreads and the optional gate's initial constants must be
+finite in the default dtype used to construct parameters. An invalid value
+raises before initialization draws any random numbers. This check does not
+rescale the specified values or change valid initialization streams.
 This signed gate is not the neuronal ``ParametricTanh``: that gate has a
 unit-range output, an exponential slope and a voltage midpoint. Substituting
 one for the other changes optimization even when an operating-point response
@@ -584,7 +598,13 @@ division by ``max(sum(weights), floor)``, the clamped-sum convention of earlier
 reduced-model runs. The two conventions agree exactly, in values and
 gradients, while every branch's weight sum exceeds the floor; below it,
 including at empty branches, the floor convention divides by the floor instead.
-Replaying a clamped-sum model therefore requires its original floor.
+Replaying a clamped-sum model therefore requires its original floor. The floor
+must remain finite and strictly positive in the weight dtype; values that
+overflow or round to zero raise before division. The same check applies to
+``divide_rows_by_sum`` and ``normalize_weight_rows(..., sum_floor=...)``.
+These sum-based paths also reject nonfinite row sums before division, including
+overflow from finite weights, instead of silently zeroing a nonempty branch.
+Finite sums retain the original normalization arithmetic and gradients.
 
 The fixed-assignment and global-mean controls keep the unused route-logit or
 I-weight parameters and their initialization draws, so all variants share one
@@ -602,7 +622,11 @@ No production paper pin is changed merely by selecting this architecture.
 Training builds the control from the run's global random stream, as direct
 construction after ``torch.manual_seed(model_seed)`` and any encoder draws
 would. An explicit ``core.initialization_seed`` instead draws it from a CPU
-stream keyed by that seed and the core type.
+stream keyed by that seed and the core type. Explicit-seed construction takes
+place on CPU even when the caller's default device is CUDA, and restores both
+the caller's device setting and random streams. Move the constructed core to
+the desired device afterwards, as the standard training setup does. Without
+an explicit seed, construction retains the caller's default device and stream.
 
 Routing regularization is opt-in under
 ``training.main.regularization``. ``routing_entropy_weight`` penalizes
@@ -615,6 +639,9 @@ penalty on a model without a learned router raises. Both weights default to
 zero, which performs no routing discovery or computation in existing runs.
 ``routing_regularizer(entropy_weight=..., balance_weight=...)`` evaluates the
 same term for a direct training loop; its weights have no defaults.
+The configured-step benchmark supports no additional regularization and rejects
+these penalties before model initialization, using the trainer's regularization
+manager to determine which terms are enabled.
 
 Parameter-budget model families
 -------------------------------

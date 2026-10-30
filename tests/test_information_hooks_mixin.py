@@ -215,21 +215,25 @@ def test_has_analyzable_branch_signals_matches_hook_registration_predicate():
     assert _has_analyzable_branch_signals(with_branch_input) is True
 
 
-def test_analysis_current_capture_lifecycle_preserves_previous_state():
-    module = SimpleNamespace(_store_analysis_currents="previous")
+@pytest.mark.parametrize("previous", [False, True])
+def test_analysis_current_capture_lifecycle_preserves_previous_state(previous):
+    module = _branch_layer()
+    module.set_analysis_currents(previous)
 
     previous_store = _enable_analysis_current_capture(module)
+    assert module.analysis_currents_enabled is True
     module._last_analysis_currents = {"excitation": torch.ones(1)}
     _restore_analysis_current_capture(module, previous_store)
 
-    assert previous_store == "previous"
-    assert module._store_analysis_currents == "previous"
-    assert not hasattr(module, "_last_analysis_currents")
+    assert previous_store is previous
+    assert module.analysis_currents_enabled is previous
+    assert module.get_analysis_currents() == {}
 
 
-def test_prepare_branch_hook_capture_preserves_registration_state():
+@pytest.mark.parametrize("previous", [False, True])
+def test_prepare_branch_hook_capture_preserves_registration_state(previous):
     module = _branch_layer()
-    module._store_analysis_currents = "previous"
+    module.set_analysis_currents(previous)
     data_dict = {}
     hook_modules = []
 
@@ -237,16 +241,16 @@ def test_prepare_branch_hook_capture_preserves_registration_state():
 
     assert data_dict == {"layer0": {}}
     assert module._name == "layer0"
-    assert module._store_analysis_currents is True
-    assert hook_modules == [(module, "previous")]
+    assert module.analysis_currents_enabled is True
+    assert hook_modules == [(module, previous)]
 
     _restore_analysis_current_capture(module, hook_modules[0][1])
-    assert module._store_analysis_currents == "previous"
+    assert module.analysis_currents_enabled is previous
 
 
 def test_information_hooks_attach_only_analyzable_layers_and_restore_on_remove():
     model = _InformationHookModel()
-    model.layer_a._store_analysis_currents = "previous_a"
+    model.layer_a.set_analysis_currents(True)
     model.layer_b.branch_excitation = None
     model.layer_b.branch_inhibition = None
     model.layer_b.input_branches = False
@@ -256,13 +260,15 @@ def test_information_hooks_attach_only_analyzable_layers_and_restore_on_remove()
     try:
         assert len(handles) == 1
         assert list(hook.data_dict) == ["layer_a"]
-        assert model.layer_a._store_analysis_currents is True
+        assert model.layer_a.analysis_currents_enabled is True
+        assert model.layer_b.analysis_currents_enabled is False
         assert sum(len(module._forward_hooks) for module in model.modules()) == 1
     finally:
         hook.remove_forward_hooks(handles)
 
     assert sum(len(module._forward_hooks) for module in model.modules()) == 0
-    assert model.layer_a._store_analysis_currents == "previous_a"
+    assert model.layer_a.analysis_currents_enabled is True
+    assert model.layer_a.get_analysis_currents() == {}
     assert hook._analysis_hook_modules == []
 
 
@@ -273,6 +279,7 @@ def test_information_hook_stores_resolved_currents_and_flags():
         branch_inhibition=None,
         input_branches=True,
         branches_to_output=_Scale(5.0),
+        get_analysis_currents=dict,
     )
     hook = InformationHooksMixin()
     hook.data_dict = {"layer0": {}}
@@ -386,6 +393,7 @@ def test_information_hook_preserves_lda_raw_input_capture():
         branch_inhibition=_Scale(3.0),
         input_branches=True,
         branches_to_output=_Scale(5.0),
+        get_analysis_currents=dict,
     )
     hook = InformationHooksMixin()
     hook.compute_lda_weights = True
@@ -412,8 +420,6 @@ def test_information_hook_preserves_lda_raw_input_capture():
 def test_information_hooks_restore_state_after_failed_registration(monkeypatch):
     model = _InformationHookModel()
     hook = InformationHooksMixin()
-    model.layer_a._store_analysis_currents = "previous_a"
-    model.layer_b._store_analysis_currents = "previous_b"
 
     def _failing_register(*args, **kwargs):
         raise RuntimeError("information hook registration failed")
@@ -424,6 +430,6 @@ def test_information_hooks_restore_state_after_failed_registration(monkeypatch):
         hook.attach_forward_hooks(model)
 
     assert sum(len(module._forward_hooks) for module in model.modules()) == 0
-    assert model.layer_a._store_analysis_currents == "previous_a"
-    assert model.layer_b._store_analysis_currents == "previous_b"
+    assert model.layer_a.analysis_currents_enabled is False
+    assert model.layer_b.analysis_currents_enabled is False
     assert hook._analysis_hook_modules == []
