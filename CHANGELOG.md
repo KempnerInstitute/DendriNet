@@ -149,6 +149,27 @@
   and `Makefile` files. Other extensionless inputs and copied library paths
   remain rejected; manuscript export rules are unchanged.
 
+- Project source verification and export accept an optional explicit
+  ``paper_root`` (CLI ``--paper-root``), allowing contracts and manifests in
+  subdirectories without changing root-relative source paths or library pins.
+  Existing root-level calls retain their behavior and source-receipt fields;
+  exported payloads are unchanged (the exporter hash records the new tool).
+  Nested contracts remain subject to the same source-cleanliness checks.
+  Check the caller's contract path before following aliases within the
+  repository, and use literal Git pathspecs for ownership and cleanliness.
+  Exports select the requested regular manifest in the committed tree, so
+  working-tree symlinks cannot redirect the allow-list to a different file.
+  External directory aliases into the repository remain supported; shared
+  traversal validates every component after first entry, including when the
+  root is inferred. Internal contract symlinks and manifest hops leaving the
+  root are rejected even if they return. Normalize safe ``..`` components only
+  after traversal validation, preserving parent-relative calls. Export receipts
+  hash both tooling files. Literal Git checks ignore inherited pathspec settings.
+  Require the original contract request to name a regular file before using its
+  normalized path, so missing or non-directory components before ``..`` fail
+  consistently in verification and execution. Export manifests can still be
+  absent from the working tree.
+
 - ``DendriNet`` levels can differ from the shared settings through
   ``level_overrides`` (constructor argument and ``DendriNetConfig`` field;
   default none). An override names a level by depth (0 = soma) and removes a

@@ -9,11 +9,20 @@ if __name__ == "__main__" and not __package__:
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 import subprocess
 import zipfile
 from pathlib import Path, PurePosixPath
+
+# Load the sibling utility by filename so direct execution and paper adapters
+# share path validation without importing DendriNet or an installed package.
+_SOURCE_SPEC = importlib.util.spec_from_file_location(
+    "_project_export_source", Path(__file__).with_name("project_source.py")
+)
+_SOURCE = importlib.util.module_from_spec(_SOURCE_SPEC)
+_SOURCE_SPEC.loader.exec_module(_SOURCE)
 
 MANUSCRIPT_SUFFIXES = {
     ".tex",
@@ -67,16 +76,22 @@ def _git(root: Path, *args: str) -> bytes:
     )
 
 
-def export_project(manifest: Path, commit: str, output: Path) -> dict:
-    """Write exact allow-listed Git blobs and their provenance to a new ZIP."""
-    manifest = manifest.resolve()
-    root = manifest.parent
+def export_project(
+    manifest: Path, commit: str, output: Path, *, paper_root: Path | None = None
+) -> dict:
+    """Write committed Git blobs; ``paper_root`` opts into a nested manifest."""
+    try:
+        root, relative = _SOURCE._project_path(
+            manifest, paper_root, allow_symlinks=True
+        )
+    except _SOURCE.SourceContractError as error:
+        raise ValueError(str(error)) from error
     output = output.resolve()
     if (
         Path(_git(root, "rev-parse", "--show-toplevel").decode().strip()).resolve()
         != root
     ):
-        raise ValueError("The export manifest must live at its repository root")
+        raise ValueError("The declared paper root must be a Git repository root")
     if output.is_relative_to(root) or output.is_relative_to(
         Path(__file__).resolve().parents[3]
     ):
@@ -84,7 +99,15 @@ def export_project(manifest: Path, commit: str, output: Path) -> dict:
             "Export archives belong outside paper and library repositories"
         )
     sha = _git(root, "rev-parse", "--verify", commit + "^{commit}").decode().strip()
-    raw_manifest = _git(root, "show", f"{sha}:{manifest.name}")
+    entries = {}
+    for row in _git(root, "ls-tree", "-rz", sha).split(b"\0"):
+        if row:
+            meta, name = row.split(b"\t", 1)
+            entries[name.decode()] = meta.split()[0].decode()
+    manifest_name = relative.as_posix()
+    if entries.get(manifest_name) not in {"100644", "100755"}:
+        raise ValueError(f"Not a regular committed manifest: {manifest_name}")
+    raw_manifest = _git(root, "show", f"{sha}:{manifest_name}")
     data = json.loads(raw_manifest)
     kind = data.get("kind")
     if data.get("schema_version") != 1 or kind not in {"manuscript", "paper-code"}:
@@ -106,11 +129,6 @@ def export_project(manifest: Path, commit: str, output: Path) -> dict:
         or len(paths) != len(set(paths))
     ):
         raise ValueError("Expected a nonempty, unique file allow-list")
-    entries = {}
-    for row in _git(root, "ls-tree", "-rz", sha).split(b"\0"):
-        if row:
-            meta, name = row.split(b"\t", 1)
-            entries[name.decode()] = meta.split()[0].decode()
     for name in paths:
         path = PurePosixPath(name)
         if (
@@ -133,6 +151,9 @@ def export_project(manifest: Path, commit: str, output: Path) -> dict:
         "paper_commit": sha,
         "manifest_sha256": hashlib.sha256(raw_manifest).hexdigest(),
         "exporter_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        "source_checker_sha256": hashlib.sha256(
+            Path(_SOURCE.__file__).read_bytes()
+        ).hexdigest(),
         "files": [],
     }
     if kind == "paper-code":
@@ -168,10 +189,17 @@ def export_project(manifest: Path, commit: str, output: Path) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", type=Path, required=True)
+    parser.add_argument(
+        "--paper-root",
+        type=Path,
+        help="explicit Git repository root for a manifest stored in a subdirectory",
+    )
     parser.add_argument("--commit", required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    receipt = export_project(args.manifest, args.commit, args.output)
+    receipt = export_project(
+        args.manifest, args.commit, args.output, paper_root=args.paper_root
+    )
     print(
         json.dumps(
             {
