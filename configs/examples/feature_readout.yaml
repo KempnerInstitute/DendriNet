@@ -1,0 +1,47 @@
+# Conventional normalization control on an existing synthetic dataset.
+# Not an E/I conductance neuron or the frozen-image-feature paper protocol.
+config_version: 4
+experiment:
+  seed: 17
+  checkpointing: {enabled: false}
+data:
+  dataset_name: branch_local_gain_load
+  dataset_params:
+    branch_local_gain_load:
+      n_samples: 256
+      stream_dim: 8
+      n_gain_groups: 2
+      train_gain_sigma: 0.4
+      test_gain_sigma: 0.8
+      valid_split_mode: train
+model:
+  task: classification
+  output_scale_mode: fixed
+  encoder: {type: identity, params: {input_dim: 16}}
+  core:
+    type: feature_readout
+    biological_neuron: false
+    feature_readout:
+      input_shape: [16]
+      normalization: group_mean
+      groups: 2
+      divisor_offset: 0.05
+      readout:
+        dimensions: [16, 2]
+        initialization: pytorch_default
+        activate_output: false
+  decoder: {type: identity}
+training:
+  main:
+    strategy: standard
+    common:
+      epochs: 3
+      batch_size: 32
+      loss_function: ce
+      synapse_decay_rate: 0.0
+      weight_boosting: false
+      plot_losses: false
+    optimizer: {name: adam}
+outputs:
+  run_name: feature_readout_example
+  results_dir: outputs/examples

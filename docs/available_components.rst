@@ -145,6 +145,13 @@ Conventional networks for comparisons, described in :ref:`baseline-models`.
    * - ``affine_mlp``
      - Dense, fixed-sparse or learned Top-K multilayer perceptron.
      - ``model.core.affine_mlp``
+   * - ``feature_readout``
+     - Conventional feature normalization and dense affine readout
+     - ``model.core.feature_readout``
+   * - ``routed_ei``
+     - Paired nonnegative E/I source routing, shunting or additive branches,
+       and an affine readout; a reduced control, not a population network.
+     - ``model.core.routed_ei``
    * - ``point_mlp``, ``total_param_mlp``, ``active_param_mlp``
      - Point-neuron MLPs matched to the parameter count of a dendritic
        reference.

@@ -283,6 +283,9 @@ Explained in :ref:`analyzer-catalogue`. Class ``dendritic_modeling.config.analys
    * - ``branch_local_sensitivity``
      - ``BranchLocalSensitivityAnalysisConfig``
      - :ref:`analysis.branch_local_sensitivity <options-analysis-branch-local-sensitivity>`
+   * - ``node_perturbation_credit``
+     - ``NodePerturbationCreditAnalysisConfig``
+     - :ref:`analysis.node_perturbation_credit <options-analysis-node-perturbation-credit>`
    * - ``local_inhibitory_population_intervention``
      - ``LocalInhibitoryPopulationInterventionAnalysisConfig``
      - :ref:`analysis.local_inhibitory_population_intervention <options-analysis-local-inhibitory-population-intervention>`
@@ -493,6 +496,12 @@ Explained in :ref:`core-types`. Class ``dendritic_modeling.config.model.CoreConf
    * - ``shared_projection_shunting``
      - ``Optional[SharedProjectionShuntingConfig]``
      - ``None``; :ref:`model.core.shared_projection_shunting <options-model-core-shared-projection-shunting>`
+   * - ``routed_ei``
+     - ``Optional[RoutedEIConfig]``
+     - ``None``; :ref:`model.core.routed_ei <options-model-core-routed-ei>`
+   * - ``feature_readout``
+     - ``Optional[FeatureReadoutConfig]``
+     - ``None``; :ref:`model.core.feature_readout <options-model-core-feature-readout>`
    * - ``target_active_parameters``
      - ``Optional[int]``
      - ``null``
@@ -883,6 +892,30 @@ Explained in :ref:`analyzer-catalogue`. Class ``dendritic_modeling.config.analys
    * - ``params``
      - ``BranchLocalSensitivityAnalysisParams``
      - :ref:`analysis.branch_local_sensitivity.params <options-analysis-branch-local-sensitivity-params>`
+
+.. _options-analysis-node-perturbation-credit:
+
+``analysis.node_perturbation_credit``
+-------------------------------------
+
+Explained in :ref:`analyzer-catalogue`. Class ``dendritic_modeling.config.analysis.NodePerturbationCreditAnalysisConfig``.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 33 33
+
+   * - Option
+     - Type
+     - Default
+   * - ``enabled``
+     - ``bool``
+     - ``false``
+   * - ``training``
+     - ``bool``
+     - ``false``
+   * - ``params``
+     - ``NodePerturbationCreditAnalysisParams``
+     - :ref:`analysis.node_perturbation_credit.params <options-analysis-node-perturbation-credit-params>`
 
 .. _options-analysis-local-inhibitory-population-intervention:
 
@@ -1658,6 +1691,120 @@ Explained in :doc:`comparison_models`. Class ``dendritic_modeling.config.shared_
      - ``bool``
      - ``true``
    * - ``train_output``
+     - ``bool``
+     - ``true``
+
+.. _options-model-core-routed-ei:
+
+``model.core.routed_ei``
+------------------------
+
+Explained in :doc:`comparison_models`. Class ``dendritic_modeling.config.routed_ei.RoutedEIConfig``.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 33 33
+
+   * - Option
+     - Type
+     - Default
+   * - ``features``
+     - ``int``
+     - ``1``
+   * - ``branches``
+     - ``int``
+     - ``1``
+   * - ``output_dim``
+     - ``int``
+     - ``1``
+   * - ``mechanism``
+     - ``str``
+     - ``shunting``
+   * - ``routing``
+     - ``str``
+     - ``learned``
+   * - ``fixed_assignment``
+     - ``list[int]``
+     - ``[]``
+   * - ``inhibitory_support``
+     - ``str``
+     - ``matched``
+   * - ``temperature``
+     - ``float``
+     - ``1.0``
+   * - ``hard_routing``
+     - ``bool``
+     - ``true``
+   * - ``leak_conductance``
+     - ``float``
+     - ``1.0``
+   * - ``epsilon``
+     - ``float``
+     - ``1.0e-08``
+   * - ``weight_normalization_floor``
+     - ``float | None``
+     - ``null``
+   * - ``route_init_std``
+     - ``float``
+     - ``0.05``
+   * - ``weight_init_std``
+     - ``float``
+     - ``0.04``
+   * - ``branch_center``
+     - ``float``
+     - ``0.0``
+   * - ``branch_scale``
+     - ``float``
+     - ``1.0``
+   * - ``branch_divisor``
+     - ``float``
+     - ``1.0``
+   * - ``branch_activation``
+     - ``str``
+     - ``none``
+   * - ``trainable_activation``
+     - ``bool``
+     - ``false``
+   * - ``activation_slope_raw``
+     - ``float``
+     - ``0.5413249``
+   * - ``activation_offset``
+     - ``float``
+     - ``0.0``
+
+.. _options-model-core-feature-readout:
+
+``model.core.feature_readout``
+------------------------------
+
+Explained in :doc:`comparison_models`. Class ``dendritic_modeling.config.feature_readout.FeatureReadoutConfig``.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 33 33
+
+   * - Option
+     - Type
+     - Default
+   * - ``input_shape``
+     - ``list[int]``
+     - ``[]``
+   * - ``readout``
+     - ``AffineMLPConfig``
+     - :ref:`model.core.feature_readout.readout <options-model-core-feature-readout-readout>`
+   * - ``normalization``
+     - ``str``
+     - ``none``
+   * - ``groups``
+     - ``int | None``
+     - ``null``
+   * - ``divisor_offset``
+     - ``float | None``
+     - ``null``
+   * - ``normalization_epsilon``
+     - ``float``
+     - ``1.0e-05``
+   * - ``normalization_affine``
      - ``bool``
      - ``true``
 
@@ -2443,6 +2590,12 @@ Explained in :ref:`regularization-pruning`. Class ``dendritic_modeling.config.re
    * - ``l2_weight``
      - ``float``
      - ``0.0``
+   * - ``routing_entropy_weight``
+     - ``float``
+     - ``0.0``
+   * - ``routing_balance_weight``
+     - ``float``
+     - ``0.0``
    * - ``selective``
      - ``SelectiveConfig``
      - :ref:`training.main.regularization.selective <options-training-main-regularization-selective>`
@@ -3061,6 +3214,54 @@ Explained in :ref:`analyzer-catalogue`. Class ``dendritic_modeling.config.analys
    * - ``include_soma``
      - ``bool``
      - ``false``
+
+.. _options-analysis-node-perturbation-credit-params:
+
+``analysis.node_perturbation_credit.params``
+--------------------------------------------
+
+Explained in :ref:`analyzer-catalogue`. Class ``dendritic_modeling.config.analysis.NodePerturbationCreditAnalysisParams``.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 33 33
+
+   * - Option
+     - Type
+     - Default
+   * - ``depths``
+     - ``list[int]``
+     - ``[1]``
+   * - ``module_name_prefix``
+     - ``Optional[str]``
+     - ``null``
+   * - ``coordinate``
+     - ``str``
+     - ``output``
+   * - ``dictionaries``
+     - ``list[str]``
+     - ``[independent]``
+   * - ``relative_scales``
+     - ``list[float]``
+     - ``[0.01]``
+   * - ``draws``
+     - ``list[int]``
+     - ``[1, 4, 16, 64]``
+   * - ``match_perturbation_energy``
+     - ``bool``
+     - ``false``
+   * - ``loss``
+     - ``str``
+     - ``cross_entropy``
+   * - ``max_samples``
+     - ``Optional[int]``
+     - ``256``
+   * - ``chunk``
+     - ``int``
+     - ``16``
+   * - ``seed``
+     - ``Optional[int]``
+     - ``null``
 
 .. _options-analysis-local-inhibitory-population-intervention-params:
 
@@ -4243,6 +4444,60 @@ Explained in :ref:`analyzer-catalogue`. Class ``dendritic_modeling.config.analys
    * - ``batch_size``
      - ``int``
      - ``256``
+
+.. _options-model-core-feature-readout-readout:
+
+``model.core.feature_readout.readout``
+--------------------------------------
+
+Explained in :doc:`comparison_models`. Class ``dendritic_modeling.config.affine_mlp.AffineMLPConfig``.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 33 33
+
+   * - Option
+     - Type
+     - Default
+   * - ``dimensions``
+     - ``list[int]``
+     - ``[]``
+   * - ``mode``
+     - ``str``
+     - ``dense``
+   * - ``initialization``
+     - ``str``
+     - ``kaiming_normal``
+   * - ``fanin``
+     - ``list[int]``
+     - ``[]``
+   * - ``connectivity_seeds``
+     - ``list[int]``
+     - ``[]``
+   * - ``activation``
+     - ``str``
+     - ``relu``
+   * - ``negative_slope``
+     - ``float``
+     - ``0.1``
+   * - ``activate_output``
+     - ``bool``
+     - ``true``
+   * - ``dropout``
+     - ``float | None``
+     - ``null``
+   * - ``output_weight_scale``
+     - ``float``
+     - ``1.0``
+   * - ``projection_backend``
+     - ``str``
+     - ``eager``
+   * - ``workspace_mb``
+     - ``float``
+     - ``128.0``
+   * - ``index_dtype``
+     - ``str``
+     - ``int32``
 
 .. _options-model-core-connectivity-structured:
 

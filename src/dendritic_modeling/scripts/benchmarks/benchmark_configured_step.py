@@ -23,6 +23,7 @@ import torch
 
 from dendritic_modeling.config import load_config
 from dendritic_modeling.config.conversion import to_plain_dict
+from dendritic_modeling.config.regularization import RegularizationConfig
 from dendritic_modeling.config.training import default_grad_clip_mode
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.impact_rewiring import (
     build_population_impact_rewiring,
@@ -43,6 +44,7 @@ from dendritic_modeling.training.optimizers.factory import (
     create_optimizer,
     validate_param_group_learning_rates,
 )
+from dendritic_modeling.training.regularization import RegularizationManager
 from dendritic_modeling.utils import resolve_experiment_seeds, set_seed
 from dendritic_modeling.utils.logging_config import setup_logging
 from dendritic_modeling.utils.runtime_environment import (
@@ -60,17 +62,8 @@ def build_step(config, *, input_dim, classes, device, steps_per_epoch):
         raise ValueError("benchmark requires an identity encoder")
     if config.model.task != "classification":
         raise ValueError("benchmark supports classification only")
-    regularization = to_plain_dict(main.regularization)
-    if (
-        regularization.get("l1_weight", 0)
-        or regularization.get("l2_weight", 0)
-        or regularization.get("enforce_ei_weight_ratio", False)
-        or any(
-            v
-            for group in regularization.get("param_group_weights", {}).values()
-            for v in group.values()
-        )
-    ):
+    regularization = RegularizationConfig(**to_plain_dict(main.regularization))
+    if RegularizationManager(regularization).has_regularization():
         raise ValueError("benchmark does not implement additional regularization")
     if (
         main.common.use_amp

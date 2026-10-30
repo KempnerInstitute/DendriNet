@@ -26,6 +26,9 @@ expression for every row.
 
 from __future__ import annotations
 
+import math
+from numbers import Real
+
 import torch
 
 from dendritic_modeling.networks.utils.weight_transforms import (
@@ -84,6 +87,7 @@ def normalize_weight_rows(
     pre_weight: torch.Tensor | None = None,
     transform: str | None = None,
     contacts: torch.Tensor | None = None,
+    sum_floor: float | None = None,
 ) -> torch.Tensor:
     """Scale each row of ``weight`` (its last dimension) to p-norm ``gamma``.
 
@@ -98,10 +102,28 @@ def normalize_weight_rows(
             ``softplus``, rows below machine epsilon normalize in log space.
         contacts: Boolean mask of the contacts in ``weight`` for the log-space
             rows; ``None`` means every entry is a contact.
+        sum_floor: Explicit clamped-sum convention for nonnegative, order-1
+            weights: ``weight / clamp(sum(weight), min=sum_floor) * gamma``.
+            Must remain finite and strictly positive in ``weight.dtype``.
+            Small rows then shrink rather than have unit norm. This opt-in
+            convention preserves reduced-model replays; ``None`` retains the
+            existing robust p-norm algorithm, including every default call.
 
     Returns:
         The normalized weights.
     """
+    if sum_floor is not None:
+        if (
+            order != 1
+            or isinstance(sum_floor, bool)
+            or not isinstance(sum_floor, Real)
+            or not math.isfinite(sum_floor)
+            or sum_floor <= 0
+        ):
+            raise ValueError("sum_floor requires order=1 and a finite positive floor")
+        if not bool(torch.isfinite(weight).all()) or bool((weight < 0).any()):
+            raise ValueError("clamped-sum weights must be finite and nonnegative")
+        return divide_rows_by_sum(weight, sum_floor) * gamma
     norm = torch.norm(weight, p=order, dim=-1, keepdim=True)
     eps = torch.finfo(weight.dtype).eps
     # The historical expression, kept for every row whose norm is >= eps.
@@ -129,6 +151,41 @@ def normalize_weight_rows(
     return torch.where(small, unit * scale, historical)
 
 
+def divide_rows_by_sum(
+    weight: torch.Tensor, floor: float | None = None
+) -> torch.Tensor:
+    """Divide each row of nonnegative ``weight`` by its sum.
+
+    With ``floor=None`` every row with a positive sum sums to one and all-zero
+    rows stay zero. Unlike the p-norm path of :func:`normalize_weight_rows`,
+    the sum is differentiated at zero entries too, as straight-through routing
+    needs. A positive ``floor`` divides by ``max(sum, floor)``, the clamped-sum
+    convention, so rows below the floor shrink. The scalar floor must remain
+    finite and strictly positive in ``weight.dtype``. Callers guarantee finite,
+    nonnegative weights; ``normalize_weight_rows(..., sum_floor=...)`` checks
+    them first. Nonfinite row sums raise before division, including overflow
+    from finite weights. This check reads tensor values and may synchronize
+    the device; finite sums retain their original arithmetic.
+    """
+    if floor is not None:
+        if (
+            isinstance(floor, bool)
+            or not isinstance(floor, Real)
+            or not math.isfinite(floor)
+            or floor <= 0
+        ):
+            raise ValueError("floor must be finite and positive")
+        converted = torch.tensor(floor, dtype=weight.dtype, device="cpu").item()
+        if not math.isfinite(converted) or converted <= 0:
+            raise ValueError(f"floor must remain finite and positive in {weight.dtype}")
+    total = weight.sum(dim=-1, keepdim=True)
+    if not bool(torch.isfinite(total).all()):
+        raise ValueError("weight row sums must be finite before normalization")
+    if floor is None:
+        return weight / torch.where(total > 0, total, torch.ones_like(total))
+    return weight / total.clamp_min(floor)
+
+
 def _log_space_unit_rows(
     pre_weight: torch.Tensor,
     small: torch.Tensor,
@@ -146,4 +203,4 @@ def _log_space_unit_rows(
     return torch.where(active, (log_weight - shift).exp_(), 0.0)
 
 
-__all__ = ["normalize_weight_rows"]
+__all__ = ["divide_rows_by_sum", "normalize_weight_rows"]

@@ -22,6 +22,7 @@ from dendritic_modeling.networks.architectures import (
     BlockLinear,
     CNNDownsample,
     CNNUpsample,
+    CompartmentPerturbation,
     CreditGatedDeepstLinear,
     DeepSTConfig,
     DeepstLinear,
@@ -83,11 +84,13 @@ from dendritic_modeling.networks.architectures import (
     build_dendritic_ffn_kwargs_from_core_config,
     build_ei_stack_kwargs_from_core_config,
     build_synapse_type_set,
+    capture_analysis_currents,
     distance_kernel_probabilities,
     estimate_deepseek_dense_ffn_params,
     estimate_dendritic_ffn_params,
     load_transformer_with_dendritic_replacements,
     normalize_pathway_name,
+    perturb_compartments,
     replace_transformer_mlp_layers,
     replace_transformer_mlp_layers_with_ei_stack,
     resolve_transformer_layers,
@@ -109,6 +112,7 @@ from dendritic_modeling.networks.architectures.classical.autoencoder.vae import 
     MLPVariationalAutoencoder,
 )
 from dendritic_modeling.networks.base import BaseNetwork
+from dendritic_modeling.networks.functional import additive_voltage, shunting_voltage
 from dendritic_modeling.networks.input import InputNetTransform, SigmoidOutputNetwork
 
 __all__ = [
@@ -123,6 +127,7 @@ __all__ = [
     "CNNDownsample",
     "CNNUpsample",
     "CNNVariationalAutoencoder",
+    "CompartmentPerturbation",
     "CreditGatedDeepstLinear",
     "DeepSTConfig",
     "DeepstLinear",
@@ -185,14 +190,18 @@ __all__ = [
     "TopKLinear",
     "TransferLayer",
     "VarianceTopKLinear",
+    "additive_voltage",
     "analytical_expectation_dbl_init",
     "build_synapse_type_set",
+    "capture_analysis_currents",
     "distance_kernel_probabilities",
     "normalize_pathway_name",
+    "perturb_compartments",
     "sample_configured_mask",
     "sample_distance_kernel_mask",
     "sample_fixed_indegree_mask",
     "sample_probability_mask",
+    "shunting_voltage",
     "transformed_feature_dim",
     "validate_connection_mask",
     "validate_input_transform",

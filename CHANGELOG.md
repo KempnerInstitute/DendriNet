@@ -2,6 +2,149 @@
 
 ## Unreleased
 
+- Add the opt-in `feature_readout` conventional control. It composes the
+  existing dense affine builder with PyTorch LayerNorm/GroupNorm or explicit
+  group-mean division, retaining constructor order and checkpoint keys.
+  Normalization, groups and divisor offset are typed configuration; noise is
+  an explicit runtime input. It does not change physical shunting, L1 input
+  normalization, existing cores or their default random streams. Training
+  initializes it from the global stream, like `affine_mlp`; an explicit
+  `core.initialization_seed` selects a CPU stream keyed by the seed and core type,
+  preserving the caller's CPU/CUDA RNG states under a CUDA default device.
+  The group-mean divisor offset must remain finite and strictly positive in
+  the input dtype; overflow or rounding to zero raises before division.
+
+- Add opt-in `affine_mlp.initialization: pytorch_default` for dense controls.
+  It retains the original Linear constructor weights, biases and RNG draws;
+  no reinitialization or implicit bias centering occurs. Existing initialization
+  defaults and sparse controls are unchanged. This permits conventional
+  readouts to reuse the affine builder without a second MLP implementation.
+
+- Extend the opt-in routed E/I control with a signed tanh gate, fixed or learned
+  softplus slopes and offsets, and explicit branch-response diagnostics. The
+  gate defaults to absent: no new parameters, buffers, random draws or diagnostic
+  work in existing forwards. This is not the unit-range neuronal reactivation;
+  substituting that gate would change both outputs and optimization dynamics.
+
+- Add the opt-in `routed_ei` comparison core: one source-to-branch assignment
+  shared by paired E/I channels, positive weights divided by their branch sums,
+  existing shunting/additive current integration and an affine readout. Its
+  typed payload is `None` in other cores; unsupported training, mixed
+  precision, unused sections, options that fixed routing ignores and a leak
+  that rounds to zero in the model's dtype raise. Leak and epsilon must also
+  remain finite in that dtype, including in branch-response diagnostics.
+  Fixed/learned routing, a global-mean inhibitory control and an explicit
+  clamped-sum normalization floor support historical reduced-model replay.
+  Non-list fixed assignments are rejected before any initialization draws.
+  Explicit normalization floors must remain finite and strictly positive in
+  the weight dtype, both in routed models and the shared normalization helpers.
+  Sum-based normalization also rejects nonfinite row totals, including overflow
+  from finite weights, before division can silently zero a nonempty branch.
+  Routing temperatures and branch-affine constants are checked in their tensor
+  dtype, with positive temperature, scale and divisor. Shared routing rejects
+  nonfinite scaled logits before softmax, including in pathway routers and
+  routing diagnostics. Initialization spreads and gate constants are checked
+  in the construction dtype before any random draws. Valid arithmetic and
+  initialization streams are unchanged.
+  Dividing by the sum (`networks.utils.weight_normalization.divide_rows_by_sum`,
+  shared with `normalize_weight_rows(sum_floor=...)`) keeps the normalization's
+  derivative at the zero entries of hard-routed rows. Parameters a
+  configuration never reads keep their checkpoint keys but do not require
+  gradients, so distributed training does not wait for them. Training
+  initializes the control from the global stream; an explicit
+  `core.initialization_seed` selects a CPU stream keyed by the seed and core type.
+  Explicit-seed construction stays on CPU under a CUDA default device and
+  preserves the caller's CPU/CUDA random states and device setting. Unseeded
+  construction retains its original device and random draws.
+  Pathway routing now shares its unchanged soft-assignment arithmetic with this
+  control.
+- Add optional routing-entropy and balance penalties to the existing
+  regularization manager. Both default to zero and do no routing work unless
+  requested; a requested penalty needs a learned router, since fixed routers
+  return no statistics. No existing model, initialization stream or checkpoint
+  changes.
+  The configured-step benchmark checks enabled penalties through the
+  regularization manager and rejects them before initialization, including
+  routing penalties in typed and legacy mapping configurations.
+
+- Public `networks.functional.shunting_voltage` and `additive_voltage` evaluate
+  pre-gate voltages from explicit currents without a layer-owner stand-in.
+  They share arithmetic with the existing current-substitution/recurrent path,
+  preserve autograd and check each current's shape, dtype, device, finiteness
+  and sign (not its physical units). Scalar operands, including leak and
+  epsilon, must remain finite in excitation's dtype. Shunting leak stays
+  strictly positive, rejecting scalar underflow; raw addition is not divided
+  by leak.
+  Existing layer defaults, checkpoint layouts and fused forwards are unchanged.
+- Node-perturbation credit analysis rejects sample-rolled and permuted-
+  denominator overrides anywhere in the model before forwarding, since its
+  estimates require independent examples. Unused offsets and losses without
+  gradient graphs give zero exact credit; alignment to zero remains undefined.
+- Orthonormal-basis validation accounts for the supplied dtype's precision,
+  evaluating float16 and bfloat16 Gram matrices in float32 with autocast
+  disabled during validation. Valid rounded
+  dictionaries are accepted without changing the perturbations or relaxing
+  the existing float32/float64 tolerances.
+- Branch-layer compartments can be perturbed for causal analyses:
+  ``perturb_compartments({layer: CompartmentPerturbation(offset, coordinate)})``
+  (``dendritic_modeling.networks``; also
+  ``DendriticBranchLayer.set_compartment_perturbation``) adds an offset to a
+  layer's ``output``, its pre-activation ``voltage`` or, for shunting layers,
+  an injected ``current`` in the voltage equation's numerator, inside the
+  layer's own forward pass (the layer runs once). Offsets are checked for
+  shape, device and dtype. Paths that would not apply a perturbation raise
+  while one is set: stateful and recurrent currents, voltages computed from
+  given currents, a ``forward_levels`` intervention on the same level, and a
+  current perturbation under the ``raw_additive`` rule overrides. Off by
+  default; forward outputs are unchanged without a perturbation and with a
+  zero offset.
+- ``dendritic_modeling.training.node_perturbation`` estimates errors from loss
+  changes: ``node_perturbation_estimates`` (antithetic Gaussian draws from a
+  given generator, on its device by default, optional orthonormal basis,
+  per-example losses, estimates for several draw counts and their evaluation
+  counts) and ``group_basis`` (orthonormal group averages; overlapping groups
+  raise).
+- New final-only analyzer ``node_perturbation_credit`` (typed section
+  ``analysis.node_perturbation_credit``; example
+  ``configs/examples/node_perturbation_credit_analysis.yaml``): compartment
+  errors of chosen tree levels estimated by node perturbation with
+  independent, sibling or neuron dictionaries (optionally at matched
+  perturbation energy), compared with the exact errors; reports agreement,
+  evaluation counts and wall time per draw. Forward passes take at most
+  ``analysis.runtime.batch_size`` rows (an example under one draw is one row);
+  levels that run more than once per forward, cores with ``soma_broadcast``
+  credit and models with signal rounding are refused; an unset ``seed``
+  follows the analysis seed policy.
+- Reject graph capture on intervened ``forward_levels`` levels before any
+  forward and clear their old records. Information-analysis projections
+  temporarily disable capture and restore the caller's setting on exit.
+- ``assign_gradients`` reapplies the configured gate policy on every frozen-core
+  call, including encoder/decoder gates, and clears stale gradients even for
+  parameters outside the optimizer's groups.
+- Analysis current capture exposes separate recurrent excitation and inhibition
+  tensors. It rejects stateful, parallel/star and current-substitution paths,
+  and requires ``torch.no_grad()`` when capture would bypass a fused shunting
+  backward. These restrictions prevent incomplete records and comparisons
+  against a different training gradient; default execution is unchanged.
+- ``assign_gradients`` applies HSIC warmup at its resolved epoch and restores
+  the trainer's counter afterwards. With ``core_update_mode: none``, preserve
+  gate trainability from before initialization, including on failure.
+- Branch layers expose their graph-connected forward currents for analyses:
+  ``DendriticBranchLayer.set_analysis_currents``, ``get_analysis_currents``,
+  ``clear_analysis_currents`` and the context manager
+  ``capture_analysis_currents(layers)`` (``dendritic_modeling.networks``)
+  keep the pre-gate currents, the pre-gate voltage and the post-gate output
+  attached to the autograd graph, which the detached branch diagnostics do
+  not. The information, branch-activation and input-region analyses now use
+  them. Capture is off by default and does not change forward outputs.
+- ``LocalCreditAssignment.assign_gradients(model, inputs, targets, epoch=None)``
+  assigns one batch's training update to ``.grad`` without the optimizer step,
+  for example to compare it with backpropagated gradients; ``epoch`` (from 1)
+  selects the epoch whose update modes apply. Under ``core_update_mode: none``
+  it holds the core fixed as training does (core parameters without gradients,
+  forward under ``frozen_sparse_state``). Training runs the same code for
+  every batch and is unchanged.
+
 - Paper-code exports accept explicitly allow-listed, committed `LICENSE`
   and `Makefile` files. Other extensionless inputs and copied library paths
   remain rejected; manuscript export rules are unchanged.

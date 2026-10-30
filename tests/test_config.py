@@ -1431,5 +1431,20 @@ class TestConfigIntegration(unittest.TestCase):
         self.assertTrue(hasattr(analysis, "ablation"))
 
 
+def test_package_exports_every_config_class_it_imports():
+    import inspect
+
+    import dendritic_modeling.config as config
+
+    imported = {
+        name
+        for name, value in vars(config).items()
+        if inspect.isclass(value)
+        and name.endswith("Config")
+        and value.__module__.startswith("dendritic_modeling.config")
+    }
+    assert imported <= set(config.__all__)
+
+
 if __name__ == "__main__":
     unittest.main()

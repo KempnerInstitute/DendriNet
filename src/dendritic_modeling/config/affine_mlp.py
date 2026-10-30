@@ -10,9 +10,12 @@ from dendritic_modeling.config.base import BaseConfig
 class AffineMLPConfig(BaseConfig):
     """Explicit dimensions include input and output; no budget is inferred.
 
-    Dense weights use Kaiming normal initialization after constructing all
-    layers. Sparse weights use normal initialization with retained fan-in
-    variance two. These policies are independent of the chosen activation.
+    Dense weights are drawn after all layers are constructed, by default with
+    Kaiming normal initialization and zero biases; ``initialization`` selects
+    another policy, and ``pytorch_default`` keeps the Linear constructors'
+    weights and biases. Sparse weights use normal initialization with retained
+    fan-in variance two. These policies are independent of the chosen
+    activation.
     """
 
     dimensions: list[int] = field(default_factory=list)
@@ -40,10 +43,11 @@ class AffineMLPConfig(BaseConfig):
         if self.initialization not in {
             "kaiming_normal",
             "kaiming_uniform_xavier_readout",
+            "pytorch_default",
         }:
             raise ValueError("unknown affine MLP initialization")
         if self.initialization != "kaiming_normal" and self.mode != "dense":
-            raise ValueError("kaiming_uniform_xavier_readout requires dense mode")
+            raise ValueError(f"{self.initialization} requires dense mode")
         count = len(self.dimensions) - 1
         if self.mode == "dense":
             if self.fanin or self.connectivity_seeds:

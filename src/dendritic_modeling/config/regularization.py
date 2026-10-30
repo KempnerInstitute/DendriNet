@@ -4,7 +4,9 @@ regularization.py
 Configuration classes for regularization and pruning.
 """
 
+import math
 from dataclasses import dataclass, field
+from numbers import Real
 
 from dendritic_modeling.config.base import BaseConfig
 from dendritic_modeling.config.choices import normalize_choice
@@ -33,6 +35,10 @@ class RegularizationConfig(BaseConfig):
     # L1/L2 regularization
     l1_weight: float = 0.0  # Strength of L1 regularization (0 to disable)
     l2_weight: float = 0.0  # Strength of L2 regularization (0 to disable)
+    # Opt-in penalties on modules exposing routing_statistics(). Zero means no
+    # module discovery, loss contribution or additional autograd work.
+    routing_entropy_weight: float = 0.0
+    routing_balance_weight: float = 0.0
     selective: SelectiveConfig = field(default_factory=SelectiveConfig)
 
     # Parameter group specific regularization
@@ -62,6 +68,15 @@ class RegularizationConfig(BaseConfig):
     ei_ratio_metric: str = "mean"  # "mean", "median", "rms"
 
     def __post_init__(self) -> None:
+        for name in ("routing_entropy_weight", "routing_balance_weight"):
+            value = getattr(self, name)
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, Real)
+                or not math.isfinite(value)
+                or value < 0
+            ):
+                raise ValueError(f"{name} must be finite and nonnegative")
         self.ei_ratio_scope = normalize_choice(
             self.ei_ratio_scope, EI_RATIO_SCOPES, field="ei_ratio_scope"
         )
