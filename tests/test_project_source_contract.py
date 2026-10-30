@@ -191,6 +191,91 @@ def test_nested_contract_rejects_symlink_escape(project, tmp_path):
         source.verify_contract(alias, library, paper_root=paper)
 
 
+@pytest.mark.parametrize("file_link", [False, True])
+@pytest.mark.parametrize("retarget", [False, True])
+def test_contract_rejects_requested_symlink_components(project, file_link, retarget):
+    library, paper, contract = project
+    targets = []
+    for version in ("v1", "v2"):
+        target = paper / version / contract.name
+        target.parent.mkdir()
+        target.write_bytes(contract.read_bytes())
+        targets.append(target)
+    link = paper / ("alias.json" if file_link else "repro")
+    link.symlink_to(targets[0] if file_link else targets[0].parent)
+    commit(paper, "v1", "v2", link.name)
+    if retarget:
+        link.unlink()
+        link.symlink_to(targets[1] if file_link else targets[1].parent)
+    requested = link if file_link else link / contract.name
+    with pytest.raises(source.SourceContractError, match="Source symlink"):
+        source.verify_contract(requested, library, paper_root=paper)
+
+
+def test_contract_rejects_internal_alias_to_repository_root(project):
+    library, paper, contract = project
+    link = paper / "repro"
+    link.symlink_to(".")
+    commit(paper, link.name)
+    with pytest.raises(source.SourceContractError, match="Source symlink"):
+        source.verify_contract(link / contract.name, library, paper_root=paper)
+
+
+def test_contract_ownership_uses_literal_filename(project):
+    library, paper, contract = project
+    tracked = paper / "repro/paper1/contract.txt"
+    tracked.parent.mkdir(parents=True)
+    tracked.write_bytes(contract.read_bytes())
+    (paper / ".gitignore").write_text("*.txt\n")
+    git(paper, "add", "-f", "--", str(tracked.relative_to(paper)))
+    commit(paper, ".gitignore", str(tracked.relative_to(paper)))
+    ignored = paper / "repro/paper[1]/contract.txt"
+    ignored.parent.mkdir(parents=True)
+    ignored.write_bytes(contract.read_bytes())
+    with pytest.raises(source.SourceContractError, match="not a committed file"):
+        source.verify_contract(ignored, library, paper_root=paper)
+
+
+@pytest.mark.parametrize("changed", ["contract", "source"])
+def test_contract_cleanliness_uses_literal_paths(project, changed):
+    library, paper, contract = project
+    nested = paper / "repro/paper[1]/contract.json"
+    nested.parent.mkdir(parents=True)
+    script = paper / "scripts[1]/evaluate.py"
+    script.parent.mkdir()
+    script.write_text("print('literal source')\n")
+    data = json.loads(contract.read_text())
+    data["source_paths"] = ["scripts[1]"]
+    data["entry_points"] = {"evaluate": "scripts[1]/evaluate.py"}
+    nested.write_text(json.dumps(data))
+    commit(paper, ":(literal)repro/paper[1]", ":(literal)scripts[1]")
+    assert (
+        source.verify_contract(nested, library, paper_root=paper)["status"]
+        == "source_verified"
+    )
+    path = nested if changed == "contract" else script
+    path.write_text(path.read_text() + "\n")
+    with pytest.raises(source.SourceContractError, match="Uncommitted source"):
+        source.verify_contract(nested, library, paper_root=paper)
+
+
+@pytest.mark.parametrize("alias_root", [False, True])
+@pytest.mark.parametrize("alias_contract", [False, True])
+def test_contract_allows_repository_root_alias(
+    project, tmp_path, alias_root, alias_contract
+):
+    library, paper, contract = project
+    alias = tmp_path / "paper_alias"
+    alias.symlink_to(paper)
+    expected = source.verify_contract(contract, library)
+    actual = source.verify_contract(
+        (alias if alias_contract else paper) / contract.name,
+        library,
+        paper_root=alias if alias_root else paper,
+    )
+    assert actual == expected
+
+
 @pytest.mark.parametrize("location", ["library", "paper"])
 def test_rejects_modified_source(project, location):
     library, paper, contract = project

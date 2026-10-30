@@ -71,9 +71,17 @@ def export_project(
     manifest: Path, commit: str, output: Path, *, paper_root: Path | None = None
 ) -> dict:
     """Write committed Git blobs; ``paper_root`` opts into a nested manifest."""
-    manifest = manifest.resolve()
-    root = manifest.parent if paper_root is None else paper_root.resolve()
-    if not manifest.is_relative_to(root):
+    requested = manifest.absolute()
+    root = (requested.parent if paper_root is None else paper_root).resolve()
+    # Resolve aliases to the repository root, but retain every component below
+    # it: a working-tree symlink must not select a different committed manifest.
+    for parent in reversed(requested.parents):
+        if parent.resolve() == root:
+            relative = requested.relative_to(parent)
+            break
+    else:
+        raise ValueError("The manifest must be inside the paper root")
+    if ".." in relative.parts or not requested.resolve().is_relative_to(root):
         raise ValueError("The manifest must be inside the paper root")
     output = output.resolve()
     if (
@@ -88,7 +96,15 @@ def export_project(
             "Export archives belong outside paper and library repositories"
         )
     sha = _git(root, "rev-parse", "--verify", commit + "^{commit}").decode().strip()
-    raw_manifest = _git(root, "show", f"{sha}:{manifest.relative_to(root).as_posix()}")
+    entries = {}
+    for row in _git(root, "ls-tree", "-rz", sha).split(b"\0"):
+        if row:
+            meta, name = row.split(b"\t", 1)
+            entries[name.decode()] = meta.split()[0].decode()
+    manifest_name = relative.as_posix()
+    if entries.get(manifest_name) not in {"100644", "100755"}:
+        raise ValueError(f"Not a regular committed manifest: {manifest_name}")
+    raw_manifest = _git(root, "show", f"{sha}:{manifest_name}")
     data = json.loads(raw_manifest)
     kind = data.get("kind")
     if data.get("schema_version") != 1 or kind not in {"manuscript", "paper-code"}:
@@ -110,11 +126,6 @@ def export_project(
         or len(paths) != len(set(paths))
     ):
         raise ValueError("Expected a nonempty, unique file allow-list")
-    entries = {}
-    for row in _git(root, "ls-tree", "-rz", sha).split(b"\0"):
-        if row:
-            meta, name = row.split(b"\t", 1)
-            entries[name.decode()] = meta.split()[0].decode()
     for name in paths:
         path = PurePosixPath(name)
         if (

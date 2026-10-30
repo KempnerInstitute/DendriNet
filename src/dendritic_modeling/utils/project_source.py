@@ -72,19 +72,33 @@ def _inside(root: Path, relative: str) -> Path:
     resolved = (root / value).resolve()
     if not resolved.is_relative_to(root.resolve()):
         raise SourceContractError(f"Path escapes declared root: {relative}")
+    component = root
+    for part in value.parts:
+        component /= part
+        if component.is_symlink():
+            raise SourceContractError(
+                f"Source symlink requires explicit resolution: {component}"
+            )
     return resolved
 
 
 def _clean(root: Path, paths: list[str]) -> None:
     for path in paths:
         _inside(root, path)
+    pathspecs = [f":(literal){path}" for path in paths]
     status = _git(
-        root, "status", "--porcelain=v1", "--untracked-files=all", "--", *paths
+        root, "status", "--porcelain=v1", "--untracked-files=all", "--", *pathspecs
     )
     if status:
         raise SourceContractError(f"Uncommitted source in {root}:\n{status}")
     ignored = _git(
-        root, "ls-files", "--others", "--ignored", "--exclude-standard", "--", *paths
+        root,
+        "ls-files",
+        "--others",
+        "--ignored",
+        "--exclude-standard",
+        "--",
+        *pathspecs,
     )
     source_suffixes = {
         ".py",
@@ -103,7 +117,7 @@ def _clean(root: Path, paths: list[str]) -> None:
     shadows = [p for p in ignored.splitlines() if Path(p).suffix in source_suffixes]
     if shadows:
         raise SourceContractError(f"Ignored source could affect execution: {shadows}")
-    for row in _git(root, "ls-files", "--stage", "--", *paths).splitlines():
+    for row in _git(root, "ls-files", "--stage", "--", *pathspecs).splitlines():
         if row.startswith("120000 "):
             path = row.split("\t", 1)[1]
             raise SourceContractError(
@@ -251,10 +265,20 @@ def verify_contract(
     when one is declared), the package and configuration roots and the
     interpreter. Raises :class:`SourceContractError` when a check fails.
     """
-    contract_path = contract_path.resolve()
-    paper = contract_path.parent if paper_root is None else paper_root.resolve()
-    if not contract_path.is_relative_to(paper):
+    requested = contract_path.absolute()
+    paper = (requested.parent if paper_root is None else paper_root).resolve()
+    # Root aliases are allowed; aliases within the repository are source and
+    # must not disappear before checking the caller's requested path.
+    for parent in reversed(requested.parents):
+        if parent.resolve() == paper:
+            relative = requested.relative_to(parent)
+            break
+    else:
         raise SourceContractError("The contract must be inside the paper root")
+    if ".." in relative.parts or not requested.resolve().is_relative_to(paper):
+        raise SourceContractError("The contract must be inside the paper root")
+    contract_relative = relative.as_posix()
+    contract_path = _inside(paper, contract_relative)
     root = library_root.resolve()
     contract = read_contract(contract_path)
     for checkout in (paper, root):
@@ -296,13 +320,14 @@ def verify_contract(
     if not package.is_file():
         raise SourceContractError(f"No maintained package at {package}")
     _clean(root, ["src", "configs", "pyproject.toml", "setup.py", "requirements.txt"])
-    contract_relative = str(contract_path.relative_to(paper))
     paper_paths = [*contract["source_paths"], contract_relative]
     _clean(paper, paper_paths)
     # Status cannot see into an embedded repository, so require the contract to
     # be a file the paper repository itself has committed.
     try:
-        _git(paper, "ls-files", "--error-unmatch", "--", contract_relative)
+        _git(
+            paper, "ls-files", "--error-unmatch", "--", f":(literal){contract_relative}"
+        )
     except SourceContractError as error:
         raise SourceContractError(
             f"The contract is not a committed file of {paper}: {contract_relative}"
@@ -325,7 +350,7 @@ def verify_contract(
             raise SourceContractError(
                 f"Entry point is outside checked source_paths: {relative}"
             )
-        _git(paper, "ls-files", "--error-unmatch", "--", relative)
+        _git(paper, "ls-files", "--error-unmatch", "--", f":(literal){relative}")
     return {
         "schema_version": 1,
         "project": contract["project"],

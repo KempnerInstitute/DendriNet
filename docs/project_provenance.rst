@@ -114,7 +114,11 @@ To keep the contract in a subdirectory, pass ``--paper-root <project>`` (or
 still resolve from that explicit Git root, and the nested contract is checked
 for uncommitted changes. Without this option the contract must remain at the
 root, preserving existing calls and receipts. The contract cannot be outside
-the declared repository, including through a symlink.
+the declared repository, including through a symlink. Within that repository,
+the contract and each component of its requested path must be free of symlinks;
+name the actual tracked file instead. A filesystem alias to the repository
+root itself is allowed. Ownership and cleanliness checks treat filenames
+literally, including names containing Git wildcard characters.
 
 ``check`` verifies, and fails with ``SourceContractError`` at the first
 problem:
@@ -246,6 +250,13 @@ input checks and exclusive creation are unchanged. Existing root-level calls
 retain their default behavior. At the same exporter revision, equivalent root
 and nested manifests produce byte-identical archives; changing exporter
 revisions changes the recorded exporter hash, not the exported file contents.
+The requested repository-relative manifest path selects a regular file in the
+specified commit. Working-tree symlinks cannot redirect that selection: a
+contained link still selects the original committed path, while a link outside
+the repository is rejected. The manifest need not still exist in the working
+tree. As with source contracts, an alias to the repository root is allowed;
+paths containing parent-directory components (``..``) must be rewritten
+relative to that root.
 
 .. code-block:: json
 

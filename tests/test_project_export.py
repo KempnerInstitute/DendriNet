@@ -243,3 +243,75 @@ def test_nested_manifest_rejects_wrong_root_and_symlink_escape(paper, tmp_path):
         export.export_project(
             link, git("rev-parse", "HEAD"), tmp_path / "bad.zip", paper_root=root
         )
+
+
+@pytest.mark.parametrize("replacement", ["directory_link", "file_link", "missing"])
+def test_export_preserves_requested_committed_manifest(paper, tmp_path, replacement):
+    root, manifest, git = paper
+    old = root / "old" / manifest.name
+    new = root / "new" / manifest.name
+    old.parent.mkdir()
+    new.parent.mkdir()
+    old.write_bytes(manifest.read_bytes())
+    new.write_text(
+        json.dumps({"schema_version": 1, "kind": "manuscript", "files": ["other.tex"]})
+    )
+    (root / "other.tex").write_text("Different manuscript\n")
+    git("add", "--", "old", "new", "other.tex")
+    git(
+        "commit",
+        "-qm",
+        "Record distinct manifest fixtures",
+        "--",
+        "old",
+        "new",
+        "other.tex",
+    )
+    sha = git("rev-parse", "HEAD")
+    expected = tmp_path / "expected.zip"
+    export.export_project(old, sha, expected, paper_root=root)
+    old.unlink()
+    if replacement == "directory_link":
+        old.parent.rmdir()
+        old.parent.symlink_to(new.parent)
+    elif replacement == "file_link":
+        old.symlink_to(new)
+    output = tmp_path / "actual.zip"
+    export.export_project(old, sha, output, paper_root=root)
+    assert output.read_bytes() == expected.read_bytes()
+    with zipfile.ZipFile(output) as archive:
+        assert "main.tex" in archive.namelist()
+        assert "other.tex" not in archive.namelist()
+
+
+def test_export_rejects_committed_manifest_symlink(paper, tmp_path):
+    root, manifest, git = paper
+    link = root / "alias.json"
+    link.symlink_to(manifest.name)
+    git("add", "--", link.name)
+    git("commit", "-qm", "Record manifest symlink fixture", "--", link.name)
+    output = tmp_path / "bad.zip"
+    with pytest.raises(ValueError, match="regular committed manifest"):
+        export.export_project(link, git("rev-parse", "HEAD"), output, paper_root=root)
+    assert not output.exists()
+
+
+@pytest.mark.parametrize("alias_root", [False, True])
+@pytest.mark.parametrize("alias_manifest", [False, True])
+def test_export_allows_repository_root_alias(
+    paper, tmp_path, alias_root, alias_manifest
+):
+    root, manifest, git = paper
+    alias = tmp_path / "paper_alias"
+    alias.symlink_to(root)
+    sha = git("rev-parse", "HEAD")
+    expected = tmp_path / "canonical.zip"
+    output = tmp_path / "aliased.zip"
+    export.export_project(manifest, sha, expected)
+    export.export_project(
+        (alias if alias_manifest else root) / manifest.name,
+        sha,
+        output,
+        paper_root=alias if alias_root else root,
+    )
+    assert output.read_bytes() == expected.read_bytes()

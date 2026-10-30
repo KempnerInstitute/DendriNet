@@ -155,6 +155,11 @@
   Existing root-level calls retain their behavior and source-receipt fields;
   exported payloads are unchanged (the exporter hash records the new tool).
   Nested contracts remain subject to the same source-cleanliness checks.
+  Check the caller's contract path before following aliases within the
+  repository, and use literal Git pathspecs for ownership and cleanliness.
+  Exports select the requested regular manifest in the committed tree, so
+  working-tree symlinks cannot redirect the allow-list to a different file.
+  Filesystem aliases to the repository root remain supported.
 
 - ``DendriNet`` levels can differ from the shared settings through
   ``level_overrides`` (constructor argument and ``DendriNetConfig`` field;
