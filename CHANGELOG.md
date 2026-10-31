@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.4.0 (2026-10-30)
+## 0.4.0 (2026-10-31)
 
 Changes since 0.3.0. Configuration files keep ``config_version: 4`` and the
 additions are opt-in: building the example configurations of 0.3.0 with this
