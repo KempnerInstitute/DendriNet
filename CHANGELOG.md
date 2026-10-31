@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+- Redraw the README schematic without labels or a legend: a pyramidal
+  neuron, a DendriNet compartment tree with sparse excitatory and inhibitory
+  inputs, and a two-layer excitatory–inhibitory network. Shapes distinguish
+  excitation from inhibition independently of colour; neutral input/readout
+  nodes and panel arrows have at least 3:1 contrast against white. The drawing script
+  uses a fixed seed; its `--no-text` option is removed because the figure
+  always has no text.
+
+## 0.4.0 (2026-10-30)
+
+Changes since 0.3.0. Configuration files keep ``config_version: 4`` and the
+additions are opt-in: building the example configurations of 0.3.0 with this
+release gives bitwise-identical forward outputs, gradients and initial states
+(17 configurations checked on CPU). New are interfaces for analyses and local
+learning (graph-connected branch currents, one-batch LocalCA updates,
+per-level ``DendriNet`` overrides, explicit re-initialization, level outputs,
+delivered-error utilities and two credit-delivery options), compartment
+perturbations with node-perturbation estimates and a credit analyzer, public
+current-integration functions, the ``routed_ei`` and ``feature_readout``
+comparison cores, and nested paper source contracts. Two changes reach
+existing setups: plugin subclasses of ``IndexedSparseLinear`` now receive
+their configured seed and execution backend, which can change their
+connectivity, and the Triton ELL kernels run layers with more than 65,535
+output rows, which failed before.
+
 - Add the opt-in `feature_readout` conventional control. It composes the
   existing dense affine builder with PyTorch LayerNorm/GroupNorm or explicit
   group-mean division, retaining constructor order and checkpoint keys.

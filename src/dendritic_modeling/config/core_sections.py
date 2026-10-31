@@ -255,8 +255,8 @@ def _comparable(name: str, value: Any) -> Any:
 #: the first release that has them. A record from an earlier release lacks them.
 CORE_FIELDS_ADDED = {
     "shared_projection_shunting": "0.3.0",
-    "routed_ei": "unreleased",
-    "feature_readout": "unreleased",
+    "routed_ei": "0.4.0",
+    "feature_readout": "0.4.0",
 }
 
 
