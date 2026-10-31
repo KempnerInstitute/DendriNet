@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Record the imported module's version separately from installed distribution
+  metadata in runtime-environment and source-identity records. This identifies
+  checkouts selected through `PYTHONPATH` even when another version is installed.
+  Existing metadata fields and historical receipts are unchanged.
+
 - Redraw the README schematic without labels or a legend: a pyramidal
   neuron, a DendriNet compartment tree with sparse excitatory and inhibitory
   inputs, and a two-layer excitatory–inhibitory network. Shapes distinguish

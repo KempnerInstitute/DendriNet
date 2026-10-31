@@ -2,11 +2,46 @@
 
 from __future__ import annotations
 
+from importlib import metadata
+
 import pytest
 import torch
 
 import dendritic_modeling
 from dendritic_modeling.utils import runtime_environment, source_identity
+
+
+@pytest.mark.parametrize("installed_version", ["0.2.0", "0.4.0", None])
+def test_records_distinguish_imported_source_from_distribution_metadata(
+    tmp_path, monkeypatch, installed_version
+):
+    package = tmp_path / "dendritic_modeling"
+    package.mkdir()
+    init = package / "__init__.py"
+    init.write_text('__version__ = "0.4.0"\n')
+    monkeypatch.setattr(dendritic_modeling, "__file__", str(init))
+    monkeypatch.setattr(dendritic_modeling, "__version__", "0.4.0")
+    original_version = metadata.version
+
+    def distribution_version(name):
+        if name != "dendritic_modeling":
+            return original_version(name)
+        if installed_version is None:
+            raise metadata.PackageNotFoundError(name)
+        return installed_version
+
+    monkeypatch.setattr(metadata, "version", distribution_version)
+    monkeypatch.setattr(runtime_environment, "version", distribution_version)
+    library = runtime_environment.runtime_environment()["library"]
+    identity = source_identity.discover_source_identity(tmp_path, include_package=True)
+
+    assert library["imported_version"] == "0.4.0"
+    assert library["distribution_version"] == installed_version
+    assert library["package_path"] == str(package)
+    assert identity["package"]["imported_version"] == "0.4.0"
+    assert identity["package"]["version"] == installed_version
+    assert identity["package"]["path"] == str(package)
+    assert len(identity["package"]["tree_sha256"]) == 64
 
 
 def test_an_installed_package_is_not_attributed_to_an_enclosing_repository(

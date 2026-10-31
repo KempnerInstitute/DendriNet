@@ -326,6 +326,17 @@ Each run directory records what is needed to repeat the run:
   numerical dependencies;
 * ``dataset_fingerprints.json`` (optional): digests of the dataset splits.
 
+In ``runtime_environment.json``, ``library.imported_version`` is the version
+declared by the imported ``dendritic_modeling`` module.
+``library.distribution_version`` is the installed distribution's metadata
+version, or ``null`` when no distribution metadata is available. These can
+differ when ``PYTHONPATH`` selects a checkout other than the installed package;
+use the imported path and Git commit to identify the executed source.
+Source-identity records made with ``include_package=True`` also include
+``package.imported_version``; their existing ``package.version`` field retains
+the distribution-metadata value for compatibility. Older receipts are unchanged
+and may lack the imported-version field.
+
 To repeat a run, check out the recorded commit, install the same dependency
 versions (``setup/freeze_constraints.py`` writes a constraints file for an
 environment; see :doc:`installation`), and train ``config.json`` on the same
