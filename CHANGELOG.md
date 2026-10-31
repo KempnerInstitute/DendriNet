@@ -17,6 +17,19 @@ their configured seed and execution backend, which can change their
 connectivity, and the Triton ELL kernels run layers with more than 65,535
 output rows, which failed before.
 
+- Record the imported module's version separately from installed distribution
+  metadata in runtime-environment and source-identity records. This identifies
+  checkouts selected through `PYTHONPATH` even when another version is installed.
+  Existing metadata fields and historical receipts are unchanged.
+
+- Redraw the README schematic without labels or a legend: a pyramidal
+  neuron, a DendriNet compartment tree with sparse excitatory and inhibitory
+  inputs, and a two-layer excitatory–inhibitory network. Shapes distinguish
+  excitation from inhibition independently of colour; neutral input/readout
+  nodes and panel arrows have at least 3:1 contrast against white. The drawing
+  script uses a fixed seed; its `--no-text` option is removed because the
+  figure always has no text.
+
 - Add the opt-in `feature_readout` conventional control. It composes the
   existing dense affine builder with PyTorch LayerNorm/GroupNorm or explicit
   group-mean division, retaining constructor order and checkpoint keys.

@@ -18,7 +18,7 @@ backpropagation, feedback alignment and local credit-assignment rules,
 distributed training, parameter sweeps and analysis tools.
 
 <p align="center">
-  <img src="docs/_static/dendritic_diagram.png" alt="Diagram of a dendritic neuron: a soma with basal and apical dendrite trees and an axon; excitatory synapses are drawn as triangles and inhibitory synapses as squares." width="600">
+  <img src="docs/_static/dendritic_diagram.png" alt="Three panels, left to right: a pyramidal neuron with basal and apical dendrites, excitatory synapses as dots on spines and inhibitory synapses as bars across the dendrite; the same neuron as a DendriNet tree of compartments on a triangular soma, each distal compartment receiving sparse excitatory and inhibitory inputs; and a two-layer network in which inputs drive excitatory neurons (triangular somata) and inhibitory neurons (round somata), inhibitory neurons inhibit the dendrites of neighbouring excitatory neurons, and excitatory neurons project to the next layer and the readout." width="100%">
 </p>
 
 ## Installation

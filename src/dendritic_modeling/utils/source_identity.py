@@ -117,6 +117,8 @@ def _package_identity() -> dict[str, Any]:
         version = None
     return {
         "path": str(package_dir),
+        "imported_version": dendritic_modeling.__version__,
+        # Keep the legacy distribution-metadata field for existing consumers.
         "version": version,
         "tree_sha256": package_tree_digest(package_dir),
     }
@@ -135,6 +137,9 @@ def discover_source_identity(
     files under ``src/``; git failures raise. Outside a checkout (an installed
     package) ``git.available`` is false. ``include_package`` adds the digest
     of the imported package's files, which identifies an installed package.
+    Its ``imported_version`` comes from the loaded module; the legacy
+    ``version`` field remains the installed distribution's metadata version.
+    They can differ when ``PYTHONPATH`` selects a different checkout.
     """
     root = Path(repo_root).resolve()
     files = []

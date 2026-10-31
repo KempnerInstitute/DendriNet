@@ -159,6 +159,7 @@ def runtime_environment() -> dict[str, Any]:
     return {
         "library": {
             "package_path": str(Path(dendritic_modeling.__file__).resolve().parent),
+            "imported_version": dendritic_modeling.__version__,
             "checkout": None if checkout is None else str(checkout),
             "git": git,
             "distribution_version": dependency_version("dendritic_modeling"),
