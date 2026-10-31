@@ -446,6 +446,16 @@ autoencoder encoders without pretraining or a trained checkpoint
 numerical dependencies;</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">dataset_fingerprints.json</span></code> (optional): digests of the dataset splits.</p></li>
 </ul>
+<p>In <code class="docutils literal notranslate"><span class="pre">runtime_environment.json</span></code>, <code class="docutils literal notranslate"><span class="pre">library.imported_version</span></code> is the version
+declared by the imported <code class="docutils literal notranslate"><span class="pre">dendritic_modeling</span></code> module.
+<code class="docutils literal notranslate"><span class="pre">library.distribution_version</span></code> is the installed distribution’s metadata
+version, or <code class="docutils literal notranslate"><span class="pre">null</span></code> when no distribution metadata is available. These can
+differ when <code class="docutils literal notranslate"><span class="pre">PYTHONPATH</span></code> selects a checkout other than the installed package;
+use the imported path and Git commit to identify the executed source.
+Source-identity records made with <code class="docutils literal notranslate"><span class="pre">include_package=True</span></code> also include
+<code class="docutils literal notranslate"><span class="pre">package.imported_version</span></code>; their existing <code class="docutils literal notranslate"><span class="pre">package.version</span></code> field retains
+the distribution-metadata value for compatibility. Older receipts are unchanged
+and may lack the imported-version field.</p>
 <p>To repeat a run, check out the recorded commit, install the same dependency
 versions (<code class="docutils literal notranslate"><span class="pre">setup/freeze_constraints.py</span></code> writes a constraints file for an
 environment; see <a class="reference internal" href="installation.html"><span class="doc">Installation</span></a>), and train <code class="docutils literal notranslate"><span class="pre">config.json</span></code> on the same
