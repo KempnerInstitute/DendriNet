@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Redraw the README schematic without labels or a legend: a pyramidal
+  neuron, a DendriNet compartment tree with sparse excitatory and inhibitory
+  inputs, and a two-layer excitatory–inhibitory network. Shapes distinguish
+  excitation from inhibition independently of colour. The drawing script
+  uses a fixed seed; its `--no-text` option is removed because the figure
+  always has no text.
+
 ## 0.4.0 (2026-10-30)
 
 Changes since 0.3.0. Configuration files keep ``config_version: 4`` and the
