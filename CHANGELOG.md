@@ -5,7 +5,8 @@
 - Redraw the README schematic without labels or a legend: a pyramidal
   neuron, a DendriNet compartment tree with sparse excitatory and inhibitory
   inputs, and a two-layer excitatory–inhibitory network. Shapes distinguish
-  excitation from inhibition independently of colour. The drawing script
+  excitation from inhibition independently of colour; neutral input/readout
+  nodes and panel arrows have at least 3:1 contrast against white. The drawing script
   uses a fixed seed; its `--no-text` option is removed because the figure
   always has no text.
 

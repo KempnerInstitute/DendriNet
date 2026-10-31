@@ -29,7 +29,7 @@ COLORS = {
     "axon": "#7f8a95",
     "excitatory": "#0072B2",  # Okabe-Ito blue
     "inhibitory": "#D55E00",  # Okabe-Ito vermillion
-    "guide": "#b9c1c9",
+    "guide": "#7f8a95",  # 3.52:1 contrast against the white background
 }
 SEED = 20261030
 
