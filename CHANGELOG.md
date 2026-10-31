@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Record the imported module's version separately from installed distribution
+  metadata in runtime-environment and source-identity records. This identifies
+  checkouts selected through `PYTHONPATH` even when another version is installed.
+  Existing metadata fields and historical receipts are unchanged.
+
 ## 0.4.0 (2026-10-30)
 
 Changes since 0.3.0. Configuration files keep ``config_version: 4`` and the
