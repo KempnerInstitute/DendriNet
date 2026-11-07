@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 import yaml
 
 WORKFLOWS = Path(__file__).resolve().parents[1] / ".github" / "workflows"
@@ -21,6 +22,7 @@ def _docs_build_steps() -> list[tuple[str, str, str]]:
     return steps
 
 
+@pytest.mark.requires_git_checkout
 def test_pull_request_and_deployment_docs_builds_fail_on_warnings():
     steps = _docs_build_steps()
     assert {workflow for workflow, _, _ in steps} == {
@@ -33,6 +35,7 @@ def test_pull_request_and_deployment_docs_builds_fail_on_warnings():
         assert "-W" in words and "--keep-going" in words, (workflow, name)
 
 
+@pytest.mark.requires_git_checkout
 def test_pull_request_checks_verify_the_generated_references():
     workflow = yaml.safe_load(
         (WORKFLOWS / "ci-simplified.yml").read_text(encoding="utf-8")

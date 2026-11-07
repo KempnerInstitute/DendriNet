@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- CI and the documentation deployment run for ``develop``, the default branch,
+  and no longer for ``main``, which has not changed since August 2024 and is
+  being retired.
+
 ## 0.4.0 (2026-10-31)
 
 Changes since 0.3.0. Configuration files keep ``config_version: 4`` and the

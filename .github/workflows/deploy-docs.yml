@@ -2,7 +2,7 @@ name: Documentation
 
 on:
   push:
-    branches: [develop, main]
+    branches: [develop]
 
 concurrency:
   group: docs-${{ github.ref }}
@@ -27,7 +27,7 @@ jobs:
         python -m sphinx -b html -W --keep-going docs docs/_build/html
         touch docs/_build/html/.nojekyll
     - name: Deploy to GitHub Pages
-      if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
+      if: github.ref == 'refs/heads/develop'
       uses: peaceiris/actions-gh-pages@v3
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
