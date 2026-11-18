@@ -70,6 +70,7 @@ Where to start
 
    installation
    releases
+   studio
    quickstart
    examples
 

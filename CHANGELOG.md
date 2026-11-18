@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Add an optional local Studio application under `apps/studio/`. It edits
+  population-network YAML, draws populations and branching-factor morphologies,
+  delegates model checks and training to core, and displays actual run results.
+  Advanced configuration values survive visual edits. The app is distributed
+  separately; existing constructors, defaults and training numerics are unchanged.
+
 - Ship small synthetic (no download) and MNIST population-network tutorials in
   the installed package, with `dendritic-example` to list or export them. Existing
   configurations, model defaults, initialization and training are unchanged.

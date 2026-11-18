@@ -57,6 +57,17 @@ The installed commands include `dendritic-train` (training),
 options. Distributed training runs under `torchrun`; see
 [docs/distributed_training.rst](docs/distributed_training.rst).
 
+## Graphical configuration
+
+The optional [DendriNet Studio](apps/studio/README.md) provides a local visual
+editor for population networks, YAML import/export, model checks and training
+results. From this checkout:
+
+```bash
+pip install -e . -e apps/studio
+dendrinet-studio --workspace /path/to/runs
+```
+
 ## Documentation
 
 The documentation is built with Sphinx from `docs/`:

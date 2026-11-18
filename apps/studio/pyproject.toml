@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dendrinet-studio"
+version = "0.1.0.dev0"
+description = "Local graphical configuration editor and run browser for DendriNet"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+dependencies = ["dendritic_modeling>=0.5.0.dev0,<0.6", "PyYAML>=6"]
+
+[project.optional-dependencies]
+test = ["pytest>=8", "playwright>=1.50"]
+
+[project.scripts]
+dendrinet-studio = "dendrinet_studio.server:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+dendrinet_studio = ["web/*.html", "web/*.css", "web/*.js"]
