@@ -764,6 +764,7 @@ Entry point: ``dendritic_modeling.scripts.tools.export_example:main``
 
    positional arguments:
      {mnist_population,synthetic_population}
+                           Example to export. Omit to list examples.
 
    options:
      -h, --help            show this help message and exit

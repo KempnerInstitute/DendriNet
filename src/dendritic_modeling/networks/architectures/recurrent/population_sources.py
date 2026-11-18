@@ -7,15 +7,15 @@ from typing import Any
 import torch
 
 from dendritic_modeling.config.keys import config_from_payload
+from dendritic_modeling.config.population_routing import (
+    canonical_input_source as _canonical_external_source,
+)
 from dendritic_modeling.networks.architectures.recurrent.population_configs import (
     PopulationProjectionConfig,
 )
-from dendritic_modeling.networks.architectures.recurrent.population_constants import (
-    _EXTERNAL_INPUT_ALIASES,
-)
 
 
-def _as_projection_config(
+def as_population_projection_config(
     connection: PopulationProjectionConfig | dict[str, Any],
 ) -> PopulationProjectionConfig:
     if isinstance(connection, PopulationProjectionConfig):
@@ -43,8 +43,7 @@ def _concat_or_none(values: list[torch.Tensor]) -> torch.Tensor | None:
     return torch.cat(values, dim=-1)
 
 
-def _canonical_external_source(source: str) -> str | None:
-    return _EXTERNAL_INPUT_ALIASES.get(str(source).lower())
+_as_projection_config = as_population_projection_config
 
 
 def _split_qualified_source(source: str) -> tuple[str, str] | None:
@@ -64,4 +63,5 @@ __all__ = [
     "_canonical_external_source",
     "_concat_or_none",
     "_split_qualified_source",
+    "as_population_projection_config",
 ]

@@ -12,7 +12,17 @@ import yaml
 from dendritic_modeling import __version__ as core_version
 from dendritic_modeling.config import config_from_mapping
 from dendritic_modeling.config.conversion import to_plain_dict
+from dendritic_modeling.config.keys import config_from_payload
+from dendritic_modeling.config.population_routing import (
+    INPUT_POLARITIES,
+    canonical_input_source,
+    population_readout,
+    projection_pathway,
+)
 from dendritic_modeling.examples import example_names, example_text
+from dendritic_modeling.networks.architectures.recurrent.dendritic_geometry import (
+    resolve_synapses_by_level,
+)
 from dendritic_modeling.networks.architectures.recurrent.ei_config import (
     PopulationConfig,
 )
@@ -21,11 +31,20 @@ from dendritic_modeling.networks.architectures.recurrent.population_common impor
     population_config_from_definition,
     population_level_dims,
 )
+from dendritic_modeling.networks.architectures.recurrent.population_configs import (
+    PopulationLayerConfig,
+)
+from dendritic_modeling.networks.architectures.recurrent.population_sources import (
+    as_population_projection_config,
+)
 
 
 def parse_document(text: str) -> dict[str, Any]:
     """Accept a standalone config, retaining fields outside the visual editor."""
-    raw = yaml.safe_load(text)
+    try:
+        raw = yaml.safe_load(text)
+    except yaml.YAMLError as error:
+        raise ValueError(f"Invalid YAML: {error}") from error
     if not isinstance(raw, dict):
         raise ValueError("A configuration must be a YAML mapping")
     # Relative composition belongs to the file loader; pasted/uploaded text has
@@ -73,24 +92,50 @@ def inspect_document(raw: dict[str, Any]) -> dict[str, Any]:
             "The visual editor currently supports core.type: population_network; use the core CLI for other families"
         )
     network = to_plain_dict(core.population_network)
-    nodes, edges = [], []
-    for li, layer in enumerate(network["layers"]):
-        for pi, item in enumerate(layer["populations"]):
+    nodes, edges, layers = [], [], []
+    signs = dict(INPUT_POLARITIES)
+    definitions = [
+        config_from_payload(
+            PopulationLayerConfig, item, section="population_network.layers"
+        )
+        for item in network["layers"]
+    ]
+    selected_layer = network.get("readout_layer") or definitions[-1].name
+    if len({layer.name for layer in definitions}) != len(definitions):
+        raise ValueError("Population layer names must be unique")
+    for li, layer in enumerate(definitions):
+        polarities = {}
+        for pi, item in enumerate(layer.populations):
             definition = as_population_definition_config(item)
             population = population_config_from_definition(
                 definition,
-                layer.get("population_defaults", {}),
+                layer.population_defaults,
                 layer_idx=pi,
                 network_layer_idx=li,
             )
             levels = list(reversed(population_level_dims(1, population.branch_factors)))
+            for stream in (
+                "ff_excitatory",
+                "ff_inhibitory",
+                "rec_excitatory",
+                "rec_inhibitory",
+            ):
+                field = stream + "_synapses"
+                resolve_synapses_by_level(
+                    per_level=getattr(population, field + "_by_level"),
+                    fallback=getattr(population, field),
+                    n_levels=len(levels),
+                    field_name=field + "_by_level",
+                )
+            node_id = f"{layer.name}.{definition.name}"
+            signs[node_id] = polarities[definition.name] = definition.polarity
             nodes.append(
                 {
-                    "id": f"{layer['name']}.{definition.name}",
+                    "id": node_id,
                     "layer": li,
                     "population": pi,
                     "name": definition.name,
-                    "layer_name": layer["name"],
+                    "layer_name": layer.name,
                     "polarity": definition.polarity,
                     "neurons": definition.n_neurons,
                     "branch_factors": definition.branch_factors,
@@ -99,12 +144,62 @@ def inspect_document(raw: dict[str, Any]) -> dict[str, Any]:
                     "settings": dataclasses.asdict(population),
                 }
             )
-        for connection in layer["connections"]:
-            edges.append({"layer": li, "layer_name": layer["name"], **connection})
+        if "excitatory" not in polarities.values():
+            raise ValueError(f"Layer {layer.name!r} requires an excitatory population")
+        override = (
+            network.get("readout_population") if layer.name == selected_layer else None
+        )
+        if (
+            override
+            and layer.readout_population
+            and override != layer.readout_population
+        ):
+            raise ValueError(f"Conflicting readout populations in layer {layer.name!r}")
+        readout = population_readout(polarities, override or layer.readout_population)
+        if not readout or readout not in polarities:
+            raise ValueError(
+                f"Layer {layer.name!r} requires a valid readout population"
+            )
+        layers.append({"name": layer.name, "readout": readout})
+
+    # Resolve qualified delayed sources after all populations are known.
+    for li, layer in enumerate(definitions):
+        for item in layer.connections:
+            connection = to_plain_dict(as_population_projection_config(item))
+            declared = connection["source"]
+            external = canonical_input_source(declared)
+            source = external or declared
+            if external and li:
+                if external != "input":
+                    raise ValueError(
+                        f"{declared!r} is only available in the first layer"
+                    )
+                previous = layers[li - 1]
+                origin = f"{previous['name']}.{previous['readout']}"
+            elif external or "." in source:
+                origin = source
+            else:
+                origin = f"{layer.name}.{source}"
+            timing = connection.get("timing", "same_step").lower()
+            edges.append(
+                {
+                    **connection,
+                    "layer": li,
+                    "layer_name": layer.name,
+                    "source": source,
+                    "source_id": origin,
+                    "target_id": f"{layer.name}.{connection['target']}",
+                    "timing": timing,
+                    "pathway": projection_pathway(
+                        timing, signs[origin], (connection.get("pathway") or "").lower()
+                    ),
+                }
+            )
     return {
         "config": original,
         "yaml": yaml.safe_dump(original, sort_keys=False),
         "resolved_config": to_plain_dict(cfg),
+        "layers": layers,
         "nodes": nodes,
         "edges": edges,
         "biological_neuron": core.biological_neuron,

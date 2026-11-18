@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 import threading
 import urllib.error
 import urllib.request
@@ -41,6 +43,28 @@ def test_soma_only_preview_is_distinct_from_one_branch():
     assert result["nodes"][1]["compartments_per_neuron"] == 1
 
 
+def test_preview_keeps_projection_aliases_in_yaml_and_draws_the_resolved_pathway():
+    raw = example("synthetic_population")
+    core = raw["model"]["core"]
+    core["biological_neuron"] = False
+    network = core["population_network"]
+    network["use_transfer"] = True
+    layer = network["layers"][0]
+    layer["connections"][0]["source"] = "input_exc"
+    layer["connections"][2].update(
+        source="input_inh", pathway="ff_excitatory", p_connect=0.8
+    )
+    preview = inspect_document(raw)
+    assert preview["edges"][0]["source_id"] == "input_e"
+    edge = preview["edges"][2]
+    assert (edge["source_id"], edge["pathway"], edge["probability"]) == (
+        "input_i",
+        "ff_excitatory",
+        0.8,
+    )
+    assert yaml.safe_load(preview["yaml"]) == raw
+
+
 def test_invalid_keys_and_unresolved_composition_are_rejected():
     raw = example("synthetic_population")
     raw["model"]["core"]["biological_neuronn"] = True
@@ -48,9 +72,21 @@ def test_invalid_keys_and_unresolved_composition_are_rejected():
         inspect_document(raw)
     with pytest.raises(ValueError, match="standalone"):
         parse_document("extends: private.yaml\nmodel: {}")
+    with pytest.raises(ValueError, match="Invalid YAML"):
+        parse_document("model: [")
 
 
 def test_server_requires_token_and_serves_only_known_assets(tmp_path):
+    prior = tmp_path / "failed"
+    prior.mkdir()
+    (prior / "studio_run.json").write_text(
+        json.dumps({"id": "failed", "status": "failed"})
+    )
+    results = prior / "results"
+    results.mkdir()
+    (results / "training_summary.json").write_text(
+        json.dumps({"train_losses": [0.5, float("nan"), float("inf")]})
+    )
     server = make_server(tmp_path, 0)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -66,6 +102,22 @@ def test_server_requires_token_and_serves_only_known_assets(tmp_path):
         with urllib.request.urlopen(req) as response:
             data = json.load(response)
         assert data["config"]["config_version"] == 4
+        invalid = urllib.request.Request(
+            url + "/api/preview",
+            data=json.dumps({"yaml": "model: ["}).encode(),
+            headers={"X-Studio-Token": server.studio_token},
+        )
+        with pytest.raises(urllib.error.HTTPError) as invalid_reply:
+            urllib.request.urlopen(invalid)
+        assert invalid_reply.value.code == 400
+        assert "Invalid YAML" in json.load(invalid_reply.value)["error"]
+        request = urllib.request.Request(
+            url + "/api/runs", headers={"X-Studio-Token": server.studio_token}
+        )
+        with urllib.request.urlopen(request) as response:
+            record = json.load(response)[0]
+        assert record["status"] == "failed"
+        assert record["summary"]["train_losses"] == [0.5, None, None]
         with pytest.raises(urllib.error.HTTPError) as error:
             urllib.request.urlopen(url + "/../../pyproject.toml")
         assert error.value.code == 404
@@ -115,6 +167,54 @@ def test_login_node_execution_is_rejected(tmp_path, monkeypatch):
         Runs(tmp_path).start(
             example("synthetic_population"), kind="train", device="cpu"
         )
+
+
+@pytest.mark.parametrize("explicit_core_width", [False, True])
+def test_inspection_matches_training_with_inferred_input_width(
+    tmp_path, explicit_core_width
+):
+    raw = example("synthetic_population")
+    del raw["model"]["encoder"]["params"]["input_dim"]
+    network = raw["model"]["core"]["population_network"]
+    if not explicit_core_width:
+        del network["input_dim"]
+    defaults = network["layers"][0]["population_defaults"]
+    defaults["topk_type"] = "standard"
+    for key in list(defaults):
+        if key.startswith("indexed_"):
+            del defaults[key]
+    raw["training"]["main"]["common"]["epochs"] = 1
+    config = tmp_path / "config.yaml"
+    config.write_text(yaml.safe_dump(raw))
+    inspected = tmp_path / "resources.json"
+    subprocess.run(
+        [sys.executable, "-m", "dendrinet_studio.worker", str(config), str(inspected)],
+        cwd=tmp_path,
+        check=True,
+    )
+    subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "dendritic_modeling.scripts.training.train_experiments",
+            str(config),
+            "--output_dir",
+            str(tmp_path / "training"),
+        ],
+        cwd=tmp_path,
+        check=True,
+    )
+    summary = json.loads(inspected.read_text())
+    (trained_path,) = (tmp_path / "training").rglob("model_resources.json")
+    trained = json.loads(trained_path.read_text())
+    assert summary["input_shape"] == [16]
+    for key in (
+        "total_parameters",
+        "trainable_parameters",
+        "candidate_synapse_slots",
+        "active_synapses",
+    ):
+        assert summary[key] == trained[key]
 
 
 def test_unfinished_old_record_is_not_reported_as_success(tmp_path):

@@ -18,6 +18,13 @@ from dendritic_modeling.config.core_sections import (
     SPATIAL_DENDRITIC_TYPES,
     SPATIAL_PATCH_POINT_TYPES,
 )
+from dendritic_modeling.config.population_routing import (
+    INPUT_ALIASES as _EXTERNAL_ALIASES,
+    INPUT_POLARITIES as _EXTERNAL_POLARITIES,
+    canonical_input_source as _canonical_external_source,
+    population_readout,
+    projection_pathway,
+)
 from dendritic_modeling.config.recurrence import _STRUCTURED_EI_TYPES
 
 # Controls whose matched E/I reference network the structured sections describe.
@@ -47,24 +54,6 @@ _REMOVED_STRUCTURED_TYPES = {
     "population_graph": "Use core.type: population_network with population_network.layers[].populations.",
     "cell_type_graph": "Use core.type: population_network with population_network.layers[].populations.",
     "cell_types": "Use core.type: population_network with population_network.layers[].populations.",
-}
-_EXTERNAL_POLARITIES = {
-    "input": "excitatory",
-    "input_e": "excitatory",
-    "input_exc": "excitatory",
-    "input_excitatory": "excitatory",
-    "input_i": "inhibitory",
-    "input_inh": "inhibitory",
-    "input_inhibitory": "inhibitory",
-}
-_EXTERNAL_ALIASES = {
-    "input": "input",
-    "input_e": "input_e",
-    "input_exc": "input_e",
-    "input_excitatory": "input_e",
-    "input_i": "input_i",
-    "input_inh": "input_i",
-    "input_inhibitory": "input_i",
 }
 _SAME_STEP = "same_step"
 _DELAYED = "delayed"
@@ -269,10 +258,6 @@ def _validate_legacy_ei_core(core: Any, errors: list[str]) -> None:
             errors.append(f"transfer.{field_name} must be > 0 when set, got {value}")
 
 
-def _canonical_external_source(source: str) -> str | None:
-    return _EXTERNAL_ALIASES.get(str(source).lower())
-
-
 def _split_qualified_source(source: str) -> tuple[str, str] | None:
     if "." not in source:
         return None
@@ -341,11 +326,7 @@ def _connection_pathway(
 ) -> str:
     pathway = str(connection.get("pathway", "") or "").lower()
     timing = str(connection.get("timing", _SAME_STEP)).lower()
-    if pathway:
-        return pathway
-    if timing == _SAME_STEP:
-        return _FF_INH if source_polarity == "inhibitory" else _FF_EXC
-    return _REC_INH if source_polarity == "inhibitory" else _REC_EXC
+    return projection_pathway(timing, source_polarity, pathway)
 
 
 def _validate_same_step_acyclic(
@@ -397,7 +378,9 @@ def _validate_population_network_core(core: Any, errors: list[str]) -> None:
 
     validation_index = _validate_population_network_layers(layers, errors)
     _validate_population_network_readout(config, validation_index, errors)
-    _validate_population_network_connections(layers, validation_index, errors)
+    _validate_population_network_connections(
+        layers, validation_index, errors, config=config
+    )
 
 
 def _validate_population_network_layers(
@@ -502,17 +485,29 @@ def _validate_population_network_connections(
     layers: list[dict[str, Any]],
     validation_index: _PopulationNetworkValidationIndex,
     errors: list[str],
+    *,
+    config: dict[str, Any],
 ) -> None:
     """Validate per-layer population connection declarations."""
     layer_names = validation_index.layer_names
     population_dims = validation_index.population_dims
     population_polarities = validation_index.population_polarities
     layer_index = {name: idx for idx, name in enumerate(layer_names)}
+    readout_layer = config.get("readout_layer") or layer_names[-1]
+    previous_readout_polarity = None
 
     for layer_idx, layer in enumerate(layers):
         layer_name = layer_names[layer_idx]
         local_names = set(population_dims.get(layer_name, {}))
         local_polarities = population_polarities.get(layer_name, {})
+        input_polarity = previous_readout_polarity
+        override = (
+            config.get("readout_population") if layer_name == readout_layer else None
+        )
+        readout = population_readout(
+            local_polarities, override or layer.get("readout_population")
+        )
+        previous_readout_polarity = local_polarities.get(readout)
         connections = [
             to_plain_dict(connection)
             for connection in layer.get("connections", []) or []
@@ -543,6 +538,8 @@ def _validate_population_network_connections(
                 )
 
             source_polarity = _EXTERNAL_POLARITIES.get(source, "excitatory")
+            if input_polarity and source in _EXTERNAL_POLARITIES:
+                source_polarity = input_polarity
             qualified = None
             if source not in _EXTERNAL_ALIASES.values() and source not in local_names:
                 try:

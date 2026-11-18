@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import os
 import re
@@ -16,6 +17,110 @@ playwright = pytest.importorskip("playwright.sync_api")
 
 from dendrinet_studio.model import example  # noqa: E402
 from dendrinet_studio.server import make_server  # noqa: E402
+
+from dendritic_modeling.analysis.utils.model_resources import (  # noqa: E402
+    model_resource_summary,
+)
+from dendritic_modeling.config import config_from_mapping  # noqa: E402
+from dendritic_modeling.scripts.script_utils.setup_utils import (  # noqa: E402
+    initialize_model,
+)
+
+
+def test_imported_defaults_connections_and_effective_contacts(tmp_path):
+    raw = example("synthetic_population")
+    layers = raw["model"]["core"]["population_network"]["layers"]
+    first = layers[0]
+    del first["connections"][0]["source"]
+    del first["populations"][0]["branch_factors"]
+    first["population_defaults"]["ff_inhibitory_synapses_by_level"] = [4, 4, 6]
+    first["populations"][0]["population"]["ff_inhibitory_synapses_by_level"] = []
+    second = copy.deepcopy(first)
+    second["name"] = "layer1"
+    second["connections"] = [
+        {"target": "i"},
+        {"source": "layer0.e", "target": "e"},
+        {"source": "layer0.i", "target": "e"},
+        {"source": "i", "target": "e"},
+    ]
+    layers.append(second)
+
+    def contacts(document):
+        model, _ = initialize_model(config_from_mapping(document).model)
+        return model_resource_summary(model)["active_synapses"]
+
+    original_contacts = contacts(raw)
+    server = make_server(tmp_path, 0)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        with playwright.sync_playwright() as engine:
+            browser = engine.chromium.launch()
+            page = browser.new_page(accept_downloads=True)
+            errors = []
+            page.on("pageerror", lambda err: errors.append(str(err)))
+            page.goto(f"http://127.0.0.1:{server.server_port}/#{server.studio_token}")
+            page.locator("#metrics strong").first.wait_for()
+            page.get_by_role("button", name="Configuration", exact=True).click()
+            page.locator("#yaml").fill(yaml.safe_dump(raw))
+            page.locator("#applyYaml").click()
+            playwright.expect(page.locator("#graph g.node")).to_have_count(4)
+            page.get_by_role("button", name="Design", exact=True).click()
+            assert (
+                page.locator(
+                    '#graph path[data-source="layer0.e"][data-target="layer1.i"]'
+                ).count()
+                == 1
+            )
+            assert (
+                page.locator(
+                    '#graph path[data-source="layer0.i"][data-target="layer1.e"][marker-end="url(#bar)"]'
+                ).count()
+                == 1
+            )
+            page.get_by_role("button", name="Edit layer0.e", exact=True).click()
+            field = page.get_by_label(
+                "I contacts by level (distal to soma)", exact=True
+            )
+            playwright.expect(field).to_have_value("4, 4, 6")
+            assert (
+                page.get_by_label("I contacts per compartment", exact=True).count() == 0
+            )
+            field.fill("1, 1, 1")
+            field.press("Tab")
+
+            def exported():
+                with page.expect_download() as event:
+                    page.locator("#export").click()
+                return yaml.safe_load(Path(event.value.path()).read_text())
+
+            edited = exported()
+            new_layers = edited["model"]["core"]["population_network"]["layers"]
+            assert "source" not in new_layers[0]["connections"][0]
+            assert "branch_factors" not in new_layers[0]["populations"][0]
+            assert new_layers[0]["population_defaults"][
+                "ff_inhibitory_synapses_by_level"
+            ] == [4, 4, 6]
+            assert contacts(edited) < original_contacts
+            page.locator("#addLayer").click()
+            playwright.expect(page.locator("#graph g.node")).to_have_count(6)
+            cloned = exported()
+            wires = cloned["model"]["core"]["population_network"]["layers"][2][
+                "connections"
+            ]
+            assert [wire.get("source", "input") for wire in wires] == [
+                "input",
+                "layer1.e",
+                "layer1.i",
+                "i",
+            ]
+            assert contacts(cloned) > contacts(edited)
+            assert not errors
+            browser.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
 
 
 def test_visual_edit_export_and_train(tmp_path):

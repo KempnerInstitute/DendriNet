@@ -22,11 +22,15 @@ multi-user hosted service. It does not upload your data.
 2. Select a population. Change its neuron count, branching factors, contacts,
    integration, leak, gate or sparse-layer type. An empty branching list means
    a soma-only neuron. Edit connections with source/target selectors.
-3. Inspect the population graph and the exact branching-factor tree. The graph
-   shows declared pathways, not a realized synaptic mask. Large trees retain
+3. Inspect the population graph and the exact branching-factor tree. Edges
+   show the resolved source population and pathway. In later layers,
+   `input` follows the preceding readout. When a population has per-level
+   contact counts, edit its vector from the distal compartments to the soma.
+   Population overrides leave neighboring populations' defaults intact. Large trees retain
    exact counts but suppress individual-compartment drawing above 1,500 nodes.
-4. Check model: a separate CPU process calls core's normal constructor and
-   resource accounting. This does not load data or calibrate gates.
+4. Choose **Check model &amp; count resources** to build the model with the
+   trainer's dataset, input shape and seeds. The selected dataset may require
+   a download. The check reports resource counts before gate calibration.
 5. Train: a worker runs the normal training CLI. The synthetic tutorial is
    deliberately small. The training path performs its normal dataset-dependent
    setup and validation. CPU and automatic device selection are available.
@@ -80,3 +84,6 @@ synthetic training run. It is skipped when Playwright is not installed.
 The browser uses local HTML, CSS and SVG/JavaScript assets, with no CDN or
 JavaScript build step. E/I populations and curves differ by shape or line style
 as well as color. Browser editing state is separate from the experiment YAML.
+
+For the wheel installation and publication procedure, see the repository's
+[release guide](../../docs/releases.rst).

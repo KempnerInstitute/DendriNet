@@ -23,7 +23,7 @@
       <h2>Experiment</h2><div id="experiment"></div>
       <label>Execution<select id="device"><option value="cpu">CPU</option><option value="auto">Available device (CPU / GPU)</option></select></label>
       <button id="inspect">Check model &amp; count resources</button><button id="train" class="primary">Train</button>
-      <p class="hint">Uses the normal DendriNet trainer. Model checks and training run in a separate process.</p>
+      <p class="hint">Check model loads the training dataset to determine the input shape. Some datasets require a download.</p>
     </aside>
     <section class="canvas-area">
       <div class="section-head"><div><h1>Population network</h1><p>Select a population to edit its neurons.</p></div><button id="export">Export YAML</button></div>

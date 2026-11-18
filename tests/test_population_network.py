@@ -1,8 +1,10 @@
 import pytest
 import torch
+import yaml
 
-from dendritic_modeling.config import CoreConfig
+from dendritic_modeling.config import CoreConfig, config_from_mapping
 from dendritic_modeling.config.recurrence import is_recurrent_core_config
+from dendritic_modeling.examples import example_text
 from dendritic_modeling.models import Classifier
 from dendritic_modeling.networks import Identity
 from dendritic_modeling.networks.architectures.factory import get_architecture
@@ -103,6 +105,38 @@ def test_population_network_all_somatic_population_allows_empty_branch_factors()
 
     assert out.shape == (2, 5)
     assert net.layers[0].population_configs["e"].branch_factors == []
+
+
+def test_later_input_uses_the_previous_readout_polarity_in_validation_and_construction():
+    raw = yaml.safe_load(example_text("synthetic_population"))
+    network = raw["model"]["core"]["population_network"]
+    network["layers"][0]["readout_population"] = "i"
+    network["layers"].append(
+        {
+            "name": "next",
+            "populations": [
+                {
+                    "name": "e",
+                    "n_neurons": 5,
+                    "polarity": "excitatory",
+                    "branch_factors": [1],
+                }
+            ],
+            "population_defaults": _base_population(
+                {"rec_excitatory_synapses": 0, "rec_inhibitory_synapses": 0}
+            ),
+            "connections": [{"target": "e"}, {"source": "layer0.e", "target": "e"}],
+        }
+    )
+    cfg = config_from_mapping(raw)
+    net = get_architecture("population_network", cfg.model.core, input_dim=16)
+    assert [c.pathway for c in net.layers[1].connections] == [
+        "ff_inhibitory",
+        "ff_excitatory",
+    ]
+    network["layers"][1]["connections"].pop()
+    with pytest.raises(ValueError, match="same-step ff_excitatory input"):
+        config_from_mapping(raw)
 
 
 def test_population_network_two_pop_feedforward_matches_current_ei_pattern():

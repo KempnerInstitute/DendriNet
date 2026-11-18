@@ -10,7 +10,12 @@ from dendritic_modeling.examples import example_names, example_text
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("name", nargs="?", choices=example_names())
+    parser.add_argument(
+        "name",
+        nargs="?",
+        choices=example_names(),
+        help="Example to export. Omit to list examples.",
+    )
     parser.add_argument("--output", type=Path, help="Write a new YAML file.")
     args = parser.parse_args()
     if args.name is None:

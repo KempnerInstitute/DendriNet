@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import mimetypes
 import os
 import secrets
@@ -26,6 +27,17 @@ from dendrinet_studio.model import example, inspect_document, parse_document, sc
 import dendritic_modeling
 
 MAX_REQUEST_BYTES = 2 * 1024 * 1024
+
+
+def json_values(value):
+    """Represent non-finite results as missing, never as a successful zero."""
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
+    if isinstance(value, dict):
+        return {key: json_values(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [json_values(item) for item in value]
+    return value
 
 
 class Runs:
@@ -102,7 +114,7 @@ class Runs:
                 ]
             env = os.environ.copy()
             env.update(PYTHONUNBUFFERED="1", MPLBACKEND="Agg", OMP_NUM_THREADS="1")
-            if device == "cpu" or kind == "inspect":
+            if device == "cpu":
                 env["CUDA_VISIBLE_DEVICES"] = ""
             # Reuse exactly the imported package paths, even with a source
             # checkout instead of an editable install. No implicit fallback.
@@ -228,7 +240,9 @@ def make_server(root: Path, port: int = 8765) -> ThreadingHTTPServer:
 
         def json_reply(self, data, status=200):
             self.reply(
-                status, json.dumps(data).encode(), "application/json; charset=utf-8"
+                status,
+                json.dumps(json_values(data), allow_nan=False).encode(),
+                "application/json; charset=utf-8",
             )
 
         def authorized(self) -> bool:
