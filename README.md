@@ -35,16 +35,17 @@ environment, the pinned dependency versions and the optional extras.
 
 ## First steps
 
-Run from the repository root:
+After installation, export a small configuration into any working directory:
 
 ```bash
-# Train a population network on MNIST for one epoch
-dendritic-train configs/examples/population_network_feedforward.yaml --epochs 1
+# Generate data locally and train a small population network
+dendritic-example synthetic_population --output demo.yaml
+dendritic-train demo.yaml --epochs 1
 
 # Check a configuration without training
-dendritic-train configs/examples/population_network_two_layer.yaml --validate-only
+dendritic-train demo.yaml --validate-only
 
-# Generate the configurations of a parameter sweep without submitting jobs
+# From a repository checkout, generate a parameter sweep without submitting jobs
 dendritic-sweep --config configs/sweep_config.yaml --generate-only
 ```
 

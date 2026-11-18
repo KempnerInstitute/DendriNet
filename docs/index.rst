@@ -69,6 +69,7 @@ Where to start
    :caption: Getting started
 
    installation
+   releases
    quickstart
    examples
 

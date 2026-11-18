@@ -1,0 +1,88 @@
+name: Package release
+
+on:
+  pull_request:
+    branches: [develop]
+  push:
+    branches: [develop]
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Build only, or publish a qualified release tag
+        type: choice
+        default: build-only
+        options: [build-only, testpypi, pypi]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.11'
+      - name: Validate publication source
+        if: github.event_name == 'workflow_dispatch' && inputs.target != 'build-only'
+        env:
+          RELEASE_REF: ${{ github.ref }}
+        run: |
+          python - <<'PY'
+          import os, subprocess, tomllib
+          from pathlib import Path
+          version = tomllib.loads(Path('pyproject.toml').read_text())['project']['version']
+          if os.environ['RELEASE_REF'] != 'refs/tags/v' + version:
+              raise SystemExit('Publishing requires the tag matching the package version')
+          subprocess.run(['git', 'merge-base', '--is-ancestor', 'HEAD', 'origin/develop'], check=True)
+          PY
+      - name: Build and inspect distributions
+        run: |
+          python -m pip install build twine
+          python -m build
+          python -m twine check --strict dist/*
+          python setup/check_distribution.py dist
+      - name: Test the installed wheel
+        env:
+          DENDRITIC_MODELING_PLUGINS: '0'
+          CUDA_VISIBLE_DEVICES: ''
+          MPLBACKEND: Agg
+          OMP_NUM_THREADS: '1'
+        run: |
+          python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install dist/*.whl
+          cd "$RUNNER_TEMP"
+          env -u PYTHONPATH python "$GITHUB_WORKSPACE/setup/check_installed.py"
+          dendritic-example synthetic_population --output demo.yaml
+          dendritic-train demo.yaml --epochs 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: distributions
+          path: dist/*
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    if: github.event_name == 'workflow_dispatch' && inputs.target != 'build-only'
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.target }}
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: distributions
+          path: dist
+      - name: Publish to TestPyPI
+        if: inputs.target == 'testpypi'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+      - name: Publish to PyPI
+        if: inputs.target == 'pypi'
+        uses: pypa/gh-action-pypi-publish@release/v1

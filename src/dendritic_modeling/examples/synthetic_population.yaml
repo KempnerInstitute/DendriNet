@@ -1,0 +1,120 @@
+# Download-free, two-class tutorial. Signed inputs use ON/OFF encoding.
+config_version: 4
+experiment:
+  seed: 42
+  train_valid_split: 0.8
+  checkpointing:
+    enabled: false
+data:
+  dataset_name: linear_separable
+  dataset_params:
+    linear_separable:
+      n_samples: 128
+      input_dim: 16
+      ne: 8
+      ni: 8
+      seed: 42
+model:
+  task: classification
+  encoder:
+    type: identity
+    params:
+      input_dim: 16
+  core:
+    biological_neuron: true
+    type: population_network
+    population_network:
+      input_transform: signed_split
+      layers:
+      - name: layer0
+        readout_population: e
+        population_defaults:
+          ff_excitatory_synapses: 8
+          ff_inhibitory_synapses: 4
+          rec_excitatory_synapses: 0
+          rec_inhibitory_synapses: 0
+          somatic_synapses: true
+          reactivate: true
+          reactivation_type: param_tanh
+          reactivation_memory_efficient: true
+          reactivation_init_policy: occupancy_quantile
+          dbl_init_method: analytical_expectation
+          weight_transform: softplus
+          topk_type: indexed
+          topk_init_method: xavier_normal
+          indexed_index_dtype: auto
+          indexed_projection_backend: recompute
+          indexed_output_chunk_size: 2048
+          efficient_blocklinear: true
+          use_shunting: true
+          leak_conductance: 1.0
+          learnable_leak: false
+        populations:
+        - name: i
+          polarity: inhibitory
+          n_neurons: 8
+          branch_factors:
+          - 1
+          population:
+            ff_inhibitory_synapses: 0
+        - name: e
+          polarity: excitatory
+          n_neurons: 16
+          branch_factors:
+          - 2
+          - 2
+        connections:
+        - source: input
+          target: i
+        - source: input
+          target: e
+        - source: i
+          target: e
+      input_dim: 16
+  decoder:
+    type: MLP
+    params:
+      hidden_dims:
+      - 8
+      activation: relu
+      output_dim: 2
+training:
+  main:
+    strategy: standard
+    common:
+      epochs: 3
+      batch_size: 64
+      reactivation_initialization_batch_size: 64
+      shuffle: true
+      grad_clip_value: 5.0
+      loss_function: ce
+      early_stopping: true
+      patience: 20
+      load_best_state_dict: true
+      synapse_decay_rate: 0.0
+      weight_boosting: false
+      param_groups:
+        lr: 0.001
+        split_params: true
+        topk_lr: 0.001
+        blocklinear_lr: 0.0001
+        reactivation_lr: 0.0001
+        decoder_lr: 0.001
+      plot_losses: false
+    optimizer:
+      name: adam
+      weight_decay: 0.0
+    strategies:
+      standard: {}
+analysis:
+  performance:
+    enabled: true
+    training: false
+    params:
+      accuracy: true
+      categorical_loglikelihood: true
+outputs:
+  run_name: synthetic_population
+  results_dir: outputs
+distributed:
+  mode: none

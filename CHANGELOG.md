@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Ship small synthetic (no download) and MNIST population-network tutorials in
+  the installed package, with `dendritic-example` to list or export them. Existing
+  configurations, model defaults, initialization and training are unchanged.
+- Check distribution contents and installed-wheel behavior in CI; provide a
+  manually dispatched, tag-checked TestPyPI/PyPI release workflow whose default
+  is build-only. Study projects and optional applications stay outside the core
+  distribution.
+
 - CI and the documentation deployment run for ``develop``, the default branch,
   and no longer for ``main``, which has not changed since August 2024 and is
   being retired.

@@ -76,6 +76,21 @@ The ablation and compartment-SNR analyses write their animations as MP4
 videos when ``ffmpeg`` is installed (``conda install -c conda-forge ffmpeg``)
 and as GIF files otherwise.
 
+Examples without a checkout
+---------------------------
+
+The installed package includes small tutorial configurations:
+
+.. code-block:: bash
+
+   dendritic-example synthetic_population --output demo.yaml
+   dendritic-train demo.yaml --epochs 1
+
+The synthetic example generates data locally. ``mnist_population`` downloads
+MNIST on its first run. These examples are independent of the current working
+directory and are not paper reproduction recipes. The exporter never overwrites
+an existing file. See :doc:`releases` for package release preparation.
+
 Check the installation
 ----------------------
 
