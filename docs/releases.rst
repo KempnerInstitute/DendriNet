@@ -22,15 +22,21 @@ Release procedure
    or numerical changes with their own tests; packaging checks alone cannot
    qualify a scientific workflow.
 #. Set the release version consistently and tag the reviewed merge commit.
+   Use ``v<VERSION>`` for core and ``studio-v<VERSION>`` for Studio. Publish
+   a compatible core release before Studio. Check the Studio dependency range
+   against the released core wheel.
 #. Run the package checks: isolated source-to-wheel build, strict Twine metadata
    checks, archive inventory, installed examples and command-line imports.
 #. Configure the PyPI and TestPyPI projects and GitHub environments for trusted
    publishing. Protect the publication environments with maintainer review.
-#. Dispatch ``Package release`` for the release tag, first choosing ``testpypi``.
-   Install that artifact in a clean environment and run the download-free demo.
-#. After approval, dispatch the same tag with ``pypi``. The default
-   ``build-only`` target never uploads anything. The workflow refuses uploads
-   from an unversioned branch, a mismatched tag, or a commit outside develop.
+#. Dispatch ``Package release`` for the matching tag and distribution with
+   ``target=testpypi``. CI builds and tests both wheels and stages the selected
+   distribution. Install its staged wheel in a clean environment and run the
+   download-free demo. Retain the successful workflow run ID.
+#. After approval, dispatch that tag and distribution with ``target=pypi``
+   and the staging run ID. The workflow retrieves the existing artifacts,
+   checks their filenames, package version and SHA-256 digests against the
+   TestPyPI release, and promotes the same files. Build-only is the default.
 
 Repository visibility, index ownership and environment protection are
 maintainer settings; the workflow does not change them. Before publication,

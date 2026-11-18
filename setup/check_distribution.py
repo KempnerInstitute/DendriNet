@@ -24,6 +24,11 @@ def check(dist: Path, source: Path) -> dict[str, int]:
     missing = expected - wheel_files
     if missing:
         raise ValueError(f"Files missing from wheel: {sorted(missing)}")
+    unexpected = {
+        p for p in wheel_files if p.startswith("dendritic_modeling/")
+    } - expected
+    if unexpected:
+        raise ValueError(f"Unexpected runtime files in wheel: {sorted(unexpected)}")
     for name in wheel_files:
         parts = PurePosixPath(name).parts
         if (
@@ -71,6 +76,13 @@ def check(dist: Path, source: Path) -> dict[str, int]:
     missing = {"src/" + name for name in expected} - files
     if missing:
         raise ValueError(f"Files missing from source distribution: {sorted(missing)}")
+    unexpected = {
+        p[4:] for p in files if p.startswith("src/dendritic_modeling/")
+    } - expected
+    if unexpected:
+        raise ValueError(
+            f"Unexpected runtime files in source distribution: {sorted(unexpected)}"
+        )
     return {"wheel_files": len(wheel_files), "source_files": len(files)}
 
 

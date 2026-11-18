@@ -7,17 +7,27 @@ on:
     branches: [develop]
   workflow_dispatch:
     inputs:
+      distribution:
+        description: Package to publish from its release tag
+        type: choice
+        default: core
+        options: [core, studio]
       target:
-        description: Build only, or publish a qualified release tag
+        description: Build, stage on TestPyPI, or promote the staged files
         type: choice
         default: build-only
         options: [build-only, testpypi, pypi]
+      staging_run_id:
+        description: Successful TestPyPI workflow run ID (required for PyPI)
+        type: string
+        required: false
 
 permissions:
   contents: read
 
 jobs:
   build:
+    if: github.event_name != 'workflow_dispatch' || inputs.target != 'pypi'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -27,26 +37,19 @@ jobs:
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
           python-version: '3.11'
-      - name: Validate publication source
-        if: github.event_name == 'workflow_dispatch' && inputs.target != 'build-only'
-        env:
-          RELEASE_REF: ${{ github.ref }}
-        run: |
-          python - <<'PY'
-          import os, subprocess, tomllib
-          from pathlib import Path
-          version = tomllib.loads(Path('pyproject.toml').read_text())['project']['version']
-          if os.environ['RELEASE_REF'] != 'refs/tags/v' + version:
-              raise SystemExit('Publishing requires the tag matching the package version')
-          subprocess.run(['git', 'merge-base', '--is-ancestor', 'HEAD', 'origin/develop'], check=True)
-          PY
-      - name: Build and inspect distributions
+      - name: Build and inspect both distributions
         run: |
           python -m pip install build twine
-          python -m build
-          python -m twine check --strict dist/*
-          python setup/check_distribution.py dist
-      - name: Test the installed wheel
+          python -m build --outdir dist/core
+          python -m build apps/studio --outdir dist/studio
+          python -m twine check --strict dist/{core,studio}/*
+          python setup/check_distribution.py dist/core
+      - name: Verify staging tag
+        if: github.event_name == 'workflow_dispatch' && inputs.target == 'testpypi'
+        env:
+          PACKAGE: ${{ inputs.distribution }}
+        run: python setup/verify_release.py "$PACKAGE" "$GITHUB_REF"
+      - name: Exercise installed wheels outside the source tree
         env:
           DENDRITIC_MODELING_PLUGINS: '0'
           CUDA_VISIBLE_DEVICES: ''
@@ -54,46 +57,89 @@ jobs:
           OMP_NUM_THREADS: '1'
         run: |
           python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-          python -m pip install dist/*.whl
-          cd "$RUNNER_TEMP"
-          env -u PYTHONPATH python "$GITHUB_WORKSPACE/setup/check_installed.py"
-          dendritic-example synthetic_population --output demo.yaml
-          dendritic-train demo.yaml --epochs 1
-      - name: Check the optional Studio application
-        env:
-          DENDRITIC_MODELING_PLUGINS: '0'
-          CUDA_VISIBLE_DEVICES: ''
-          MPLBACKEND: Agg
-          OMP_NUM_THREADS: '1'
-        run: |
-          python -m pip install './apps/studio[test]'
+          python -m pip install dist/core/*.whl dist/studio/*.whl pytest playwright
           python -m playwright install --with-deps chromium
           cd "$RUNNER_TEMP"
-          env -u PYTHONPATH python -m pytest "$GITHUB_WORKSPACE/apps/studio/tests" -q
+          unset PYTHONPATH
+          python -m pip check
+          python "$GITHUB_WORKSPACE/setup/check_installed.py"
+          python "$GITHUB_WORKSPACE/setup/check_installed_sweep.py"
+          python -m pytest "$GITHUB_WORKSPACE/apps/studio/tests" -q
       - uses: actions/upload-artifact@v4
         with:
-          name: distributions
-          path: dist/*
+          name: qualified-core
+          path: dist/core/*
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qualified-studio
+          path: dist/studio/*
           if-no-files-found: error
 
-  publish:
+  stage:
     needs: build
-    if: github.event_name == 'workflow_dispatch' && inputs.target != 'build-only'
+    if: github.event_name == 'workflow_dispatch' && inputs.target == 'testpypi'
     runs-on: ubuntu-latest
-    environment:
-      name: ${{ inputs.target }}
+    environment: testpypi
     permissions:
       id-token: write
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: distributions
+          name: qualified-${{ inputs.distribution }}
           path: dist
-      - name: Publish to TestPyPI
-        if: inputs.target == 'testpypi'
-        uses: pypa/gh-action-pypi-publish@release/v1
+      - uses: pypa/gh-action-pypi-publish@release/v1
         with:
           repository-url: https://test.pypi.org/legacy/
-      - name: Publish to PyPI
-        if: inputs.target == 'pypi'
-        uses: pypa/gh-action-pypi-publish@release/v1
+
+  verify-promotion:
+    if: github.event_name == 'workflow_dispatch' && inputs.target == 'pypi'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    env:
+      PACKAGE: ${{ inputs.distribution }}
+      STAGING_RUN: ${{ inputs.staging_run_id }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.11'
+      - name: Verify source workflow and revision
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [[ "$STAGING_RUN" =~ ^[0-9]+$ ]]
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$STAGING_RUN" |
+            jq -e --arg sha "$GITHUB_SHA" '.head_sha == $sha and .event == "workflow_dispatch" and .path == ".github/workflows/package.yml" and .conclusion == "success"'
+          python -m pip install packaging
+          python setup/verify_release.py "$PACKAGE" "$GITHUB_REF"
+      - uses: actions/download-artifact@v4
+        with:
+          name: qualified-${{ inputs.distribution }}
+          run-id: ${{ inputs.staging_run_id }}
+          github-token: ${{ github.token }}
+          path: staged
+      - name: Match the staged archives to the files published on TestPyPI
+        run: python setup/verify_release.py "$PACKAGE" "$GITHUB_REF" --staged staged
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verified-for-pypi
+          path: staged/*
+          if-no-files-found: error
+
+  publish:
+    needs: verify-promotion
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: verified-for-pypi
+          path: dist
+      - uses: pypa/gh-action-pypi-publish@release/v1
