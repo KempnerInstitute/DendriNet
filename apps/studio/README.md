@@ -86,4 +86,4 @@ JavaScript build step. E/I populations and curves differ by shape or line style
 as well as color. Browser editing state is separate from the experiment YAML.
 
 For the wheel installation and publication procedure, see the repository's
-[release guide](../../docs/releases.rst).
+[release guide](https://github.com/KempnerInstitute/DendriNet/blob/develop/docs/releases.rst).

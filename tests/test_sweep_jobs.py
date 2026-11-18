@@ -5,11 +5,14 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 import yaml
 from omegaconf import OmegaConf
 
+import dendritic_modeling
 from dendritic_modeling.scripts.sweeps import (
     rerun_missing_configs as rerun,
     sweep_manager,
@@ -154,6 +157,29 @@ def test_configs_on_the_root_filesystem_get_no_mount_probe(tmp_path, monkeypatch
 
     assert _config_mount_points([str(config)]) == []
     assert "stat" not in _mount_canary([str(config)])
+
+
+def test_installed_guard_compares_the_executing_package_with_the_frozen_digest(
+    tmp_path, monkeypatch
+):
+    from dendritic_modeling.scripts.sweeps.unified import base_sweep
+    from dendritic_modeling.utils.source_identity import package_tree_digest
+
+    monkeypatch.setattr(base_sweep, "CHECKOUT_ROOT", None)
+    digest = package_tree_digest(Path(dendritic_modeling.__file__).parent)
+    for frozen, expected_status in [(digest, 0), ("0" * 64, 1)]:
+        guard = _execution_source_guard(
+            tmp_path, {"git": {"available": False}, "package": {"tree_sha256": frozen}}
+        )
+        result = subprocess.run(
+            ["bash", "-ec", guard],
+            env={**os.environ, "PYTHON": sys.executable},
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == expected_status, result.stderr
+        if expected_status:
+            assert "differs from the package used for sweep generation" in result.stderr
 
 
 def test_array_specs_list_reruns_and_cap_concurrency():

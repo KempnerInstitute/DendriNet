@@ -30,6 +30,7 @@ from typing import Optional
 from dendritic_modeling.config import load_config
 from dendritic_modeling.datasets.dimensions import dataset_input_shape
 from dendritic_modeling.scripts.sweeps.slurm_profile import (
+    LIBRARY_SOURCE_ROOT,
     SlurmProfile,
     job_working_directory,
 )
@@ -37,6 +38,8 @@ from dendritic_modeling.utils.gpu_estimation import estimate_config
 from dendritic_modeling.utils.logging_config import setup_logging
 
 logger = logging.getLogger(__name__)
+
+REPO_ROOT = LIBRARY_SOURCE_ROOT
 
 TRAINING_SCRIPTS = {
     "none": "src/dendritic_modeling/scripts/training/train_experiments.py",

@@ -401,16 +401,20 @@ class TestSweepJobManager:
     def test_generated_jobs_are_bound_to_generation_source(
         self, slurm_config, monkeypatch
     ):
-        monkeypatch.setattr(
-            "dendritic_modeling.scripts.sweeps.unified.base_sweep.discover_source_identity",
-            lambda _root: {
+        def checkout_identity(_root, *, include_package):
+            assert not include_package
+            return {
                 "git": {
                     "available": True,
                     "commit": "a" * 40,
                     "tracked_worktree_dirty": False,
                     "tracked_diff_sha256": "b" * 64,
                 }
-            },
+            }
+
+        monkeypatch.setattr(
+            "dendritic_modeling.scripts.sweeps.unified.base_sweep.discover_source_identity",
+            checkout_identity,
         )
         manager = SweepJobManager(slurm_config)
 
