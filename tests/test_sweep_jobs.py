@@ -71,6 +71,27 @@ def _sbatch_lines(path):
     ]
 
 
+def test_installed_launchers_use_native_modules_and_resolve_custom_paths(
+    tmp_path, monkeypatch
+):
+    from dendritic_modeling.scripts.sweeps import slurm_profile
+
+    monkeypatch.setattr(slurm_profile, "CHECKOUT_ROOT", None)
+    monkeypatch.chdir(tmp_path)
+    profile = SlurmProfile.from_config(SLURM)
+    assert slurm_profile.job_working_directory("sweep") == tmp_path / "sweep"
+    assert "$(pwd)/src" not in profile.environment()
+    assert profile.training_command().endswith(
+        "-m dendritic_modeling.scripts.training.train_experiments"
+    )
+    fsdp = SlurmProfile.from_config({**SLURM, "launcher": "torchrun"})
+    assert "-m torch.distributed.run" in fsdp.training_command()
+    assert fsdp.training_command(
+        DEFAULT_TRAINING_SCRIPT.replace(".py", "_fsdp.py")
+    ).endswith("-m dendritic_modeling.scripts.training.train_experiments_fsdp")
+    assert str(tmp_path / "custom.py") in profile.training_command("custom.py")
+
+
 def test_single_and_array_scripts_request_the_same_resources(tmp_path):
     (tmp_path / "jobs").mkdir()
     configs = [tmp_path / f"config_{index}.yaml" for index in range(3)]

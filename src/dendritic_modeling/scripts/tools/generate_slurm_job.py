@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+import shlex
 import subprocess
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -28,13 +29,15 @@ from typing import Optional
 
 from dendritic_modeling.config import load_config
 from dendritic_modeling.datasets.dimensions import dataset_input_shape
-from dendritic_modeling.scripts.sweeps.slurm_profile import SlurmProfile
+from dendritic_modeling.scripts.sweeps.slurm_profile import (
+    SlurmProfile,
+    job_working_directory,
+)
 from dendritic_modeling.utils.gpu_estimation import estimate_config
 from dendritic_modeling.utils.logging_config import setup_logging
 
 logger = logging.getLogger(__name__)
 
-REPO_ROOT = Path(__file__).resolve().parents[4]
 TRAINING_SCRIPTS = {
     "none": "src/dendritic_modeling/scripts/training/train_experiments.py",
     "ddp": "src/dendritic_modeling/scripts/training/train_experiments.py",
@@ -109,9 +112,10 @@ def render_job_script(
     """The job script: header, environment and the training command."""
     if profile.gpus_per_node != plan.gpus_per_node:
         raise ValueError("the Slurm profile and the job plan request different GPUs")
-    config_arg = os.path.relpath(os.path.abspath(config_path), start=REPO_ROOT)
+    working_dir = job_working_directory(Path.cwd())
+    config_arg = os.path.relpath(os.path.abspath(config_path), start=working_dir)
     header = profile.header(
-        repo_root=REPO_ROOT,
+        repo_root=working_dir,
         output=str(log_dir / f"{profile.job_name}_%j.out"),
         error=str(log_dir / f"{profile.job_name}_%j.err"),
     )
@@ -119,7 +123,7 @@ def render_job_script(
         header
         + "set -eo pipefail\n\n"
         + profile.environment()
-        + f"{profile.launch_prefix()} {plan.training_script} {config_arg}\n"
+        + f"{profile.training_command(plan.training_script)} {shlex.quote(config_arg)}\n"
     )
 
 

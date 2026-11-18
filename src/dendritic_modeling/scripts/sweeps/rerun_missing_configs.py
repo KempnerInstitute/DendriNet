@@ -29,6 +29,7 @@ from dendritic_modeling.scripts.sweeps.control_plane import (
     discover_source_identity,
     validate_scheduler_profile,
 )
+from dendritic_modeling.scripts.sweeps.slurm_profile import CHECKOUT_ROOT
 from dendritic_modeling.scripts.sweeps.unified.base_sweep import (
     REPO_ROOT,
     SweepJobManager,
@@ -133,7 +134,16 @@ def write_rerun_script(
         slurm_config.get("account"), slurm_config.get("partition")
     )
     frozen = manifest.get("source_identity") or {}
-    current = discover_source_identity(REPO_ROOT).get("git", {})
+    identity = discover_source_identity(
+        REPO_ROOT, include_package=CHECKOUT_ROOT is None
+    )
+    current = identity.get("git", {})
+    if CHECKOUT_ROOT is None and identity["package"]["tree_sha256"] != frozen.get(
+        "package", {}
+    ).get("tree_sha256"):
+        raise RuntimeError(
+            "The installed package differs from the one recorded by the sweep"
+        )
     keys = ["commit", "tracked_diff_sha256"]
     if "untracked_src_sha256" in frozen.get("git", {}):
         keys.append("untracked_src_sha256")
