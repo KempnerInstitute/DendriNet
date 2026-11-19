@@ -36,6 +36,9 @@
 
 ### Research examples and distribution
 
+- CI includes the measured README coverage badge with the Python 3.11
+  coverage report. Maintainers can update the checked-in badge in a reviewed
+  pull request.
 - Eight empirical study configurations and two numerical replays live under
   [projects/empirical](projects/empirical/README.md). The study records
   DendriNet v0.3.0 for its training runs. Its project files are distributed
