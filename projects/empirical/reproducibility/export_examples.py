@@ -67,6 +67,10 @@ def main():
         for name, expected in manifest["members"].items():
             if hashlib.sha256(inner.read(name)).hexdigest() != expected:
                 raise ValueError(f"Changed table: {name}")
+    assets["LICENSE"] = git("show", revision + ":LICENSE")
+    assets["tutorial.yaml"] = git(
+        "show", revision + ":src/dendritic_modeling/examples/synthetic_population.yaml"
+    )
     assets[manifest["filename"]] = data
     assets["SOURCE_COMMIT.txt"] = (revision + "\n").encode()
     with zipfile.ZipFile(args.output, "x") as archive:

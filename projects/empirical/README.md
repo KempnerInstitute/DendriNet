@@ -72,11 +72,14 @@ python projects/empirical/analysis/plot_software_guide.py \
   --summaries figure3d-results --output software-guide.pdf
 ```
 
-The downloadable examples also work as a standalone directory. After unpacking
-it, run `python analysis/reproduce.py empirical-example-data.zip --output
-figure3d-results` from that directory. To redraw S28 in this layout, obtain
-the tutorial with `dendritic-example synthetic_population --output tutorial.yaml`,
-then pass that file to `analysis/plot_software_guide.py`.
+The downloadable examples also work as a standalone directory. They include the
+tutorial YAML and the source-data asset. From the unpacked directory, run:
+
+```bash
+python analysis/reproduce.py empirical-example-data.zip --output figure3d-results
+python analysis/plot_software_guide.py --tutorial tutorial.yaml \
+  --summaries figure3d-results --output software-guide.pdf
+```
 
 The experiment uses the model checkpoint to obtain the derivatives and donor
 responses. The replay above starts at the resulting per-seed measurements.
