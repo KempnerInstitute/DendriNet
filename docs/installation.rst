@@ -26,6 +26,11 @@ These instructions select the maintained ``develop`` branch. For a study,
 check out and record the exact library commit before running experiments;
 see :doc:`project_provenance`.
 
+To add the graphical editor, install both packages from the same checkout
+with ``python -m pip install -e . -e ./apps/studio``. Start it locally with
+``dendrinet-studio --workspace my-runs``. See :ref:`studio-install` for
+browser access and :ref:`studio-first-run` for a download-free tutorial.
+
 The constraints file ``setup/constraints/core-py310-torch2.9.1.txt`` pins the
 versions the test suite passed with on Python 3.10: PyTorch 2.9.1 with its
 CUDA 12.8 wheels from PyPI, NumPy 2.2 and SciPy 1.15, among others. Without

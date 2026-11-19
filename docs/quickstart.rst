@@ -15,6 +15,9 @@ writes, analyzes the trained checkpoint and generates a parameter sweep. Run
 the commands from the root of the repository checkout, after installing the
 package as described in :doc:`installation`.
 
+For a first run in a browser, :ref:`studio-first-run` uses a small synthetic
+dataset and exports the same kind of YAML used by the commands below.
+
 Train a population network on MNIST
 -----------------------------------
 

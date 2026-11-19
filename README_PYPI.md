@@ -19,6 +19,15 @@ Python 3.10+ and PyTorch 2.8+ are required. The tested CPU environments use
 Linux and Python 3.10, 3.11 and 3.12. CUDA is optional. Exact scientific
 reproduction requires the study's recorded dependencies, source and settings.
 
+## Graphical model editor
+
+Install the companion distribution `dendrinet-studio` to draw dendritic
+populations, trace incoming E and I connections, and compare training runs on
+your computer. Launch it with `dendrinet-studio --workspace my-runs`. Designs
+export as YAML that the core training command accepts. The
+[Studio guide](https://kempnerinstitute.github.io/DendriNet/studio.html)
+includes a first run with generated data and a worked synapse-count example.
+
 - [Documentation](https://kempnerinstitute.github.io/DendriNet/)
 - [Source and examples](https://github.com/KempnerInstitute/DendriNet)
 - [Issues](https://github.com/KempnerInstitute/DendriNet/issues)

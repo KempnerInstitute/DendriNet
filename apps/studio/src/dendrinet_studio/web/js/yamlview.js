@@ -50,7 +50,7 @@ export function mountYaml(container) {
         h("div", { class: "panel-head" }, [h("h3", { text: "Working with the file" })]),
         h("div", { class: "panel-body" }, [
           h("p", { text: "Edit any option here, including options the forms do not show. Apply checks the text with DendriNet's strict loader: unknown keys and options the chosen model would ignore are reported, not dropped." }),
-          h("p", { text: "Import accepts one standalone experiment YAML. Sweep files and files that extend another file are composed by dendritic-train; open the composed file instead." }),
+          h("p", { text: "Import accepts one standalone experiment YAML. For a sweep, run dendritic-sweep with --generate-only and import a generated experiment. For a file with extends, import the composed experiment with its parent settings included." }),
           h("p", {}, ["Run an exported file without the Studio: ", h("code", { text: "dendritic-train my_model.yaml" })]),
           h("p", { class: "help", text: "Keyboard: Ctrl+Enter applies the text. Tab inserts two spaces." }),
         ]),

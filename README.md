@@ -59,17 +59,16 @@ options. Distributed training runs under `torchrun`; see
 
 ## DendriNet Studio
 
-[DendriNet Studio](apps/studio/README.md) is an optional local application to
-design, check, train and compare models in the browser: population networks
-(feedforward and recurrent) are drawn and edited visually, every other model
-family and every training option through forms generated from the typed
-configuration, and runs are compared with overlaid curves and final measures.
-It writes ordinary YAML that runs unchanged with `dendritic-train`
-([guide](docs/studio.rst)). From this checkout:
+[DendriNet Studio](docs/studio.rst) is an optional local browser application.
+Draw a feedforward or recurrent population network, select a neuron population
+to see where its excitatory and inhibitory contacts come from, then train and
+compare runs. Studio provides forms for other model families and a YAML editor
+for the full configuration. The exported YAML also runs with `dendritic-train`.
+To launch it from this checkout, run
 
 ```bash
-pip install -e . -e apps/studio
-dendrinet-studio --workspace /path/to/runs
+python -m pip install -e . -e ./apps/studio
+dendrinet-studio --workspace my-runs
 ```
 
 ## Documentation

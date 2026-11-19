@@ -40,6 +40,8 @@ Where to start
      - Page
    * - Install DendriNet and train a first model
      - :doc:`installation`, :doc:`quickstart`
+   * - Draw a network, trace E and I inputs and compare training runs
+     - :doc:`studio`, :ref:`studio-first-run`
    * - Find a configuration to start from
      - :doc:`examples`
    * - Build populations of dendritic neurons

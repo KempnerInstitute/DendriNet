@@ -1,20 +1,23 @@
 # DendriNet Studio
 
 Design, check, train and compare [DendriNet](https://github.com/KempnerInstitute/DendriNet)
-models in your browser. Studio draws networks of excitatory and inhibitory
-dendritic neurons, edits every option of an experiment, builds and trains the
-model on your computer, and compares runs. It writes ordinary experiment YAML
-and runs it with DendriNet's own loader and training command, so everything
-you design also runs without Studio.
+models on your computer. Select a neuron population to trace the external
+and local sources of its excitatory and inhibitory contacts. Inspect the
+contact count at each dendritic level, build the network, or train and compare
+two designs. Each design exports as an ordinary DendriNet experiment YAML.
+
+From a repository checkout, run `python -m pip install -e . -e ./apps/studio`
+at the repository root. Once the packages are on PyPI, install and launch with
 
 ```bash
-pip install dendrinet-studio
+python -m pip install dendrinet-studio
 dendrinet-studio --workspace my-runs
 ```
 
 Installing Studio installs the `dendritic_modeling` library and PyTorch. The
-command opens `http://127.0.0.1:8765/#<token>` in your browser; keep it running
-while you work.
+command prints a local address including a session token and opens it in your
+browser. Keep the command running while you work. The first two-class example
+generates its data locally and runs on a CPU.
 
 ## What you can do
 
@@ -23,9 +26,9 @@ while you work.
   and per level, shunting or additive integration, dendritic gates, time
   constants, and connections that act in the same step or one step later
   (recurrent networks).
-- **Edit every other model family with forms** generated from the library's
-  typed configuration: structured dendritic trees, GRU, LSTM and vanilla RNN
-  baselines, multi-timescale CTRNNs and the other built-in cores.
+- **Configure other model families** using typed forms and the YAML editor,
+  including structured dendritic trees, GRU, LSTM and vanilla RNN baselines,
+  and multi-timescale CTRNNs.
 - **Set the task and training**: classification or regression, datasets and
   their options, losses, learning strategies (backpropagation, recurrent
   training, local learning rules), optimizers, learning rates per parameter
@@ -59,6 +62,8 @@ public dataset that needs one.
 
 ## Documentation
 
-The [Studio guide](https://github.com/KempnerInstitute/DendriNet/blob/develop/docs/studio.rst)
-describes every view, the run records and the development setup. Studio is
+The [illustrated Studio guide](https://kempnerinstitute.github.io/DendriNet/studio.html)
+covers installation, first training, E/I wiring, configuration exchange and
+run records. The [guide source](https://github.com/KempnerInstitute/DendriNet/blob/develop/docs/studio.rst)
+is also in the repository. Studio is
 released under the MIT license.
