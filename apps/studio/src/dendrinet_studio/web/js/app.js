@@ -1,7 +1,7 @@
 // DendriNet Studio: application shell, views, runs polling and actions.
 
 import { h, s, icon } from "./dom.js";
-import { state, api, on, emit, adopt, undo, redo, readDraft, clearDraft, configKey } from "./store.js";
+import { state, api, on, adopt, undo, redo, readDraft, clearDraft, configKey } from "./store.js";
 import { mountModel, renderModel, currentCheck } from "./design.js";
 import { mountData, renderData, mountTraining, renderTraining, mountOptions, renderOptions } from "./forms.js";
 import { mountYaml, refreshYaml } from "./yamlview.js";
@@ -34,8 +34,8 @@ function buildShell() {
   ui.edited = h("span", { class: "edited", hidden: true }, [icon("dot"), "edited"]);
   ui.status = h("span", { class: "status", role: "status", "aria-live": "polite" });
   ui.tabs = h("nav", { class: "tabs", role: "tablist", "aria-label": "Views" });
-  for (const [key, label, glyph] of VIEWS) {
-    const tab = h("button", { type: "button", role: "tab", id: `tab-${key}`, "aria-controls": `view-${key}`, "aria-selected": "false", onclick: () => showView(key) }, [icon(glyph), h("span", { text: label })]);
+  for (const [key, label] of VIEWS) {
+    const tab = h("button", { type: "button", role: "tab", id: `tab-${key}`, "aria-controls": `view-${key}`, "aria-selected": "false", onclick: () => showView(key) }, [h("span", { text: label })]);
     if (key === "runs") tab.append((ui.runBadge = h("span", { class: "count", hidden: true })));
     ui.tabs.append(tab);
   }
@@ -47,9 +47,9 @@ function buildShell() {
   ui.designOnly = h("span", { class: "tag", hidden: true, title: "Started with --no-execution: export the YAML and run it with dendritic-train", text: "design only" });
   const header = h("header", { class: "topbar" }, [
     h("div", { class: "brand" }, [logo(), h("span", { class: "brand-name", text: "DendriNet" }), h("span", { class: "brand-app", text: "Studio" })]),
-    h("div", { class: "doc" }, [ui.docName, ui.edited, ui.status]),
+    h("div", { class: "doc" }, [ui.docName, ui.edited, ui.status, h("span", { class: "history" }, [ui.undo, ui.redo])]),
     ui.tabs,
-    h("div", { class: "top-actions" }, [ui.undo, ui.redo, ui.designOnly, ui.device, ui.check, ui.train]),
+    h("div", { class: "top-actions" }, [ui.designOnly, ui.device, ui.check, ui.train]),
   ]);
   ui.views = h("main", { class: "views" });
   for (const [key] of VIEWS) ui.views.append(h("section", { id: `view-${key}`, class: `view view-${key}`, role: "tabpanel", "aria-labelledby": `tab-${key}`, hidden: true }));

@@ -104,7 +104,7 @@ export function mountRuns(container) {
           h("div", { class: "panel-body", id: "loss-chart" }),
         ]),
         h("div", { class: "panel" }, [
-          h("div", { class: "panel-head" }, [h("h3", { text: "Final results" }), h("span", { class: "sub", id: "metric-sub", text: "" }), h("span", { class: "spacer" }), h("label", { class: "inline-label", for: "metric-choice", text: "Measure" }), h("select", { id: "metric-choice", class: "input compact" })]),
+          h("div", { class: "panel-head" }, [h("h3", { text: "Final results" }), h("span", { class: "sub", text: "after training, on each split" }), h("span", { class: "spacer" }), h("label", { class: "inline-label", for: "metric-choice", text: "Measure" }), h("select", { id: "metric-choice", class: "input compact" })]),
           h("div", { class: "panel-body", id: "metric-chart" }),
           h("div", { class: "panel-body table-scroll", id: "metric-table" }),
         ]),
@@ -254,7 +254,6 @@ function renderCompare(runs) {
   }));
   const classes = chosen.map(c => c.run.outputs).filter(Boolean);
   const chance = metricChoice === "accuracy" && classes.length === chosen.length && new Set(classes).size === 1 && chosen.every(c => c.run.task === "classification") ? 1 / classes[0] : null;
-  root.querySelector("#metric-sub").textContent = metricChoice ? "● training · ◇ validation · ▲ test" : "";
   dotChart(root.querySelector("#metric-chart"), metricChoice ? rows : [], { metric: metricChoice || "metric", fraction: isFractionMetric(metricChoice), chance });
   root.querySelector("#metric-table").replaceChildren(metricTable(chosen));
   renderDiff(chosen);
@@ -267,7 +266,7 @@ function metricTable(chosen) {
   table.append(h("thead", {}, [h("tr", {}, [h("th", { text: "Run" }), ...names.flatMap(n => ["training", "validation", "test"].map(s => h("th", { text: `${humanMetric(n)} · ${s}` })))])]));
   const body = h("tbody");
   for (const c of chosen) {
-    const row = h("tr", {}, [h("th", { scope: "row" }, [runSwatch(c.slot, { size: 12 }), " ", c.label])]);
+    const row = h("tr", {}, [h("th", { scope: "row", class: "run-cell" }, [runSwatch(c.slot, { size: 12 }), " ", c.label])]);
     for (const n of names) for (const split of ["train", "valid", "test"]) row.append(h("td", { class: "num", text: formatMetric(n, (c.run.metrics || {})[n]?.[split]) }));
     body.append(row);
   }

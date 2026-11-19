@@ -82,11 +82,16 @@ function setTask(task) {
   const tasks = state.schema.loss_tasks || {};
   const loss = valueAt("training.main.common.loss_function");
   const switchLoss = task === "regression" && tasks[loss]?.length && !tasks[loss].includes(task);
+  // The final measures follow the task: classification scores, or mean squared error.
+  const regression = task === "regression";
   edit(cfg => {
     setPath(cfg, "model.task", task);
     if (switchLoss) setPath(cfg, "training.main.common.loss_function", "mse");
+    for (const name of ["accuracy", "auc", "categorical_loglikelihood"]) setPath(cfg, `analysis.performance.params.${name}`, !regression);
+    setPath(cfg, "analysis.performance.params.mse", regression);
   }, { path: "model.task", structural: true });
-  if (switchLoss) toast(`The loss was changed from ${loss} to mse, a regression loss.`, { kind: "info" });
+  const changes = [switchLoss ? `the loss from ${loss} to mse` : null, regression ? "the final measures to mse" : "the final measures to accuracy, AUC and log-likelihood"].filter(Boolean);
+  toast(`Changed ${changes.join(" and ")}.`, { kind: "info" });
 }
 
 function datasetCard() {
@@ -150,9 +155,13 @@ function splitCard() {
 
 function evaluationCard() {
   const perf = sections("analysis.performance");
+  const measures = sections("analysis.performance.params");
+  const task = valueAt("model.task") || "classification";
   return card("Evaluation", "what is measured after training", [
     perf ? sectionForm(perf, { base: "analysis.performance", columns: 2 }) : null,
-    h("p", { class: "help", text: "Final measures are written to performance/final.json in the run folder and shown in Runs." }),
+    measures ? h("h4", { class: "eyebrow", text: "Measures" }) : null,
+    measures ? sectionForm(measures, { base: "analysis.performance.params", columns: 2 }) : null,
+    h("p", { class: "help", text: task === "regression" ? "For regression, report mse (and cosine_similarity); the classification measures do not apply." : "Final measures are written to performance/final.json in the run folder and shown in Runs." }),
   ]);
 }
 

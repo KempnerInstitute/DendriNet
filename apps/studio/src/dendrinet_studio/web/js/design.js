@@ -7,7 +7,7 @@
 
 import { h, s, icon, fmt, polarityGlyph, download } from "./dom.js";
 import { state, api, edit, select, adopt, emit, getPath, deletePath, isPopulationNetwork, layers, nodeView, configKey } from "./store.js";
-import { field, textInput, numberInput, stepper, selectInput, switchInput, segmented, listInput, mappingInput, factorEditor, sectionForm, disclosure, humanize, controlFor, describeCount, rebuildKeepingFocus } from "./fields.js";
+import { field, textInput, numberInput, stepper, selectInput, switchInput, segmented, mappingInput, factorEditor, sectionForm, disclosure, humanize, controlFor, describeCount, rebuildKeepingFocus } from "./fields.js";
 import { drawNetwork, drawOverview, layoutNetwork, svgForExport } from "./graph.js";
 import { drawNeuron, levelTable, neuronLegend } from "./morphology.js";
 import { toast, confirmDialog } from "./ui.js";
@@ -699,7 +699,7 @@ function connectionInspector(sel) {
   const local = layer.populations.map(p => p.name);
   const sources = { Input: li === 0 ? ["input", "input_e", "input_i"] : ["input"], [`Populations in ${layer.name}`]: local };
   const others = layers().flatMap((l, i) => (i === li ? [] : l.populations.map(p => `${l.name}.${p.name}`)));
-  if (others.length) sources["Other layers (delayed)"] = others;
+  if (others.length) sources["Populations of other layers"] = others;
   const sourceLabels = { input: li === 0 ? "input (all features)" : `input (readout of ${layers()[li - 1].name})`, input_e: "input_e (excitatory channels)", input_i: "input_i (inhibitory channels)" };
   const derived = edge ? edge.pathway : "";
   const levels = target ? target.levels_including_soma.length : 1;
@@ -924,7 +924,9 @@ function addConnection(li) {
 function addLayer() {
   const all = layers();
   const last = all.at(-1);
-  const name = uniqueName(all.map(l => l.name), `layer${all.length}`);
+  // Read the new layer's index now: `all` is the live list the edit extends.
+  const index = all.length;
+  const name = uniqueName(all.map(l => l.name), `layer${index}`);
   edit(cfg => {
     const net = getPath(cfg, NET);
     net.layers.push({
@@ -937,7 +939,7 @@ function addLayer() {
       connections: [{ source: "input", target: "i" }, { source: "input", target: "e" }, { source: "i", target: "e" }],
     });
     if (net.readout_layer === last?.name) delete net.readout_layer;
-  }, { structural: true }).then(() => select({ kind: "layer", layer: all.length }));
+  }, { structural: true }).then(() => select({ kind: "layer", layer: index }));
 }
 
 async function removePopulation(li, pi) {

@@ -202,7 +202,8 @@ export function levelTable({ levels, counts, neurons }) {
   ].filter(([key]) => (counts[key] || []).some(Boolean) || key.startsWith("ff"));
   const table = h("table", { class: "levels" });
   table.append(
-    h("thead", {}, [h("tr", {}, [h("th", { text: "Level" }), h("th", { text: "Comp." }), ...streams.map(([, label]) => h("th", { title: `${label} contacts on each compartment`, text: `${label} / comp.` }))])])
+    h("caption", { text: "Compartments per level and contacts on each compartment" }),
+    h("thead", {}, [h("tr", {}, [h("th", { text: "Level" }), h("th", { title: "Compartments at this level", text: "Comp." }), ...streams.map(([, label]) => h("th", { title: `${label} contacts on each compartment`, text: label }))])])
   );
   const body = h("tbody");
   const deepest = levels.length - 1;

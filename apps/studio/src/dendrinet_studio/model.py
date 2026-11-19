@@ -109,7 +109,6 @@ EXAMPLE_ORDER = (
     "synthetic_population",
     "structured_tree_synthetic",
     "recurrent_decision_population",
-    "adding_problem_population",
     "adding_problem_gru",
     "mnist_population",
 )

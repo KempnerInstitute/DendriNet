@@ -96,7 +96,7 @@ export function lineChart(container, runs, { yLabel = "Loss", height = 300 } = {
     return;
   }
   const width = Math.max(420, container.clientWidth || 640);
-  const labelRoom = Math.min(190, Math.max(120, width * 0.24));
+  const labelRoom = Math.min(220, Math.max(130, width * 0.24));
   const m = { l: 56, r: labelRoom, t: 14, b: 42 };
   const W = width - m.l - m.r;
   const H = height - m.t - m.b;
