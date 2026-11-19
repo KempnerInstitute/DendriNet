@@ -1,0 +1,155 @@
+config_version: 4
+experiment:
+  seed: 100
+  train_valid_split: 0.8
+  deterministic: true
+  cudnn_benchmark: false
+  allow_tf32: false
+  float32_matmul_precision: highest
+  checkpointing:
+    enabled: false
+  enable_hooks: false
+data:
+  dataset_name: mnist
+  base_dir: data
+  processing:
+    flatten: true
+    normalize: false
+    label_noise_rate: 0.0
+model:
+  task: classification
+  fixed_output_scale: 1.0
+  output_scale_mode: global
+  encoder:
+    type: identity
+  core:
+    type: population_network
+    population_network:
+      use_transfer: true
+      transfer_params:
+        independent_pathways: false
+        output_activation: relu
+        input_source_identity: paired_afferents
+      layers:
+      - name: layer0
+        readout_population: e0
+        recurrent: false
+        population_defaults:
+          ff_excitatory_synapses: 25
+          ff_inhibitory_synapses: 25
+          rec_excitatory_synapses: 0
+          rec_inhibitory_synapses: 0
+          somatic_synapses: false
+          use_shunting: false
+          use_additive_normalization: false
+          additive_mode: raw
+          epsilon: 1.0e-08
+          weight_transform: softplus
+          topk_type: standard
+          topk_init_method: xavier_normal
+          topk_noise_level: 0.0
+          topk_temperature: 0.0
+          dbl_init_method: analytical_expectation
+          adaptive_initialization: false
+          reactivate: true
+          reactivation_type: param_tanh
+          reactivation_init_policy: occupancy_quantile
+          reactivation_init_m: 1.5
+          reactivation_init_b: 0.5
+          reactivation_occupancy_quantile_low: 0.1
+          reactivation_occupancy_quantile_high: 0.9
+          reactivation_occupancy_target_low: 0.1
+          reactivation_occupancy_target_high: 0.9
+          reactivation_calibration_min_quantile_width: 0.001
+          reactivation_calibration_max_m: 50.0
+          reactivation_calibration_revert_on_invalid: true
+          topk_gradient_scaling: none
+          reactivation_gradient_scaling: none
+          blocklinear_gradient_scaling: none
+          efficient_blocklinear: true
+          dynamics_mode: rate
+          use_noise: false
+        populations:
+        - name: e0
+          polarity: excitatory
+          n_neurons: 10
+          branch_factors:
+          - 2
+          - 2
+        connections:
+        - source: input_e
+          target: e0
+          pathway: ff_excitatory
+          timing: same_step
+        - source: input_i
+          target: e0
+          pathway: ff_inhibitory
+          timing: same_step
+    biological_neuron: true
+  decoder:
+    type: identity
+    params:
+      input_dim: 10
+      output_dim: 10
+training:
+  main:
+    strategy: standard
+    common:
+      epochs: 300
+      batch_size: 256
+      shuffle: true
+      loss_function: cat_nll
+      early_stopping: true
+      patience: 75
+      load_best_state_dict: true
+      plot_losses: false
+      suppress_prints: true
+      print_every: 20
+      grad_clip_value: 5.0
+      grad_clip_mode: value
+      synapse_decay_rate: 0.03
+      weight_boosting: false
+      reactivation_initialization_num_batches: 3
+      reactivation_initialization_batch_size: 256
+      reactivation_initialization_max_iterations: 50
+      param_groups:
+        lr: 0.002
+        split_params: true
+        topk_lr: 0.002
+        blocklinear_lr: 0.002
+        reactivation_lr: 0.002
+        decoder_lr: 0.002
+        encoder_lr: null
+      num_workers: 2
+      persistent_workers: false
+      use_amp: false
+      save_best_checkpoint: end
+    optimizer:
+      name: adam
+      lr: 0.002
+      weight_decay: 0.0
+      betas:
+      - 0.9
+      - 0.999
+      eps: 1.0e-08
+    regularization:
+      l1_weight: 0.0
+      l2_weight: 0.0
+analysis:
+  performance_analysis:
+    enabled: true
+    training: false
+    final_splits:
+    - valid
+    params:
+      accuracy: true
+      categorical_loglikelihood: true
+  information_analysis:
+    enabled: false
+  ablation_analysis:
+    enabled: false
+  weight_analysis:
+    enabled: false
+outputs:
+  results_dir: outputs
+  run_name: mnist_identity_primary_2x2_c00010_s100

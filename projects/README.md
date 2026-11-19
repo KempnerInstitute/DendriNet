@@ -27,4 +27,16 @@ fixed inputs and checkpoints before adopting a new release. Keep generation
 and replay versions separate. Publish only approved sources and artifacts;
 do not include a study's internal history or a vendored library runtime.
 
-No existing paper has been moved or re-pinned by creating this directory.
+The [empirical study](empirical/README.md) includes source-matched training
+configurations and two analyses with small, separately distributable source
+tables. For another paper, link its canonical release here whether it lives
+under `projects/` or in the authors' repository. Cite a version of DendriNet
+and a version of that study's code and data.
+
+For each quantitative figure, identify its cohort, input table, units and
+analysis. Include the transformations and statistics needed to recover the
+reported numbers. A single current renderer is sufficient where the drawing
+encodes a scientific choice such as binning, masking or normalization.
+Alternative layouts, drafts, scheduler state and reviewer correspondence
+belong in the authors' workspace. Large or licensed inputs can be described
+by immutable identifiers, acquisition instructions and access terms.

@@ -1,0 +1,12 @@
+{
+  "filename": "empirical-example-data.zip",
+  "sha256": "08f744cf8b2cbe07d2f9e5e4c9fea904a923016e893cf5d94e8bb8eebea90af0",
+  "members": {
+    "context/routing.csv": "63af62d0e6d4f48a627e2aa32e13e11860b0e3f655a7ee8e3ca0c39d54871eb4",
+    "transmission/seed_units.csv": "7e6e2ab3454c5e54ae95b3aeab59b13ef10e1c3210c77d297a06ce9b60dadd39",
+    "transmission/summary.csv": "1f99305726ec5d865116602f279746a502ea11002cfef4a2d9629ec83acb295b"
+  },
+  "transmission_analysis_commit": "f3213cfcff62ffc535c1b87e71d8af3f4c880f8b",
+  "context_render_commit": "9c4642fe1e860051f70bb5e9e1bd14b05c6deead",
+  "context_input_sha256": "81d46e5d0fa8e9259743512ffd60d4a06691fcd5afda187bb0bf0fede7f6e50f"
+}
