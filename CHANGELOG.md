@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+- Studio edits every model family and every option, not only population
+  networks: forms are generated from the typed configuration and the
+  library's registries (core types, datasets, strategies, losses filtered by
+  task, optimizers, schedules, sparse layers, initializations), with
+  classification and regression, a searchable view of all options and a YAML
+  view with line-numbered errors. Population networks keep the visual editor,
+  now with per-level contact editing, recurrent and delayed connections,
+  target levels, the integration equations and undo. Runs show live progress,
+  overlaid loss curves, final measures, configuration differences, notes and
+  logs. The client is redesigned (no external resources; shapes and labels,
+  not colour alone) and the server falls back to a free port, has a
+  design-only mode (`--no-execution`), reads damaged run records without
+  failing and no longer encodes site-specific host rules.
+- Installed examples: the two-class tutorial trains to about 78% test accuracy
+  (1,024 samples per class, 30 epochs, larger learning rates; its earlier
+  settings did not learn reliably), and new download-free examples cover the structured
+  dendritic tree family, a recurrent population network on an
+  evidence-integration task and a GRU regression baseline. Library defaults
+  and existing configurations are unchanged.
 - Studio resolves layer readouts and per-level contact counts through core
   and checks resources using the trainer's dataset and seed setup. Validation
   uses the preceding readout's polarity for later population-layer inputs.

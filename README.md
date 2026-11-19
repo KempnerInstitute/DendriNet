@@ -57,11 +57,15 @@ The installed commands include `dendritic-train` (training),
 options. Distributed training runs under `torchrun`; see
 [docs/distributed_training.rst](docs/distributed_training.rst).
 
-## Graphical configuration
+## DendriNet Studio
 
-The optional [DendriNet Studio](apps/studio/README.md) provides a local visual
-editor for population networks, YAML import/export, model checks and training
-results. From this checkout:
+[DendriNet Studio](apps/studio/README.md) is an optional local application to
+design, check, train and compare models in the browser: population networks
+(feedforward and recurrent) are drawn and edited visually, every other model
+family and every training option through forms generated from the typed
+configuration, and runs are compared with overlaid curves and final measures.
+It writes ordinary YAML that runs unchanged with `dendritic-train`
+([guide](docs/studio.rst)). From this checkout:
 
 ```bash
 pip install -e . -e apps/studio
