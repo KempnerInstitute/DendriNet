@@ -169,25 +169,20 @@ compartment tree with its contacts per compartment.</span><a class="headerlink" 
 </figure>
 <section id="install-and-start">
 <span id="studio-install"></span><h2><a class="toc-backref" href="#id6" role="doc-backlink">Install and start</a><a class="headerlink" href="#install-and-start" title="Link to this heading"></a></h2>
-<p>To try Studio from a checkout that contains <code class="docutils literal notranslate"><span class="pre">apps/studio</span></code>, activate a Python
-environment and run these commands in the repository root on your computer.
-See <a class="reference internal" href="installation.html"><span class="doc">Installation</span></a> for supported Python and PyTorch versions.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.<span class="w"> </span>-e<span class="w"> </span>./apps/studio
+<p>In a fresh Python 3.10 or later environment on your computer, install Studio
+from PyPI. Pip installs the compatible core library and PyTorch.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>dendrinet-studio<span class="o">==</span><span class="m">0</span>.1.0
 dendrinet-studio<span class="w"> </span>--workspace<span class="w"> </span>my-runs
 </pre></div>
 </div>
-<p>Once the packages are published on PyPI, a reader can start from an empty
-Python environment. Pip installs the matching core library and PyTorch.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>dendrinet-studio
-dendrinet-studio<span class="w"> </span>--workspace<span class="w"> </span>my-runs
-</pre></div>
-</div>
+<p>For an editable install, run <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">pip</span> <span class="pre">install</span> <span class="pre">-e</span> <span class="pre">.</span> <span class="pre">-e</span> <span class="pre">./apps/studio</span></code>
+from the repository root. See <a class="reference internal" href="installation.html"><span class="doc">Installation</span></a> for environment setup.</p>
 <p>The command opens the local app and prints its address. If the tab fails to
 open, paste the <strong>whole printed address</strong> into a browser on the same computer,
 including its port and the session token after <code class="docutils literal notranslate"><span class="pre">#</span></code>. Keep the command running
-while you work. Ctrl+C stops the server and its workers. The online
-documentation can be read anywhere. Training takes place on the computer
-running the command. A laptop installation needs no SSH connection.</p>
+while you work. Ctrl+C stops the server and its workers. Training takes place
+on the computer running the command. A local installation works offline after
+its dependencies and any required datasets have been downloaded.</p>
 <table class="docutils align-default">
 <colgroup>
 <col style="width: 26.0%" />

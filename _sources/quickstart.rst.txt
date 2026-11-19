@@ -10,10 +10,17 @@ feeds its parent compartment, up to the soma. A population network arranges
 these neurons in named E and I populations connected by explicit, directed
 connections, in feedforward or recurrent layers.
 
-This page trains a small population network on MNIST, reads the files the run
-writes, analyzes the trained checkpoint and generates a parameter sweep. Run
-the commands from the root of the repository checkout, after installing the
-package as described in :doc:`installation`.
+For a first run from the PyPI installation, use an empty working directory:
+
+.. code-block:: bash
+
+   dendritic-example synthetic_population --output demo.yaml
+   dendritic-train demo.yaml --epochs 1
+
+The example generates its own data. The rest of this page uses files from a
+repository checkout to train on MNIST, analyze a checkpoint and generate a
+parameter sweep. Run those commands from the checkout root after following
+:doc:`installation`.
 
 For a first run in a browser, :ref:`studio-first-run` uses a small synthetic
 dataset and exports the same kind of YAML used by the commands below.

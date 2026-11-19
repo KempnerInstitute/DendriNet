@@ -160,7 +160,10 @@ normal installation of Studio can resolve its dependency. Pull requests and
 pushes to <code class="docutils literal notranslate"><span class="pre">develop</span></code> build and test the packages without uploading to an
 index. <strong>TestPyPI uploads are publicly downloadable too.</strong></p>
 <p>The examples below use core <strong>0.5.0</strong> and Studio <strong>0.1.0</strong>. Substitute the
-approved versions for another release.</p>
+approved versions for a new release. Both example versions are already on
+PyPI. For installation, see <a class="reference internal" href="installation.html"><span class="doc">Installation</span></a>. For the paper’s example
+configurations, data and scripts, see the
+<a class="reference external" href="https://github.com/KempnerInstitute/DendriNet/releases/tag/v0.5.0">v0.5.0 release</a>.</p>
 <section id="prepare-the-release-pull-request">
 <h3>1. Prepare the release pull request<a class="headerlink" href="#prepare-the-release-pull-request" title="Link to this heading"></a></h3>
 <ul class="simple">
@@ -206,10 +209,25 @@ settings. For an existing project, its owner adds the publisher in project
 settings. A pending publisher does not reserve a name. See the
 <a class="reference external" href="https://docs.pypi.org/trusted-publishers/creating-a-project-through-oidc/">PyPI instructions</a>.</p></li>
 </ol>
-<p>The workflow requests a short-lived publishing credential for its GitHub
-environment. No upload token is needed in repository secrets. Repository
-visibility is a separate maintainer decision. Review the remote branches,
-tags and artifacts that will be visible before changing it.</p>
+<p>The default <code class="docutils literal notranslate"><span class="pre">trusted-publisher</span></code> mode requests a short-lived credential
+for the selected environment. Each index checks the issuer, repository,
+workflow and environment. PyPI’s <code class="docutils literal notranslate"><span class="pre">unknown</span> <span class="pre">trusted</span> <span class="pre">publishing</span> <span class="pre">issuer</span></code>
+error means the index did not recognize the identity provider. GitHub
+Enterprise can set a custom issuer across an enterprise. Ask the enterprise
+administrator which issuer is in use before editing publisher registrations.
+See <a class="reference external" href="https://docs.pypi.org/trusted-publishers/troubleshooting/">PyPI troubleshooting</a>
+and <a class="reference external" href="https://docs.github.com/en/enterprise-cloud&#64;latest/actions/reference/security/oidc#customizing-the-issuer-value-for-an-enterprise">GitHub’s issuer settings</a>.</p>
+<p>For an existing project whose issuer the index does not support, the
+<code class="docutils literal notranslate"><span class="pre">project-token</span></code> mode uses the same build and staging checks. An owner
+creates an API token scoped to that <strong>one project on that index</strong> and stores
+it as a GitHub <strong>environment secret</strong>. Use <code class="docutils literal notranslate"><span class="pre">CORE_PROJECT_TOKEN</span></code> for
+<code class="docutils literal notranslate"><span class="pre">dendritic-modeling</span></code> or <code class="docutils literal notranslate"><span class="pre">STUDIO_PROJECT_TOKEN</span></code> for <code class="docutils literal notranslate"><span class="pre">dendrinet-studio</span></code>.
+Select the <code class="docutils literal notranslate"><span class="pre">testpypi</span></code> environment for a TestPyPI token and <code class="docutils literal notranslate"><span class="pre">pypi</span></code> for a
+production token. Choose <code class="docutils literal notranslate"><span class="pre">authentication=project-token</span></code> in the dispatch
+form or append <code class="docutils literal notranslate"><span class="pre">-f</span> <span class="pre">authentication=project-token</span></code> to the command for that
+upload. This mode generates no Trusted Publishing attestations. Revoke a
+temporary token on the issuing index and remove its environment secret
+after verifying the published files.</p>
 </section>
 <section id="tag-the-reviewed-merge">
 <h3>3. Tag the reviewed merge<a class="headerlink" href="#tag-the-reviewed-merge" title="Link to this heading"></a></h3>
@@ -277,11 +295,24 @@ gh<span class="w"> </span>workflow<span class="w"> </span>run<span class="w"> </
 <span class="w">  </span>-f<span class="w"> </span><span class="nv">distribution</span><span class="o">=</span>studio<span class="w"> </span>-f<span class="w"> </span><span class="nv">target</span><span class="o">=</span>pypi<span class="w"> </span>-f<span class="w"> </span><span class="nv">staging_run_id</span><span class="o">=</span><span class="s2">"</span><span class="nv">$studio_stage_id</span><span class="s2">"</span>
 </pre></div>
 </div>
-<p>For each distribution, CI verifies the staging run’s workflow, commit
-and success, retrieves its artifacts, then matches the wheel and source
+<p>For each distribution, CI verifies the staging run’s repository, workflow,
+release tag, commit and successful TestPyPI upload job. It downloads the
+artifacts and matches the wheel and source
 archive names, versions and SHA-256 digests to the release on TestPyPI.
 Production receives those exact files. If verification fails, inspect the
 run ID, tag and file digests before approving an upload.</p>
+<p>To compare the filenames and SHA-256 digests after an upload, run the
+current verifier from a checkout at the release tag with its <code class="docutils literal notranslate"><span class="pre">origin/develop</span></code>
+ref. It reads package metadata from that commit. Use Python 3.11 or later
+with <code class="docutils literal notranslate"><span class="pre">packaging</span></code> installed and the two files downloaded from the build.
+For the original v0.5.0 tag, set <code class="docutils literal notranslate"><span class="pre">verifier</span></code> to the absolute path of
+<code class="docutils literal notranslate"><span class="pre">setup/verify_release.py</span></code> in the current maintainer checkout:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span><span class="s2">"</span><span class="nv">$verifier</span><span class="s2">"</span><span class="w"> </span>core<span class="w"> </span>refs/tags/v0.5.0<span class="w"> </span>--staged<span class="w"> </span>dist/core<span class="w"> </span>--index<span class="w"> </span>testpypi
+python<span class="w"> </span><span class="s2">"</span><span class="nv">$verifier</span><span class="s2">"</span><span class="w"> </span>core<span class="w"> </span>refs/tags/v0.5.0<span class="w"> </span>--staged<span class="w"> </span>dist/core<span class="w"> </span>--index<span class="w"> </span>pypi
+</pre></div>
+</div>
+<p>The workflow’s project-token option is available on release tags that
+contain the updated workflow.</p>
 <p>Finally, in a second empty environment, install only
 <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">pip</span> <span class="pre">install</span> <span class="pre">dendrinet-studio==0.1.0</span></code>. Run <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">pip</span> <span class="pre">check</span></code>,
 inspect both installed versions with

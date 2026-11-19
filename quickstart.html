@@ -143,10 +143,15 @@ passes the result through a branch nonlinearity (a reactivation gate), and
 feeds its parent compartment, up to the soma. A population network arranges
 these neurons in named E and I populations connected by explicit, directed
 connections, in feedforward or recurrent layers.</p>
-<p>This page trains a small population network on MNIST, reads the files the run
-writes, analyzes the trained checkpoint and generates a parameter sweep. Run
-the commands from the root of the repository checkout, after installing the
-package as described in <a class="reference internal" href="installation.html"><span class="doc">Installation</span></a>.</p>
+<p>For a first run from the PyPI installation, use an empty working directory:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>dendritic-example<span class="w"> </span>synthetic_population<span class="w"> </span>--output<span class="w"> </span>demo.yaml
+dendritic-train<span class="w"> </span>demo.yaml<span class="w"> </span>--epochs<span class="w"> </span><span class="m">1</span>
+</pre></div>
+</div>
+<p>The example generates its own data. The rest of this page uses files from a
+repository checkout to train on MNIST, analyze a checkpoint and generate a
+parameter sweep. Run those commands from the checkout root after following
+<a class="reference internal" href="installation.html"><span class="doc">Installation</span></a>.</p>
 <p>For a first run in a browser, <a class="reference internal" href="studio.html#studio-first-run"><span class="std std-ref">Train your first network</span></a> uses a small synthetic
 dataset and exports the same kind of YAML used by the commands below.</p>
 <section id="train-a-population-network-on-mnist">

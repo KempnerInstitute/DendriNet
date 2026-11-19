@@ -45,7 +45,8 @@
               <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
 <ul class="current">
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Installation</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#install-from-a-checkout">Install from a checkout</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#install-from-pypi">Install from PyPI</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#install-from-a-checkout-for-development">Install from a checkout for development</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#optional-dependencies">Optional dependencies</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#examples-without-a-checkout">Examples without a checkout</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#check-the-installation">Check the installation</a></li>
@@ -138,8 +139,38 @@
 and PyTorch 2.8 or newer. The continuous-integration tests run on Linux with
 Python 3.10, 3.11 and 3.12 on CPUs. A CUDA GPU is optional; the Triton
 kernels of indexed synapses need one.</p>
-<section id="install-from-a-checkout">
-<h2>Install from a checkout<a class="headerlink" href="#install-from-a-checkout" title="Link to this heading"></a></h2>
+<section id="install-from-pypi">
+<h2>Install from PyPI<a class="headerlink" href="#install-from-pypi" title="Link to this heading"></a></h2>
+<p>Create a virtual environment on your computer. On Linux or macOS:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>venv<span class="w"> </span>.venv
+<span class="nb">source</span><span class="w"> </span>.venv/bin/activate
+</pre></div>
+</div>
+<p>On Windows PowerShell, use <code class="docutils literal notranslate"><span class="pre">py</span> <span class="pre">-m</span> <span class="pre">venv</span> <span class="pre">.venv</span></code> and run
+<code class="docutils literal notranslate"><span class="pre">.\.venv\Scripts\Activate.ps1</span></code>. In the activated environment, install
+the released core package:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>dendritic-modeling<span class="o">==</span><span class="m">0</span>.5.0
+python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>check
+</pre></div>
+</div>
+<p>The Python import name is <code class="docutils literal notranslate"><span class="pre">dendritic_modeling</span></code>. For a graphical editor,
+install <code class="docutils literal notranslate"><span class="pre">dendrinet-studio==0.1.0</span></code> and launch it locally:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>dendrinet-studio<span class="o">==</span><span class="m">0</span>.1.0
+dendrinet-studio<span class="w"> </span>--workspace<span class="w"> </span>my-runs
+</pre></div>
+</div>
+<p>Installing Studio on its own also installs a compatible core (0.5.x).
+See <a class="reference internal" href="studio.html#studio-first-run"><span class="std std-ref">Train your first network</span></a> to train a synthetic network in the browser.
+The published files are on the
+<a class="reference external" href="https://pypi.org/project/dendritic-modeling/0.5.0/">core PyPI page</a> and the
+<a class="reference external" href="https://pypi.org/project/dendrinet-studio/0.1.0/">Studio PyPI page</a>.</p>
+<p>Pip resolves PyTorch and torchvision as dependencies. To select Linux
+CPU-only wheels or a particular CUDA build, install a compatible torch and
+torchvision pair in the same environment first, using the
+<a class="reference external" href="https://pytorch.org/get-started/locally/">PyTorch installation selector</a>.</p>
+</section>
+<section id="install-from-a-checkout-for-development">
+<h2>Install from a checkout for development<a class="headerlink" href="#install-from-a-checkout-for-development" title="Link to this heading"></a></h2>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>--branch<span class="w"> </span>develop<span class="w"> </span>https://github.com/KempnerInstitute/DendriNet.git
 <span class="nb">cd</span><span class="w"> </span>DendriNet
 conda<span class="w"> </span>env<span class="w"> </span>create<span class="w"> </span>-f<span class="w"> </span>setup/environment.yml

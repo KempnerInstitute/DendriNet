@@ -16,13 +16,17 @@ validates, trains, analyzes and sweeps.
 
    From a YAML file to trained models and analysis results.
 
-Install the package from a clone of the repository and train the feedforward
-population-network example on MNIST for one epoch:
+Install the released library and train a small population network on generated
+data for one CPU epoch:
 
 .. code-block:: bash
 
-   pip install -e .
-   dendritic-train configs/examples/population_network_feedforward.yaml --epochs 1
+   python -m pip install dendritic-modeling==0.5.0
+   dendritic-example synthetic_population --output demo.yaml
+   dendritic-train demo.yaml --epochs 1
+
+For a graphical first run, install the companion package with
+``python -m pip install dendrinet-studio==0.1.0`` and follow :ref:`studio-first-run`.
 
 Every model has three parts: an **encoder** that prepares the input, a
 **core** that holds the dendritic network (or a baseline), and a **decoder**
