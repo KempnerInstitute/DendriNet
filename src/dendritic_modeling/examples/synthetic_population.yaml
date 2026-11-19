@@ -1,4 +1,7 @@
-# Download-free, two-class tutorial. Signed inputs use ON/OFF encoding.
+# Two-class population network. Excitatory and inhibitory dendritic neurons
+# in one feedforward layer learn a generated two-class task (1,024 samples per
+# class, inputs in [0, 1], ON/OFF input channels); no download, about 15 s
+# on a laptop CPU. A tutorial, not a paper recipe.
 config_version: 4
 experiment:
   seed: 42
@@ -9,7 +12,7 @@ data:
   dataset_name: linear_separable
   dataset_params:
     linear_separable:
-      n_samples: 128
+      n_samples: 1024
       input_dim: 16
       ne: 8
       ni: 8
@@ -82,24 +85,24 @@ training:
   main:
     strategy: standard
     common:
-      epochs: 3
+      epochs: 30
       batch_size: 64
       reactivation_initialization_batch_size: 64
       shuffle: true
       grad_clip_value: 5.0
       loss_function: ce
       early_stopping: true
-      patience: 20
+      patience: 30
       load_best_state_dict: true
       synapse_decay_rate: 0.0
       weight_boosting: false
       param_groups:
-        lr: 0.001
+        lr: 0.005
         split_params: true
-        topk_lr: 0.001
-        blocklinear_lr: 0.0001
-        reactivation_lr: 0.0001
-        decoder_lr: 0.001
+        topk_lr: 0.005
+        blocklinear_lr: 0.0005
+        reactivation_lr: 0.0005
+        decoder_lr: 0.005
       plot_losses: false
     optimizer:
       name: adam

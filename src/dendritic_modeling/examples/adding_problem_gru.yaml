@@ -1,0 +1,73 @@
+# GRU baseline for regression. A gated recurrent unit network reads a
+# sequence of values and markers and predicts the sum of the two marked values
+# (the adding problem, a regression task); generated data, no download. A
+# point-neuron baseline to compare with the dendritic examples, not a paper
+# recipe.
+config_version: 4
+experiment:
+  seed: 7
+  train_valid_split: 0.8
+  checkpointing:
+    enabled: false
+data:
+  dataset_name: adding_problem
+  processing:
+    flatten: false
+    normalize: false
+  dataset_params:
+    adding_problem:
+      n_samples: 2000
+      seq_len: 30
+model:
+  task: regression
+  encoder:
+    type: identity
+    params:
+      input_dim: 2
+  core:
+    type: gru
+    baseline_rnn:
+      input_dim: 2
+      hidden_dim: 32
+      num_layers: 1
+      output_mode: last
+  decoder:
+    type: MLP
+    params:
+      hidden_dims: []
+      activation: relu
+      output_dim: 1
+training:
+  main:
+    strategy: recurrent
+    common:
+      epochs: 10
+      batch_size: 64
+      shuffle: true
+      grad_clip_value: 1.0
+      loss_function: mse
+      early_stopping: true
+      patience: 10
+      load_best_state_dict: true
+      param_groups:
+        lr: 0.005
+      plot_losses: false
+    optimizer:
+      name: adam
+      weight_decay: 0.0
+    strategies:
+      recurrent: {}
+analysis:
+  performance:
+    enabled: true
+    training: false
+    params:
+      accuracy: false
+      auc: false
+      categorical_loglikelihood: false
+      mse: true
+outputs:
+  run_name: adding_problem_gru
+  results_dir: outputs
+distributed:
+  mode: none

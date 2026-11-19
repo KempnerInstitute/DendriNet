@@ -1,4 +1,6 @@
-# Small tutorial network; not a paper reproduction recipe.
+# MNIST population network. The two-population layer of the tutorial on
+# MNIST digits (784 pixels, ten classes); the first run downloads MNIST
+# into the data cache. A tutorial, not a paper recipe.
 config_version: 4
 experiment:
   seed: 42
