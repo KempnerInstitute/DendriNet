@@ -118,6 +118,14 @@ Use a remote configured for authorized pushes. The release check requires
 the tag to match the distribution's declared version and its commit to be
 in the history of ``origin/develop``. Pushing a tag alone does not upload files.
 
+For a Studio-only release, bump the version in ``apps/studio/pyproject.toml``
+and ``apps/studio/src/dendrinet_studio/__init__.py`` together. Create only
+the matching ``studio-vX.Y.Z`` tag on the reviewed merge. Run the staging
+and promotion workflows below for ``distribution=studio`` using this tag.
+Install and test the staged Studio wheel with the published compatible core.
+Users with an earlier Studio install can upgrade it with
+``python -m pip install --upgrade dendrinet-studio``.
+
 4. Stage and install both packages from TestPyPI
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

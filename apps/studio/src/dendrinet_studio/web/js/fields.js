@@ -95,7 +95,7 @@ export function textInput(value, onCommit, attrs = {}) {
   return input;
 }
 
-export function numberInput(value, onCommit, { integer = false, min, max, step, optional = false } = {}) {
+export function numberInput(value, onCommit, { integer = false, min, max, step, optional = false, positive = false } = {}) {
   const input = h("input", { type: "number", class: "input num", value: value ?? "", step: step ?? (integer ? 1 : "any"), min, max, inputmode: integer ? "numeric" : "decimal" });
   commitOn(
     input,
@@ -107,6 +107,7 @@ export function numberInput(value, onCommit, { integer = false, min, max, step, 
       const v = Number(input.value);
       if (!Number.isFinite(v)) throw new Error("Enter a finite number");
       if (integer && !Number.isInteger(v)) throw new Error("Enter a whole number");
+      if (positive && v <= 0) throw new Error("Enter a number greater than zero");
       if (min !== undefined && v < min) throw new Error(`Enter ${min} or more`);
       if (max !== undefined && v > max) throw new Error(`Enter ${max} or less`);
       return v;
@@ -129,7 +130,7 @@ export function stepper(value, onCommit, { min = 0, max, label = "" } = {}) {
     input,
     h("button", { type: "button", "aria-label": `Increase ${label}`, onclick: bump(1) }, [icon("plus")]),
   ]);
-  wrap.id = input.id = nextId("st");
+  input.id = nextId("st");
   return wrap;
 }
 

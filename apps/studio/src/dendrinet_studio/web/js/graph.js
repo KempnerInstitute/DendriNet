@@ -6,13 +6,13 @@
 import { s, fmt } from "./dom.js";
 
 const CARD_W = 204;
-const CARD_H = 92;
-const GAP_Y = 26;
-const LANE_PAD = 26;
-const HEADER = 44;
-const IO_W = 156;
+const CARD_H = 105;
+const GAP_Y = 40;
+const LANE_PAD = 35;
+const HEADER = 92;
+const IO_W = 158;
 const IO_H = 90;
-const SUB_GAP = 34;
+const LANE_GAP = 32;
 
 const STREAM_LABEL = { ff_excitatory: "E", ff_inhibitory: "I", rec_excitatory: "rec E", rec_inhibitory: "rec I" };
 
@@ -45,50 +45,36 @@ function contactSummary(node, connections) {
   return [ff.length ? ff.join(" · ") + " per comp." : "no feedforward contacts", rec.length ? rec.join(" · ") + " per comp." : null];
 }
 
-// Layout: input lane, one lane per layer (inhibitory column left of and above
-// the excitatory column, so input reaching the excitatory cells passes below
-// the inhibitory ones and local inhibition points forward), decoder lane.
-const STAGGER = (CARD_H + GAP_Y) / 2;
-
+// One column per layer keeps populations aligned as the network grows. The
+// margins carry local connections. Long skips and feedback use rails below.
 export function layoutNetwork(preview) {
-  const lanes = [];
+  const lanes = [{ kind: "input", label: "Input", x: 8, width: IO_W }];
   const positions = {};
-  let x = 16;
-  lanes.push({ kind: "input", label: "Input", x, width: IO_W + 2 * LANE_PAD });
-  x += IO_W + 2 * LANE_PAD + 18;
-  let stackHeight = CARD_H;
+  let x = 8 + IO_W + LANE_GAP;
+  let rows = 1;
   preview.layers.forEach((layer, li) => {
     const nodes = preview.nodes.filter(n => n.layer === li);
-    const inh = nodes.filter(n => n.polarity === "inhibitory");
-    const exc = nodes.filter(n => n.polarity !== "inhibitory");
-    const columns = [inh, exc].filter(c => c.length);
-    const both = columns.length === 2;
-    const width = columns.length * CARD_W + (columns.length - 1) * SUB_GAP + 2 * LANE_PAD;
-    lanes.push({ kind: "layer", label: layer.name, layer, x, width });
-    columns.forEach((column, ci) => {
-      const cx = x + LANE_PAD + ci * (CARD_W + SUB_GAP);
-      const offset = both ? (ci === 0 ? -STAGGER : STAGGER) : 0;
-      column.forEach((node, ri) => {
-        positions[node.id] = { x: cx, y: 0, row: ri, count: column.length, offset };
-      });
-      const columnHeight = column.length * CARD_H + (column.length - 1) * GAP_Y;
-      stackHeight = Math.max(stackHeight, columnHeight + (both ? 2 * STAGGER : 0));
+    const ordered = [...nodes.filter(n => n.name === layer.readout), ...nodes.filter(n => n.name !== layer.readout)];
+    rows = Math.max(rows, nodes.length);
+    ordered.forEach((node, row) => {
+      positions[node.id] = { x: x + LANE_PAD, y: HEADER + row * (CARD_H + GAP_Y), layer: li };
     });
-    x += width + 18;
+    lanes.push({ kind: "layer", label: layer.name, layer, x, width: CARD_W + 2 * LANE_PAD });
+    x += CARD_W + 2 * LANE_PAD + LANE_GAP;
   });
-  lanes.push({ kind: "output", label: "Readout", x, width: IO_W + 2 * LANE_PAD });
-  const width = x + IO_W + 2 * LANE_PAD + 16;
-  const height = Math.max(300, HEADER + 30 + stackHeight + 60);
-  const top = HEADER + 20 + (height - HEADER - 50 - stackHeight) / 2;
-  const mid = top + stackHeight / 2;
-  for (const node of preview.nodes) {
-    const p = positions[node.id];
-    const columnHeight = p.count * CARD_H + (p.count - 1) * GAP_Y;
-    p.y = mid - columnHeight / 2 + p.offset + p.row * (CARD_H + GAP_Y);
+  lanes.push({ kind: "output", label: "Decoder", x, width: IO_W });
+  const railTop = HEADER + rows * CARD_H + (rows - 1) * GAP_Y + 28;
+  const rails = new Map();
+  for (const edge of preview.edges) {
+    const src = positions[edge.source_id];
+    const dst = positions[edge.target_id];
+    if (src && (src.layer > dst.layer || dst.layer - src.layer > 1)) rails.set(edge, railTop + rails.size * 16);
   }
-  positions.__input = { x: lanes[0].x + LANE_PAD, y: mid - IO_H / 2 };
-  positions.__output = { x: lanes.at(-1).x + LANE_PAD, y: mid - IO_H / 2 };
-  return { lanes, positions, width, height };
+  const ioY = HEADER + (CARD_H - IO_H) / 2;
+  positions.__input = { x: 8, y: ioY };
+  positions.__output = { x, y: ioY };
+  const readoutRail = preview.layers.slice(0, -1).some(l => l.is_readout_layer) ? railTop + rails.size * 16 : null;
+  return { lanes, positions, rails, railTop, readoutRail, width: x + IO_W + 8, height: railTop + (rails.size + Number(readoutRail !== null)) * 16 + 12 };
 }
 
 // A number belongs on an edge only when it is the sole supplier of the stream.
@@ -103,7 +89,7 @@ function edgeCountLabel(preview, edge, connections) {
 
 export function drawNetwork(svg, preview, { selection, onSelectPopulation, onSelectConnection, onSelectLayer, showCounts = true, zoom = 1 }) {
   svg.replaceChildren();
-  const { lanes, positions, width, height } = layoutNetwork(preview);
+  const { lanes, positions, width, height, rails, railTop, readoutRail } = layoutNetwork(preview);
   svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
   svg.setAttribute("width", Math.round(width * zoom));
   svg.setAttribute("height", Math.round(height * zoom));
@@ -118,14 +104,13 @@ export function drawNetwork(svg, preview, { selection, onSelectPopulation, onSel
   // Lanes.
   for (const lane of lanes) {
     const g = s("g", { class: "lane" + (lane.kind === "layer" ? " layer-lane" : "") });
-    g.append(s("rect", { x: lane.x, y: 8, width: lane.width, height: height - 16, rx: 10, class: "lane-bg" }));
-    const label = s("text", { x: lane.x + 14, y: 32, class: "lane-label" }, [lane.label]);
+    if (lane.kind === "layer") g.append(s("rect", { x: lane.x, y: 8, width: lane.width, height: railTop - 18, rx: 12, class: "lane-bg" }));
+    const label = s("text", { x: lane.x + 14, y: 32, class: "lane-label" }, [lane.label.length > 29 ? lane.label.slice(0, 27) + "…" : lane.label]);
+    g.append(s("title", {}, [lane.label]));
     g.append(label);
     if (lane.kind === "layer") {
-      const extras = [];
-      if (lane.layer.recurrent) extras.push(`recurrent · dt ${lane.layer.dt}`);
-      if (lane.layer.is_readout_layer) extras.push("readout layer");
-      if (extras.length) g.append(s("text", { x: lane.x + lane.width - 14, y: 32, class: "lane-meta", "text-anchor": "end" }, [extras.join(" · ")]));
+      const mode = lane.layer.recurrent ? "Recurrent · dt " + lane.layer.dt : "Feedforward";
+      g.append(s("text", { x: lane.x + 14, y: 50, class: "lane-meta" }, [mode + (lane.layer.is_readout_layer ? " · readout" : "")]));
       const index = preview.layers.indexOf(lane.layer);
       g.classList.add("clickable");
       g.addEventListener("click", event => {
@@ -152,6 +137,10 @@ export function drawNetwork(svg, preview, { selection, onSelectPopulation, onSel
   const edgeLayer = s("g", { class: "edges" });
   const chipLayer = s("g", { class: "edge-chips" });
   svg.append(edgeLayer);
+  const occupied = Object.entries(positions).map(([id, p]) =>
+    ({ x: p.x, y: p.y, w: id.startsWith("__") ? IO_W : CARD_W, h: id.startsWith("__") ? IO_H : CARD_H }));
+  for (const lane of lanes) occupied.push({ x: lane.x, y: 12, w: lane.width, h: 41 });
+  const labelTasks = [];
   preview.edges.forEach((edge, index) => {
     const external = !positions[edge.source_id];
     const src = external ? positions.__input : positions[edge.source_id];
@@ -163,23 +152,28 @@ export function drawNetwork(svg, preview, { selection, onSelectPopulation, onSel
     const ty = portY[index];
     let d;
     if (edge.source_id === edge.target_id) {
-      const left = dst.x + 30;
-      const right = dst.x + CARD_W - 30;
-      d = `M${right} ${dst.y} C ${right} ${dst.y - 44}, ${left} ${dst.y - 44}, ${left} ${dst.y - 2}`;
-    } else if (tx > sx + 20) {
-      const bend = Math.max(40, (tx - sx) / 2);
-      d = `M${sx} ${sy} C ${sx + bend} ${sy}, ${tx - bend} ${ty}, ${tx} ${ty}`;
+      const start = dst.x + CARD_W * 0.72, end = dst.x + CARD_W * 0.28;
+      d = `M${start} ${dst.y} C ${start} ${dst.y - 36}, ${end} ${dst.y - 36}, ${end} ${dst.y - 3}`;
+    } else if (!external && src.layer === dst.layer) {
+      const side = inhibitory ? 1 : -1;
+      const boundary = inhibitory ? dst.x + CARD_W : dst.x;
+      const toY = dst.y + (inhibitory ? 66 : 34);
+      const channel = boundary + side * (14 + (index % 3) * 6);
+      d = `M${boundary} ${sy} Q ${channel} ${sy}, ${channel} ${sy + Math.sign(toY - sy) * 12} V${toY - Math.sign(toY - sy) * 12} Q ${channel} ${toY}, ${boundary + side * 3} ${toY}`;
+    } else if (rails.has(edge)) {
+      const rail = rails.get(edge), a = sx + 16, b = tx - 16;
+      d = `M${sx} ${sy} H${a} V${rail} H${b} V${ty} H${tx}`;
     } else {
-      const over = Math.min(src.y, dst.y) - 26;
-      d = `M${sx} ${sy} C ${sx + 60} ${sy}, ${sx + 60} ${over}, ${(sx + tx) / 2} ${over} S ${tx - 60} ${ty}, ${tx} ${ty}`;
+      const bend = Math.max(12, (tx - sx) / 2);
+      d = `M${sx} ${sy} C ${sx + bend} ${sy}, ${tx - bend} ${ty}, ${tx} ${ty}`;
     }
     const classes = ["edge", inhibitory ? "inh" : "exc"];
     if (edge.timing === "delayed") classes.push("delayed");
     if (edge.enabled === false) classes.push("disabled");
     const selected = selection.kind === "connection" && selection.layer === edge.layer && selection.index === layerIndex(preview, edge, index);
     if (selected) classes.push("selected");
-    const path = s("path", { d, class: classes.join(" "), "data-source": edge.source_id, "data-target": edge.target_id, "data-pathway": edge.pathway, "marker-end": edge.source_id === edge.target_id ? undefined : inhibitory ? "url(#m-inh)" : "url(#m-exc)" });
-    const hit = s("path", { d, class: "edge-hit", tabindex: 0, role: "button", "aria-label": `Connection ${edge.source_id} to ${edge.target_id}` });
+    const path = s("path", { d, class: classes.join(" "), "data-source": edge.source_id, "data-target": edge.target_id, "data-pathway": edge.pathway, "data-timing": edge.timing, "marker-end": inhibitory ? "url(#m-inh)" : "url(#m-exc)" });
+    const hit = s("path", { d, class: "edge-hit", tabindex: 0, role: "button", "aria-label": `Connection ${edge.source_id} to ${edge.target_id}, ${edge.pathway}, ${edge.timing}` });
     const pick = () => onSelectConnection(edge.layer, layerIndex(preview, edge, index));
     hit.addEventListener("click", pick);
     hit.addEventListener("keydown", e => {
@@ -188,7 +182,8 @@ export function drawNetwork(svg, preview, { selection, onSelectPopulation, onSel
         pick();
       }
     });
-    hit.append(s("title", {}, [`${edge.source_id} → ${edge.target_id} · ${edge.pathway.replace("_", " ")} · ${edge.timing === "delayed" ? "delayed" : "same step"}${edge.target_levels ? " · levels " + edge.target_levels.join(", ") : ""}${edge.probability != null ? " · p " + edge.probability : ""}${edge.enabled === false ? " · off" : ""}`]));
+    const countLabel = edgeCountLabel(preview, edge, incoming[edge.target_id]);
+    hit.append(s("title", {}, [`${edge.source_id} → ${edge.target_id} · ${countLabel} · ${edge.timing === "delayed" ? "delayed" : "same step"}${edge.target_levels ? " · levels " + edge.target_levels.join(", ") : ""}${edge.probability != null ? " · p " + edge.probability : ""}${edge.enabled === false ? " · off" : ""}`]));
     edgeLayer.append(path, hit);
     // Chip at the middle of the curve.
     const labels = [];
@@ -197,17 +192,32 @@ export function drawNetwork(svg, preview, { selection, onSelectPopulation, onSel
     if (edge.target_levels) labels.push("→ " + edge.target_levels.join(","));
     if (edge.probability != null) labels.push("p " + edge.probability);
     if (showCounts || labels.length) {
-      requestAnimationFrame(() => {
-        if (!path.isConnected) return;
+      labelTasks.push({ selected, place: () => {
         const length = path.getTotalLength();
-        const point = path.getPointAtLength(length * 0.5);
-        const text = [showCounts ? edgeCountLabel(preview, edge, incoming[edge.target_id]) : null, ...labels].filter(Boolean).join(" · ");
+        const text = [showCounts ? countLabel : null, ...labels].filter(Boolean).join(" · ");
         const w = text.length * 6.2 + 14;
+        let point;
+        for (const offset of [0, -17, 17]) {
+          for (const fraction of [0.5, 0.32, 0.68, 0.2, 0.8]) {
+            const anchor = path.getPointAtLength(length * fraction);
+            const box = { x: anchor.x - w / 2, y: anchor.y + offset - 9, w, h: 18 };
+            if (box.x < 0 || box.y < 0 || box.x + w > width || box.y + 18 > height) continue;
+            if (occupied.some(p => box.x < p.x + p.w + 2 && box.x + w + 2 > p.x && box.y < p.y + p.h + 2 && box.y + 20 > p.y)) continue;
+            occupied.push(box);
+            point = { x: anchor.x, y: anchor.y + offset };
+            if (offset) chipLayer.append(s("path", { d: `M${anchor.x} ${anchor.y} V${point.y}`, class: "edge-chip-guide" }));
+            break;
+          }
+          if (point) break;
+        }
+        // Crowded diagrams retain every route in the outline and its full
+        // description on the line. Keep other labels and cards legible.
+        if (!point) return;
         const chip = s("g", { class: "chip-edge " + (inhibitory ? "inh" : "exc") + (selected ? " selected" : "") });
         chip.append(s("rect", { x: point.x - w / 2, y: point.y - 9, width: w, height: 18, rx: 9 }), s("text", { x: point.x, y: point.y + 4, "text-anchor": "middle" }, [text]));
         chip.addEventListener("click", pick);
         chipLayer.append(chip);
-      });
+      } });
     }
   });
 
@@ -232,7 +242,9 @@ export function drawNetwork(svg, preview, { selection, onSelectPopulation, onSel
     const sy = p.y + CARD_H / 2;
     const tx = o.x - 2;
     const ty = o.y + IO_H / 2;
-    edgeLayer.append(s("path", { d: `M${sx} ${sy} C ${sx + 50} ${sy}, ${tx - 50} ${ty}, ${tx} ${ty}`, class: "edge readout", "marker-end": "url(#m-exc)" }));
+    const d = readoutRail === null ? `M${sx} ${sy} C ${sx + 50} ${sy}, ${tx - 50} ${ty}, ${tx} ${ty}`
+      : `M${sx} ${sy} H${sx + 24} V${readoutRail} H${tx - 12} V${ty} H${tx}`;
+    edgeLayer.append(s("path", { d, class: "edge readout", "marker-end": "url(#m-exc)" }));
   }
 
   // Population cards.
@@ -243,11 +255,14 @@ export function drawNetwork(svg, preview, { selection, onSelectPopulation, onSel
     g.append(s("rect", { width: CARD_W, height: CARD_H, rx: 10, class: "card-bg" }));
     if (node.polarity === "inhibitory") g.append(s("circle", { cx: 20, cy: 21, r: 6.5, class: "card-glyph" }));
     else g.append(s("path", { d: "M20 13.5L27 27H13Z", class: "card-glyph" }));
-    g.append(s("text", { x: 36, y: 26, class: "card-title" }, [node.name]));
+    g.append(s("title", {}, [node.id + " · " + ruleOf(node)[0]]));
     const [rule, cls] = ruleOf(node);
-    const tw = rule.length * 6.1 + 14;
+    const shortRule = rule.startsWith("Additive (") ? "Additive*" : rule;
+    const tw = shortRule.length * 6.1 + 14;
+    const maxName = Math.floor((CARD_W - tw - 52) / 8);
+    g.append(s("text", { x: 36, y: 26, class: "card-title" }, [node.name.length > maxName ? node.name.slice(0, maxName - 1) + "…" : node.name]));
     g.append(s("rect", { x: CARD_W - 10 - tw, y: 12, width: tw, height: 18, rx: 4, class: "rule-tag " + cls }));
-    g.append(s("text", { x: CARD_W - 10 - tw / 2, y: 25, "text-anchor": "middle", class: "rule-text " + cls }, [rule]));
+    g.append(s("text", { x: CARD_W - 10 - tw / 2, y: 25, "text-anchor": "middle", class: "rule-text " + cls }, [shortRule]));
     g.append(s("text", { x: 14, y: 50, class: "card-line" }, [`${node.polarity === "inhibitory" ? "I" : "E"} · ${fmt(node.neurons)} neurons · ${node.branch_factors.length ? "[" + node.branch_factors.join(", ") + "]" : "soma only"}`]));
     const [ff, rec] = contactSummary(node, incoming[node.id] || []);
     g.append(s("text", { x: 14, y: 68, class: "card-line mono" }, [ff]));
@@ -263,7 +278,12 @@ export function drawNetwork(svg, preview, { selection, onSelectPopulation, onSel
     });
     svg.append(g);
   }
-  svg.append(chipLayer);
+  svg.insertBefore(chipLayer, svg.querySelector(".io-card"));
+  requestAnimationFrame(() => {
+    if (edgeLayer.isConnected) {
+      labelTasks.sort((a, b) => Number(b.selected) - Number(a.selected)).forEach(task => task.place());
+    }
+  });
   return { width, height };
 }
 
@@ -330,7 +350,7 @@ export function drawOverview(svg, preview) {
 export function svgForExport(svg) {
   const clone = svg.cloneNode(true);
   const css = getComputedStyle(document.documentElement);
-  const tokens = ["--ink", "--muted", "--line", "--line-strong", "--panel", "--sunk", "--exc", "--inh", "--shunt", "--add", "--edge"];
+  const tokens = ["--ink", "--muted", "--line", "--line-strong", "--panel", "--sunk", "--exc", "--inh", "--shunt", "--add", "--edge", "--shunt-ink", "--add-ink", "--edge-exc", "--inh-mark", "--ink-soft", "--mono", "--focus"];
   const vars = tokens.map(t => `${t}: ${css.getPropertyValue(t).trim()};`).join(" ");
   const sheet = [...document.styleSheets].flatMap(sheet => {
     try {

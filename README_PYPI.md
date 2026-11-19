@@ -22,7 +22,7 @@ reproduction requires the study's recorded dependencies, source and settings.
 
 ## Graphical model editor
 
-Install the companion distribution with `python -m pip install dendrinet-studio==0.1.0` to draw dendritic
+Install the companion distribution with `python -m pip install --upgrade dendrinet-studio` to draw dendritic
 populations, trace incoming E and I connections, and compare training runs on
 your computer. Launch it with `dendrinet-studio --workspace my-runs`. Designs
 export as YAML that the core training command accepts. The

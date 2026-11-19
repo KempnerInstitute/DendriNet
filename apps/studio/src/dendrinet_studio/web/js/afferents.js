@@ -13,7 +13,7 @@ const modes = {
   split: "Separate groups of input channels",
 };
 
-function afferentMode(net) {
+export function afferentMode(net) {
   if (!net.use_transfer) return "shared";
   if (net.transfer_params?.independent_pathways) return "split";
   return net.transfer_params?.input_source_identity === "paired_afferents" ? "paired" : "shared";

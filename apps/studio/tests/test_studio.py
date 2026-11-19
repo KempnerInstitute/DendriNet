@@ -53,6 +53,17 @@ def test_yaml_roundtrip_retains_unexposed_settings_and_random_state():
     assert result["nodes"][1]["compartments_per_neuron"] == 7
 
 
+@pytest.mark.parametrize("source", ["input", "input_e", "input_i"])
+def test_preview_rejects_delayed_external_input_like_the_builder(source):
+    document = example("recurrent_decision_population")
+    layer = document["model"]["core"]["population_network"]["layers"][0]
+    layer["connections"].append(
+        {"source": source, "target": "pyr", "timing": "delayed"}
+    )
+    with pytest.raises(ValueError, match="population output"):
+        inspect_document(document)
+
+
 def test_soma_only_preview_is_distinct_from_one_branch():
     raw = example("synthetic_population")
     raw["model"]["core"]["population_network"]["layers"][0]["populations"][1][

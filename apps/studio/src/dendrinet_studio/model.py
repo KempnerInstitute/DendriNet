@@ -270,6 +270,10 @@ def _population_graph(network: dict[str, Any]) -> dict[str, Any]:
                     f"in layer {layer.name!r}"
                 )
             timing = str(connection.get("timing") or "same_step").lower()
+            if external and timing == "delayed":
+                raise ValueError(
+                    f"Delayed source {declared!r} must name a population output"
+                )
             pathway = projection_pathway(
                 timing, signs[origin], str(connection.get("pathway") or "").lower()
             )

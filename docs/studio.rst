@@ -33,7 +33,7 @@ from PyPI. Pip installs the compatible core library and PyTorch.
 
 .. code-block:: bash
 
-   python -m pip install dendrinet-studio==0.1.0
+   python -m pip install --upgrade dendrinet-studio
    dendrinet-studio --workspace my-runs
 
 For an editable install, run ``python -m pip install -e . -e ./apps/studio``
@@ -109,6 +109,61 @@ Train your first network
    as ``demo.yaml``, you can run it in the same environment with
    ``dendritic-train demo.yaml``. To get the original, unedited example
    directly, use ``dendritic-example synthetic_population --output original.yaml``.
+
+.. _studio-connect:
+
+Connect populations and mix layer dynamics
+------------------------------------------
+
+The population editor in Studio 0.2.0 can put feedforward and recurrent
+layers in the same design. E and I identify the sign of a population's
+outgoing synapses. Timing identifies which source activity its target uses.
+
+#. Open the **Recurrent decision population network** example in **Model**.
+   Choose **Layer**, name the new layer ``readout``, choose **Feedforward**,
+   and select **Add layer**. The new populations receive the current output
+   of the first layer. An explicitly selected decoder layer stays selected.
+#. Select the inhibitory population ``readout.pv`` on the diagram. Choose
+   **Connect from this population**, then select ``circuit.pyr`` on the
+   diagram. The editor proposes **Previous step** for this feedback path.
+   Check the source, destination and inhibitory sign and choose **Add
+   connection**. The same operation is available through **Connect** on
+   the diagram toolbar, using menus for both populations.
+#. Expand **connections** under the receiving layer or select the line in
+   the diagram to inspect the route. The inhibitory line ends in a bar.
+   Dashes and Δt indicate the one-step delay. Use **Edit connection** to
+   rewire it or the inspector to set its probability and target depths.
+   Synapse counts belong to the receiving population and are shared by
+   sources on the same pathway. The editor asks for a positive budget
+   when the selected pathway currently has zero contacts.
+   When a biological model receives both signs from external input, choose
+   matched afferent populations or separate channel groups in the editor.
+#. Open **YAML** to see the route under ``circuit.connections``, with source
+   ``readout.pv``, target ``pyr`` and ``timing: delayed``. Choose **Check
+   model** to construct it, or **Train** to run the sequence task.
+
+**Same step** uses current activity. Its source may be the layer input, a
+population in an earlier layer, or a local population if the route keeps
+same-step wiring acyclic. **Previous step** uses a population's output from
+the preceding update. It supports self-connections, loops within a layer and
+feedback from a later layer. Adding one enables recurrence on the receiving
+layer. A recurrent layer can receive both kinds of input. A feedforward
+layer can supply delayed activity to another layer.
+
+The layer's **Time step dt** controls integration. Core 0.5 supports a delay
+of one update per delayed projection. A static example presented for one
+step has no previous activity to feed back. Use the decision example to
+observe feedback across time. The separate GRU and LSTM core types retain
+their own architecture and parameter forms.
+
+.. figure:: _static/studio/hybrid.png
+   :alt: Two layers with E and I populations. Current-step excitation flows
+         from the decision circuit into the readout layer. A dashed return
+         path ends in an inhibitory bar on the circuit's excitatory cells.
+   :width: 100%
+
+   The feedback circuit from the example above. Select a line or its entry
+   in the receiving layer's connection list to see its source and timing.
 
 .. _studio-afferents:
 

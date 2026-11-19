@@ -115,6 +115,32 @@ export function layerView(layer) {
 
 export let validationRevision = 0;
 
+// Stage a topology edit on a copy. A rejected route must never become the
+// document used by Train, by the YAML editor, or by draft recovery.
+export async function editTopology(mutate, { revision = validationRevision, signal } = {}) {
+  if (revision !== validationRevision) throw new Error("The design changed. Reopen this editor.");
+  const draft = structuredClone(state.config);
+  const selection = mutate(draft);
+  const result = await api("preview", { config: draft });
+  if (signal?.aborted) return;
+  if (revision !== validationRevision) throw new Error("The design changed. Reopen this editor.");
+  ++validationRevision;
+  state.history.push(JSON.stringify(state.config));
+  if (state.history.length > HISTORY_LIMIT) state.history.shift();
+  state.future = [];
+  state.config = draft;
+  state.preview = result;
+  state.validating = false;
+  state.error = state.errorPath = null;
+  state.dirty = true;
+  if (selection) state.selection = selection;
+  fixSelection();
+  saveDraft();
+  emit("edited", { structural: true });
+  emit("preview", { structural: true });
+  emit("validated");
+}
+
 export function edit(mutate, options = {}) {
   const before = JSON.stringify(state.config);
   mutate(state.config);

@@ -48,7 +48,7 @@ PyTorch. On a Mac, use the arm64 build of Python.
 ```bash
 python3 -m venv ~/dendrinet-env
 source ~/dendrinet-env/bin/activate
-python -m pip install dendrinet-studio==0.1.0
+python -m pip install --upgrade dendrinet-studio
 dendrinet-studio --workspace ~/dendrinet-runs
 ```
 
@@ -70,7 +70,7 @@ Press **Ctrl+C** in the terminal to stop Studio. Next time, activate the
 same environment and repeat the `dendrinet-studio --workspace` command above
 to see your saved runs. The editor also exports YAML for `dendritic-train`.
 [Illustrated Studio guide](https://kempnerinstitute.github.io/DendriNet/studio.html#studio-first-run) ·
-[Studio on PyPI](https://pypi.org/project/dendrinet-studio/0.1.0/)
+[Studio on PyPI](https://pypi.org/project/dendrinet-studio/)
 
 ## First steps
 

@@ -24,18 +24,47 @@ export function toast(text, { kind = "info", action = null, timeout = 5000 } = {
   return item;
 }
 
-export function dialog({ title, body, actions = [{ label: "Close", value: null, primary: true }], wide = false }) {
+export function dialog({ title, body, actions = [{ label: "Close", value: null, primary: true }], wide = false, onConfirm }) {
   return new Promise(resolve => {
     const box = h("dialog", { class: "dialog" + (wide ? " wide" : ""), "aria-label": title });
+    const controller = onConfirm ? new AbortController() : null;
     const form = h("form", { method: "dialog" });
     const footer = h("div", { class: "dialog-actions" });
     for (const [index, action] of actions.entries()) {
       const value = String(index);
       const button = h("button", { type: action.submit === false ? "button" : "submit", class: "btn" + (action.primary ? " primary" : ""), value, text: action.label });
-      if (action.submit === false) button.addEventListener("click", () => box.close(value));
+      if (action.submit === false) button.addEventListener("click", () => {
+        controller?.abort();
+        box.close(value);
+      });
       footer.append(button);
     }
     form.append(h("h2", { text: title }), h("div", { class: "dialog-body" }, [].concat(body)), footer);
+    if (onConfirm) {
+      const message = h("p", { class: "field-error", role: "alert", hidden: true });
+      footer.before(message);
+      box.addEventListener("cancel", () => controller.abort(), { once: true });
+      box.addEventListener("close", () => controller.abort(), { once: true });
+      form.addEventListener("submit", async event => {
+        event.preventDefault();
+        const button = event.submitter;
+        if (!button || button.disabled) return;
+        button.disabled = true;
+        const body = form.querySelector(".dialog-body");
+        body.inert = true;
+        message.hidden = true;
+        try {
+          await onConfirm(controller.signal);
+          if (box.open) box.close(button.value);
+        } catch (error) {
+          message.textContent = error.message;
+          message.hidden = false;
+        } finally {
+          body.inert = false;
+          button.disabled = false;
+        }
+      });
+    }
     box.append(form);
     document.body.append(box);
     box.addEventListener("close", () => {

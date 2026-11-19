@@ -238,6 +238,10 @@ h4.eyebrow { margin-top: 6px; }
 .tree-row.layer-row { margin-top: 6px; font-weight: 600; color: var(--ink); }
 .tree-row.pop-row, .tree-row.conn-row { padding-left: 22px; }
 .tree-row .indent { width: 16px; }
+.route-list { margin: 2px 0 5px 22px; }
+.route-list summary { cursor: pointer; color: var(--ink-soft); font-size: 12px; padding: 4px 0; }
+.route-row .grow { overflow-wrap: anywhere; }
+.route-summary { margin: 4px 0; padding: 10px 12px; border-left: 3px solid var(--line-strong); background: var(--sunk); color: var(--ink-soft); font-size: 13px; line-height: 1.5; }
 .tree-row .meta { font-size: 11.5px; color: var(--muted); font-weight: 400; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -248,12 +252,13 @@ h4.eyebrow { margin-top: 6px; }
 .tile-source { font-size: 11px; color: var(--faint); }
 
 .canvas-scroll { overflow: auto; padding: 6px; max-height: 64vh; }
+.pick-target { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 14px; background: var(--sunk); font-size: 13px; }
 svg.network { display: block; }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 8px 14px; border-top: 1px solid var(--line); font-size: 12px; color: var(--ink-soft); }
 .legend-item { display: inline-flex; align-items: center; gap: 6px; }
 
 /* Network drawing */
-.lane-bg { fill: var(--sunk); }
+.lane-bg { fill: var(--sunk); stroke: var(--line); stroke-width: 1; }
 .layer-lane.clickable .lane-bg, .layer-lane.clickable .lane-label { cursor: pointer; }
 .lane-label { font-size: 11px; font-weight: 650; letter-spacing: 0.08em; text-transform: uppercase; fill: var(--muted); }
 .lane-meta { font-size: 11px; fill: var(--muted); }
@@ -290,6 +295,7 @@ svg.network { display: block; }
 .chip-edge rect { fill: var(--panel); stroke: var(--line-strong); }
 .chip-edge text { font-family: var(--mono); font-size: 10.5px; fill: var(--ink-soft); }
 .chip-edge.selected rect { stroke: var(--ink); stroke-width: 1.6; }
+.edge-chip-guide { fill: none; stroke: var(--line-strong); stroke-width: 1; pointer-events: none; }
 
 /* Neuron drawing */
 .neuron-body { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(250px, 1fr); gap: 16px; padding: 14px; align-items: start; }

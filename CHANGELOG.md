@@ -10,6 +10,16 @@
   remains the default.
 - Update the Black development formatter and pre-commit hook to 26.10.1.
 
+### DendriNet Studio 0.2.0
+
+- Connect two populations from the diagram or choose both endpoints and the
+  projection timing before applying an edit. Surface the receiving E/I budget
+  and validate route changes with DendriNet before saving them.
+- Add feedforward and recurrent layers in one population network. Preserve
+  explicit readouts and per-level contact settings when extending a design.
+- Align populations in a column per layer, label layer dynamics, and identify
+  inhibitory feedback with both a dashed line and a bar.
+
 ## 0.5.0
 
 ### Core library

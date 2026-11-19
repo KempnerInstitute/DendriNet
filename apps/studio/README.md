@@ -6,6 +6,13 @@ and local sources of its excitatory and inhibitory contacts. Inspect the
 contact count at each dendritic level, build the network, or train and compare
 two designs. Each design exports as an ordinary DendriNet experiment YAML.
 
+In Studio 0.2.0, choose **Connect** above the network, or select a population,
+choose **Connect from this population** and select the receiving population
+on the diagram. A same-step route carries current activity. A delayed route
+carries the previous step and can return from a later layer. The guide walks
+through a recurrent decision circuit with a feedforward readout.
+[Connect populations and mix layer dynamics](https://kempnerinstitute.github.io/DendriNet/studio.html#studio-connect)
+
 ## Install and open Studio on your laptop
 
 Open a local terminal. Studio runs on your computer and opens in your browser.
@@ -21,7 +28,7 @@ Run these commands the first time on macOS or Linux.
 ```bash
 python3 -m venv ~/dendrinet-env
 source ~/dendrinet-env/bin/activate
-python -m pip install dendrinet-studio==0.1.0
+python -m pip install --upgrade dendrinet-studio
 dendrinet-studio --workspace ~/dendrinet-runs
 ```
 
@@ -36,7 +43,7 @@ also starts Studio on later visits.
 
 ```powershell
 py -3.11 -m venv "$HOME\dendrinet-env"
-& "$HOME\dendrinet-env\Scripts\python.exe" -m pip install dendrinet-studio==0.1.0
+& "$HOME\dendrinet-env\Scripts\python.exe" -m pip install --upgrade dendrinet-studio
 & "$HOME\dendrinet-env\Scripts\dendrinet-studio.exe" --workspace "$HOME\dendrinet-runs"
 ```
 
