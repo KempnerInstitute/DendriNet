@@ -22,13 +22,23 @@ function ruleOf(node) {
   return [mode && mode !== "raw" ? `Additive (${mode.replace(/_/g, " ")})` : "Additive", "add"];
 }
 
-function contactSummary(node) {
-  const per = node.configured_per_level;
-  const uniform = key => per[key].every(v => v === per[key][0]);
+function sharedBudget(connections, pathway) {
+  return connections.filter(({ edge }) => edge.enabled !== false && edge.pathway === pathway).length > 1;
+}
+
+function contactValues(node, pathway, depths = null) {
+  return node.received_per_level[pathway].filter((_, depth) =>
+    (depth > 0 || node.settings.somatic_synapses) && (!depths || depths.includes(depth))
+  );
+}
+
+function contactSummary(node, connections) {
   const part = key => {
-    const values = node.received_per_level[key];
+    const values = contactValues(node, key);
     if (!values.some(Boolean)) return null;
-    return `${STREAM_LABEL[key]} ${uniform(key) ? per[key][0] : "by level"}`;
+    const shared = sharedBudget(connections, key) ? " shared" : "";
+    const count = values.every(v => v === values[0]) ? values[0] : "by level";
+    return `${STREAM_LABEL[key]} ${count}${shared}`;
   };
   const ff = ["ff_excitatory", "ff_inhibitory"].map(part).filter(Boolean);
   const rec = ["rec_excitatory", "rec_inhibitory"].map(part).filter(Boolean);
@@ -81,13 +91,13 @@ export function layoutNetwork(preview) {
   return { lanes, positions, width, height };
 }
 
-// The contacts per compartment a connection supplies, from its target's counts.
-function edgeCountLabel(preview, edge) {
+// A number belongs on an edge only when it is the sole supplier of the stream.
+function edgeCountLabel(preview, edge, connections) {
   const node = preview.nodes.find(n => n.id === edge.target_id);
   const short = STREAM_LABEL[edge.pathway] || edge.pathway;
-  if (!node || !node.received_per_level[edge.pathway]) return short;
-  const values = [...new Set(node.received_per_level[edge.pathway].filter(v => v > 0))];
-  if (!values.length) return `${short} 0`;
+  if (edge.enabled === false || sharedBudget(connections, edge.pathway) || !node?.received_per_level[edge.pathway]) return short;
+  const values = [...new Set(contactValues(node, edge.pathway, edge.target_depths))];
+  if (!values.some(Boolean)) return `${short} 0`;
   return values.length === 1 ? `${short} ${values[0]}/comp` : `${short} by level`;
 }
 
@@ -191,7 +201,7 @@ export function drawNetwork(svg, preview, { selection, onSelectPopulation, onSel
         if (!path.isConnected) return;
         const length = path.getTotalLength();
         const point = path.getPointAtLength(length * 0.5);
-        const text = [showCounts ? edgeCountLabel(preview, edge) : null, ...labels].filter(Boolean).join(" · ");
+        const text = [showCounts ? edgeCountLabel(preview, edge, incoming[edge.target_id]) : null, ...labels].filter(Boolean).join(" · ");
         const w = text.length * 6.2 + 14;
         const chip = s("g", { class: "chip-edge " + (inhibitory ? "inh" : "exc") + (selected ? " selected" : "") });
         chip.append(s("rect", { x: point.x - w / 2, y: point.y - 9, width: w, height: 18, rx: 9 }), s("text", { x: point.x, y: point.y + 4, "text-anchor": "middle" }, [text]));
@@ -236,7 +246,7 @@ export function drawNetwork(svg, preview, { selection, onSelectPopulation, onSel
     g.append(s("rect", { x: CARD_W - 10 - tw, y: 12, width: tw, height: 18, rx: 4, class: "rule-tag " + cls }));
     g.append(s("text", { x: CARD_W - 10 - tw / 2, y: 25, "text-anchor": "middle", class: "rule-text " + cls }, [rule]));
     g.append(s("text", { x: 14, y: 50, class: "card-line" }, [`${node.polarity === "inhibitory" ? "I" : "E"} · ${fmt(node.neurons)} neurons · ${node.branch_factors.length ? "[" + node.branch_factors.join(", ") + "]" : "soma only"}`]));
-    const [ff, rec] = contactSummary(node);
+    const [ff, rec] = contactSummary(node, incoming[node.id] || []);
     g.append(s("text", { x: 14, y: 68, class: "card-line mono" }, [ff]));
     if (rec) g.append(s("text", { x: 14, y: 84, class: "card-line mono" }, [rec]));
     if (readoutNode && node.id === readoutNode.id) g.append(s("text", { x: CARD_W - 10, y: CARD_H - 8, "text-anchor": "end", class: "readout-tag" }, ["readout ▸"]));

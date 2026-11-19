@@ -113,6 +113,50 @@ def test_imported_file_keeps_its_omissions_and_draws_every_pathway(page):
     assert not page.errors, page.errors
 
 
+@pytest.mark.parametrize("second_enabled", [True, False])
+def test_converging_inhibitory_connections_show_the_target_budget_once(
+    page, second_enabled
+):
+    raw = example("synthetic_population")
+    layer = raw["model"]["core"]["population_network"]["layers"][0]
+    layer["populations"].append({**layer["populations"][0], "name": "i2"})
+    layer["connections"].extend(
+        [
+            {"source": "input", "target": "i2"},
+            {"source": "i2", "target": "e", "enabled": second_enabled},
+        ]
+    )
+    page.get_by_role("tab", name="YAML").click()
+    page.locator("textarea.yaml-text").fill(yaml.safe_dump(raw, sort_keys=False))
+    page.get_by_role("button", name="Apply").click()
+    page.get_by_role("tab", name="Model").click()
+
+    target = page.get_by_role("button", name="Edit population layer0.e")
+    labels = page.locator("svg.network .chip-edge.inh text")
+    if second_enabled:
+        playwright.expect(target).to_contain_text("I 4 shared")
+        playwright.expect(labels).to_have_text(["I", "I"])
+    else:
+        playwright.expect(target).not_to_contain_text("shared")
+        playwright.expect(labels).to_have_text(["I 4/comp", "I · off"])
+
+
+def test_soma_only_projection_does_not_label_every_branch_with_soma_contacts(page):
+    raw = example("synthetic_population")
+    layer = raw["model"]["core"]["population_network"]["layers"][0]
+    layer["connections"][-1]["target_levels"] = ["soma"]
+    page.get_by_role("tab", name="YAML").click()
+    page.locator("textarea.yaml-text").fill(yaml.safe_dump(raw, sort_keys=False))
+    page.get_by_role("button", name="Apply").click()
+    page.get_by_role("tab", name="Model").click()
+
+    card = page.get_by_role("button", name="Edit population layer0.e")
+    playwright.expect(card).to_contain_text("I by level")
+    playwright.expect(page.locator("svg.network .chip-edge.inh text")).to_have_text(
+        "I 4/comp · → soma"
+    )
+
+
 def test_visual_edits_undo_and_export(page):
     page.get_by_role("button", name="Edit population layer0.e").click()
     page.locator(".presets .chip", has_text="[3,3,3]").click()

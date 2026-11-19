@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Studio shows the receiving population's contact budget once when several
+  connections supply a stream. Disabled connections show their status.
+- The installed-wheel check exercises sequence input for recurrent examples.
+
 - Studio edits every model family and every option, not only population
   networks: forms are generated from the typed configuration and the
   library's registries (core types, datasets, strategies, losses filtered by

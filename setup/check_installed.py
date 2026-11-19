@@ -14,6 +14,7 @@ import yaml
 
 import dendritic_modeling
 from dendritic_modeling.config import config_from_mapping
+from dendritic_modeling.config.recurrence import is_recurrent_core_config
 from dendritic_modeling.examples import example_names, example_text
 from dendritic_modeling.scripts.script_utils.setup_utils import initialize_model
 
@@ -43,14 +44,23 @@ def main() -> None:
         finally:
             sys.argv = saved
     for name in example_names():
-        cfg = config_from_mapping(yaml.safe_load(example_text(name)))
+        raw = yaml.safe_load(example_text(name))
+        cfg = config_from_mapping(raw)
         torch.manual_seed(42)
         model, _ = initialize_model(cfg.model)
-        output = model(torch.rand(2, cfg.model.encoder.params.input_dim))
+        width = cfg.model.encoder.params.input_dim
+        shape = (
+            (2, 5, width)
+            if is_recurrent_core_config(raw["model"]["core"])
+            else (2, width)
+        )
+        output = model(torch.rand(shape))
         if isinstance(output, (list, tuple)):
             output = output[0]
+        assert output.shape == (2, cfg.model.decoder.params.output_dim), name
         assert torch.isfinite(output).all()
         output.square().mean().backward()
+        assert any(p.grad is not None for p in model.parameters()), name
         assert all(
             torch.isfinite(p.grad).all()
             for p in model.parameters()

@@ -212,9 +212,11 @@ Model checks, previews and runs
 
 The preview that redraws the design after every edit validates the
 configuration and resolves the population graph; it does not build weights,
-download data or touch a random stream. Its contact counts are the counts the
-builder uses (a test checks that they equal the active synapses of the built
-model).
+download data or touch a random stream. A population card shows the contact
+budget for each input stream. When several connections supply the same stream,
+the card labels their combined budget as shared. The connections show their
+polarity and any target-level restrictions. Checking the model reports the
+active contact count after construction.
 
 **Check model** builds the network in a separate process with the dataset's
 input shape and the configured seeds, and reports trainable parameters,
