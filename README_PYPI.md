@@ -4,9 +4,10 @@ DendriNet is a PyTorch library for networks built from dendritic neurons.
 It provides branched compartments, sparse excitatory and inhibitory synapses,
 shunting and additive integration, population networks, training and analysis.
 
-## Start with an installed example
+## Install and train a first model
 
 ```bash
+python -m pip install dendritic-modeling==0.5.0
 dendritic-example synthetic_population --output demo.yaml
 dendritic-train demo.yaml --epochs 1
 ```
@@ -21,7 +22,7 @@ reproduction requires the study's recorded dependencies, source and settings.
 
 ## Graphical model editor
 
-Install the companion distribution `dendrinet-studio` to draw dendritic
+Install the companion distribution with `python -m pip install dendrinet-studio==0.1.0` to draw dendritic
 populations, trace incoming E and I connections, and compare training runs on
 your computer. Launch it with `dendrinet-studio --workspace my-runs`. Designs
 export as YAML that the core training command accepts. The

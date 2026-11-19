@@ -23,15 +23,17 @@ distributed training, parameter sweeps and analysis tools.
 
 ## Installation
 
+Install the core library from PyPI in a Python 3.10 or later environment:
+
 ```bash
-git clone --branch develop https://github.com/KempnerInstitute/DendriNet.git
-cd DendriNet
-pip install -e .
+python -m pip install dendritic-modeling==0.5.0
 ```
 
-Python 3.10 or newer and PyTorch 2.8 or newer are required.
-[docs/installation.rst](docs/installation.rst) describes the tested
-environment, the pinned dependency versions and the optional extras.
+The import name is `dendritic_modeling`. The examples run on a CPU.
+The installation guide covers virtual environments, CPU and CUDA builds
+of PyTorch, optional dependencies and editable installs for contributors.
+[PyPI release](https://pypi.org/project/dendritic-modeling/0.5.0/) ·
+[Installation guide](docs/installation.rst)
 
 ## First steps
 
@@ -64,12 +66,15 @@ Draw a feedforward or recurrent population network, select a neuron population
 to see where its excitatory and inhibitory contacts come from, then train and
 compare runs. Studio provides forms for other model families and a YAML editor
 for the full configuration. The exported YAML also runs with `dendritic-train`.
-To launch it from this checkout, run
+To use the graphical editor, install Studio on the computer where you want
+to train. Pip also installs a compatible core library.
 
 ```bash
-python -m pip install -e . -e ./apps/studio
+python -m pip install dendrinet-studio==0.1.0
 dendrinet-studio --workspace my-runs
 ```
+
+Open the local address printed by Studio in your browser. [Studio on PyPI](https://pypi.org/project/dendrinet-studio/0.1.0/)
 
 ## Documentation
 

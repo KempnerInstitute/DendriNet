@@ -6,8 +6,46 @@ and PyTorch 2.8 or newer. The continuous-integration tests run on Linux with
 Python 3.10, 3.11 and 3.12 on CPUs. A CUDA GPU is optional; the Triton
 kernels of indexed synapses need one.
 
-Install from a checkout
------------------------
+Install from PyPI
+-----------------
+
+Create a virtual environment on your computer. On Linux or macOS:
+
+.. code-block:: bash
+
+   python3 -m venv .venv
+   source .venv/bin/activate
+
+On Windows PowerShell, use ``py -m venv .venv`` and run
+``.\.venv\Scripts\Activate.ps1``. In the activated environment, install
+the released core package:
+
+.. code-block:: bash
+
+   python -m pip install dendritic-modeling==0.5.0
+   python -m pip check
+
+The Python import name is ``dendritic_modeling``. For a graphical editor,
+install ``dendrinet-studio==0.1.0`` and launch it locally:
+
+.. code-block:: bash
+
+   python -m pip install dendrinet-studio==0.1.0
+   dendrinet-studio --workspace my-runs
+
+Installing Studio on its own also installs a compatible core (0.5.x).
+See :ref:`studio-first-run` to train a synthetic network in the browser.
+The published files are on the
+`core PyPI page <https://pypi.org/project/dendritic-modeling/0.5.0/>`_ and the
+`Studio PyPI page <https://pypi.org/project/dendrinet-studio/0.1.0/>`_.
+
+Pip resolves PyTorch and torchvision as dependencies. To select Linux
+CPU-only wheels or a particular CUDA build, install a compatible torch and
+torchvision pair in the same environment first, using the
+`PyTorch installation selector <https://pytorch.org/get-started/locally/>`_.
+
+Install from a checkout for development
+---------------------------------------
 
 .. code-block:: bash
 

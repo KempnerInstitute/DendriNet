@@ -28,29 +28,23 @@ model builders and trainer. You can move a design between them at any point.
 Install and start
 -----------------
 
-To try Studio from a checkout that contains ``apps/studio``, activate a Python
-environment and run these commands in the repository root on your computer.
-See :doc:`installation` for supported Python and PyTorch versions.
+In a fresh Python 3.10 or later environment on your computer, install Studio
+from PyPI. Pip installs the compatible core library and PyTorch.
 
 .. code-block:: bash
 
-   python -m pip install -e . -e ./apps/studio
+   python -m pip install dendrinet-studio==0.1.0
    dendrinet-studio --workspace my-runs
 
-Once the packages are published on PyPI, a reader can start from an empty
-Python environment. Pip installs the matching core library and PyTorch.
-
-.. code-block:: bash
-
-   python -m pip install dendrinet-studio
-   dendrinet-studio --workspace my-runs
+For an editable install, run ``python -m pip install -e . -e ./apps/studio``
+from the repository root. See :doc:`installation` for environment setup.
 
 The command opens the local app and prints its address. If the tab fails to
 open, paste the **whole printed address** into a browser on the same computer,
 including its port and the session token after ``#``. Keep the command running
-while you work. Ctrl+C stops the server and its workers. The online
-documentation can be read anywhere. Training takes place on the computer
-running the command. A laptop installation needs no SSH connection.
+while you work. Ctrl+C stops the server and its workers. Training takes place
+on the computer running the command. A local installation works offline after
+its dependencies and any required datasets have been downloaded.
 
 .. list-table::
    :header-rows: 1

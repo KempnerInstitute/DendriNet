@@ -6,11 +6,11 @@ and local sources of its excitatory and inhibitory contacts. Inspect the
 contact count at each dendritic level, build the network, or train and compare
 two designs. Each design exports as an ordinary DendriNet experiment YAML.
 
-From a repository checkout, run `python -m pip install -e . -e ./apps/studio`
-at the repository root. Once the packages are on PyPI, install and launch with
+In a fresh Python 3.10 or later environment on your computer, install and launch
+the published Studio release:
 
 ```bash
-python -m pip install dendrinet-studio
+python -m pip install dendrinet-studio==0.1.0
 dendrinet-studio --workspace my-runs
 ```
 
@@ -18,6 +18,9 @@ Installing Studio installs the `dendritic_modeling` library and PyTorch. The
 command prints a local address including a session token and opens it in your
 browser. Keep the command running while you work. The first two-class example
 generates its data locally and runs on a CPU.
+
+For development, install both packages from the repository root with
+`python -m pip install -e . -e ./apps/studio`.
 
 ## What you can do
 

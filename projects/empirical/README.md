@@ -6,6 +6,10 @@ renderer for Supplementary Figure S29. The examples cover Figures 3D and 7F.
 The full set of seed sweeps, checkpoints and source tables for the other
 panels is outside this example package.
 
+Download and unpack `empirical-examples.zip` for the eight configurations,
+analysis scripts and per-seed data in one directory. The checksums are
+attached to the same release. [Empirical examples and checksums](https://github.com/KempnerInstitute/DendriNet/releases/tag/v0.5.0)
+
 ## Build a network
 
 The models in these examples trained with DendriNet v0.3.0. In an environment
@@ -74,9 +78,12 @@ python projects/empirical/analysis/plot_software_guide.py \
 ```
 
 The downloadable examples also work as a standalone directory. They include the
-tutorial YAML and the source-data asset. From the unpacked directory, run:
+tutorial YAML and the source-data asset. To reproduce the two reference tables
+and the S29 PDF, use the reader release with the paper's numerical dependencies.
+From the unpacked directory, run:
 
 ```bash
+python -m pip install dendritic-modeling==0.5.0 numpy==2.2.6 pandas==2.3.3 matplotlib==3.10.6
 python analysis/reproduce.py empirical-example-data.zip --output figure3d-results
 python analysis/plot_software_guide.py --tutorial tutorial.yaml \
   --summaries figure3d-results --output software-guide.pdf
