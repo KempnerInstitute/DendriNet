@@ -1,9 +1,7 @@
 name: CI Pipeline
 
 permissions:
-  contents: write
-  issues: write
-  pull-requests: write
+  contents: read
 
 on:
   pull_request:
@@ -59,6 +57,9 @@ jobs:
   # Core tests - essential functionality
   test:
     needs: quality
+    permissions:
+      contents: read
+      issues: write  # The coverage action comments on existing PRs via the issue-comments API.
     runs-on: ${{ matrix.os }}
     timeout-minutes: 75
     strategy:
@@ -189,32 +190,12 @@ jobs:
         name: codecov-umbrella
         fail_ci_if_error: false
 
-    - name: Generate repo-hosted coverage badge
+    - name: Generate coverage badge for the report
       if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
       run: |
         python docs/scripts/generate_coverage_badge.py \
           --coverage-xml coverage.xml \
-          --output docs/_static/badges/coverage.svg
-
-    - name: Propose coverage badge update
-      if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/develop' && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
-      uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
-      with:
-        token: ${{ secrets.COVERAGE_PR_TOKEN || github.token }}
-        base: develop
-        branch: ci/coverage-badge
-        add-paths: docs/_static/badges/coverage.svg
-        author: github-actions[bot] <41898283+github-actions[bot]@users.noreply.github.com>
-        committer: github-actions[bot] <41898283+github-actions[bot]@users.noreply.github.com>
-        commit-message: Update coverage badge from CI
-        title: Update coverage badge from CI
-        body: |
-          Update the README badge with line coverage measured by the Python 3.11 CPU tests.
-
-          Source commit: `${{ github.sha }}`.
-          [Coverage report and test results](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}).
-
-          Only the badge changes; merging requires review.
+          --output coverage.svg
 
     - name: Check coverage file exists
       if: github.event_name == 'pull_request' && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
@@ -252,7 +233,9 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: coverage-${{ matrix.os }}-${{ matrix.python-version }}
-        path: coverage.xml
+        path: |
+          coverage.xml
+          coverage.svg
 
   # Security and documentation - only on PRs to save resources
   extras:

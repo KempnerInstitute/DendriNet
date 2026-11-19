@@ -1,7 +1,10 @@
-"""CI and the documentation deployment run for develop, not the retired main branch."""
+"""Workflow triggers, permissions and outputs for the institutional repository."""
 
 from __future__ import annotations
 
+import shlex
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -43,3 +46,36 @@ def test_branch_events_run_for_develop_only():
             assert filters.get("branches") == ["develop"], (path.name, event)
             checked += 1
     assert checked
+
+
+@pytest.mark.requires_git_checkout
+def test_ci_delivers_the_measured_coverage_badge_without_repository_writes(tmp_path):
+    workflow = yaml.safe_load((WORKFLOWS / "ci-simplified.yml").read_text())
+    for job in workflow["jobs"].values():
+        permissions = job.get("permissions", workflow["permissions"])
+        assert permissions["contents"] == "read"
+        assert permissions.get("pull-requests", "none") in {"read", "none"}
+
+    steps = workflow["jobs"]["test"]["steps"]
+    assert not any("create-pull-request@" in step.get("uses", "") for step in steps)
+    generation = next(
+        step["run"]
+        for step in steps
+        if "generate_coverage_badge.py" in step.get("run", "")
+    )
+    command = shlex.split(generation.replace("\\\n", " "))
+    report = tmp_path / "coverage.xml"
+    report.write_text('<coverage line-rate="0.8126"/>', encoding="utf-8")
+    subprocess.run(
+        [sys.executable, WORKFLOWS.parents[1] / command[1], *command[2:]],
+        cwd=tmp_path,
+        check=True,
+    )
+    artifact = next(
+        step["with"]
+        for step in steps
+        if step.get("uses", "").startswith("actions/upload-artifact@")
+        and step["with"]["name"].startswith("coverage-")
+    )
+    assert set(artifact["path"].splitlines()) == {"coverage.xml", "coverage.svg"}
+    assert 'aria-label="coverage: 81.3%"' in (tmp_path / "coverage.svg").read_text()
