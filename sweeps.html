@@ -6,14 +6,14 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Parameter sweeps &mdash; DendriNet v0.4.0</title>
+  <title>Parameter sweeps &mdash; DendriNet v0.5.0</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
 
   
       <script src="_static/jquery.js?v=5d32c60e"></script>
       <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="_static/documentation_options.js?v=6c02275b"></script>
+      <script src="_static/documentation_options.js?v=1dd76d02"></script>
       <script src="_static/doctools.js?v=fd6eb6e6"></script>
       <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/js/theme.js"></script>
@@ -45,6 +45,8 @@
               <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="releases.html">Preparing a public release</a></li>
+<li class="toctree-l1"><a class="reference internal" href="studio.html">DendriNet Studio</a></li>
 <li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quickstart</a></li>
 <li class="toctree-l1"><a class="reference internal" href="examples.html">Example configurations</a></li>
 </ul>
@@ -751,8 +753,8 @@ shares:</p>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">conda_env_path</span></code></p></td>
 <td><p>unset</p></td>
 <td><p>Environment whose <code class="docutils literal notranslate"><span class="pre">bin/python</span></code> runs the training (its <code class="docutils literal notranslate"><span class="pre">lib</span></code> is
-added to <code class="docutils literal notranslate"><span class="pre">LD_LIBRARY_PATH</span></code>). Unset: the <code class="docutils literal notranslate"><span class="pre">python</span></code> first on <code class="docutils literal notranslate"><span class="pre">PATH</span></code>
-after <code class="docutils literal notranslate"><span class="pre">module</span> <span class="pre">purge</span></code>.</p></td>
+added to <code class="docutils literal notranslate"><span class="pre">LD_LIBRARY_PATH</span></code>). Installed wheels reuse the generating
+interpreter unless modules or a conda environment select another one.</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">launcher</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">python</span></code></p></td>
@@ -764,11 +766,16 @@ after <code class="docutils literal notranslate"><span class="pre">module</span>
 </tr>
 </tbody>
 </table>
-<p>The job name is the sweep’s prefix (a <code class="docutils literal notranslate"><span class="pre">job_name</span></code> key is not used). Every
-job runs in the library checkout that generated the sweep
-(<code class="docutils literal notranslate"><span class="pre">#SBATCH</span> <span class="pre">--chdir</span></code>), puts that checkout’s <code class="docutils literal notranslate"><span class="pre">src/</span></code> first on <code class="docutils literal notranslate"><span class="pre">PYTHONPATH</span></code>
-and runs <code class="docutils literal notranslate"><span class="pre">module</span> <span class="pre">purge</span></code>, so the cluster must provide environment modules.
-Each array task trains one config.</p>
+<p>The job name is the sweep’s prefix. Jobs generated from a source checkout
+enter the checkout, put its <code class="docutils literal notranslate"><span class="pre">src/</span></code> first on <code class="docutils literal notranslate"><span class="pre">PYTHONPATH</span></code> and check the
+recorded Git state when available. With an installed wheel, jobs start in the
+directory where you ran <code class="docutils literal notranslate"><span class="pre">dendritic-sweep</span></code>. A relative <code class="docutils literal notranslate"><span class="pre">data.base_dir</span></code> or
+<code class="docutils literal notranslate"><span class="pre">model.initial_checkpoint</span></code> is read from that directory. The generated
+manifest records it for reruns launched from another directory. Results go
+to the configured sweep output. Jobs launch the installed training module
+and check the package digest before training. An installed custom training script can
+be given as an absolute path on the compute nodes. Jobs clear environment
+modules when available. Each array task trains one config.</p>
 <p><code class="docutils literal notranslate"><span class="pre">time</span></code> takes a quoted Slurm duration with a colon or a day prefix
 (<code class="docutils literal notranslate"><span class="pre">&quot;HH:MM:SS&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;MM:SS&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;D-HH&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;D-HH:MM:SS&quot;</span></code>), or an integer
 number of seconds. YAML reads an unquoted <code class="docutils literal notranslate"><span class="pre">12:00:00</span></code> as the integer 43200,

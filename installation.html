@@ -6,20 +6,20 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Installation &mdash; DendriNet v0.4.0</title>
+  <title>Installation &mdash; DendriNet v0.5.0</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
 
   
       <script src="_static/jquery.js?v=5d32c60e"></script>
       <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="_static/documentation_options.js?v=6c02275b"></script>
+      <script src="_static/documentation_options.js?v=1dd76d02"></script>
       <script src="_static/doctools.js?v=fd6eb6e6"></script>
       <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Quickstart" href="quickstart.html" />
+    <link rel="next" title="Preparing a public release" href="releases.html" />
     <link rel="prev" title="DendriNet" href="index.html" /> 
 </head>
 
@@ -47,11 +47,14 @@
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Installation</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#install-from-a-checkout">Install from a checkout</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#optional-dependencies">Optional dependencies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#examples-without-a-checkout">Examples without a checkout</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#check-the-installation">Check the installation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#data">Data</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#numerical-environments">Numerical environments</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="releases.html">Preparing a public release</a></li>
+<li class="toctree-l1"><a class="reference internal" href="studio.html">DendriNet Studio</a></li>
 <li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quickstart</a></li>
 <li class="toctree-l1"><a class="reference internal" href="examples.html">Example configurations</a></li>
 </ul>
@@ -151,6 +154,10 @@ including the PyTorch wheels.</p>
 <p>These instructions select the maintained <code class="docutils literal notranslate"><span class="pre">develop</span></code> branch. For a study,
 check out and record the exact library commit before running experiments;
 see <a class="reference internal" href="project_provenance.html"><span class="doc">Project provenance</span></a>.</p>
+<p>To add the graphical editor, install both packages from the same checkout
+with <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">pip</span> <span class="pre">install</span> <span class="pre">-e</span> <span class="pre">.</span> <span class="pre">-e</span> <span class="pre">./apps/studio</span></code>. Start it locally with
+<code class="docutils literal notranslate"><span class="pre">dendrinet-studio</span> <span class="pre">--workspace</span> <span class="pre">my-runs</span></code>. See <a class="reference internal" href="studio.html#studio-install"><span class="std std-ref">Install and start</span></a> for
+browser access and <a class="reference internal" href="studio.html#studio-first-run"><span class="std std-ref">Train your first network</span></a> for a download-free tutorial.</p>
 <p>The constraints file <code class="docutils literal notranslate"><span class="pre">setup/constraints/core-py310-torch2.9.1.txt</span></code> pins the
 versions the test suite passed with on Python 3.10: PyTorch 2.9.1 with its
 CUDA 12.8 wheels from PyPI, NumPy 2.2 and SciPy 1.15, among others. Without
@@ -215,6 +222,18 @@ checkpoints (<code class="docutils literal notranslate"><span class="pre">torcha
 videos when <code class="docutils literal notranslate"><span class="pre">ffmpeg</span></code> is installed (<code class="docutils literal notranslate"><span class="pre">conda</span> <span class="pre">install</span> <span class="pre">-c</span> <span class="pre">conda-forge</span> <span class="pre">ffmpeg</span></code>)
 and as GIF files otherwise.</p>
 </section>
+<section id="examples-without-a-checkout">
+<h2>Examples without a checkout<a class="headerlink" href="#examples-without-a-checkout" title="Link to this heading"></a></h2>
+<p>The installed package includes small tutorial configurations:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>dendritic-example<span class="w"> </span>synthetic_population<span class="w"> </span>--output<span class="w"> </span>demo.yaml
+dendritic-train<span class="w"> </span>demo.yaml<span class="w"> </span>--epochs<span class="w"> </span><span class="m">1</span>
+</pre></div>
+</div>
+<p>The synthetic example generates data locally. <code class="docutils literal notranslate"><span class="pre">mnist_population</span></code> downloads
+MNIST on its first run. These examples are independent of the current working
+directory and are not paper reproduction recipes. The exporter never overwrites
+an existing file. See <a class="reference internal" href="releases.html"><span class="doc">Preparing a public release</span></a> for package release preparation.</p>
+</section>
 <section id="check-the-installation">
 <h2>Check the installation<a class="headerlink" href="#check-the-installation" title="Link to this heading"></a></h2>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">"import dendritic_modeling; print(dendritic_modeling.__file__)"</span>
@@ -262,7 +281,7 @@ recorded stack, for example from a constraints file that
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="index.html" class="btn btn-neutral float-left" title="DendriNet" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="quickstart.html" class="btn btn-neutral float-right" title="Quickstart" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="releases.html" class="btn btn-neutral float-right" title="Preparing a public release" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

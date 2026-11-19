@@ -6,21 +6,21 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Quickstart &mdash; DendriNet v0.4.0</title>
+  <title>Quickstart &mdash; DendriNet v0.5.0</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
 
   
       <script src="_static/jquery.js?v=5d32c60e"></script>
       <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="_static/documentation_options.js?v=6c02275b"></script>
+      <script src="_static/documentation_options.js?v=1dd76d02"></script>
       <script src="_static/doctools.js?v=fd6eb6e6"></script>
       <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="Example configurations" href="examples.html" />
-    <link rel="prev" title="Installation" href="installation.html" /> 
+    <link rel="prev" title="DendriNet Studio" href="studio.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -45,6 +45,8 @@
               <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="releases.html">Preparing a public release</a></li>
+<li class="toctree-l1"><a class="reference internal" href="studio.html">DendriNet Studio</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Quickstart</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#train-a-population-network-on-mnist">Train a population network on MNIST</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#read-the-run-directory">Read the run directory</a></li>
@@ -145,6 +147,8 @@ connections, in feedforward or recurrent layers.</p>
 writes, analyzes the trained checkpoint and generates a parameter sweep. Run
 the commands from the root of the repository checkout, after installing the
 package as described in <a class="reference internal" href="installation.html"><span class="doc">Installation</span></a>.</p>
+<p>For a first run in a browser, <a class="reference internal" href="studio.html#studio-first-run"><span class="std std-ref">Train your first network</span></a> uses a small synthetic
+dataset and exports the same kind of YAML used by the commands below.</p>
 <section id="train-a-population-network-on-mnist">
 <h2>Train a population network on MNIST<a class="headerlink" href="#train-a-population-network-on-mnist" title="Link to this heading"></a></h2>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>dendritic-train<span class="w"> </span>configs/examples/population_network_feedforward.yaml<span class="w"> </span>--epochs<span class="w"> </span><span class="m">1</span>
@@ -345,7 +349,7 @@ checked.</p></li>
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="installation.html" class="btn btn-neutral float-left" title="Installation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="studio.html" class="btn btn-neutral float-left" title="DendriNet Studio" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
         <a href="examples.html" class="btn btn-neutral float-right" title="Example configurations" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 

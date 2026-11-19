@@ -1,0 +1,346 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Preparing a public release &mdash; DendriNet v0.5.0</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=1dd76d02"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="DendriNet Studio" href="studio.html" />
+    <link rel="prev" title="Installation" href="installation.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            DendriNet
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Preparing a public release</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#package-boundary">Package boundary</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#release-order">Release order</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#prepare-the-release-pull-request">1. Prepare the release pull request</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#set-up-publishing-access">2. Set up publishing access</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#tag-the-reviewed-merge">3. Tag the reviewed merge</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#stage-and-install-both-packages-from-testpypi">4. Stage and install both packages from TestPyPI</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#promote-core-then-studio">5. Promote core, then Studio</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#installed-examples">Installed examples</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#research-projects">Research projects</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="studio.html">DendriNet Studio</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Example configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Building models</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="network_architectures.html">Model architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dendritic_neurons.html">Dendritic neurons</a></li>
+<li class="toctree-l1"><a class="reference internal" href="synapses.html">Synapses and connectivity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="population_networks.html">Population networks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="temporal_dynamics.html">Temporal dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="structured_ei_cores.html">Structured E/I cores</a></li>
+<li class="toctree-l1"><a class="reference internal" href="conductance_options.html">Conductance options</a></li>
+<li class="toctree-l1"><a class="reference internal" href="comparison_models.html">Baselines and comparison models</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Configuration</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="configuration_guide.html">Configuration guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config_reference.html">Annotated reference configurations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Training</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="training_strategies.html">Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="distributed_training.html">Distributed training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="performance_kernels.html">Sparse execution and performance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Data and analysis</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="datasets.html">Datasets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="analysis.html">Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="analyzers.html">Analyzer reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="checkpoint_analysis.html">Analyzing saved checkpoints</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Running experiments</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="runs_and_outputs.html">Runs and outputs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sweeps.html">Parameter sweeps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="model_compression.html">Compact checkpoints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="project_provenance.html">Project provenance</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="available_components.html">Component catalogue</a></li>
+<li class="toctree-l1"><a class="reference internal" href="options_reference.html">Options reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cli_reference.html">Command-line reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api_reference.html">Python API</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="extending.html">Extending DendriNet</a></li>
+<li class="toctree-l1"><a class="reference internal" href="engineering_architecture.html">Engineering architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">DendriNet</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Preparing a public release</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/releases.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="preparing-a-public-release">
+<h1>Preparing a public release<a class="headerlink" href="#preparing-a-public-release" title="Link to this heading"></a></h1>
+<p>DendriNet uses the existing institutional repository and its accepted core
+history. Private extensions and local archive branches are not part of a
+public release. A release does not require rewriting that history or changing
+the versions used by scientific studies.</p>
+<section id="package-boundary">
+<h2>Package boundary<a class="headerlink" href="#package-boundary" title="Link to this heading"></a></h2>
+<p>The installed package contains <code class="docutils literal notranslate"><span class="pre">dendritic_modeling</span></code> and its small tutorial
+configurations. <code class="docutils literal notranslate"><span class="pre">projects/</span></code> holds study-specific code and <code class="docutils literal notranslate"><span class="pre">apps/</span></code> holds
+optional applications; neither is included in the core distribution. The
+source distribution also contains the reference configs, tests and docs.
+<code class="docutils literal notranslate"><span class="pre">setup/check_distribution.py</span></code> checks the built archives against this boundary.</p>
+</section>
+<section id="release-order">
+<h2>Release order<a class="headerlink" href="#release-order" title="Link to this heading"></a></h2>
+<p>Build and review both packages in one pull request to <code class="docutils literal notranslate"><span class="pre">develop</span></code>. After
+merging, tag the reviewed source, stage the wheels and source archives on
+TestPyPI, and promote the tested files to PyPI. Publish core first so a
+normal installation of Studio can resolve its dependency. Pull requests and
+pushes to <code class="docutils literal notranslate"><span class="pre">develop</span></code> build and test the packages without uploading to an
+index. <strong>TestPyPI uploads are publicly downloadable too.</strong></p>
+<p>The examples below use core <strong>0.5.0</strong> and Studio <strong>0.1.0</strong>. Substitute the
+approved versions for another release.</p>
+<section id="prepare-the-release-pull-request">
+<h3>1. Prepare the release pull request<a class="headerlink" href="#prepare-the-release-pull-request" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>Set the core version in <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code> and
+<code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/__init__.py</span></code>. Set the Studio version in
+<code class="docutils literal notranslate"><span class="pre">apps/studio/pyproject.toml</span></code> and <code class="docutils literal notranslate"><span class="pre">apps/studio/src/dendrinet_studio/__init__.py</span></code>.
+For this stable pair, use <code class="docutils literal notranslate"><span class="pre">dendritic_modeling&gt;=0.5.0,&lt;0.6</span></code> in Studio’s
+dependencies. Include the release notes in <code class="docutils literal notranslate"><span class="pre">CHANGELOG.md</span></code>.</p></li>
+<li><p>Push only the reviewed candidate branch and open its PR against <code class="docutils literal notranslate"><span class="pre">develop</span></code>.
+Review the package contents and any public study examples. The
+<strong>Package release</strong> check builds both source archives and wheels, checks
+metadata with Twine and inspects the core archive. It also installs both
+wheels outside the checkout, runs the installed examples and sweep checks,
+and exercises the Studio browser tests. Check the documentation build and
+the ordinary core test suite alongside the packaging job.</p></li>
+<li><p>Merge after review and passing CI. Record the merge commit from the PR
+and verify the checks on <code class="docutils literal notranslate"><span class="pre">develop</span></code>. The documentation workflow also
+deploys the Sphinx site to the Pages branch on this push. The hosted page
+is the Studio manual. The application runs locally. Under <strong>Settings →
+Pages</strong>, verify the publishing source and access for the intended readers.
+Before announcing public documentation, open the
+<a class="reference external" href="https://kempnerinstitute.github.io/DendriNet/studio.html">Studio guide</a>
+in a signed-out browser and check that the new walkthrough and figures load.</p></li>
+</ul>
+</section>
+<section id="set-up-publishing-access">
+<h3>2. Set up publishing access<a class="headerlink" href="#set-up-publishing-access" title="Link to this heading"></a></h3>
+<p>This one-time setup can be done while the PR is under review.</p>
+<ol class="arabic simple">
+<li><p>Use maintainer accounts on both <a class="reference external" href="https://pypi.org/">PyPI</a> and
+<a class="reference external" href="https://test.pypi.org/">TestPyPI</a>. The indices use separate accounts.</p></li>
+<li><p>In the institutional GitHub repository, create the Actions environments
+<code class="docutils literal notranslate"><span class="pre">testpypi</span></code> and <code class="docutils literal notranslate"><span class="pre">pypi</span></code>. If you restrict deployments by ref, allow the
+release <strong>tags</strong> for both packages (<code class="docutils literal notranslate"><span class="pre">v*</span></code> and <code class="docutils literal notranslate"><span class="pre">studio-v*</span></code>). Configure a
+production reviewer if your repository plan supports it.</p></li>
+<li><p>For each package on each index, configure a GitHub Trusted Publisher.
+Use owner <code class="docutils literal notranslate"><span class="pre">KempnerInstitute</span></code>, repository <code class="docutils literal notranslate"><span class="pre">DendriNet</span></code> and workflow
+filename <code class="docutils literal notranslate"><span class="pre">package.yml</span></code>. On TestPyPI use environment <code class="docutils literal notranslate"><span class="pre">testpypi</span></code>;
+on PyPI use <code class="docutils literal notranslate"><span class="pre">pypi</span></code>. The two project names are <code class="docutils literal notranslate"><span class="pre">dendritic-modeling</span></code>
+(Python import <code class="docutils literal notranslate"><span class="pre">dendritic_modeling</span></code>) and <code class="docutils literal notranslate"><span class="pre">dendrinet-studio</span></code>.
+For a new project, create a pending publisher in the account’s Publishing
+settings. For an existing project, its owner adds the publisher in project
+settings. A pending publisher does not reserve a name. See the
+<a class="reference external" href="https://docs.pypi.org/trusted-publishers/creating-a-project-through-oidc/">PyPI instructions</a>.</p></li>
+</ol>
+<p>The workflow requests a short-lived publishing credential for its GitHub
+environment. No upload token is needed in repository secrets. Repository
+visibility is a separate maintainer decision. Review the remote branches,
+tags and artifacts that will be visible before changing it.</p>
+</section>
+<section id="tag-the-reviewed-merge">
+<h3>3. Tag the reviewed merge<a class="headerlink" href="#tag-the-reviewed-merge" title="Link to this heading"></a></h3>
+<p>From an authenticated clone, set <code class="docutils literal notranslate"><span class="pre">release_commit</span></code> to the merged PR’s
+full commit SHA. Verify its ancestry and versions before creating tags. If
+the branch has advanced, keep the reviewed SHA.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>fetch<span class="w"> </span>origin<span class="w"> </span>develop
+git<span class="w"> </span>merge-base<span class="w"> </span>--is-ancestor<span class="w"> </span><span class="s2">"</span><span class="nv">$release_commit</span><span class="s2">"</span><span class="w"> </span>origin/develop
+git<span class="w"> </span>show<span class="w"> </span><span class="s2">"</span><span class="si">${</span><span class="nv">release_commit</span><span class="si">}</span><span class="s2">:pyproject.toml"</span>
+git<span class="w"> </span>show<span class="w"> </span><span class="s2">"</span><span class="si">${</span><span class="nv">release_commit</span><span class="si">}</span><span class="s2">:apps/studio/pyproject.toml"</span>
+git<span class="w"> </span>tag<span class="w"> </span>-a<span class="w"> </span>v0.5.0<span class="w"> </span><span class="s2">"</span><span class="nv">$release_commit</span><span class="s2">"</span><span class="w"> </span>-m<span class="w"> </span><span class="s2">"DendriNet 0.5.0"</span>
+git<span class="w"> </span>tag<span class="w"> </span>-a<span class="w"> </span>studio-v0.1.0<span class="w"> </span><span class="s2">"</span><span class="nv">$release_commit</span><span class="s2">"</span><span class="w"> </span>-m<span class="w"> </span><span class="s2">"DendriNet Studio 0.1.0"</span>
+git<span class="w"> </span>push<span class="w"> </span>origin<span class="w"> </span>refs/tags/v0.5.0<span class="w"> </span>refs/tags/studio-v0.1.0
+</pre></div>
+</div>
+<p>Use a remote configured for authorized pushes. The release check requires
+the tag to match the distribution’s declared version and its commit to be
+in the history of <code class="docutils literal notranslate"><span class="pre">origin/develop</span></code>. Pushing a tag alone does not upload files.</p>
+</section>
+<section id="stage-and-install-both-packages-from-testpypi">
+<h3>4. Stage and install both packages from TestPyPI<a class="headerlink" href="#stage-and-install-both-packages-from-testpypi" title="Link to this heading"></a></h3>
+<p>Use an authenticated GitHub CLI on your workstation. GitHub registers a
+manually dispatched workflow from the repository’s default branch, which
+must already contain <code class="docutils literal notranslate"><span class="pre">.github/workflows/package.yml</span></code>. Pass the <strong>tag</strong>
+as the workflow ref. See the <a class="reference external" href="https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow">GitHub manual dispatch guide</a>.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">repo</span><span class="o">=</span>KempnerInstitute/DendriNet
+gh<span class="w"> </span>workflow<span class="w"> </span>run<span class="w"> </span>package.yml<span class="w"> </span>--repo<span class="w"> </span><span class="s2">"</span><span class="nv">$repo</span><span class="s2">"</span><span class="w"> </span>--ref<span class="w"> </span>v0.5.0<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-f<span class="w"> </span><span class="nv">distribution</span><span class="o">=</span>core<span class="w"> </span>-f<span class="w"> </span><span class="nv">target</span><span class="o">=</span>testpypi
+gh<span class="w"> </span>workflow<span class="w"> </span>run<span class="w"> </span>package.yml<span class="w"> </span>--repo<span class="w"> </span><span class="s2">"</span><span class="nv">$repo</span><span class="s2">"</span><span class="w"> </span>--ref<span class="w"> </span>studio-v0.1.0<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-f<span class="w"> </span><span class="nv">distribution</span><span class="o">=</span>studio<span class="w"> </span>-f<span class="w"> </span><span class="nv">target</span><span class="o">=</span>testpypi
+</pre></div>
+</div>
+<p>In GitHub Actions, record the numeric <strong>run ID</strong> from each run’s URL
+(<code class="docutils literal notranslate"><span class="pre">/actions/runs/&lt;ID&gt;</span></code>) with its distribution and tag. Wait for both runs,
+including their upload jobs, to succeed. Run the following outside the
+source checkout in an empty directory and a fresh environment. Download
+only the two candidate wheels from TestPyPI. Pip will resolve their normal
+dependencies from the production index at installation.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>venv<span class="w"> </span>.venv
+.<span class="w"> </span>.venv/bin/activate
+python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>download<span class="w"> </span>--index-url<span class="w"> </span>https://test.pypi.org/simple/<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--only-binary<span class="o">=</span>:all:<span class="w"> </span>--no-deps<span class="w"> </span>--dest<span class="w"> </span>wheels<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span><span class="s1">'dendritic-modeling==0.5.0'</span><span class="w"> </span><span class="s1">'dendrinet-studio==0.1.0'</span>
+python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--index-url<span class="w"> </span>https://pypi.org/simple/<span class="w"> </span>wheels/*.whl
+python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>check
+dendritic-example<span class="w"> </span>synthetic_population<span class="w"> </span>--output<span class="w"> </span>demo.yaml
+dendritic-train<span class="w"> </span>demo.yaml<span class="w"> </span>--epochs<span class="w"> </span><span class="m">1</span>
+dendrinet-studio<span class="w"> </span>--workspace<span class="w"> </span>studio-check
+</pre></div>
+</div>
+<p>Open the printed URL, run <strong>Check model</strong>, and train the synthetic example
+on CPU as described in <a class="reference internal" href="studio.html#studio-first-run"><span class="std std-ref">Train your first network</span></a>. Keep the results of this
+clean-install check and the two staging run IDs. The <a class="reference external" href="https://packaging.python.org/en/latest/guides/using-testpypi/">packaging guide to
+TestPyPI</a>
+explains why dependencies are downloaded separately.</p>
+</section>
+<section id="promote-core-then-studio">
+<h3>5. Promote core, then Studio<a class="headerlink" href="#promote-core-then-studio" title="Link to this heading"></a></h3>
+<p>Set <code class="docutils literal notranslate"><span class="pre">core_stage_id</span></code> and <code class="docutils literal notranslate"><span class="pre">studio_stage_id</span></code> to the respective IDs from
+step 4. Run the first command and wait for a successful <strong>publish</strong> job.
+Then run the second and wait for it to succeed.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh<span class="w"> </span>workflow<span class="w"> </span>run<span class="w"> </span>package.yml<span class="w"> </span>--repo<span class="w"> </span><span class="s2">"</span><span class="nv">$repo</span><span class="s2">"</span><span class="w"> </span>--ref<span class="w"> </span>v0.5.0<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-f<span class="w"> </span><span class="nv">distribution</span><span class="o">=</span>core<span class="w"> </span>-f<span class="w"> </span><span class="nv">target</span><span class="o">=</span>pypi<span class="w"> </span>-f<span class="w"> </span><span class="nv">staging_run_id</span><span class="o">=</span><span class="s2">"</span><span class="nv">$core_stage_id</span><span class="s2">"</span>
+gh<span class="w"> </span>workflow<span class="w"> </span>run<span class="w"> </span>package.yml<span class="w"> </span>--repo<span class="w"> </span><span class="s2">"</span><span class="nv">$repo</span><span class="s2">"</span><span class="w"> </span>--ref<span class="w"> </span>studio-v0.1.0<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-f<span class="w"> </span><span class="nv">distribution</span><span class="o">=</span>studio<span class="w"> </span>-f<span class="w"> </span><span class="nv">target</span><span class="o">=</span>pypi<span class="w"> </span>-f<span class="w"> </span><span class="nv">staging_run_id</span><span class="o">=</span><span class="s2">"</span><span class="nv">$studio_stage_id</span><span class="s2">"</span>
+</pre></div>
+</div>
+<p>For each distribution, CI verifies the staging run’s workflow, commit
+and success, retrieves its artifacts, then matches the wheel and source
+archive names, versions and SHA-256 digests to the release on TestPyPI.
+Production receives those exact files. If verification fails, inspect the
+run ID, tag and file digests before approving an upload.</p>
+<p>Finally, in a second empty environment, install only
+<code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">pip</span> <span class="pre">install</span> <span class="pre">dendrinet-studio==0.1.0</span></code>. Run <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">pip</span> <span class="pre">check</span></code>,
+inspect both installed versions with
+<code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">pip</span> <span class="pre">show</span> <span class="pre">dendritic-modeling</span> <span class="pre">dendrinet-studio</span></code>, and repeat the
+local tutorial. The core-only install is <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">pip</span> <span class="pre">install</span> <span class="pre">dendritic-modeling==0.5.0</span></code>.
+Link the two PyPI pages and the Studio guide in the release notes. Keep
+research workflows on their recorded versions until their numerical
+comparisons qualify a newer release.</p>
+</section>
+</section>
+<section id="installed-examples">
+<h2>Installed examples<a class="headerlink" href="#installed-examples" title="Link to this heading"></a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>dendritic-example
+dendritic-example<span class="w"> </span>synthetic_population<span class="w"> </span>--output<span class="w"> </span>demo.yaml
+dendritic-train<span class="w"> </span>demo.yaml<span class="w"> </span>--epochs<span class="w"> </span><span class="m">1</span>
+</pre></div>
+</div>
+<p>The exporter refuses to overwrite an existing file. Tutorial settings are
+illustrations, not recommended hyperparameters or qualified paper recipes.</p>
+</section>
+<section id="research-projects">
+<h2>Research projects<a class="headerlink" href="#research-projects" title="Link to this heading"></a></h2>
+<p>Study protocols, sweep choices, cohort summaries and figure layouts belong in
+the study project. General models, training rules and analysis primitives
+remain in the library. A study release records its source, dependencies,
+resolved configurations, artifact identities and reproduction commands.
+See <a class="reference internal" href="project_provenance.html"><span class="doc">Project provenance</span></a>; publication does not migrate existing pins.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="installation.html" class="btn btn-neutral float-left" title="Installation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="studio.html" class="btn btn-neutral float-right" title="DendriNet Studio" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024-2026, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

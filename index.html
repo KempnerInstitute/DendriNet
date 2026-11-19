@@ -6,14 +6,14 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>DendriNet &mdash; DendriNet v0.4.0</title>
+  <title>DendriNet &mdash; DendriNet v0.5.0</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
 
   
       <script src="_static/jquery.js?v=5d32c60e"></script>
       <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="_static/documentation_options.js?v=6c02275b"></script>
+      <script src="_static/documentation_options.js?v=1dd76d02"></script>
       <script src="_static/doctools.js?v=fd6eb6e6"></script>
       <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/js/theme.js"></script>
@@ -44,6 +44,8 @@
               <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="releases.html">Preparing a public release</a></li>
+<li class="toctree-l1"><a class="reference internal" href="studio.html">DendriNet Studio</a></li>
 <li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quickstart</a></li>
 <li class="toctree-l1"><a class="reference internal" href="examples.html">Example configurations</a></li>
 </ul>
@@ -164,38 +166,41 @@ this structure and the families of cores.</p>
 <tr class="row-even"><td><p>Install DendriNet and train a first model</p></td>
 <td><p><a class="reference internal" href="installation.html"><span class="doc">Installation</span></a>, <a class="reference internal" href="quickstart.html"><span class="doc">Quickstart</span></a></p></td>
 </tr>
-<tr class="row-odd"><td><p>Find a configuration to start from</p></td>
+<tr class="row-odd"><td><p>Draw a network, trace E and I inputs and compare training runs</p></td>
+<td><p><a class="reference internal" href="studio.html"><span class="doc">DendriNet Studio</span></a>, <a class="reference internal" href="studio.html#studio-first-run"><span class="std std-ref">Train your first network</span></a></p></td>
+</tr>
+<tr class="row-even"><td><p>Find a configuration to start from</p></td>
 <td><p><a class="reference internal" href="examples.html"><span class="doc">Example configurations</span></a></p></td>
 </tr>
-<tr class="row-even"><td><p>Build populations of dendritic neurons</p></td>
+<tr class="row-odd"><td><p>Build populations of dendritic neurons</p></td>
 <td><p><a class="reference internal" href="population_networks.html"><span class="doc">Population networks</span></a></p></td>
 </tr>
-<tr class="row-odd"><td><p>Choose integration rules, gates and synapse types</p></td>
+<tr class="row-even"><td><p>Choose integration rules, gates and synapse types</p></td>
 <td><p><a class="reference internal" href="dendritic_neurons.html"><span class="doc">Dendritic neurons</span></a>, <a class="reference internal" href="synapses.html"><span class="doc">Synapses and connectivity</span></a>, <a class="reference internal" href="temporal_dynamics.html"><span class="doc">Temporal dynamics</span></a></p></td>
 </tr>
-<tr class="row-even"><td><p>Write and validate a configuration file</p></td>
+<tr class="row-odd"><td><p>Write and validate a configuration file</p></td>
 <td><p><a class="reference internal" href="configuration_guide.html"><span class="doc">Configuration guide</span></a></p></td>
 </tr>
-<tr class="row-odd"><td><p>Choose a learning rule or train on several GPUs</p></td>
+<tr class="row-even"><td><p>Choose a learning rule or train on several GPUs</p></td>
 <td><p><a class="reference internal" href="training_strategies.html"><span class="doc">Training</span></a>, <a class="reference internal" href="distributed_training.html"><span class="doc">Distributed training</span></a></p></td>
 </tr>
-<tr class="row-even"><td><p>Find the files a run writes</p></td>
+<tr class="row-odd"><td><p>Find the files a run writes</p></td>
 <td><p><a class="reference internal" href="runs_and_outputs.html"><span class="doc">Runs and outputs</span></a></p></td>
 </tr>
-<tr class="row-odd"><td><p>Analyze trained models and saved checkpoints</p></td>
+<tr class="row-even"><td><p>Analyze trained models and saved checkpoints</p></td>
 <td><p><a class="reference internal" href="analysis.html"><span class="doc">Analysis</span></a>, <a class="reference internal" href="analyzers.html"><span class="doc">Analyzer reference</span></a>, <a class="reference internal" href="checkpoint_analysis.html"><span class="doc">Analyzing saved checkpoints</span></a></p></td>
 </tr>
-<tr class="row-even"><td><p>Run parameter sweeps</p></td>
+<tr class="row-odd"><td><p>Run parameter sweeps</p></td>
 <td><p><a class="reference internal" href="sweeps.html"><span class="doc">Parameter sweeps</span></a></p></td>
 </tr>
-<tr class="row-odd"><td><p>Pin a project’s code to an exact library commit</p></td>
+<tr class="row-even"><td><p>Pin a project’s code to an exact library commit</p></td>
 <td><p><a class="reference internal" href="project_provenance.html"><span class="doc">Project provenance</span></a></p></td>
 </tr>
-<tr class="row-even"><td><p>Look up a component, an option or a command</p></td>
+<tr class="row-odd"><td><p>Look up a component, an option or a command</p></td>
 <td><p><a class="reference internal" href="available_components.html"><span class="doc">Component catalogue</span></a>, <a class="reference internal" href="options_reference.html"><span class="doc">Options reference</span></a>,
 <a class="reference internal" href="cli_reference.html"><span class="doc">Command-line reference</span></a></p></td>
 </tr>
-<tr class="row-odd"><td><p>Add components from your own package</p></td>
+<tr class="row-even"><td><p>Add components from your own package</p></td>
 <td><p><a class="reference internal" href="extending.html"><span class="doc">Extending DendriNet</span></a></p></td>
 </tr>
 </tbody>
@@ -204,6 +209,8 @@ this structure and the families of cores.</p>
 <p class="caption" role="heading"><span class="caption-text">Getting started</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="releases.html">Preparing a public release</a></li>
+<li class="toctree-l1"><a class="reference internal" href="studio.html">DendriNet Studio</a></li>
 <li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quickstart</a></li>
 <li class="toctree-l1"><a class="reference internal" href="examples.html">Example configurations</a></li>
 </ul>
