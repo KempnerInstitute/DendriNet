@@ -1,43 +1,18 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>DendriNet Studio</title>
-  <link rel="stylesheet" href="/style.css">
-  <script src="/app.js" defer></script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>DendriNet Studio</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="styles.css">
+<script type="module" src="js/app.js"></script>
 </head>
 <body>
-  <header><div><strong>DendriNet</strong> <span>Studio</span><small>LOCAL WORKSPACE</small></div><span id="version"></span></header>
-  <nav aria-label="Workspace"><button class="tab active" data-tab="design">Design</button><button class="tab" data-tab="config">Configuration</button><button class="tab" data-tab="runs">Runs &amp; results</button></nav>
-  <div id="status" role="status">Connecting to the local DendriNet service…</div>
-  <main id="design" class="view">
-    <aside>
-      <h2>Start a network</h2>
-      <label>Example<select id="example"></select></label><button id="loadExample">Load example</button>
-      <label class="upload">Import standalone YAML<input type="file" id="upload" accept=".yaml,.yml,.json"></label>
-      <h2>Network</h2><div id="layers"></div>
-      <button id="addLayer">+ Layer</button>
-      <label class="check"><input type="checkbox" id="biological"> Biological neuron constraints</label>
-      <p class="hint">Core constraints check input and output signs, nonnegative weights and Dale's law. They do not imply a complete biophysical model.</p>
-      <h2>Experiment</h2><div id="experiment"></div>
-      <label>Execution<select id="device"><option value="cpu">CPU</option><option value="auto">Available device (CPU / GPU)</option></select></label>
-      <button id="inspect">Check model &amp; count resources</button><button id="train" class="primary">Train</button>
-      <p class="hint">Check model loads the training dataset to determine the input shape. Some datasets require a download.</p>
-    </aside>
-    <section class="canvas-area">
-      <div class="section-head"><div><h1>Population network</h1><p>Select a population to edit its neurons.</p></div><button id="export">Export YAML</button></div>
-      <div class="metrics" id="metrics"></div>
-      <div class="graph-wrap"><svg id="graph" viewBox="0 0 900 400" role="img" aria-label="Configured population connections"></svg></div>
-      <div class="key"><span>△ E population</span><span>○ I population</span><span>→ excitation</span><span>⊣ inhibition</span><span>Dashed: delayed / disabled (labelled)</span></div>
-      <p class="hint">Population edges show configured pathways, not individual sampled or learned synapses.</p>
-      <div class="section-head"><h2 id="treeTitle">Neuron morphology</h2><span id="treeCount"></span></div>
-      <svg id="tree" viewBox="0 0 900 270" role="img" aria-label="Selected neuron's exact branching-factor morphology"></svg>
-      <p class="hint" id="treeNote">The soma and compartments are drawn from the selected branching factors.</p>
-    </section>
-    <aside class="inspector"><h2>Population settings</h2><div id="population"></div><h2>Connections into this layer</h2><div id="connections"></div><button id="addConnection">+ Connection</button></aside>
-  </main>
-  <section id="config" class="view hidden editor"><div class="section-head"><div><h1>Configuration</h1><p>The YAML is the experiment. Fields outside the visual controls are preserved.</p></div><button id="applyYaml" class="primary">Apply YAML</button></div><textarea id="yaml" spellcheck="false" aria-label="Experiment YAML"></textarea><p class="hint">Import a standalone experiment; resolve file-based extends and sweeps with the core tools first. YAML comments and formatting are not preserved.</p></section>
-  <section id="runs" class="view hidden results"><div class="section-head"><div><h1>Runs &amp; results</h1><p>Real outputs from the local worker. No demonstration measurements.</p></div><button id="refreshRuns">Refresh</button></div><div id="runList"></div></section>
+<div id="app" class="app" aria-busy="true">
+  <p class="boot">Loading DendriNet Studio…</p>
+</div>
+<noscript><p class="boot">DendriNet Studio needs JavaScript.</p></noscript>
 </body>
 </html>

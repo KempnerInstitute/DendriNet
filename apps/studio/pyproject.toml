@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "dendrinet-studio"
 version = "0.1.0.dev0"
-description = "Local graphical configuration editor and run browser for DendriNet"
+description = "Design, check, train and compare DendriNet models in the browser"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
@@ -21,4 +21,4 @@ dendrinet-studio = "dendrinet_studio.server:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-dendrinet_studio = ["web/*.html", "web/*.css", "web/*.js"]
+dendrinet_studio = ["web/*.html", "web/*.css", "web/*.svg", "web/js/*.js"]
