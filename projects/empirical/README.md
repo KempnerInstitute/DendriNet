@@ -2,7 +2,7 @@
 
 This project accompanies the empirical DendriNet paper. It contains eight
 training configurations, two analyses of published measurements and the
-renderer for Supplementary Figure S28. The examples cover Figures 3D and 8D.
+renderer for Supplementary Figure S29. The examples cover Figures 3D and 7F.
 The full set of seed sweeps, checkpoints and source tables for the other
 panels is outside this example package.
 
@@ -55,7 +55,7 @@ python projects/empirical/analysis/reproduce.py empirical-example-data.zip \
   seed and dendritic depth. `summary.csv` gives the mean across networks and
   the pointwise seed-bootstrap interval for three measurements. The script
   compares the resulting bytes with the reference table.
-- **Figure 8D.** `context/routing.csv` contains the rates of selecting the
+- **Figure 7F.** `context/routing.csv` contains the rates of selecting the
   correct target and the next cue's target for each trained seed. It covers
   intact networks and transplants in either layer. `context_summary.csv`
   gives both percentages and their pointwise seed-bootstrap intervals for four
@@ -63,7 +63,7 @@ python projects/empirical/analysis/reproduce.py empirical-example-data.zip \
   `bernardo` mean primary shunting, separately tuned additive, additive with
   the shunting training settings, and endpoint-gate shunting, respectively.
 
-To draw Supplementary Figure S28, use Matplotlib, PyYAML and the tutorial
+To draw Supplementary Figure S29, use Matplotlib, PyYAML and the tutorial
 configuration distributed with the Studio-capable checkout. The tutorial is
 a separate, generated-data demonstration.
 

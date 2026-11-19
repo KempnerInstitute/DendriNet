@@ -1,4 +1,4 @@
-"""Draw Supplementary Figure S28 from the two circulated models and replayed tables."""
+"""Draw Supplementary Figure S29 from the two circulated models and replayed tables."""
 
 import argparse
 from pathlib import Path

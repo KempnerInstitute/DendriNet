@@ -1,4 +1,4 @@
-"""Recompute the published seed summaries for Figure 3D and Figure 8D on a CPU."""
+"""Recompute the published seed summaries for Figure 3D and Figure 7F on a CPU."""
 
 import argparse
 import hashlib
