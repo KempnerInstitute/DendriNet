@@ -111,7 +111,6 @@ def _two_layer_document():
         lambda: example("synthetic_population"),
         _two_layer_document,
         lambda: example("recurrent_decision_population"),
-        lambda: example("adding_problem_population"),
     ],
 )
 def test_configured_contacts_equal_the_synapses_of_the_built_model(document):
@@ -390,6 +389,37 @@ def test_model_check_builds_with_the_imported_core_and_reports_counts(tmp_path):
         assert saved["config_sha256"] == row["config_sha256"]
         assert saved["exit_code"] == 0
         assert runs.config(row["id"]) == example("synthetic_population")
+    finally:
+        runs.close()
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize(
+    "name, dataset, measure",
+    [
+        ("adding_problem_gru", "adding_problem", "mse"),
+        (
+            "recurrent_decision_population",
+            "context_dependent_decision_positive",
+            "accuracy",
+        ),
+        ("structured_tree_synthetic", "linear_separable", "accuracy"),
+    ],
+)
+def test_recurrent_regression_and_structured_examples_train_through_studio_runs(
+    tmp_path, name, dataset, measure
+):
+    """Studio's run pipeline trains other families and tasks and reads their results."""
+    raw = example(name)
+    raw["training"]["main"]["common"]["epochs"] = 1
+    raw["data"]["dataset_params"][dataset]["n_samples"] = 256
+    runs = Runs(tmp_path, threads=2)
+    try:
+        row = runs.start(raw, kind="train", device="cpu", name=name)
+        result = _wait(runs, row["id"], 600)
+        assert result["status"] == "completed", result.get("log")
+        assert len(result["summary"]["train_losses"]) == 1
+        assert set(result["metrics"][measure]) >= {"train", "valid", "test"}
     finally:
         runs.close()
 

@@ -40,10 +40,14 @@ def page(studio):
         tab = context.new_page()
         tab.errors = []
         tab.on("pageerror", lambda error: tab.errors.append(str(error)))
+        # A rejected configuration is an HTTP 400 reply, which the browser logs.
         tab.on(
             "console",
             lambda message: (
-                tab.errors.append(message.text) if message.type == "error" else None
+                tab.errors.append(message.text)
+                if message.type == "error"
+                and "Failed to load resource" not in message.text
+                else None
             ),
         )
         tab.goto(f"http://127.0.0.1:{studio.server_port}/#{studio.studio_token}")
@@ -160,7 +164,9 @@ def test_other_families_open_with_their_own_forms(page):
         page.get_by_role("radio", name="Classification")
     ).to_have_attribute("aria-checked", "true")
     page.get_by_role("tab", name="Training").click()
-    playwright.expect(page.locator(".form-page")).to_contain_text("Initialization")
+    playwright.expect(page.locator("#view-training .form-page")).to_contain_text(
+        "Initialization"
+    )
     assert not page.errors, page.errors
 
 
