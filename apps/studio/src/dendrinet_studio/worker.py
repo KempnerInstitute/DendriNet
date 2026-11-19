@@ -15,11 +15,14 @@ from dendritic_modeling.scripts.script_utils.setup_utils import setup_environmen
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("config", type=Path)
-    parser.add_argument("output", type=Path)
+    parser.add_argument("config", type=Path, help="experiment YAML to build")
+    parser.add_argument("output", type=Path, help="JSON file for the resource counts")
+    parser.add_argument(
+        "--threads", type=int, default=1, help="CPU threads for construction"
+    )
     args = parser.parse_args()
     cfg = load_config(str(args.config))
-    torch.set_num_threads(1)
+    torch.set_num_threads(max(1, args.threads))
     # The trainer derives the encoder width from a sample and resolves topology
     # and initialization seeds here. Inspection does not create a training run.
     _, _, _, _, model, _ = setup_environment(
@@ -27,6 +30,7 @@ def main() -> None:
     )
     summary = model_resource_summary(model)
     summary["input_shape"] = cfg.model.encoder.params.input_shape
+    summary["model_family"] = cfg.model.core.type
     summary["scope"] = (
         "Built from the configured dataset and training seeds, before gate calibration."
     )
