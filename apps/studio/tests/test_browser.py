@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import threading
 import time
 from pathlib import Path
@@ -225,8 +226,9 @@ def test_check_model_then_train_and_compare(page, studio):
     epochs.fill("2")
     epochs.press("Enter")
     page.get_by_role("button", name="Train").click()
-    page.locator("dialog.dialog input").fill("two epochs")
-    page.get_by_role("button", name="Start training").click()
+    name = page.locator("dialog.dialog input")
+    name.fill("two epochs")
+    name.press("Enter")
     card = page.locator(".run-card", has_text="two epochs")
     playwright.expect(card.locator(".status")).to_contain_text(
         "Completed", timeout=300_000
@@ -367,3 +369,206 @@ def test_structured_feedforward_sources_follow_presence_of_inhibitory_cells(page
             ]
         )
     assert not page.errors
+
+
+def delay_next_response(page, endpoint):
+    """Deliver one real API response after a second UI action has taken place."""
+    page.evaluate(
+        """endpoint => {
+          const fetch = window.fetch.bind(window);
+          window.fetch = async (...args) => {
+            if (new URL(args[0], location.href).pathname !== "/api/" + endpoint) return fetch(...args);
+            window.fetch = fetch;
+            const response = await fetch(...args);
+            const json = response.json.bind(response);
+            response.json = async () => {
+              const payload = await json();
+              await new Promise(resolve => {
+                window.resumeStudioResponse = resolve;
+                document.documentElement.dataset.responseReady = "yes";
+              });
+              return payload;
+            };
+            return response;
+          };
+        }""",
+        endpoint,
+    )
+
+
+def release_response(page):
+    # Let the promise handlers settle before checking the resulting UI.
+    page.evaluate(
+        """async () => {
+        window.resumeStudioResponse();
+        delete window.resumeStudioResponse;
+        delete document.documentElement.dataset.responseReady;
+        await new Promise(done => setTimeout(done, 0));
+    }"""
+    )
+
+
+def test_morphology_drawing_is_bounded_and_keeps_the_real_level_counts(page):
+    raw = example("synthetic_population")
+    target = raw["model"]["core"]["population_network"]["layers"][0]["populations"][1]
+    for factors in ([3] * 4, [4] * 5, [6] * 8, [6] * 25, []):
+        target["branch_factors"] = factors
+        page.get_by_role("tab", name="YAML").click()
+        page.locator("textarea.yaml-text").fill(yaml.safe_dump(raw, sort_keys=False))
+        page.get_by_role("button", name="Apply").click()
+        playwright.expect(page.locator(".yaml-status")).to_contain_text("Matches")
+        page.get_by_role("tab", name="Model").click()
+        neuron = page.locator("svg.neuron")
+        levels = [1]
+        for daughters in factors:
+            levels.append(levels[-1] * daughters)
+        total = sum(levels)
+        drawn = 1 + neuron.locator(".dendrite").count()
+        assert drawn <= 160
+        table = page.locator("table.levels")
+        playwright.expect(
+            table.locator("tbody tr").first.locator("td").nth(1)
+        ).to_have_text(f"{levels[-1]:,}")
+        playwright.expect(
+            table.locator("tfoot tr").first.locator("th").nth(1)
+        ).to_have_text(f"{total:,}")
+        if factors in ([3] * 4, []):
+            assert drawn == total
+        else:
+            assert drawn < total
+            playwright.expect(neuron).to_have_attribute(
+                "aria-label", re.compile(f"{drawn} of {total:,} compartments")
+            )
+    label = page.evaluate(
+        """async () => {
+          const { drawNeuron } = await import("./js/morphology.js");
+          const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+          drawNeuron(svg, {counts: {ff_excitatory: [2000000]}});
+          return [svg.querySelector(".count-label").textContent, svg.querySelectorAll(".bouton").length];
+        }"""
+    )
+    assert label == ["2000000 E each", 0]
+    assert not page.errors, page.errors
+
+
+@pytest.mark.parametrize("invalid", [False, True])
+def test_adopting_an_example_supersedes_inflight_model_validation(page, invalid):
+    delay_next_response(page, "preview")
+    page.evaluate(
+        """async invalid => {
+        const { edit } = await import("./js/store.js");
+        void edit(config => {
+          if (invalid) config.unknown_option = true;
+          else config.experiment.seed = 102;
+        });
+    }""",
+        invalid,
+    )
+    page.locator("html[data-response-ready]").wait_for()
+    page.locator(".example", has_text="GRU baseline for regression").click()
+    page.get_by_role("button", name="Open example").click()
+    playwright.expect(page.locator(".detail-panel h3")).to_contain_text("GRU")
+    playwright.expect(
+        page.get_by_role("button", name="Train", exact=True)
+    ).to_be_enabled()
+    release_response(page)
+    assert page.evaluate(
+        """async () => {
+        const { state } = await import("./js/store.js");
+        return !state.validating && !state.error && JSON.stringify(state.config) === JSON.stringify(state.preview.config);
+    }"""
+    )
+    assert not page.errors, page.errors
+
+
+def test_restored_design_survives_repeated_reloads_until_discarded(page):
+    page.get_by_role("button", name="Edit population layer0.e").click()
+    neurons = page.locator('[data-key$="populations.1.n_neurons"]')
+    neurons.fill("12")
+    neurons.press("Enter")
+    for _ in range(2):
+        page.reload()
+        page.get_by_role("button", name="Restore", exact=True).click()
+        playwright.expect(neurons).to_have_value("12")
+        assert (
+            page.evaluate(
+                "JSON.parse(localStorage.getItem('dendrinet-studio-draft-v1')).config.model.core.population_network.layers[0].populations[1].n_neurons"
+            )
+            == 12
+        )
+    page.reload()
+    page.get_by_role("button", name="Discard", exact=True).click()
+    playwright.expect(neurons).to_have_value("16")
+    assert page.evaluate("localStorage.getItem('dendrinet-studio-draft-v1')") is None
+
+
+def test_prompt_confirms_on_enter_and_preserves_cancel_and_escape(page):
+    doc = page.locator("button.doc-name")
+    original = doc.inner_text()
+    for action in ("cancel", "Escape", "Enter"):
+        doc.click()
+        dialog = page.get_by_role("dialog", name="Rename this design")
+        field = dialog.get_by_role("textbox")
+        field.fill("updated design")
+        if action == "cancel":
+            dialog.get_by_role("button", name="Cancel").click()
+        else:
+            field.press(action)
+        playwright.expect(dialog).to_have_count(0)
+        playwright.expect(doc).to_have_text(
+            "updated design.yaml" if action == "Enter" else original
+        )
+
+
+@pytest.mark.parametrize("intervening_action", ["type", "adopt"])
+def test_delayed_yaml_dump_preserves_newer_text_or_document(page, intervening_action):
+    page.get_by_role("tab", name="YAML").click()
+    editor = page.locator("textarea.yaml-text")
+    delay_next_response(page, "dump")
+    page.evaluate(
+        """async () => {
+        const { edit } = await import("./js/store.js");
+        await edit(config => { config.unknown_option = true; });
+    }"""
+    )
+    page.locator("html[data-response-ready]").wait_for()
+    if intervening_action == "type":
+        expected = "# keep my edit\n" + editor.input_value()
+        editor.fill(expected)
+    else:
+        page.get_by_role("tab", name="Model").click()
+        page.locator(".example", has_text="GRU baseline for regression").click()
+        page.get_by_role("button", name="Open example").click()
+        playwright.expect(page.locator(".detail-panel h3")).to_contain_text("GRU")
+        page.get_by_role("tab", name="YAML").click()
+        expected = editor.input_value()
+        assert "gru" in expected.lower()
+    release_response(page)
+    playwright.expect(editor).to_have_value(expected)
+
+
+@pytest.mark.parametrize("invalid_submission", [False, True])
+def test_typing_during_apply_preserves_the_new_yaml(page, invalid_submission):
+    page.get_by_role("tab", name="YAML").click()
+    editor = page.locator("textarea.yaml-text")
+    raw = yaml.safe_load(editor.input_value())
+    original_seed = raw["experiment"]["seed"]
+    raw["experiment"]["seed"] = 101
+    submitted = "model: [" if invalid_submission else yaml.safe_dump(raw)
+    editor.fill(submitted)
+    delay_next_response(page, "preview")
+    page.get_by_role("button", name="Apply").click()
+    page.locator("html[data-response-ready]").wait_for()
+    raw["experiment"]["seed"] = 102
+    new_text = yaml.safe_dump(raw)
+    editor.fill(new_text)
+    release_response(page)
+    playwright.expect(editor).to_have_value(new_text)
+    playwright.expect(page.locator(".yaml-status")).to_contain_text("Edited")
+    read_seed = (
+        'async () => (await import("./js/store.js")).state.config.experiment.seed'
+    )
+    assert page.evaluate(read_seed) == original_seed
+    page.get_by_role("button", name="Apply").click()
+    playwright.expect(page.locator(".yaml-status")).to_contain_text("Matches")
+    assert page.evaluate(read_seed) == 102

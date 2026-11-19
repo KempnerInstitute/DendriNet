@@ -3,7 +3,7 @@
 // the design, and the line the reader stopped at is marked.
 
 import { h, icon, download, copyText } from "./dom.js";
-import { state, api, adopt } from "./store.js";
+import { state, api, adopt, validationRevision } from "./store.js";
 import { toast } from "./ui.js";
 
 let root = null;
@@ -11,6 +11,25 @@ let area = null;
 let gutter = null;
 let status = null;
 let baseline = "";
+let editorRevision = 0;
+
+// A response belongs to one request, one text edit and one model revision.
+function beginRequest() {
+  const editor = ++editorRevision;
+  const design = validationRevision;
+  return () => {
+    if (editor !== editorRevision) return false;
+    if (design === validationRevision) return true;
+    markChanged();
+    return false;
+  };
+}
+
+function textEdited() {
+  ++editorRevision;
+  syncGutter();
+  markChanged();
+}
 
 export function mountYaml(container) {
   root = container;
@@ -21,9 +40,12 @@ export function mountYaml(container) {
   file.addEventListener("change", async () => {
     const chosen = file.files?.[0];
     if (!chosen) return;
-    area.value = await chosen.text();
+    const current = beginRequest();
+    const text = await chosen.text();
     file.value = "";
-    syncGutter();
+    if (!current()) return;
+    area.value = text;
+    textEdited();
     await apply(chosen.name.replace(/\.(ya?ml|json)$/i, ""));
   });
   root.replaceChildren(
@@ -57,10 +79,7 @@ export function mountYaml(container) {
       ]),
     ])
   );
-  area.addEventListener("input", () => {
-    syncGutter();
-    markChanged();
-  });
+  area.addEventListener("input", textEdited);
   area.addEventListener("scroll", () => (gutter.scrollTop = area.scrollTop));
   area.addEventListener("keydown", event => {
     if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
@@ -70,8 +89,7 @@ export function mountYaml(container) {
       event.preventDefault();
       const { selectionStart: a, selectionEnd: b } = area;
       area.setRangeText("  ", a, b, "end");
-      syncGutter();
-      markChanged();
+      textEdited();
     }
   });
   refreshYaml(true);
@@ -81,6 +99,7 @@ export function mountYaml(container) {
 export async function refreshYaml(force = false) {
   if (!area) return;
   if (!force && area.value !== baseline) return;
+  const current = beginRequest();
   let text = state.preview && !state.error ? state.preview.yaml : null;
   if (text === null || text === undefined || JSON.stringify(state.config) !== JSON.stringify(state.preview?.config)) {
     try {
@@ -89,6 +108,7 @@ export async function refreshYaml(force = false) {
       text = JSON.stringify(state.config, null, 2);
     }
   }
+  if (!current()) return;
   baseline = text;
   area.value = text;
   syncGutter();
@@ -118,15 +138,18 @@ function setStatus(kind, text) {
 }
 
 async function apply(name) {
+  const current = beginRequest();
   setStatus("warn", "Checking…");
   try {
     const result = await api("preview", { yaml: area.value });
+    if (!current()) return;
     adopt(result, name || state.docName, { keepHistory: true });
     baseline = area.value;
     syncGutter();
     markChanged();
     toast("Configuration applied. Undo restores the previous design.", { kind: "ok" });
   } catch (error) {
+    if (!current()) return;
     const match = /line (\d+)/.exec(error.message);
     syncGutter(match ? Number(match[1]) : null);
     setStatus("error", error.message);

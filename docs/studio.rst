@@ -279,6 +279,10 @@ To extend a population network:
    network to choose which layer supplies the decoder.
 
 An invalid edit is reported and the drawing keeps the last valid preview.
+Small neurons are drawn in full when their branches fit. For large trees,
+the neuron view draws representative branches and labels how many children
+each represents. The caption gives the number drawn and the total, including
+the soma. The adjacent table covers every configured depth.
 Use undo and redo (Ctrl+Z, Ctrl+Shift+Z) to revisit a design, and **Show
 YAML keys** to see what a field writes. The diagram can be zoomed, fitted
 to the panel and exported as SVG.
@@ -298,7 +302,9 @@ them.
 **All options.** Every section of the configuration with a search box.
 
 **YAML.** Edit the design and choose **Apply** (Ctrl+Enter). The strict
-loader checks it before replacing the current design. Syntax errors include
+loader checks it before replacing the current design. If you continue typing
+during validation, choose **Apply** again to use the latest text. Restoring
+an unsaved design keeps its browser draft available across reloads. Syntax errors include
 the line when the parser can identify it. **Import** opens a standalone
 experiment. **Export** writes its settings as YAML. Re-exporting preserves
 configuration values, including options without a graphical control.

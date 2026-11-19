@@ -43,6 +43,7 @@ export function clear(element) {
 export const $ = id => document.getElementById(id);
 
 export function fmt(value, digits) {
+  if (typeof value === "bigint") return value.toLocaleString("en-US");
   if (value === null || value === undefined || Number.isNaN(value)) return "—";
   if (typeof value !== "number") return String(value);
   if (digits !== undefined) return value.toLocaleString("en-US", { maximumFractionDigits: digits, minimumFractionDigits: digits });

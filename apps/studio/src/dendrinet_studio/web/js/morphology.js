@@ -1,8 +1,8 @@
 // The neuron drawing, in the visual language of the DendriNet papers: hairline
 // dendrites, a filled soma (triangle for excitatory, circle for inhibitory
 // cells), excitatory contacts as round boutons and inhibitory contacts as bars.
-// The tree is the exact branching-factor tree; large trees show a few branches
-// per node with the true count written next to them, never a blank panel.
+// Small trees are drawn in full. Large trees show representative branches;
+// the level table always describes the configured neuron.
 
 import { s, h, fmt } from "./dom.js";
 
@@ -11,53 +11,56 @@ const H = 300;
 const TOP = 30;
 const BOTTOM = H - 40;
 const MAX_SHOWN = 6;
+const MAX_DRAWN_COMPARTMENTS = 160;
+const MAX_DRAWN_LEVELS = 10;
 const LEVEL_NAMES = (depth, deepest) => (depth === 0 ? "soma" : depth === deepest ? `${depth} · distal` : depth === 1 ? "1 · primary" : String(depth));
 
+// JavaScript numbers can round the level sizes of a large imported tree.
+export function compartmentLevels(factors) {
+  const levels = [1n];
+  for (const factor of factors) levels.push(levels.at(-1) * BigInt(factor));
+  return levels;
+}
+
 // counts: {ff_excitatory: [soma, d1, ...], ff_inhibitory: [...], rec_...}
-export function drawNeuron(svg, { polarity = "excitatory", factors = [], counts = {}, highlight = null, title = "" }) {
+export function drawNeuron(svg, { polarity = "excitatory", factors = [], levels = compartmentLevels(factors), counts = {}, highlight = null, title = "" }) {
   svg.replaceChildren();
   svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
   const depthCount = factors.length;
-  const tree = buildTree(factors, 0);
-  layout(tree, 70, W - 30);
-  const yOf = depth => (depthCount === 0 ? BOTTOM - 40 : BOTTOM - 14 - (depth * (BOTTOM - 14 - TOP)) / depthCount);
+  const shown = drawingFactors(factors);
+  const tree = buildTree(shown, 0, 70, W - 30);
+  const yOf = depth => BOTTOM - 14 - (depth * (BOTTOM - 14 - TOP)) / Math.max(1, shown.length);
   const somaX = tree.x;
   const somaY = BOTTOM;
   const segments = [];
-  const ellipses = [];
   walk(tree, node => {
     node.y = node.depth === 0 ? somaY : yOf(node.depth);
     for (const child of node.children) {
       segments.push([node, child]);
     }
-    if (node.hidden > 0) ellipses.push(node);
   });
   // Level guides and names.
-  for (let depth = 0; depth <= depthCount; depth++) {
+  for (let depth = 0; depth <= shown.length; depth++) {
     const y = depth === 0 ? somaY : yOf(depth);
     const active = highlight && highlight.includes(depth);
     svg.append(s("text", { x: 8, y: y + 4, class: "level-name" + (active ? " active" : "") }, [LEVEL_NAMES(depth, depthCount)]));
     if (depth > 0) svg.append(s("line", { x1: 62, x2: W - 10, y1: y, y2: y, class: "level-guide" + (active ? " active" : "") }));
+    if (depth > 0 && shown[depth - 1] < factors[depth - 1]) {
+      svg.append(s("text", { x: W - 12, y: y + 12, "text-anchor": "end", class: "more" }, [`${shown[depth - 1]} of ${fmt(factors[depth - 1])} children per parent`]));
+    }
   }
   // Dendrites.
   for (const [parent, child] of segments) {
     const startY = parent.depth === 0 ? somaY - 12 : parent.y;
     svg.append(s("path", { d: `M${parent.x} ${startY}L${child.x} ${child.y}`, class: "dendrite" }));
   }
-  for (const node of ellipses) {
-    const kids = node.children;
-    const last = kids.at(-1);
-    svg.append(s("text", { x: last.x + 10, y: last.y + 4, class: "more" }, [`×${node.factor}`]));
-  }
   // Contacts on each drawn compartment, drawn only while they stay legible:
   // where neighbouring branches of a level are close, the level is labelled once.
   const perComp = depth => ["ff_excitatory", "ff_inhibitory", "rec_excitatory", "rec_inhibitory"].map(k => (counts[k] || [])[depth] || 0);
-  const xsByDepth = new Map();
-  walk(tree, node => {
-    if (node.depth > 0) xsByDepth.set(node.depth, [...(xsByDepth.get(node.depth) || []), node.x]);
-  });
+  const xsByDepth = Array.from({ length: shown.length + 1 }, () => []);
+  walk(tree, node => xsByDepth[node.depth].push(node.x));
   const crowded = new Set();
-  for (const [depth, xs] of xsByDepth) {
+  for (const [depth, xs] of xsByDepth.entries()) {
     xs.sort((a, b) => a - b);
     for (let i = 1; i < xs.length; i++) if (xs[i] - xs[i - 1] < 24) crowded.add(depth);
   }
@@ -91,8 +94,9 @@ export function drawNeuron(svg, { polarity = "excitatory", factors = [], counts 
   }
   // Somatic contacts on the two flanks of the soma.
   const [se, si, sre, sri] = perComp(0);
-  const somaKinds = interleave([["fe", se], ["fi", si], ["re", sre], ["ri", sri]]);
-  if (somaKinds.length && somaKinds.length <= 24) {
+  const somaContacts = se + si + sre + sri;
+  if (somaContacts > 0 && somaContacts <= 24) {
+    const somaKinds = interleave([["fe", se], ["fi", si], ["re", sre], ["ri", sri]]);
     const half = Math.ceil(somaKinds.length / 2);
     somaKinds.forEach((kind, j) => {
       const left = j < half;
@@ -103,13 +107,20 @@ export function drawNeuron(svg, { polarity = "excitatory", factors = [], counts 
       const cy = somaY - 2 + Math.sin(angle) * 17;
       contact(svg, cx, cy, Math.cos(angle), Math.sin(angle), -Math.sin(angle), Math.cos(angle), kind);
     });
-  } else if (somaKinds.length) {
+  } else if (somaContacts) {
     svg.append(s("text", { x: somaX + 22, y: somaY + 4, class: "count-label" }, [contactText(se, si, sre, sri)]));
   }
   // Soma last, on top.
   if (polarity === "inhibitory") svg.append(s("circle", { cx: somaX, cy: somaY - 2, r: 10, class: "soma inh" }));
   else svg.append(s("path", { d: `M${somaX - 12} ${somaY + 9}L${somaX} ${somaY - 13}L${somaX + 12} ${somaY + 9}Z`, class: "soma exc" }));
-  svg.setAttribute("aria-label", title || "Neuron morphology");
+  let summary = "";
+  if (shown.length < depthCount || shown.some((n, i) => n < factors[i])) {
+    const total = levels.reduce((sum, n) => sum + n, 0n);
+    summary = `Showing ${fmt(segments.length + 1)} of ${fmt(total)} compartments, including the soma.`;
+    if (shown.length < depthCount) summary += ` The drawing stops at level ${shown.length} of ${depthCount}.`;
+  }
+  svg.setAttribute("aria-label", [title || "Neuron morphology", summary].filter(Boolean).join(". "));
+  return summary;
 }
 
 function contactText(fe, fi, re, ri) {
@@ -158,33 +169,31 @@ function contact(svg, x, y, nx, ny, ux, uy, kind) {
   }
 }
 
-function buildTree(factors, depth) {
-  const node = { depth, children: [], hidden: 0, factor: factors[depth] || 0 };
-  if (depth >= factors.length) return node;
-  const b = factors[depth];
-  const shown = b > MAX_SHOWN ? 3 : b;
-  node.hidden = b - shown;
-  for (let i = 0; i < shown; i++) node.children.push(buildTree(factors, depth + 1));
+function drawingFactors(factors) {
+  const levels = Math.min(factors.length, MAX_DRAWN_LEVELS);
+  let parents = 1;
+  let remaining = MAX_DRAWN_COMPARTMENTS - 1; // The soma is already counted.
+  const shown = [];
+  for (let depth = 0; depth < levels; depth++) {
+    // Give each drawn daughter at least one path through the remaining levels.
+    const limit = Math.floor(remaining / (parents * (levels - depth)));
+    const count = Math.min(factors[depth] > MAX_SHOWN ? 3 : factors[depth], limit);
+    shown.push(count);
+    parents *= count;
+    remaining -= parents;
+  }
+  return shown;
+}
+
+function buildTree(shown, depth, left, right) {
+  const node = { depth, x: (left + right) / 2, children: [] };
+  if (depth < shown.length) {
+    const width = (right - left) / shown[depth];
+    for (let i = 0; i < shown[depth]; i++) {
+      node.children.push(buildTree(shown, depth + 1, left + i * width, left + (i + 1) * width));
+    }
+  }
   return node;
-}
-
-function leaves(node) {
-  return node.children.length ? node.children.reduce((a, c) => a + leaves(c), 0) + (node.hidden ? 0.6 : 0) : 1;
-}
-
-function layout(node, left, right) {
-  if (!node.children.length) {
-    node.x = (left + right) / 2;
-    return;
-  }
-  const total = leaves(node);
-  let x = left;
-  for (const child of node.children) {
-    const share = ((right - left) * leaves(child)) / total;
-    layout(child, x, x + share);
-    x += share;
-  }
-  node.x = (node.children[0].x + node.children.at(-1).x) / 2;
 }
 
 function walk(node, fn) {
@@ -207,22 +216,22 @@ export function levelTable({ levels, counts, neurons }) {
   );
   const body = h("tbody");
   const deepest = levels.length - 1;
-  const totals = Object.fromEntries(streams.map(([k]) => [k, 0]));
+  const totals = Object.fromEntries(streams.map(([k]) => [k, 0n]));
   for (let depth = deepest; depth >= 0; depth--) {
     const row = h("tr", {}, [h("td", { text: LEVEL_NAMES(depth, deepest) }), h("td", { text: fmt(levels[depth]) })]);
     for (const [key] of streams) {
       const v = (counts[key] || [])[depth] || 0;
-      totals[key] += v * levels[depth];
+      totals[key] += BigInt(v) * levels[depth];
       row.append(h("td", { text: fmt(v) }));
     }
     body.append(row);
   }
   table.append(body);
-  const perNeuron = Object.values(totals).reduce((a, b) => a + b, 0);
+  const perNeuron = Object.values(totals).reduce((a, b) => a + b, 0n);
   table.append(
     h("tfoot", {}, [
-      h("tr", {}, [h("th", { text: "Per neuron" }), h("th", { text: fmt(levels.reduce((a, b) => a + b, 0)) }), ...streams.map(([k]) => h("th", { text: fmt(totals[k]) }))]),
-      h("tr", {}, [h("th", { text: `Population (${fmt(neurons)})`, colspan: 2 }), h("th", { colspan: streams.length, text: `${fmt(perNeuron * neurons)} contacts` })]),
+      h("tr", {}, [h("th", { text: "Per neuron" }), h("th", { text: fmt(levels.reduce((a, b) => a + b, 0n)) }), ...streams.map(([k]) => h("th", { text: fmt(totals[k]) }))]),
+      h("tr", {}, [h("th", { text: `Population (${fmt(neurons)})`, colspan: 2 }), h("th", { colspan: streams.length, text: `${fmt(perNeuron * BigInt(neurons))} contacts` })]),
     ])
   );
   return table;

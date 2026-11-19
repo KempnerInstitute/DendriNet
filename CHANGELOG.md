@@ -13,7 +13,8 @@
   preceding layer's selected readout when checking a later layer's input.
   Configuration files continue to use `config_version: 4`.
 - Sweeps generated from a wheel invoke the installed trainer and record the
-  installed package digest. The checkout-based workflow also remains available.
+  installed package digest and working directory. Generated jobs and reruns
+  resolve relative datasets and checkpoints from the generation directory.
 
 ### DendriNet Studio 0.1.0
 
@@ -25,6 +26,9 @@
   forms. Import and export standalone experiment YAML, including fields
   without a graphical control. The design-only mode supports editing and export
   on machines where training is disabled.
+- Large neurons show representative branches with the configured compartment
+  totals. Restored designs survive a second reload. Delayed responses respect
+  newer edits to the model or its YAML, and Enter confirms a text prompt.
 - Check model resources with the configured dataset and seeds, train using
   the core trainer, and compare learning curves, evaluation measures and
   configuration differences. The [illustrated guide](docs/studio.rst)

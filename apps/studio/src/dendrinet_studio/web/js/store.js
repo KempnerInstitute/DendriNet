@@ -113,7 +113,7 @@ export function layerView(layer) {
 
 // Editing -------------------------------------------------------------------
 
-let validationRevision = 0;
+export let validationRevision = 0;
 
 export function edit(mutate, options = {}) {
   const before = JSON.stringify(state.config);
@@ -177,7 +177,7 @@ export async function validate(options = {}) {
 }
 
 // Load a complete configuration (an example, an import or applied YAML).
-export function adopt(result, name, { keepHistory = false } = {}) {
+export function adopt(result, name, { keepHistory = false, dirty = keepHistory } = {}) {
   if (keepHistory && state.config) {
     state.history.push(JSON.stringify(state.config));
     state.future = [];
@@ -185,16 +185,18 @@ export function adopt(result, name, { keepHistory = false } = {}) {
     state.history = [];
     state.future = [];
   }
+  ++validationRevision;
+  state.validating = false;
   state.config = structuredClone(result.config);
   state.preview = result;
   state.error = null;
   state.errorPath = null;
   state.docName = name || state.docName;
-  state.dirty = keepHistory;
+  state.dirty = dirty;
   state.modelCheck = null;
   state.selection = defaultSelection();
-  if (!keepHistory) clearDraft();
-  else saveDraft();
+  if (dirty) saveDraft();
+  else clearDraft();
   emit("loaded");
   emit("preview", { structural: true });
 }

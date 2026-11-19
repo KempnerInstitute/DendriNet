@@ -256,8 +256,7 @@ async function restoreDraft() {
   }
   try {
     const result = await api("preview", { config: draft.config });
-    adopt(result, draft.name, { keepHistory: false });
-    state.dirty = true;
+    adopt(result, draft.name, { dirty: true });
     return true;
   } catch (error) {
     toast(`The saved design is not valid with this DendriNet version (${error.message}); it was not restored.`, { kind: "error", timeout: 12000 });

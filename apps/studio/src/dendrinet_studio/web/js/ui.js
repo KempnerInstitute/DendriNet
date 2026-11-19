@@ -29,8 +29,11 @@ export function dialog({ title, body, actions = [{ label: "Close", value: null, 
     const box = h("dialog", { class: "dialog" + (wide ? " wide" : ""), "aria-label": title });
     const form = h("form", { method: "dialog" });
     const footer = h("div", { class: "dialog-actions" });
-    for (const action of actions) {
-      footer.append(h("button", { type: action.submit === false ? "button" : "submit", class: "btn" + (action.primary ? " primary" : ""), value: String(actions.indexOf(action)), text: action.label }));
+    for (const [index, action] of actions.entries()) {
+      const value = String(index);
+      const button = h("button", { type: action.submit === false ? "button" : "submit", class: "btn" + (action.primary ? " primary" : ""), value, text: action.label });
+      if (action.submit === false) button.addEventListener("click", () => box.close(value));
+      footer.append(button);
     }
     form.append(h("h2", { text: title }), h("div", { class: "dialog-body" }, [].concat(body)), footer);
     box.append(form);
@@ -55,7 +58,7 @@ export async function promptDialog({ title, label, value = "", placeholder = "",
     title,
     body,
     actions: [
-      { label: "Cancel", value: null },
+      { label: "Cancel", value: null, submit: false },
       { label: confirm, value: () => input.value, primary: true },
     ],
   });

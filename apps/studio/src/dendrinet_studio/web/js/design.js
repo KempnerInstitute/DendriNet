@@ -10,7 +10,7 @@ import { state, api, edit, select, adopt, emit, getPath, deletePath, isPopulatio
 import { field, textInput, numberInput, stepper, selectInput, switchInput, segmented, mappingInput, factorEditor, sectionForm, disclosure, humanize, controlFor, describeCount, rebuildKeepingFocus } from "./fields.js";
 import { drawNetwork, drawOverview, layoutNetwork, svgForExport } from "./graph.js";
 import { externalControls, sourcesTable, structuredInputGuide } from "./afferents.js";
-import { drawNeuron, levelTable, neuronLegend } from "./morphology.js";
+import { compartmentLevels, drawNeuron, levelTable, neuronLegend } from "./morphology.js";
 import { toast, confirmDialog } from "./ui.js";
 
 const NET = "model.core.population_network";
@@ -354,7 +354,8 @@ function renderDetail() {
     highlight = edge?.target_depths || null;
   }
   const svg = s("svg", { class: "neuron", role: "img" });
-  drawNeuron(svg, { polarity: node.polarity, factors: node.branch_factors, counts: node.received_per_level, highlight, title: `Neuron of ${node.layer_name}.${node.name}` });
+  const levels = compartmentLevels(node.branch_factors);
+  const drawingSummary = drawNeuron(svg, { polarity: node.polarity, factors: node.branch_factors, levels, counts: node.received_per_level, highlight, title: `Neuron of ${node.layer_name}.${node.name}` });
   const notes = [];
   for (const [key, label] of STREAMS) {
     const configured = node.configured_per_level[key].some(Boolean);
@@ -362,17 +363,17 @@ function renderDetail() {
     if (configured && !received) notes.push(`${label} contacts are configured but no ${label.toLowerCase()} connection reaches this population, so none are built.`);
   }
   if (!node.settings.somatic_synapses) notes.push("The soma receives no synaptic contacts (somatic synapses off).");
-  const caption = sel.kind === "connection" && highlight ? `Highlighted: levels this connection reaches.` : null;
+  const caption = [drawingSummary, sel.kind === "connection" && highlight ? "Highlighted levels receive this connection." : ""].filter(Boolean).join(" ");
   els.detail.replaceChildren(
     h("div", { class: "panel-head" }, [h("h3", { text: "Neuron" }), h("span", { class: "sub", text: `${node.layer_name} · ${node.name}: one of ${fmt(node.neurons)} identical neurons` })]),
     h("div", { class: "neuron-body" }, [
       h("figure", { class: "neuron-figure" }, [svg, neuronLegend(), caption ? h("figcaption", { class: "help", text: caption }) : null]),
       h("div", { class: "neuron-side" }, [
-        levelTable({ levels: node.levels_including_soma, counts: node.received_per_level, neurons: node.neurons }),
+        levelTable({ levels, counts: node.received_per_level, neurons: node.neurons }),
         sourcesTable(node),
         equationBox(node.settings),
         ...notes.map(text => h("p", { class: "notice warn compact" }, [icon("warn"), h("span", { text })])),
-        h("p", { class: "help", text: "The tree is the exact compartment tree; its geometry is schematic. Counts are contacts per compartment, as configured; a model check counts the synapses of the built model." }),
+        h("p", { class: "help", text: "The table gives every level and its contacts per compartment. A model check reports how many synapses the network builds." }),
       ]),
     ])
   );
