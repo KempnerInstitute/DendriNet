@@ -35,16 +35,17 @@ environment, the pinned dependency versions and the optional extras.
 
 ## First steps
 
-Run from the repository root:
+After installation, export a small configuration into any working directory:
 
 ```bash
-# Train a population network on MNIST for one epoch
-dendritic-train configs/examples/population_network_feedforward.yaml --epochs 1
+# Generate data locally and train a small population network
+dendritic-example synthetic_population --output demo.yaml
+dendritic-train demo.yaml --epochs 1
 
 # Check a configuration without training
-dendritic-train configs/examples/population_network_two_layer.yaml --validate-only
+dendritic-train demo.yaml --validate-only
 
-# Generate the configurations of a parameter sweep without submitting jobs
+# From a repository checkout, generate a parameter sweep without submitting jobs
 dendritic-sweep --config configs/sweep_config.yaml --generate-only
 ```
 
@@ -55,6 +56,20 @@ The installed commands include `dendritic-train` (training),
 [docs/cli_reference.rst](docs/cli_reference.rst) lists every command and its
 options. Distributed training runs under `torchrun`; see
 [docs/distributed_training.rst](docs/distributed_training.rst).
+
+## DendriNet Studio
+
+[DendriNet Studio](docs/studio.rst) is an optional local browser application.
+Draw a feedforward or recurrent population network, select a neuron population
+to see where its excitatory and inhibitory contacts come from, then train and
+compare runs. Studio provides forms for other model families and a YAML editor
+for the full configuration. The exported YAML also runs with `dendritic-train`.
+To launch it from this checkout, run
+
+```bash
+python -m pip install -e . -e ./apps/studio
+dendrinet-studio --workspace my-runs
+```
 
 ## Documentation
 

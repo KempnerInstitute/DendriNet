@@ -596,8 +596,8 @@ shares:
    * - ``conda_env_path``
      - unset
      - Environment whose ``bin/python`` runs the training (its ``lib`` is
-       added to ``LD_LIBRARY_PATH``). Unset: the ``python`` first on ``PATH``
-       after ``module purge``.
+       added to ``LD_LIBRARY_PATH``). Installed wheels reuse the generating
+       interpreter unless modules or a conda environment select another one.
    * - ``launcher``
      - ``python``
      - ``python`` or ``torchrun`` (:ref:`sweeps-distributed`).
@@ -605,11 +605,16 @@ shares:
      - ``src/dendritic_modeling/scripts/training/train_experiments.py``
      - Training entry point, relative to the library checkout or absolute.
 
-The job name is the sweep's prefix (a ``job_name`` key is not used). Every
-job runs in the library checkout that generated the sweep
-(``#SBATCH --chdir``), puts that checkout's ``src/`` first on ``PYTHONPATH``
-and runs ``module purge``, so the cluster must provide environment modules.
-Each array task trains one config.
+The job name is the sweep's prefix. Jobs generated from a source checkout
+enter the checkout, put its ``src/`` first on ``PYTHONPATH`` and check the
+recorded Git state when available. With an installed wheel, jobs start in the
+directory where you ran ``dendritic-sweep``. A relative ``data.base_dir`` or
+``model.initial_checkpoint`` is read from that directory. The generated
+manifest records it for reruns launched from another directory. Results go
+to the configured sweep output. Jobs launch the installed training module
+and check the package digest before training. An installed custom training script can
+be given as an absolute path on the compute nodes. Jobs clear environment
+modules when available. Each array task trains one config.
 
 ``time`` takes a quoted Slurm duration with a colon or a day prefix
 (``"HH:MM:SS"``, ``"MM:SS"``, ``"D-HH"``, ``"D-HH:MM:SS"``), or an integer

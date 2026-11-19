@@ -1,0 +1,13 @@
+include LICENSE README.md README_PYPI.md pyproject.toml pytest.ini
+recursive-include src/dendritic_modeling *.py *.yaml
+recursive-include tests *.py *.json *.yaml *.yml *.npz *.pt *.txt
+recursive-include configs *.yaml *.yml
+recursive-include setup *.txt *.yml *.py *.md
+recursive-include docs *.rst *.py *.svg *.png *.css
+prune docs/_build
+prune projects
+prune apps
+prune drafts
+prune llm
+prune outputs
+global-exclude __pycache__ *.py[cod]

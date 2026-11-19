@@ -203,6 +203,7 @@ def write_frozen_sweep_manifest(
     source_files: Iterable[str | Path] = (),
     generator_identity: str | None = None,
     generation_mode: str,
+    working_dir: Path | None = None,
 ) -> Path:
     """Write an immutable-by-convention manifest for one generated sweep."""
     output_root = Path(output_dir).resolve()
@@ -263,6 +264,9 @@ def write_frozen_sweep_manifest(
             include_package=True,
         ),
     }
+
+    if working_dir is not None:
+        payload["job_working_directory"] = str(working_dir.resolve())
 
     manifest_path = output_root / "frozen_sweep_manifest.json"
     if manifest_path.exists():

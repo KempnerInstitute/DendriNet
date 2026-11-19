@@ -1,0 +1,72 @@
+{
+  "configs": {
+    "configs/cifar_primary_additive.yaml": {
+      "gate_calibration_from_training_stream": false,
+      "portable_sha256": "36fc52e5d5b3c371b43e449b6ddb46165e36ed1afa12db26bcd19aa284199f9d",
+      "source_task": "cifar_primary_40e10i_common_additive_s0",
+      "submitted_sha256": "be65f546c4591fae552798963329d5950a2fb124fc041730bb7386256c07b733",
+      "training_core": "8e884ea37f470b33f6557a8c0c0734369d273667",
+      "training_paper_commit": "da2410c4eb98e78a8ec2a198aacc63e8d5fc68ef"
+    },
+    "configs/cifar_primary_shunting.yaml": {
+      "gate_calibration_from_training_stream": false,
+      "portable_sha256": "656ccf44adf22581eba7e977fe65f224516e44691accdc9135c672084b5f0372",
+      "source_task": "cifar_primary_40e10i_common_shunting_s0",
+      "submitted_sha256": "284964ee7e8ea574ad839276ec44e7878d6fcf8d05d6e710c95897baebd855fb",
+      "training_core": "8e884ea37f470b33f6557a8c0c0734369d273667",
+      "training_paper_commit": "da2410c4eb98e78a8ec2a198aacc63e8d5fc68ef"
+    },
+    "configs/cifar_three_layer_additive.yaml": {
+      "gate_calibration_from_training_stream": false,
+      "portable_sha256": "0c06eb8e0176f817c0707db5f1eb2ccc7cd3cbea34ad8952f4ff568a1ab5ba83",
+      "source_task": "cifar_multilayer_ei_networks_c00120_s10",
+      "submitted_sha256": "7b0d1354d8ec8574264726e3f6558a04456333568f6e37552389153804186e7c",
+      "training_core": "8e884ea37f470b33f6557a8c0c0734369d273667",
+      "training_paper_commit": "da2410c4eb98e78a8ec2a198aacc63e8d5fc68ef"
+    },
+    "configs/cifar_three_layer_shunting.yaml": {
+      "gate_calibration_from_training_stream": false,
+      "portable_sha256": "c91b7b9d2cc7963a4b98e3065511ca270888fe6cd7849cd679c2b7507449870e",
+      "source_task": "cifar_multilayer_ei_networks_c00020_s10",
+      "submitted_sha256": "cb674b230acf8b2dc80923b4f700b6c39ef282de2d2a748f097edb026b217f57",
+      "training_core": "8e884ea37f470b33f6557a8c0c0734369d273667",
+      "training_paper_commit": "da2410c4eb98e78a8ec2a198aacc63e8d5fc68ef"
+    },
+    "configs/context_additive.yaml": {
+      "gate_calibration_from_training_stream": true,
+      "portable_sha256": "5614ad2e6a825e48b80e68aeb96ee5f5d18614e6cea19422bbec838a2cbee131",
+      "source_task": "contextual_additive_analytical_expectation_lr0.005_s62000",
+      "submitted_sha256": "02bca6a1e56c29b5a85b1d2e3cdbc398e92f7eb694a7960dfd4dc5e6466f3ab2",
+      "training_core": "8e884ea37f470b33f6557a8c0c0734369d273667",
+      "training_paper_commit": "08028766c0bed080fa20780126233f7357c8fa18"
+    },
+    "configs/context_shunting.yaml": {
+      "gate_calibration_from_training_stream": true,
+      "portable_sha256": "332c39370b121c5dffd6724d34aee2cc9c0173ccb263ed74a529cab2b5f63e83",
+      "source_task": "contextual_shunting_analytical_expectation_lr0.002_s62000",
+      "submitted_sha256": "fc43fbfc9bb6728c4bacee5c815a3302e0f1a79e664e39f4d9bbf2a9d3c1235e",
+      "training_core": "8e884ea37f470b33f6557a8c0c0734369d273667",
+      "training_paper_commit": "08028766c0bed080fa20780126233f7357c8fa18"
+    },
+    "configs/mnist_additive.yaml": {
+      "gate_calibration_from_training_stream": false,
+      "portable_sha256": "53cacf433d623d7b1a51b7dde7c793050fe338126f22efdf43ff2bcdf4c5d679",
+      "source_task": "mnist_identity_primary_2x2_c00010_s100",
+      "submitted_sha256": "85f11367058ef4cd63593a37a0d5909d69e60f421e9a5781b8fb886dca9a419a",
+      "training_core": "8e884ea37f470b33f6557a8c0c0734369d273667",
+      "training_paper_commit": "da2410c4eb98e78a8ec2a198aacc63e8d5fc68ef"
+    },
+    "configs/mnist_shunting.yaml": {
+      "gate_calibration_from_training_stream": false,
+      "portable_sha256": "a6ac10dad4d0290332e26953743a5380291560fcd47fb68931adbd7b2da1fcd2",
+      "source_task": "mnist_identity_primary_2x2_c00000_s100",
+      "submitted_sha256": "396677df0783e9d6e14ed14c25bffb17f4773b983b82331c29ba9fb250886e13",
+      "training_core": "8e884ea37f470b33f6557a8c0c0734369d273667",
+      "training_paper_commit": "da2410c4eb98e78a8ec2a198aacc63e8d5fc68ef"
+    }
+  },
+  "portable_path_fields": [
+    "data.base_dir",
+    "outputs.results_dir"
+  ]
+}

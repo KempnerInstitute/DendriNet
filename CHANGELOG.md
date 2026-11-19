@@ -1,10 +1,50 @@
 # Changelog
 
-## Unreleased
+## 0.5.0
 
-- CI and the documentation deployment run for ``develop``, the default branch,
-  and no longer for ``main``, which has not changed since August 2024 and is
-  being retired.
+### Core library
+
+- Use `dendritic-example` to list and export five installed tutorials.
+  The generated two-class task, structured tree, recurrent decision network
+  and GRU regression example run without a dataset download. The fifth
+  example trains an E/I population network on MNIST.
+- Population-network validation and the model builder share helpers for
+  input-source polarity and layer readouts. Validation now follows the
+  preceding layer's selected readout when checking a later layer's input.
+  Configuration files continue to use `config_version: 4`.
+- Sweeps generated from a wheel invoke the installed trainer and record the
+  installed package digest and working directory. Generated jobs and reruns
+  resolve relative datasets and checkpoints from the generation directory.
+
+### DendriNet Studio 0.1.0
+
+- Launch `dendrinet-studio` to design a network in a local browser. Set the
+  branching factors, synapses per level, direct external E and I inputs, and
+  same-step or delayed projections. The source table traces incoming contacts
+  to their target depths and shows when several sources share a contact budget.
+- Set tasks, datasets, training strategies and optimizers through the typed
+  forms. Import and export standalone experiment YAML, including fields
+  without a graphical control. The design-only mode supports editing and export
+  on machines where training is disabled.
+- Large neurons show representative branches with the configured compartment
+  totals. Restored designs survive a second reload. Delayed responses respect
+  newer edits to the model or its YAML, and Enter confirms a text prompt.
+- Check model resources with the configured dataset and seeds, train using
+  the core trainer, and compare learning curves, evaluation measures and
+  configuration differences. The [illustrated guide](docs/studio.rst)
+  walks through an example from design to a completed CPU run.
+
+### Research examples and distribution
+
+- Eight empirical study configurations and two numerical replays live under
+  [projects/empirical](projects/empirical/README.md). The study records
+  DendriNet v0.3.0 for its training runs. Its project files are distributed
+  separately from the installable packages.
+- CI builds and tests the core and Studio packages from pull requests to
+  `develop`. The release workflow stages each distribution on TestPyPI and
+  promotes the verified files to PyPI after an explicit dispatch. The
+  documentation workflow deploys from `develop`. See the
+  [release instructions](docs/releases.rst).
 
 ## 0.4.0 (2026-10-31)
 

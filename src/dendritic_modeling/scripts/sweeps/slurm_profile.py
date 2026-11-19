@@ -8,14 +8,44 @@ built from the sweep's ``slurm_config``, so they request the same resources.
 from __future__ import annotations
 
 import re
+import shlex
+import sys
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 DEFAULT_TRAINING_SCRIPT = "src/dendritic_modeling/scripts/training/train_experiments.py"
+_PACKAGE_DIR = Path(__file__).resolve().parents[2]
+_SOURCE_PARENT = _PACKAGE_DIR.parent.parent
+CHECKOUT_ROOT = (
+    _SOURCE_PARENT
+    if _PACKAGE_DIR.parent.name == "src"
+    and (_SOURCE_PARENT / "pyproject.toml").is_file()
+    else None
+)
+# Source provenance always identifies the library, even if the user's sweep is
+# launched inside an unrelated Git checkout.
+LIBRARY_SOURCE_ROOT = CHECKOUT_ROOT or _PACKAGE_DIR
 LAUNCHERS = ("python", "torchrun")
 _SLURM_TIME = re.compile(r"(\d+-)?\d+(:\d+){0,2}")
+
+
+def job_working_directory(generation_dir: str | Path | None = None) -> Path:
+    """Use the source checkout, or the installed user's generation directory."""
+    return CHECKOUT_ROOT or (
+        Path.cwd() if generation_dir is None else Path(generation_dir).resolve()
+    )
+
+
+def installed_training_target(script: str) -> str:
+    """Retain native module entry points and freeze the path of an installed user's script."""
+    if CHECKOUT_ROOT is not None or script in {
+        DEFAULT_TRAINING_SCRIPT,
+        "src/dendritic_modeling/scripts/training/train_experiments_fsdp.py",
+    }:
+        return script
+    return str(Path(script).resolve())
 
 
 def normalize_slurm_time(value: Any) -> str:
@@ -127,7 +157,7 @@ class SlurmProfile:
         ]
         if self.qos:
             lines.append(f"#SBATCH --qos={self.qos}")
-        lines.append(f"#SBATCH --chdir={repo_root}")
+        lines.append(f"#SBATCH --chdir={shlex.quote(str(repo_root))}")
         if self.constraint:
             lines.append(f"#SBATCH --constraint={self.constraint}")
         lines += [
@@ -142,7 +172,10 @@ class SlurmProfile:
             lines.append(f"#SBATCH --exclude={','.join(self.exclude_nodes)}")
         if array is not None:
             lines.append(f"#SBATCH --array={array}")
-        lines += [f"#SBATCH --output={output}", f"#SBATCH --error={error}"]
+        lines += [
+            f"#SBATCH --output={shlex.quote(output)}",
+            f"#SBATCH --error={shlex.quote(error)}",
+        ]
         return "\n".join(lines) + "\n\n"
 
     def array_spec(self, indices: list[int]) -> str:
@@ -160,9 +193,16 @@ class SlurmProfile:
             spec += f"%{self.max_concurrent_jobs}"
         return spec
 
-    def environment(self) -> str:
+    def environment(self, working_dir: Path | None = None) -> str:
         """Return the module, interpreter and ``PYTHONPATH`` setup as ``$PYTHON``."""
-        lines = ["module purge"]
+        lines = (
+            ["module purge"]
+            if self.modules_to_load
+            else ["if type module >/dev/null 2>&1; then module purge; fi"]
+        )
+        if CHECKOUT_ROOT is None and working_dir is not None:
+            # Direct bash execution must resolve inputs the same way as sbatch.
+            lines.insert(0, f"cd -- {shlex.quote(str(working_dir))}")
         lines += [f"module load {module}" for module in self.modules_to_load]
         lines.append("")
         if self.conda_env_path:
@@ -179,20 +219,32 @@ class SlurmProfile:
                 "{torch.__version__}')\"",
                 "",
             ]
+        elif CHECKOUT_ROOT is None and not self.modules_to_load:
+            lines += [f"PYTHON={shlex.quote(sys.executable)}", ""]
         else:
             lines += ["# Using system python", 'PYTHON="python"', ""]
-        lines += ['export PYTHONPATH="$(pwd)/src:${PYTHONPATH:-}"', ""]
+        if CHECKOUT_ROOT is not None:
+            lines += ['export PYTHONPATH="$(pwd)/src:${PYTHONPATH:-}"', ""]
         return "\n".join(lines) + "\n"
 
     def launch_prefix(self) -> str:
         """Return the command that runs the training script with ``$PYTHON``."""
-        prefix = "$PYTHON -u"
+        prefix = "$PYTHON -u" if CHECKOUT_ROOT is not None else '"$PYTHON" -u'
         if self.launcher == "torchrun":
             prefix += (
                 " -m torch.distributed.run --standalone "
                 f"--nproc_per_node={self.gpus_per_node}"
             )
         return prefix
+
+    def training_command(self, script: str | None = None) -> str:
+        """Use the pinned checkout's script or its installed module."""
+        script = self.training_script if script is None else script
+        target = installed_training_target(script)
+        if CHECKOUT_ROOT is None and not Path(target).is_absolute():
+            module = script.removeprefix("src/").removesuffix(".py").replace("/", ".")
+            return f"{self.launch_prefix()} -m {module}"
+        return f"{self.launch_prefix()} {shlex.quote(target)}"
 
 
 __all__ = [

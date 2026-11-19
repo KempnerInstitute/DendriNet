@@ -750,6 +750,26 @@ Entry point: ``dendritic_modeling.scripts.analysis.collect_poisson_exposure_tran
 Configuration tools
 -------------------
 
+``dendritic-example``
+~~~~~~~~~~~~~~~~~~~~~
+
+Entry point: ``dendritic_modeling.scripts.tools.export_example:main``
+
+.. code-block:: text
+
+   usage: dendritic-example [-h] [--output OUTPUT]
+                            [{adding_problem_gru,mnist_population,recurrent_decision_population,structured_tree_synthetic,synthetic_population}]
+
+   List or export a small installed DendriNet example.
+
+   positional arguments:
+     {adding_problem_gru,mnist_population,recurrent_decision_population,structured_tree_synthetic,synthetic_population}
+                           Example to export. Omit to list examples.
+
+   options:
+     -h, --help            show this help message and exit
+     --output OUTPUT       Write a new YAML file.
+
 ``dendritic-upgrade-config``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

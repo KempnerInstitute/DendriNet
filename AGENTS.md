@@ -90,8 +90,18 @@ benchmarks.
   speedup is not a model-level speedup.
 - **Library scope.** Reusable models, layers, kernels, controls, datasets,
   training rules and analysis primitives belong here. Study protocols, sweeps,
-  recipes, figure scripts and paper-specific analyses belong in the studies'
-  own repositories, which pin a library revision.
+  recipes, figure scripts and paper-specific analyses belong in versioned study
+  projects, either under `projects/` or in companion repositories. They pin a
+  library revision and are excluded from the installed library distribution.
+- **Public release boundary.** Keep the existing institutional repository and
+  its accepted core history; do not create a replacement repository or rewrite
+  history for publication. Later private LLM work and local private/archive refs
+  remain unpublished. Preparing a release does not authorize changing repository
+  visibility or uploading to a package index.
+- **Graphical clients.** Optional applications under `apps/` use the typed
+  configuration loader, public constructors and existing training/analysis
+  commands. They must not implement alternate model equations or training loops.
+  Preserve settings outside the visual editor when importing and exporting YAML.
 - **Reuse before adding.** Inspect existing implementations and their contracts
   before adding a method, control or tool. Prefer composition or a small opt-in
   extension over a parallel implementation. Document the mathematical or API

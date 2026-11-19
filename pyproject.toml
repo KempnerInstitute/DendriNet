@@ -4,9 +4,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dendritic_modeling"
-version = "0.4.0"
+version = "0.5.0"
 description = "DendriNet: PyTorch library for neural networks of dendritic neurons"
-readme = "README.md"
+readme = "README_PYPI.md"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [
@@ -51,6 +51,7 @@ Issues = "https://github.com/KempnerInstitute/DendriNet/issues"
 Changelog = "https://github.com/KempnerInstitute/DendriNet/blob/develop/CHANGELOG.md"
 
 [project.scripts]
+dendritic-example = "dendritic_modeling.scripts.tools.export_example:main"
 dendritic-train = "dendritic_modeling.scripts.training.train_experiments:cli_main"
 dendritic-compact-checkpoint = "dendritic_modeling.scripts.deployment.compact_checkpoint:main"
 dendritic-sweep = "dendritic_modeling.scripts.sweeps.sweep_manager:main"
@@ -78,6 +79,9 @@ dendritic-upgrade-config = "dendritic_modeling.scripts.tools.upgrade_config:main
 
 [tool.setuptools]
 package-dir = {"" = "src"}
+
+[tool.setuptools.package-data]
+"dendritic_modeling.examples" = ["*.yaml"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

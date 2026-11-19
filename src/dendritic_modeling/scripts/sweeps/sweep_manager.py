@@ -52,6 +52,7 @@ from dendritic_modeling.scripts.sweeps.control_plane import (
     validate_scheduler_profile,
     write_frozen_sweep_manifest,
 )
+from dendritic_modeling.scripts.sweeps.slurm_profile import installed_training_target
 from dendritic_modeling.scripts.sweeps.unified.base_sweep import (
     REPO_ROOT,
     SweepJobManager,
@@ -322,6 +323,10 @@ class SweepManager:
         slurm_config = config.get("slurm_config", {})
         # Add run_name to slurm_config so it can be used for job naming
         slurm_config["run_name"] = run_name
+        if slurm_config.get("training_script"):
+            slurm_config["training_script"] = installed_training_target(
+                slurm_config["training_script"]
+            )
         if execution_results_dir is not None:
             slurm_config["execution_results_dir"] = execution_results_dir
 
@@ -369,6 +374,7 @@ class SweepManager:
                 f"{type(self.generator).__module__}.{type(self.generator).__qualname__}"
             ),
             generation_mode=generation_mode,
+            working_dir=job_manager.working_dir,
         )
 
         sweep_info = {

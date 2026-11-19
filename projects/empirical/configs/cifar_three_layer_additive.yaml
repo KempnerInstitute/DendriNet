@@ -1,0 +1,314 @@
+config_version: 4
+experiment:
+  seed: 10
+  train_valid_split: 0.8
+  deterministic: true
+  cudnn_benchmark: false
+  allow_tf32: false
+  float32_matmul_precision: highest
+  checkpointing:
+    enabled: false
+  sealed_test: false
+  allow_test_data: true
+  max_test_samples: 10000
+  enable_hooks: false
+data:
+  dataset_name: cifar10
+  base_dir: data
+  processing:
+    flatten: true
+    normalize: false
+    label_noise_rate: 0.0
+model:
+  task: classification
+  encoder:
+    type: identity
+  core:
+    type: population_network
+    population_network:
+      use_transfer: true
+      transfer_params:
+        independent_pathways: false
+        output_activation: relu
+      layers:
+      - name: layer0
+        readout_population: e0
+        recurrent: false
+        connection_seed: 0
+        populations:
+        - name: i0
+          polarity: inhibitory
+          n_neurons: 16
+          branch_factors:
+          - 1
+          population:
+            ff_inhibitory_synapses: 0
+        - name: e0
+          polarity: excitatory
+          n_neurons: 64
+          branch_factors:
+          - 3
+          - 3
+          - 3
+        connections:
+        - source: input_e
+          target: i0
+          pathway: ff_excitatory
+          timing: same_step
+          seed: 1
+        - source: input_e
+          target: e0
+          pathway: ff_excitatory
+          timing: same_step
+          seed: 2
+        - source: i0
+          target: e0
+          pathway: ff_inhibitory
+          timing: same_step
+          seed: 3
+        population_defaults:
+          ff_excitatory_synapses: 40
+          ff_inhibitory_synapses: 10
+          rec_excitatory_synapses: 0
+          rec_inhibitory_synapses: 0
+          somatic_synapses: false
+          use_shunting: false
+          use_additive_normalization: false
+          additive_mode: raw
+          epsilon: 1.0e-08
+          weight_transform: softplus
+          topk_type: standard
+          topk_init_method: xavier_normal
+          topk_noise_level: 0.0
+          topk_temperature: 0.0
+          dbl_init_method: analytical_expectation
+          adaptive_initialization: false
+          reactivate: true
+          reactivation_type: param_tanh
+          reactivation_init_policy: occupancy_quantile
+          reactivation_init_m: 1.5
+          reactivation_init_b: 0.5
+          reactivation_occupancy_quantile_low: 0.1
+          reactivation_occupancy_quantile_high: 0.9
+          reactivation_occupancy_target_low: 0.1
+          reactivation_occupancy_target_high: 0.9
+          reactivation_calibration_min_quantile_width: 0.001
+          reactivation_calibration_max_m: 50.0
+          reactivation_calibration_revert_on_invalid: true
+          topk_gradient_scaling: none
+          reactivation_gradient_scaling: none
+          blocklinear_gradient_scaling: none
+          efficient_blocklinear: true
+          dynamics_mode: rate
+          use_noise: false
+      - name: layer1
+        readout_population: e1
+        recurrent: false
+        connection_seed: 1
+        populations:
+        - name: i1
+          polarity: inhibitory
+          n_neurons: 16
+          branch_factors:
+          - 1
+          population:
+            ff_inhibitory_synapses: 0
+        - name: e1
+          polarity: excitatory
+          n_neurons: 64
+          branch_factors:
+          - 3
+          - 3
+          - 3
+        connections:
+        - source: layer0.e0
+          target: i1
+          pathway: ff_excitatory
+          timing: same_step
+          seed: 11
+        - source: layer0.e0
+          target: e1
+          pathway: ff_excitatory
+          timing: same_step
+          seed: 12
+        - source: i1
+          target: e1
+          pathway: ff_inhibitory
+          timing: same_step
+          seed: 13
+        population_defaults:
+          ff_excitatory_synapses: 40
+          ff_inhibitory_synapses: 10
+          rec_excitatory_synapses: 0
+          rec_inhibitory_synapses: 0
+          somatic_synapses: false
+          use_shunting: false
+          use_additive_normalization: false
+          additive_mode: raw
+          epsilon: 1.0e-08
+          weight_transform: softplus
+          topk_type: standard
+          topk_init_method: xavier_normal
+          topk_noise_level: 0.0
+          topk_temperature: 0.0
+          dbl_init_method: analytical_expectation
+          adaptive_initialization: false
+          reactivate: true
+          reactivation_type: param_tanh
+          reactivation_init_policy: occupancy_quantile
+          reactivation_init_m: 1.5
+          reactivation_init_b: 0.5
+          reactivation_occupancy_quantile_low: 0.1
+          reactivation_occupancy_quantile_high: 0.9
+          reactivation_occupancy_target_low: 0.1
+          reactivation_occupancy_target_high: 0.9
+          reactivation_calibration_min_quantile_width: 0.001
+          reactivation_calibration_max_m: 50.0
+          reactivation_calibration_revert_on_invalid: true
+          topk_gradient_scaling: none
+          reactivation_gradient_scaling: none
+          blocklinear_gradient_scaling: none
+          efficient_blocklinear: true
+          dynamics_mode: rate
+          use_noise: false
+      - name: layer2
+        readout_population: e2
+        recurrent: false
+        connection_seed: 2
+        populations:
+        - name: i2
+          polarity: inhibitory
+          n_neurons: 16
+          branch_factors:
+          - 1
+          population:
+            ff_inhibitory_synapses: 0
+        - name: e2
+          polarity: excitatory
+          n_neurons: 64
+          branch_factors:
+          - 3
+          - 3
+          - 3
+        connections:
+        - source: layer1.e1
+          target: i2
+          pathway: ff_excitatory
+          timing: same_step
+          seed: 21
+        - source: layer1.e1
+          target: e2
+          pathway: ff_excitatory
+          timing: same_step
+          seed: 22
+        - source: i2
+          target: e2
+          pathway: ff_inhibitory
+          timing: same_step
+          seed: 23
+        population_defaults:
+          ff_excitatory_synapses: 40
+          ff_inhibitory_synapses: 10
+          rec_excitatory_synapses: 0
+          rec_inhibitory_synapses: 0
+          somatic_synapses: false
+          use_shunting: false
+          use_additive_normalization: false
+          additive_mode: raw
+          epsilon: 1.0e-08
+          weight_transform: softplus
+          topk_type: standard
+          topk_init_method: xavier_normal
+          topk_noise_level: 0.0
+          topk_temperature: 0.0
+          dbl_init_method: analytical_expectation
+          adaptive_initialization: false
+          reactivate: true
+          reactivation_type: param_tanh
+          reactivation_init_policy: occupancy_quantile
+          reactivation_init_m: 1.5
+          reactivation_init_b: 0.5
+          reactivation_occupancy_quantile_low: 0.1
+          reactivation_occupancy_quantile_high: 0.9
+          reactivation_occupancy_target_low: 0.1
+          reactivation_occupancy_target_high: 0.9
+          reactivation_calibration_min_quantile_width: 0.001
+          reactivation_calibration_max_m: 50.0
+          reactivation_calibration_revert_on_invalid: true
+          topk_gradient_scaling: none
+          reactivation_gradient_scaling: none
+          blocklinear_gradient_scaling: none
+          efficient_blocklinear: true
+          dynamics_mode: rate
+          use_noise: false
+    biological_neuron: true
+  decoder:
+    type: MLP
+    params:
+      hidden_dims:
+      - 32
+      - 16
+      activation: relu
+      output_dim: 10
+training:
+  main:
+    strategy: standard
+    common:
+      epochs: 5000
+      batch_size: 512
+      shuffle: true
+      loss_function: cat_nll
+      early_stopping: true
+      patience: 600
+      load_best_state_dict: true
+      plot_losses: false
+      suppress_prints: true
+      print_every: 20
+      grad_clip_value: 5.0
+      grad_clip_mode: value
+      synapse_decay_rate: 0.01
+      weight_boosting: true
+      reactivation_initialization_num_batches: 3
+      reactivation_initialization_batch_size: 256
+      reactivation_initialization_max_iterations: 50
+      param_groups:
+        lr: 0.001
+        split_params: true
+        topk_lr: 0.001
+        blocklinear_lr: 0.001
+        reactivation_lr: 0.001
+        decoder_lr: 0.001
+        encoder_lr: null
+      num_workers: 2
+      persistent_workers: false
+      use_amp: false
+      save_best_checkpoint: end
+    optimizer:
+      name: adam
+      lr: 0.001
+      weight_decay: 0.0
+      betas:
+      - 0.9
+      - 0.999
+      eps: 1.0e-08
+    regularization:
+      l1_weight: 0.0
+      l2_weight: 0.0
+analysis:
+  performance_analysis:
+    enabled: true
+    training: false
+    final_splits:
+    - valid
+    params:
+      accuracy: true
+      categorical_loglikelihood: true
+  information_analysis:
+    enabled: false
+  ablation_analysis:
+    enabled: false
+  weight_analysis:
+    enabled: false
+outputs:
+  results_dir: outputs
+  run_name: cifar_multilayer_ei_networks_c00120_s10

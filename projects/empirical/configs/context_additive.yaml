@@ -1,0 +1,238 @@
+config_version: 4
+experiment:
+  seed: 62000
+  train_valid_split: 0.0
+  checkpointing:
+    enabled: false
+  allow_tf32: false
+  float32_matmul_precision: highest
+  deterministic: true
+  cudnn_benchmark: false
+  enable_hooks: false
+data:
+  dataset_name: contextual_remapping
+  base_dir: data
+  dataset_params:
+    contextual_remapping:
+      generator_device: cuda
+      upright: true
+      peak_normalize: true
+      pool_per_class: 200
+      validation_per_class: 50
+      partition_seed: 31003
+      num_contexts: 32
+      gain_min: 0.05
+      gain_max: 20.0
+      noise_divisor_min: 1.0
+      noise_divisor_max: 4.0
+      context_scale: 8.0
+model:
+  task: classification
+  encoder:
+    type: identity
+  core:
+    type: population_network
+    population_network:
+      input_transform: nonnegative
+      layers:
+      - name: layer0
+        readout_population: e
+        population_defaults:
+          ff_excitatory_synapses: 40
+          ff_excitatory_synapses_by_level:
+          - 40
+          - 40
+          - 0
+          ff_inhibitory_synapses: 4
+          rec_excitatory_synapses: 0
+          rec_inhibitory_synapses: 0
+          topk_type: standard
+          indexed_output_chunk_size: 256
+          indexed_projection_backend: eager
+          indexed_index_dtype: int32
+          weight_transform: exp
+          use_shunting: false
+          leak_conductance: 1.0
+          learnable_leak: false
+          reactivate: true
+          reactivation_type: param_tanh
+          reactivation_init_m: 1.5
+          reactivation_init_b: 0.5
+          reactivation_init_policy: occupancy_quantile
+          dbl_init_method: analytical_expectation
+          initial_child_conductance: 1.0
+          efficient_blocklinear: true
+          somatic_synapses: true
+          adaptive_initialization: false
+          release_p_min: 0.5
+          release_p_max: 1.0
+          release_impact_decay: 0.99
+        populations:
+        - name: i
+          n_neurons: 72
+          polarity: inhibitory
+          branch_factors:
+          - 3
+          - 2
+          population:
+            ff_inhibitory_synapses_by_level:
+            - 0
+            - 0
+            - 0
+        - name: e
+          n_neurons: 192
+          polarity: excitatory
+          branch_factors:
+          - 3
+          - 2
+          population:
+            ff_inhibitory_synapses_by_level:
+            - 4
+            - 4
+            - 6
+        connections:
+        - source: input
+          target: i
+        - source: input
+          target: e
+        - source: i
+          target: e
+      - name: layer1
+        readout_population: e
+        population_defaults:
+          ff_excitatory_synapses: 40
+          ff_excitatory_synapses_by_level:
+          - 40
+          - 40
+          - 0
+          ff_inhibitory_synapses: 4
+          rec_excitatory_synapses: 0
+          rec_inhibitory_synapses: 0
+          topk_type: standard
+          indexed_output_chunk_size: 256
+          indexed_projection_backend: eager
+          indexed_index_dtype: int32
+          weight_transform: exp
+          use_shunting: false
+          leak_conductance: 1.0
+          learnable_leak: false
+          reactivate: true
+          reactivation_type: param_tanh
+          reactivation_init_m: 1.5
+          reactivation_init_b: 0.5
+          reactivation_init_policy: occupancy_quantile
+          dbl_init_method: analytical_expectation
+          initial_child_conductance: 1.0
+          efficient_blocklinear: true
+          somatic_synapses: true
+          adaptive_initialization: false
+          release_p_min: 0.5
+          release_p_max: 1.0
+          release_impact_decay: 0.99
+        populations:
+        - name: i
+          n_neurons: 72
+          polarity: inhibitory
+          branch_factors:
+          - 3
+          - 2
+          population:
+            ff_inhibitory_synapses_by_level:
+            - 4
+            - 4
+            - 4
+        - name: e
+          n_neurons: 192
+          polarity: excitatory
+          branch_factors:
+          - 3
+          - 2
+          population:
+            ff_inhibitory_synapses_by_level:
+            - 4
+            - 4
+            - 4
+        connections:
+        - source: layer0.e
+          target: i
+        - source: layer0.e
+          target: e
+        - source: layer0.i
+          target: i
+        - source: layer0.i
+          target: e
+        - source: i
+          target: e
+    biological_neuron: true
+  decoder:
+    type: MLP
+    params:
+      hidden_dims: []
+      output_dim: 47
+      output_init: xavier_uniform
+training:
+  main:
+    strategy: presentation_stream
+    common:
+      epochs: 1200
+      batch_size: 512
+      loss_function: ce
+      grad_clip_value: 0.0
+      early_stopping: false
+      load_best_state_dict: true
+      plot_losses: false
+      print_every: 10
+      lr_schedule: cosine
+      weight_boosting: false
+      param_groups:
+        lr: 0.005
+        split_params: true
+        topk_lr: 0.005
+        blocklinear_lr: 0.005
+        reactivation_lr: 0.005
+        decoder_lr: 0.005
+      synapse_decay_rate: 0.0
+      suppress_prints: true
+      num_workers: 2
+      persistent_workers: false
+      save_best_checkpoint: end
+      use_amp: false
+      reactivation_initialization_num_batches: 3
+      reactivation_initialization_batch_size: 256
+      reactivation_initialization_max_iterations: 50
+    optimizer:
+      name: adam
+      betas:
+      - 0.9
+      - 0.999
+      eps: 1.0e-08
+      weight_decay: 0.0
+      lr: 0.005
+    strategies:
+      presentation_stream:
+        presentations_per_epoch: 65536
+        lr_terminal_multiplier: 0.01
+  encoder:
+    strategy: standard
+    common:
+      epochs: 0
+analysis:
+  performance_analysis:
+    enabled: true
+    training: false
+    final_splits:
+    - valid
+    params:
+      accuracy: true
+      categorical_loglikelihood: true
+  information_analysis:
+    enabled: false
+  ablation_analysis:
+    enabled: false
+  weight_analysis:
+    enabled: false
+outputs:
+  results_dir: outputs
+  run_name: contextual_additive_analytical_expectation_lr0.005_s62000
+distributed:
+  mode: none

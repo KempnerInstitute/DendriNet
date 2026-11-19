@@ -8,6 +8,10 @@ from dataclasses import replace
 import torch
 import torch.nn as nn
 
+from dendritic_modeling.config.population_routing import (
+    population_readout,
+    projection_pathway,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.structured_mask import (
     sample_probability_mask,
 )
@@ -124,7 +128,10 @@ class PopulationLayer(nn.Module):
                 "population-network layer requires an excitatory population"
             )
 
-        self.readout_population = config.readout_population or self.excitatory_names[0]
+        self.readout_population = population_readout(
+            {p.name: p.polarity for p in self.population_definitions},
+            config.readout_population,
+        )
         if self.readout_population not in self._population_by_name:
             raise ValueError(
                 f"readout_population {self.readout_population!r} is not a population"
@@ -280,13 +287,9 @@ class PopulationLayer(nn.Module):
                 "must come from a population output"
             )
 
-        pathway = conn.pathway
-        if not pathway:
-            source_polarity = self._source_polarity(source)
-            if conn.timing == _SAME_STEP:
-                pathway = _FF_INH if source_polarity == "inhibitory" else _FF_EXC
-            else:
-                pathway = _REC_INH if source_polarity == "inhibitory" else _REC_EXC
+        pathway = projection_pathway(
+            conn.timing, self._source_polarity(source), conn.pathway
+        )
         if conn.timing == _SAME_STEP and pathway not in {_FF_EXC, _FF_INH}:
             raise ValueError(
                 "same_step connections must use pathway 'ff_excitatory' "

@@ -61,10 +61,7 @@ class _StubGenerator:
         return paths
 
 
-class _StubJobManager:
-    def __init__(self, slurm_config):
-        self.slurm_config = slurm_config
-
+class _StubJobManager(sweep_manager_module.SweepJobManager):
     def create_job_scripts(
         self,
         config_paths,
@@ -320,6 +317,7 @@ def test_sweep_manager_generate_only_keeps_placeholders_and_freezes_manifest(
     manifest = json.loads(Path(sweep["frozen_manifest"]).read_text(encoding="utf-8"))
     assert sweep["num_configs"] == 2
     assert manifest["generation_mode"] == "generate_only"
+    assert Path(manifest["job_working_directory"]) == sweep_manager_module.REPO_ROOT
     assert manifest["expected_config_count"] == 2
     assert manifest["scheduler_profile"]["placeholder"] is True
     assert manifest["scheduler_profile"]["account"] == SCHEDULER_PLACEHOLDER

@@ -4,12 +4,16 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 import yaml
 from omegaconf import OmegaConf
 
+import dendritic_modeling
 from dendritic_modeling.scripts.sweeps import (
     rerun_missing_configs as rerun,
     sweep_manager,
@@ -69,6 +73,27 @@ def _sbatch_lines(path):
     return [
         line for line in path.read_text().splitlines() if line.startswith("#SBATCH")
     ]
+
+
+def test_installed_launchers_use_native_modules_and_resolve_custom_paths(
+    tmp_path, monkeypatch
+):
+    from dendritic_modeling.scripts.sweeps import slurm_profile
+
+    monkeypatch.setattr(slurm_profile, "CHECKOUT_ROOT", None)
+    monkeypatch.chdir(tmp_path)
+    profile = SlurmProfile.from_config(SLURM)
+    assert slurm_profile.job_working_directory() == tmp_path
+    assert "$(pwd)/src" not in profile.environment()
+    assert profile.training_command().endswith(
+        "-m dendritic_modeling.scripts.training.train_experiments"
+    )
+    fsdp = SlurmProfile.from_config({**SLURM, "launcher": "torchrun"})
+    assert "-m torch.distributed.run" in fsdp.training_command()
+    assert fsdp.training_command(
+        DEFAULT_TRAINING_SCRIPT.replace(".py", "_fsdp.py")
+    ).endswith("-m dendritic_modeling.scripts.training.train_experiments_fsdp")
+    assert str(tmp_path / "custom.py") in profile.training_command("custom.py")
 
 
 def test_single_and_array_scripts_request_the_same_resources(tmp_path):
@@ -135,6 +160,29 @@ def test_configs_on_the_root_filesystem_get_no_mount_probe(tmp_path, monkeypatch
     assert "stat" not in _mount_canary([str(config)])
 
 
+def test_installed_guard_compares_the_executing_package_with_the_frozen_digest(
+    tmp_path, monkeypatch
+):
+    from dendritic_modeling.scripts.sweeps.unified import base_sweep
+    from dendritic_modeling.utils.source_identity import package_tree_digest
+
+    monkeypatch.setattr(base_sweep, "CHECKOUT_ROOT", None)
+    digest = package_tree_digest(Path(dendritic_modeling.__file__).parent)
+    for frozen, expected_status in [(digest, 0), ("0" * 64, 1)]:
+        guard = _execution_source_guard(
+            tmp_path, {"git": {"available": False}, "package": {"tree_sha256": frozen}}
+        )
+        result = subprocess.run(
+            ["bash", "-ec", guard],
+            env={**os.environ, "PYTHON": sys.executable},
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == expected_status, result.stderr
+        if expected_status:
+            assert "differs from the package used for sweep generation" in result.stderr
+
+
 def test_array_specs_list_reruns_and_cap_concurrency():
     profile = SlurmProfile.from_config(SLURM)
     assert profile.array_spec([0, 1, 2]) == "0-2%2"
@@ -174,6 +222,58 @@ def test_unfinished_configs_are_found_from_their_artifacts(tmp_path):
     sweep = _sweep(tmp_path)
     _manifest, configs, slurm = rerun.load_sweep(sweep)
     assert rerun.find_unfinished(sweep, len(configs), slurm) == [1, 2, 3]
+
+
+@pytest.mark.parametrize("saved_directory", [True, False])
+def test_installed_rerun_preserves_original_working_directory(
+    tmp_path, monkeypatch, saved_directory
+):
+    from dendritic_modeling.scripts.sweeps import slurm_profile
+
+    sweep = _sweep(tmp_path)
+    manifest, configs, slurm = rerun.load_sweep(sweep)
+    monkeypatch.setattr(slurm_profile, "CHECKOUT_ROOT", None)
+    project = tmp_path / "research project"
+    project.mkdir()
+    if saved_directory:
+        manifest["job_working_directory"] = str(project)
+    original_dir = project if saved_directory else sweep
+    monkeypatch.chdir(tmp_path)
+    script = rerun.write_rerun_script(sweep, manifest, configs, slurm, [1])
+    assert f"#SBATCH --chdir={shlex.quote(str(original_dir))}" in _sbatch_lines(script)
+    config_argument = os.path.relpath(configs[1], original_dir)
+    assert f'    "{config_argument}"' in script.read_text().splitlines()
+
+
+def test_installed_job_reads_relative_dataset_and_checkpoint_from_generation_directory(
+    tmp_path, monkeypatch
+):
+    from dendritic_modeling.scripts.sweeps import slurm_profile
+
+    project = tmp_path / "research project"
+    data = project / "images"
+    data.mkdir(parents=True)
+    (data / "sample").write_text("image")
+    (project / "weights.pt").write_text("weights")
+    sweep = _sweep(tmp_path)
+    _, configs, slurm = rerun.load_sweep(sweep)
+    configs[0].write_text(
+        "data: {base_dir: images}\nmodel: {initial_checkpoint: weights.pt}\n"
+    )
+    script = project / "inspect.py"
+    script.write_text(
+        "import sys, yaml\nfrom pathlib import Path\n"
+        "config = yaml.safe_load(Path(sys.argv[1]).read_text())\n"
+        "assert (Path(config['data']['base_dir']) / 'sample').read_text() == 'image'\n"
+        "assert Path(config['model']['initial_checkpoint']).read_text() == 'weights'\n"
+    )
+    monkeypatch.setattr(slurm_profile, "CHECKOUT_ROOT", None)
+    monkeypatch.chdir(project)
+    job, submit = SweepJobManager(
+        {**slurm, "training_script": str(script)}
+    ).create_job_scripts([str(configs[0])], str(sweep))
+    assert f"REPO_ROOT={shlex.quote(str(project))}" in Path(submit).read_text()
+    subprocess.run(["bash", job], cwd=sweep, check=True)
 
 
 @pytest.mark.requires_git_checkout
