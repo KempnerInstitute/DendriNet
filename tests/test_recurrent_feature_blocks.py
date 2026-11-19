@@ -148,8 +148,7 @@ def test_absent_blocks_resolve_to_empty_mapping():
 
 
 def test_load_config_rejects_the_nested_placement(tmp_path):
-    payload = yaml.safe_load(
-        """
+    payload = yaml.safe_load("""
 data: {dataset_name: mnist}
 model:
   encoder: {type: identity, params: {input_dim: 5}}
@@ -157,8 +156,7 @@ model:
     type: dendritic_shunting
     dynamics:
       dendritic_spikes: {enabled: true}
-"""
-    )
+""")
     path = tmp_path / "config.yaml"
     path.write_text(yaml.safe_dump(payload))
     with pytest.raises(

@@ -695,8 +695,7 @@ def test_receptive_field_component_rfs_skip_recurrent_branches(tmp_path):
 
 def test_manager_runs_snr_and_rf_from_loaded_analysis_aliases(tmp_path):
     config_path = tmp_path / "config.yaml"
-    config_path.write_text(
-        """
+    config_path.write_text("""
 analysis:
   performance:
     enabled: false
@@ -720,8 +719,7 @@ analysis:
       compute_component_rfs: true
       compute_rf_tuning: true
       plot_rf_tuning: false
-""".lstrip()
-    )
+""".lstrip())
     config = load_config(str(config_path))
     model = _direct_inhibitory_model()
     _x, _labels, dataset = _toy_dataset()
