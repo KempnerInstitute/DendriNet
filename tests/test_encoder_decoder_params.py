@@ -14,8 +14,7 @@ from dendritic_modeling.config import load_config
 from dendritic_modeling.config.model import EncoderParamsConfig
 from dendritic_modeling.scripts.script_utils.setup_utils import initialize_model
 
-BASE = yaml.safe_load(
-    """
+BASE = yaml.safe_load("""
 data: {dataset_name: mnist}
 model:
   encoder: {type: identity, params: {input_dim: 6}}
@@ -27,8 +26,7 @@ model:
       ee_synapses_per_branch_per_layer: [2]
       ie_synapses_per_branch_per_layer: [0]
   decoder: {type: identity, params: {hidden_dims: []}}
-"""
-)
+""")
 
 
 def _load(tmp_path, *, encoder=None, decoder=None):

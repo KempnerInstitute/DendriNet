@@ -1,4 +1,4 @@
-"""Check a release tag and the exact distributions being promoted from TestPyPI."""
+"""Check a release tag and compare its distribution files with a package index."""
 
 from __future__ import annotations
 
@@ -15,11 +15,15 @@ from packaging.version import Version
 def project(distribution: str) -> tuple[str, str, str]:
     import tomllib  # The release workflow runs on Python 3.11.
 
-    root = Path(__file__).resolve().parents[1]
-    directory, prefix = (
-        (root, "v") if distribution == "core" else (root / "apps/studio", "studio-v")
+    metadata_path, prefix = (
+        ("pyproject.toml", "v")
+        if distribution == "core"
+        else ("apps/studio/pyproject.toml", "studio-v")
     )
-    metadata = tomllib.loads((directory / "pyproject.toml").read_text())["project"]
+    source = subprocess.check_output(
+        ["git", "show", f"HEAD:{metadata_path}"], text=True
+    )
+    metadata = tomllib.loads(source)["project"]
     version = metadata["version"]
     return metadata["name"], version, prefix + version
 
@@ -38,6 +42,8 @@ def verify_files(directory: Path, name: str, version: str, urls: list[dict]) -> 
         or len(list(directory.glob("*.tar.gz"))) != 1
     ):
         raise ValueError("Expected one wheel and one source distribution")
+    if len(urls) != 2 or any(item.get("yanked") for item in urls):
+        raise ValueError("Expected two active files on the package index")
     published = {item["filename"]: item["digests"]["sha256"] for item in urls}
     for path in files:
         parse = parse_wheel_filename if path.suffix == ".whl" else parse_sdist_filename
@@ -49,9 +55,21 @@ def verify_files(directory: Path, name: str, version: str, urls: list[dict]) -> 
     local = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in files}
     if local != published:
         raise ValueError(
-            "The local files and TestPyPI release differ in names or SHA-256 hashes"
+            "The local files and package index differ in names or SHA-256 hashes"
         )
-    print("Verified TestPyPI files:", json.dumps(local, sort_keys=True))
+    print("Verified release files:", json.dumps(local, sort_keys=True))
+
+
+def verify_checkout(tag: str) -> None:
+    head = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+    tagged = subprocess.check_output(
+        ["git", "rev-parse", "--verify", f"{tag}^{{commit}}"], text=True
+    ).strip()
+    if head != tagged:
+        raise ValueError("The checkout must be at the selected release tag")
+    subprocess.run(
+        ["git", "merge-base", "--is-ancestor", "HEAD", "origin/develop"], check=True
+    )
 
 
 if __name__ == "__main__":
@@ -59,17 +77,22 @@ if __name__ == "__main__":
     parser.add_argument("distribution", choices=("core", "studio"))
     parser.add_argument("tag")
     parser.add_argument(
-        "--staged", type=Path, help="Check these files against the version on TestPyPI"
+        "--staged", type=Path, help="Directory containing the wheel and source archive"
+    )
+    parser.add_argument(
+        "--index",
+        choices=("testpypi", "pypi"),
+        default="testpypi",
+        help="Package index to compare with --staged (default: testpypi)",
     )
     args = parser.parse_args()
     name, version, tag = project(args.distribution)
     if args.tag != "refs/tags/" + tag:
         parser.error(f"The release tag must be {tag}")
-    subprocess.run(
-        ["git", "merge-base", "--is-ancestor", "HEAD", "origin/develop"], check=True
-    )
+    verify_checkout(args.tag)
     if args.staged:
+        host = "pypi.org" if args.index == "pypi" else "test.pypi.org"
         with urllib.request.urlopen(
-            f"https://test.pypi.org/pypi/{name}/{version}/json", timeout=30
+            f"https://{host}/pypi/{name}/{version}/json", timeout=30
         ) as response:
             verify_files(args.staged, name, version, json.load(response)["urls"])

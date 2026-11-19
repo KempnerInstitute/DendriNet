@@ -20,8 +20,7 @@ from dendritic_modeling.config.regularization import (
     SelectiveConfig,
 )
 
-BASE = yaml.safe_load(
-    """
+BASE = yaml.safe_load("""
 experiment: {seed: 3}
 data: {dataset_name: mnist, processing: {flatten: true}}
 model:
@@ -45,8 +44,7 @@ analysis:
     enabled: false
     params: {estimator: {method: kraskov}}
 outputs: {results_dir: results}
-"""
-)
+""")
 
 
 def _load(tmp_path, payload):

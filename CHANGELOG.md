@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- The installation guides start with the published core and Studio packages
+  and show how to run the synthetic tutorial outside a source checkout.
+- Release maintainers can select a project-scoped upload token when their
+  package index does not support the enterprise identity issuer. Promotion
+  checks the staging tag, upload job and file hashes. Trusted Publishing
+  remains the default.
+- Update the Black development formatter and pre-commit hook to 26.10.1.
+
 ## 0.5.0
 
 ### Core library

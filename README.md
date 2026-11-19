@@ -23,15 +23,54 @@ distributed training, parameter sweeps and analysis tools.
 
 ## Installation
 
+For the graphical editor, go straight to [DendriNet Studio](#dendrinet-studio).
+For the Python library and command-line tools, install the core from PyPI
+in a Python 3.10 or later environment.
+
 ```bash
-git clone --branch develop https://github.com/KempnerInstitute/DendriNet.git
-cd DendriNet
-pip install -e .
+python -m pip install dendritic-modeling==0.5.0
 ```
 
-Python 3.10 or newer and PyTorch 2.8 or newer are required.
-[docs/installation.rst](docs/installation.rst) describes the tested
-environment, the pinned dependency versions and the optional extras.
+The import name is `dendritic_modeling`. The examples run on a CPU.
+The installation guide covers virtual environments, CPU and CUDA builds
+of PyTorch, optional dependencies and editable installs for contributors.
+[PyPI release](https://pypi.org/project/dendritic-modeling/0.5.0/) ·
+[Installation guide](docs/installation.rst)
+
+## DendriNet Studio
+
+Studio lets you draw feedforward and recurrent networks, inspect a neuron's
+dendrites and compare runs in your browser. Open a terminal on your laptop.
+On an Apple silicon Mac or a Linux laptop with Python 3.10 or later, run
+these commands the first time. Installing Studio also installs DendriNet and
+PyTorch. On a Mac, use the arm64 build of Python.
+
+```bash
+python3 -m venv ~/dendrinet-env
+source ~/dendrinet-env/bin/activate
+python -m pip install dendrinet-studio==0.1.0
+dendrinet-studio --workspace ~/dendrinet-runs
+```
+
+If you use Conda on macOS or Linux, replace the first two lines with
+`conda create -n dendrinet python=3.11 -y` and `conda activate dendrinet`.
+[Windows PowerShell instructions](apps/studio/README.md#windows-powershell)
+
+Keep the terminal open. If a browser tab doesn’t open, paste the entire
+printed address, including the part after `#`, into your browser.
+
+1. In **Model → Start from**, open **Two-class population network**. Select
+   population **e** to see which inputs provide excitation and inhibition.
+2. Choose **CPU** and click **Check model**. In **Training**, set **Epochs**
+   to `1`. Click **Train**, name the run and select **Start training**.
+3. Open **Runs** to see the loss and training log. The example generates
+   its own data and saves the run in `~/dendrinet-runs`.
+
+Press **Ctrl+C** in the terminal to stop Studio. Next time, activate the
+same environment and repeat the `dendrinet-studio --workspace` command above
+to see your saved runs. The editor also exports YAML for `dendritic-train`.
+[Illustrated Studio guide](https://kempnerinstitute.github.io/DendriNet/studio.html#studio-first-run) ·
+[Studio on PyPI](https://pypi.org/project/dendrinet-studio/0.1.0/)
 
 ## First steps
 
@@ -56,20 +95,6 @@ The installed commands include `dendritic-train` (training),
 [docs/cli_reference.rst](docs/cli_reference.rst) lists every command and its
 options. Distributed training runs under `torchrun`; see
 [docs/distributed_training.rst](docs/distributed_training.rst).
-
-## DendriNet Studio
-
-[DendriNet Studio](docs/studio.rst) is an optional local browser application.
-Draw a feedforward or recurrent population network, select a neuron population
-to see where its excitatory and inhibitory contacts come from, then train and
-compare runs. Studio provides forms for other model families and a YAML editor
-for the full configuration. The exported YAML also runs with `dendritic-train`.
-To launch it from this checkout, run
-
-```bash
-python -m pip install -e . -e ./apps/studio
-dendrinet-studio --workspace my-runs
-```
 
 ## Documentation
 
