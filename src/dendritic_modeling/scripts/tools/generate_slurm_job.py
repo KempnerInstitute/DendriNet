@@ -115,7 +115,7 @@ def render_job_script(
     """The job script: header, environment and the training command."""
     if profile.gpus_per_node != plan.gpus_per_node:
         raise ValueError("the Slurm profile and the job plan request different GPUs")
-    working_dir = job_working_directory(Path.cwd())
+    working_dir = job_working_directory()
     config_arg = os.path.relpath(os.path.abspath(config_path), start=working_dir)
     header = profile.header(
         repo_root=working_dir,
@@ -125,7 +125,7 @@ def render_job_script(
     return (
         header
         + "set -eo pipefail\n\n"
-        + profile.environment()
+        + profile.environment(working_dir)
         + f"{profile.training_command(plan.training_script)} {shlex.quote(config_arg)}\n"
     )
 

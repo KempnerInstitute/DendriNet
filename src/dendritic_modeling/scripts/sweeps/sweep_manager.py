@@ -374,6 +374,7 @@ class SweepManager:
                 f"{type(self.generator).__module__}.{type(self.generator).__qualname__}"
             ),
             generation_mode=generation_mode,
+            working_dir=job_manager.working_dir,
         )
 
         sweep_info = {

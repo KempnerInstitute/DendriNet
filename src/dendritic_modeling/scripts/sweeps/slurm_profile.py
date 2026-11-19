@@ -31,8 +31,11 @@ LAUNCHERS = ("python", "torchrun")
 _SLURM_TIME = re.compile(r"(\d+-)?\d+(:\d+){0,2}")
 
 
-def job_working_directory(output_dir: str | Path) -> Path:
-    return CHECKOUT_ROOT or Path(output_dir).resolve()
+def job_working_directory(generation_dir: str | Path | None = None) -> Path:
+    """Use the source checkout, or the installed user's generation directory."""
+    return CHECKOUT_ROOT or (
+        Path.cwd() if generation_dir is None else Path(generation_dir).resolve()
+    )
 
 
 def installed_training_target(script: str) -> str:
@@ -154,7 +157,7 @@ class SlurmProfile:
         ]
         if self.qos:
             lines.append(f"#SBATCH --qos={self.qos}")
-        lines.append(f"#SBATCH --chdir={repo_root}")
+        lines.append(f"#SBATCH --chdir={shlex.quote(str(repo_root))}")
         if self.constraint:
             lines.append(f"#SBATCH --constraint={self.constraint}")
         lines += [
@@ -169,7 +172,10 @@ class SlurmProfile:
             lines.append(f"#SBATCH --exclude={','.join(self.exclude_nodes)}")
         if array is not None:
             lines.append(f"#SBATCH --array={array}")
-        lines += [f"#SBATCH --output={output}", f"#SBATCH --error={error}"]
+        lines += [
+            f"#SBATCH --output={shlex.quote(output)}",
+            f"#SBATCH --error={shlex.quote(error)}",
+        ]
         return "\n".join(lines) + "\n\n"
 
     def array_spec(self, indices: list[int]) -> str:
@@ -187,13 +193,16 @@ class SlurmProfile:
             spec += f"%{self.max_concurrent_jobs}"
         return spec
 
-    def environment(self) -> str:
+    def environment(self, working_dir: Path | None = None) -> str:
         """Return the module, interpreter and ``PYTHONPATH`` setup as ``$PYTHON``."""
         lines = (
             ["module purge"]
             if self.modules_to_load
             else ["if type module >/dev/null 2>&1; then module purge; fi"]
         )
+        if CHECKOUT_ROOT is None and working_dir is not None:
+            # Direct bash execution must resolve inputs the same way as sbatch.
+            lines.insert(0, f"cd -- {shlex.quote(str(working_dir))}")
         lines += [f"module load {module}" for module in self.modules_to_load]
         lines.append("")
         if self.conda_env_path:

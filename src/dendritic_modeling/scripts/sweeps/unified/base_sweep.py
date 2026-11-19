@@ -435,8 +435,11 @@ class SweepJobManager:
     Manages SLURM job creation and submission for sweeps.
     """
 
-    def __init__(self, slurm_config: DictConfig):
+    def __init__(
+        self, slurm_config: DictConfig, *, working_dir: str | Path | None = None
+    ):
         self.slurm_config = slurm_config
+        self.working_dir = job_working_directory(working_dir)
 
     def create_job_scripts(
         self,
@@ -501,7 +504,7 @@ class SweepJobManager:
     ):
         """Create a SLURM job script that runs ``config_paths`` in sequence."""
         profile = SlurmProfile.from_config(self.slurm_config)
-        working_dir = job_working_directory(output_dir)
+        working_dir = self.working_dir
         with open(script_path, "w") as f:
             f.write(
                 profile.header(
@@ -511,7 +514,7 @@ class SweepJobManager:
                 )
             )
             f.write("set -euo pipefail\n\n")
-            f.write(profile.environment())
+            f.write(profile.environment(working_dir))
             f.write(_execution_source_guard(REPO_ROOT))
             f.write(_mount_canary(list(config_paths)))
             f.write("\n# Run experiments\n")
@@ -540,7 +543,7 @@ class SweepJobManager:
         source identity; the header otherwise equals the sweep's array script.
         """
         profile = SlurmProfile.from_config(self.slurm_config)
-        working_dir = job_working_directory(output_dir)
+        working_dir = self.working_dir
         array = profile.array_spec(
             list(range(len(config_paths))) if indices is None else list(indices)
         )
@@ -564,7 +567,7 @@ class SweepJobManager:
                 "#       Manual changes to this file may be overwritten.\n"
                 "# ================================================================\n\n"
             )
-            f.write(profile.environment())
+            f.write(profile.environment(working_dir))
             f.write(_execution_source_guard(REPO_ROOT, source_identity))
 
             config_dir = (
@@ -640,9 +643,7 @@ class SweepJobManager:
             f.write("set -euo pipefail\n")
             f.write("# Submit the sweep's jobs and record their job IDs.\n\n")
             f.write(f"# Sweep output directory: {output_dir}\n\n")
-            f.write(
-                f"REPO_ROOT={shlex.quote(str(job_working_directory(output_dir)))}\n"
-            )
+            f.write(f"REPO_ROOT={shlex.quote(str(self.working_dir))}\n")
             f.write('SWEEP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"\n')
             f.write(f'LEDGER="${{SWEEP_DIR}}/jobs/{SUBMITTED_JOBS_NAME}"\n\n')
             f.write(

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -82,7 +83,7 @@ def test_installed_launchers_use_native_modules_and_resolve_custom_paths(
     monkeypatch.setattr(slurm_profile, "CHECKOUT_ROOT", None)
     monkeypatch.chdir(tmp_path)
     profile = SlurmProfile.from_config(SLURM)
-    assert slurm_profile.job_working_directory("sweep") == tmp_path / "sweep"
+    assert slurm_profile.job_working_directory() == tmp_path
     assert "$(pwd)/src" not in profile.environment()
     assert profile.training_command().endswith(
         "-m dendritic_modeling.scripts.training.train_experiments"
@@ -221,6 +222,58 @@ def test_unfinished_configs_are_found_from_their_artifacts(tmp_path):
     sweep = _sweep(tmp_path)
     _manifest, configs, slurm = rerun.load_sweep(sweep)
     assert rerun.find_unfinished(sweep, len(configs), slurm) == [1, 2, 3]
+
+
+@pytest.mark.parametrize("saved_directory", [True, False])
+def test_installed_rerun_preserves_original_working_directory(
+    tmp_path, monkeypatch, saved_directory
+):
+    from dendritic_modeling.scripts.sweeps import slurm_profile
+
+    sweep = _sweep(tmp_path)
+    manifest, configs, slurm = rerun.load_sweep(sweep)
+    monkeypatch.setattr(slurm_profile, "CHECKOUT_ROOT", None)
+    project = tmp_path / "research project"
+    project.mkdir()
+    if saved_directory:
+        manifest["job_working_directory"] = str(project)
+    original_dir = project if saved_directory else sweep
+    monkeypatch.chdir(tmp_path)
+    script = rerun.write_rerun_script(sweep, manifest, configs, slurm, [1])
+    assert f"#SBATCH --chdir={shlex.quote(str(original_dir))}" in _sbatch_lines(script)
+    config_argument = os.path.relpath(configs[1], original_dir)
+    assert f'    "{config_argument}"' in script.read_text().splitlines()
+
+
+def test_installed_job_reads_relative_dataset_and_checkpoint_from_generation_directory(
+    tmp_path, monkeypatch
+):
+    from dendritic_modeling.scripts.sweeps import slurm_profile
+
+    project = tmp_path / "research project"
+    data = project / "images"
+    data.mkdir(parents=True)
+    (data / "sample").write_text("image")
+    (project / "weights.pt").write_text("weights")
+    sweep = _sweep(tmp_path)
+    _, configs, slurm = rerun.load_sweep(sweep)
+    configs[0].write_text(
+        "data: {base_dir: images}\nmodel: {initial_checkpoint: weights.pt}\n"
+    )
+    script = project / "inspect.py"
+    script.write_text(
+        "import sys, yaml\nfrom pathlib import Path\n"
+        "config = yaml.safe_load(Path(sys.argv[1]).read_text())\n"
+        "assert (Path(config['data']['base_dir']) / 'sample').read_text() == 'image'\n"
+        "assert Path(config['model']['initial_checkpoint']).read_text() == 'weights'\n"
+    )
+    monkeypatch.setattr(slurm_profile, "CHECKOUT_ROOT", None)
+    monkeypatch.chdir(project)
+    job, submit = SweepJobManager(
+        {**slurm, "training_script": str(script)}
+    ).create_job_scripts([str(configs[0])], str(sweep))
+    assert f"REPO_ROOT={shlex.quote(str(project))}" in Path(submit).read_text()
+    subprocess.run(["bash", job], cwd=sweep, check=True)
 
 
 @pytest.mark.requires_git_checkout
