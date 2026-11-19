@@ -4,12 +4,17 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dendrinet-studio"
-version = "0.1.0.dev0"
+version = "0.1.0"
 description = "Design, check, train and compare DendriNet models in the browser"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
-dependencies = ["dendritic_modeling>=0.5.0.dev0,<0.6", "PyYAML>=6"]
+dependencies = ["dendritic_modeling>=0.5.0,<0.6", "PyYAML>=6"]
+
+[project.urls]
+Documentation = "https://kempnerinstitute.github.io/DendriNet/studio.html"
+Source = "https://github.com/KempnerInstitute/DendriNet/tree/develop/apps/studio"
+Issues = "https://github.com/KempnerInstitute/DendriNet/issues"
 
 [project.optional-dependencies]
 test = ["pytest>=8", "playwright>=1.50"]
