@@ -17,6 +17,11 @@ on:
         type: choice
         default: build-only
         options: [build-only, testpypi, pypi]
+      authentication:
+        description: Upload credential for the selected package and index
+        type: choice
+        default: trusted-publisher
+        options: [trusted-publisher, project-token]
       staging_run_id:
         description: Successful TestPyPI workflow run ID (required for PyPI)
         type: string
@@ -78,7 +83,7 @@ jobs:
 
   stage:
     needs: build
-    if: github.event_name == 'workflow_dispatch' && inputs.target == 'testpypi'
+    if: github.event_name == 'workflow_dispatch' && inputs.target == 'testpypi' && inputs.authentication != 'project-token'
     runs-on: ubuntu-latest
     environment: testpypi
     permissions:
@@ -88,7 +93,7 @@ jobs:
         with:
           name: qualified-${{ inputs.distribution }}
           path: dist
-      - uses: pypa/gh-action-pypi-publish@release/v1
+      - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
         with:
           repository-url: https://test.pypi.org/legacy/
 
@@ -114,7 +119,12 @@ jobs:
         run: |
           [[ "$STAGING_RUN" =~ ^[0-9]+$ ]]
           gh api "repos/$GITHUB_REPOSITORY/actions/runs/$STAGING_RUN" |
-            jq -e --arg sha "$GITHUB_SHA" '.head_sha == $sha and .event == "workflow_dispatch" and .path == ".github/workflows/package.yml" and .conclusion == "success"'
+            jq -e --arg sha "$GITHUB_SHA" --arg tag "$GITHUB_REF_NAME" --arg repo "$GITHUB_REPOSITORY" '
+              .head_sha == $sha and .head_branch == $tag and .head_repository.full_name == $repo and
+              .event == "workflow_dispatch" and .path == ".github/workflows/package.yml" and .conclusion == "success"'
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$STAGING_RUN/jobs?filter=latest" |
+            jq -e --arg token_job "Upload $PACKAGE to testpypi with a project token" '
+              any(.jobs[]; (.name == "stage" or .name == $token_job) and .conclusion == "success")'
           python -m pip install packaging
           python setup/verify_release.py "$PACKAGE" "$GITHUB_REF"
       - uses: actions/download-artifact@v4
@@ -133,6 +143,7 @@ jobs:
 
   publish:
     needs: verify-promotion
+    if: inputs.authentication != 'project-token'
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
@@ -142,4 +153,35 @@ jobs:
         with:
           name: verified-for-pypi
           path: dist
-      - uses: pypa/gh-action-pypi-publish@release/v1
+      - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
+
+  upload-with-project-token:
+    name: Upload ${{ inputs.distribution }} to ${{ inputs.target }} with a project token
+    needs: [build, verify-promotion]
+    # Each target has one producer. Its artifacts must have passed that job.
+    if: >-
+      !cancelled() && github.event_name == 'workflow_dispatch' && inputs.authentication == 'project-token' &&
+      ((inputs.target == 'testpypi' && needs.build.result == 'success') ||
+       (inputs.target == 'pypi' && needs.verify-promotion.result == 'success'))
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.target }}
+    permissions: {}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.target == 'testpypi' && format('qualified-{0}', inputs.distribution) || 'verified-for-pypi' }}
+          path: dist
+      - name: Require the selected project token
+        env:
+          UPLOAD_TOKEN: ${{ secrets[inputs.distribution == 'core' && 'CORE_PROJECT_TOKEN' || 'STUDIO_PROJECT_TOKEN'] }}
+        run: |
+          if [[ -z "$UPLOAD_TOKEN" ]]; then
+            echo "::error::Set the selected package's project token in the target environment."
+            exit 1
+          fi
+      - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
+        with:
+          repository-url: ${{ inputs.target == 'testpypi' && 'https://test.pypi.org/legacy/' || 'https://upload.pypi.org/legacy/' }}
+          user: __token__
+          password: ${{ secrets[inputs.distribution == 'core' && 'CORE_PROJECT_TOKEN' || 'STUDIO_PROJECT_TOKEN'] }}
+          attestations: false

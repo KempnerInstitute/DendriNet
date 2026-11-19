@@ -26,7 +26,10 @@ pushes to ``develop`` build and test the packages without uploading to an
 index. **TestPyPI uploads are publicly downloadable too.**
 
 The examples below use core **0.5.0** and Studio **0.1.0**. Substitute the
-approved versions for another release.
+approved versions for a new release. Both example versions are already on
+PyPI. For installation, see :doc:`installation`. For the paper's example
+configurations, data and scripts, see the
+`v0.5.0 release <https://github.com/KempnerInstitute/DendriNet/releases/tag/v0.5.0>`_.
 
 1. Prepare the release pull request
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -73,10 +76,26 @@ This one-time setup can be done while the PR is under review.
    settings. A pending publisher does not reserve a name. See the
    `PyPI instructions <https://docs.pypi.org/trusted-publishers/creating-a-project-through-oidc/>`_.
 
-The workflow requests a short-lived publishing credential for its GitHub
-environment. No upload token is needed in repository secrets. Repository
-visibility is a separate maintainer decision. Review the remote branches,
-tags and artifacts that will be visible before changing it.
+The default ``trusted-publisher`` mode requests a short-lived credential
+for the selected environment. Each index checks the issuer, repository,
+workflow and environment. PyPI's ``unknown trusted publishing issuer``
+error means the index did not recognize the identity provider. GitHub
+Enterprise can set a custom issuer across an enterprise. Ask the enterprise
+administrator which issuer is in use before editing publisher registrations.
+See `PyPI troubleshooting <https://docs.pypi.org/trusted-publishers/troubleshooting/>`_
+and `GitHub's issuer settings <https://docs.github.com/en/enterprise-cloud@latest/actions/reference/security/oidc#customizing-the-issuer-value-for-an-enterprise>`_.
+
+For an existing project whose issuer the index does not support, the
+``project-token`` mode uses the same build and staging checks. An owner
+creates an API token scoped to that **one project on that index** and stores
+it as a GitHub **environment secret**. Use ``CORE_PROJECT_TOKEN`` for
+``dendritic-modeling`` or ``STUDIO_PROJECT_TOKEN`` for ``dendrinet-studio``.
+Select the ``testpypi`` environment for a TestPyPI token and ``pypi`` for a
+production token. Choose ``authentication=project-token`` in the dispatch
+form or append ``-f authentication=project-token`` to the command for that
+upload. This mode generates no Trusted Publishing attestations. Revoke a
+temporary token on the issuing index and remove its environment secret
+after verifying the published files.
 
 3. Tag the reviewed merge
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -156,11 +175,27 @@ Then run the second and wait for it to succeed.
    gh workflow run package.yml --repo "$repo" --ref studio-v0.1.0 \
      -f distribution=studio -f target=pypi -f staging_run_id="$studio_stage_id"
 
-For each distribution, CI verifies the staging run's workflow, commit
-and success, retrieves its artifacts, then matches the wheel and source
+For each distribution, CI verifies the staging run's repository, workflow,
+release tag, commit and successful TestPyPI upload job. It downloads the
+artifacts and matches the wheel and source
 archive names, versions and SHA-256 digests to the release on TestPyPI.
 Production receives those exact files. If verification fails, inspect the
 run ID, tag and file digests before approving an upload.
+
+To compare the filenames and SHA-256 digests after an upload, run the
+current verifier from a checkout at the release tag with its ``origin/develop``
+ref. It reads package metadata from that commit. Use Python 3.11 or later
+with ``packaging`` installed and the two files downloaded from the build.
+For the original v0.5.0 tag, set ``verifier`` to the absolute path of
+``setup/verify_release.py`` in the current maintainer checkout:
+
+.. code-block:: bash
+
+   python "$verifier" core refs/tags/v0.5.0 --staged dist/core --index testpypi
+   python "$verifier" core refs/tags/v0.5.0 --staged dist/core --index pypi
+
+The workflow's project-token option is available on release tags that
+contain the updated workflow.
 
 Finally, in a second empty environment, install only
 ``python -m pip install dendrinet-studio==0.1.0``. Run ``python -m pip check``,
