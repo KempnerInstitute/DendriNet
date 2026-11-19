@@ -214,6 +214,9 @@ export function drawNetwork(svg, preview, { selection, onSelectPopulation, onSel
   // Input and decoder blocks.
   const net = preview.resolved_config.model.core.population_network;
   const inputLines = [net.input_dim ? `${fmt(net.input_dim)} features` : "width from the data", transformText(net.input_transform, net.input_dim), preview.recurrent ? "one vector per time step" : null];
+  const origins = preview.edges.filter(e => e.layer === 0 && e.enabled !== false && ["input", "input_e", "input_i"].includes(e.source_id));
+  const signs = ["ff_excitatory", "ff_inhibitory"].filter(path => origins.some(e => e.pathway === path));
+  if (!preview.recurrent) inputLines[2] = signs.length ? "External → " + signs.map(path => path === "ff_excitatory" ? "E" : "I").join(" + ") + " synapses" : "No direct input";
   ioCard(svg, positions.__input, "Input", inputLines);
   const decoder = preview.resolved_config.model.decoder;
   const dp = decoder.params || {};

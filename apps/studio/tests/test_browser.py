@@ -247,3 +247,87 @@ def test_check_model_then_train_and_compare(page, studio):
         page.screenshot(path=str(Path(artifacts) / "runs.png"), full_page=False)
     assert not page.errors, page.errors
     time.sleep(0.1)
+
+
+@pytest.mark.parametrize("mode, keep_e", [("paired", True), ("split", False)])
+def test_external_routes_are_per_target_and_build_with_core(page, mode, keep_e):
+    if not keep_e:
+        raw = example("synthetic_population")
+        layer = raw["model"]["core"]["population_network"]["layers"][0]
+        layer["populations"].insert(
+            0,
+            {
+                "name": "relay",
+                "polarity": "excitatory",
+                "n_neurons": 12,
+                "branch_factors": [1],
+            },
+        )
+        layer["connections"].extend(
+            [{"source": "input", "target": "relay"}, {"source": "relay", "target": "e"}]
+        )
+        page.get_by_role("tab", name="YAML").click()
+        page.locator("textarea.yaml-text").fill(yaml.safe_dump(raw, sort_keys=False))
+        page.get_by_role("button", name="Apply").click()
+        page.get_by_role("tab", name="Model").click()
+    page.get_by_role("button", name="Edit population layer0.e").click()
+    table = page.get_by_role("region", name="Synapse sources per neuron")
+    rows = table.locator("tbody tr")
+    playwright.expect(rows.nth(0)).to_contain_text("External input")
+    playwright.expect(rows.nth(0).locator("td").last).to_have_text("56")
+    playwright.expect(rows.nth(1)).to_contain_text("layer0.i")
+    playwright.expect(rows.nth(1).locator("td").last).to_have_text("28")
+    page.get_by_label("External afferents for the first layer").select_option(mode)
+    page.get_by_role("switch", name="Direct external I").check()
+    playwright.expect(rows.nth(1)).to_contain_text("External input_i")
+    playwright.expect(rows.nth(1).locator("td").last).to_have_text("28")
+    if keep_e:
+        playwright.expect(
+            page.get_by_role("switch", name="Direct external E")
+        ).to_be_disabled()
+    else:
+        page.get_by_role("switch", name="Direct external E").uncheck()
+        playwright.expect(rows.nth(0)).to_contain_text("(off)")
+        playwright.expect(rows.nth(0)).to_contain_text("layer0.relay")
+        playwright.expect(rows.nth(0).locator("td").last).to_have_text("56")
+    page.get_by_role("button", name="Check model").click()
+    playwright.expect(page.locator(".topbar .status")).to_contain_text(
+        "model checked", timeout=180_000
+    )
+    net = exported(page)["model"]["core"]["population_network"]
+    assert net["use_transfer"] is True
+    params = net["transfer_params"]
+    assert params["independent_pathways"] is (mode == "split")
+    assert params["input_source_identity"] == (
+        "shared" if mode == "split" else "paired_afferents"
+    )
+    edges = net["layers"][0]["connections"]
+    assert edges[0] == {"source": "input", "target": "i"}
+    assert edges[1].get("enabled", True) is keep_e
+    assert edges[2] == {"source": "i", "target": "e"}
+    assert edges[-1] == {"source": "input_i", "target": "e"}
+    assert not page.errors
+
+
+def test_external_route_switch_preserves_custom_placement(page):
+    raw = example("synthetic_population")
+    net = raw["model"]["core"]["population_network"]
+    net["use_transfer"] = True
+    net["transfer_params"] = {
+        "input_source_identity": "paired_afferents",
+        "output_activation": "relu",
+    }
+    routes = net["layers"][0]["connections"]
+    routes.append(
+        {"source": "input_inh", "target": "e", "target_levels": ["soma"], "seed": 11}
+    )
+    routes[2]["target_levels"] = [1, 2]
+    page.get_by_role("tab", name="YAML").click()
+    page.locator("textarea.yaml-text").fill(yaml.safe_dump(raw, sort_keys=False))
+    page.get_by_role("button", name="Apply").click()
+    page.get_by_role("tab", name="Model").click()
+    page.get_by_role("button", name="Edit population layer0.e").click()
+    page.get_by_role("switch", name="Direct external I").uncheck()
+    result = exported(page)["model"]["core"]["population_network"]
+    routes[-1]["enabled"] = False
+    assert result == net

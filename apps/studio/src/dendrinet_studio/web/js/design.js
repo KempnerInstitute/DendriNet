@@ -9,6 +9,7 @@ import { h, s, icon, fmt, polarityGlyph, download } from "./dom.js";
 import { state, api, edit, select, adopt, emit, getPath, deletePath, isPopulationNetwork, layers, nodeView, configKey } from "./store.js";
 import { field, textInput, numberInput, stepper, selectInput, switchInput, segmented, mappingInput, factorEditor, sectionForm, disclosure, humanize, controlFor, describeCount, rebuildKeepingFocus } from "./fields.js";
 import { drawNetwork, drawOverview, layoutNetwork, svgForExport } from "./graph.js";
+import { externalControls, sourcesTable } from "./afferents.js";
 import { drawNeuron, levelTable, neuronLegend } from "./morphology.js";
 import { toast, confirmDialog } from "./ui.js";
 
@@ -368,6 +369,7 @@ function renderDetail() {
       h("figure", { class: "neuron-figure" }, [svg, neuronLegend(), caption ? h("figcaption", { class: "help", text: caption }) : null]),
       h("div", { class: "neuron-side" }, [
         levelTable({ levels: node.levels_including_soma, counts: node.received_per_level, neurons: node.neurons }),
+        sourcesTable(node),
         equationBox(node.settings),
         ...notes.map(text => h("p", { class: "notice warn compact" }, [icon("warn"), h("span", { text })])),
         h("p", { class: "help", text: "The tree is the exact compartment tree; its geometry is schematic. Counts are contacts per compartment, as configured; a model check counts the synapses of the built model." }),
@@ -670,6 +672,7 @@ function populationInspector(sel) {
         field({ label: "Branching per level (soma → distal)", control: factorEditor(factors, v => setFactors(li, pi, v)), key: `${itemPath}.branch_factors`, help: `${levels} ${levels === 1 ? "level" : "levels"} · ${fmt(node?.compartments_per_neuron ?? 1)} compartments per neuron` }),
       ]
     ),
+    li === 0 && node ? group("External input to this population", externalControls(node), "Choose the incoming synapse signs for this population. Connections from other populations are set separately.") : null,
     synapseGroup(ctx, { node, recurrentRelevant }),
     integrationGroup(ctx, null),
     group("Dendritic gate", groupedOptions(ctx, "Dendritic gate")),
@@ -743,7 +746,7 @@ function connectionInspector(sel) {
       field({ label: "Seed", control: numberInput(conn.seed ?? null, v => set("seed", v), { integer: true, optional: true }), key: `${path}.seed` }),
       field({ label: "Enabled", control: switchInput(conn.enabled !== false, v => set("enabled", v ? null : false, true), "Enabled"), key: `${path}.enabled`, help: "A switched-off connection stays in the file but is not built." }),
     ]),
-    target ? h("p", { class: "help", text: `Each ${target.name} compartment receives the ${derived.replace("_", " ")} synapse count of ${target.name} from this source.` }) : null,
+    target ? h("p", { class: "help", text: `This source contributes to the ${derived.replace("_", " ")} contact budget of ${target.name} at the selected levels. All sources on this pathway share its budget.` }) : null,
     h("div", { class: "danger-zone" }, [h("button", { type: "button", class: "btn danger small", onclick: () => removeConnection(li, sel.index) }, [icon("trash"), "Remove connection"])]),
   ].filter(Boolean);
 }

@@ -32,6 +32,8 @@
   the package digest. Core and Studio can each promote their verified
   TestPyPI archives to PyPI.
 
+- Show the source and contact budget of each incoming E/I pathway in Studio and
+  allow direct external excitation, inhibition or both for each first-layer population.
 - Add an optional local Studio application under `apps/studio/`. It edits
   population-network YAML, draws populations and branching-factor morphologies,
   delegates model checks and training to core, and displays actual run results.

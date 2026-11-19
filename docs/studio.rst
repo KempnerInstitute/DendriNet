@@ -23,6 +23,26 @@ unchanged with ``dendritic-train``.
    bars. The neuron below the network is the selected population's exact
    compartment tree with its contacts per compartment.
 
+Tracing excitation and inhibition
+---------------------------------
+
+Select a population in the Model view. **Synapse sources per neuron** lists
+the origin and target depths of each projection. Each E or I pathway has one
+contact budget per compartment, shared among its eligible sources. In the
+tutorial, external input excites both cell populations. Inhibition of the
+excitatory cells comes from the local inhibitory population.
+
+Under **External input to this population**, enable direct external E, direct
+external I, or both. These switches preserve the other projections and their
+depth restrictions. Set the receiving contact counts under **Synapses**.
+Each target needs a same-step excitatory source. To supply only external I to
+a target, first connect an excitatory population to it.
+For a biological first layer with both input signs, choose matched E and I
+afferents carrying the same features or partition the features into distinct
+channel groups. This network-wide choice describes the sources. ON/OFF
+encoding changes the features themselves. In subsequent layers, a connection
+named ``input`` comes from the preceding layer's readout population.
+
 Install and start
 -----------------
 
