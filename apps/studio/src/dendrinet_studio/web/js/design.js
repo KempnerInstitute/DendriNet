@@ -9,7 +9,7 @@ import { h, s, icon, fmt, polarityGlyph, download } from "./dom.js";
 import { state, api, edit, select, adopt, emit, getPath, deletePath, isPopulationNetwork, layers, nodeView, configKey } from "./store.js";
 import { field, textInput, numberInput, stepper, selectInput, switchInput, segmented, mappingInput, factorEditor, sectionForm, disclosure, humanize, controlFor, describeCount, rebuildKeepingFocus } from "./fields.js";
 import { drawNetwork, drawOverview, layoutNetwork, svgForExport } from "./graph.js";
-import { externalControls, sourcesTable } from "./afferents.js";
+import { externalControls, sourcesTable, structuredInputGuide } from "./afferents.js";
 import { drawNeuron, levelTable, neuronLegend } from "./morphology.js";
 import { toast, confirmDialog } from "./ui.js";
 
@@ -433,6 +433,8 @@ function renderFamilyForms() {
     }
   } else {
     body.append(h("p", { class: "help", text: "These sections describe the core. Options a family does not read are rejected when the configuration is checked, so nothing is silently ignored." }));
+    const guide = structuredInputGuide(p);
+    if (guide) body.append(guide);
     for (const name of CORE_SECTIONS) {
       const section = state.schema.sections[`model.core.${name}`];
       if (!section) continue;

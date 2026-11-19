@@ -274,11 +274,17 @@ def test_external_routes_are_per_target_and_build_with_core(page, mode, keep_e):
     table = page.get_by_role("region", name="Synapse sources per neuron")
     rows = table.locator("tbody tr")
     playwright.expect(rows.nth(0)).to_contain_text("External input")
+    playwright.expect(rows.nth(0)).to_contain_text("soma + depths 1\u20132")
     playwright.expect(rows.nth(0).locator("td").last).to_have_text("56")
     playwright.expect(rows.nth(1)).to_contain_text("layer0.i")
     playwright.expect(rows.nth(1).locator("td").last).to_have_text("28")
-    page.get_by_label("External afferents for the first layer").select_option(mode)
     page.get_by_role("switch", name="Direct external I").check()
+    warning = page.get_by_text(
+        "Both signs currently read shared input channels.", exact=False
+    )
+    playwright.expect(warning).to_be_visible()
+    page.get_by_label("External afferents for the first layer").select_option(mode)
+    playwright.expect(warning).to_have_count(0)
     playwright.expect(rows.nth(1)).to_contain_text("External input_i")
     playwright.expect(rows.nth(1).locator("td").last).to_have_text("28")
     if keep_e:
@@ -327,7 +333,37 @@ def test_external_route_switch_preserves_custom_placement(page):
     page.get_by_role("button", name="Apply").click()
     page.get_by_role("tab", name="Model").click()
     page.get_by_role("button", name="Edit population layer0.e").click()
+    table = page.get_by_role("region", name="Synapse sources per neuron")
+    playwright.expect(table).to_contain_text("layer0.i · depths 1\u20132")
+    playwright.expect(table).to_contain_text("External input_i · soma")
     page.get_by_role("switch", name="Direct external I").uncheck()
     result = exported(page)["model"]["core"]["population_network"]
     routes[-1]["enabled"] = False
     assert result == net
+
+
+def test_structured_feedforward_sources_follow_presence_of_inhibitory_cells(page):
+    raw = example("structured_tree_synthetic")
+    for local_inhibition in (True, False):
+        core = raw["model"]["core"]
+        if not local_inhibition:
+            core["architecture"]["inhibitory_layer_sizes"] = []
+            core["connectivity"]["ei_synapses_per_branch_per_layer"] = [0]
+            core["transfer"] = {"independent_pathways": True}
+        page.get_by_role("tab", name="YAML").click()
+        page.locator("textarea.yaml-text").fill(yaml.safe_dump(raw, sort_keys=False))
+        page.get_by_role("button", name="Apply").click()
+        page.get_by_role("tab", name="Model").click()
+        rows = page.get_by_role(
+            "region", name="First-layer feedforward sources"
+        ).locator("tbody tr")
+        playwright.expect(rows).to_have_count(4 if local_inhibition else 2)
+        playwright.expect(rows.nth(1).locator("td")).to_have_text(
+            [
+                "E cells",
+                "I",
+                "Local I cells" if local_inhibition else "External I stream",
+                "2",
+            ]
+        )
+    assert not page.errors

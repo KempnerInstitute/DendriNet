@@ -90,7 +90,28 @@ export function externalControls(node) {
       }));
     }
   }
-  return [...controls, inputIdentity()];
+  controls.push(inputIdentity());
+  const active = new Set(state.preview.edges.filter(e => e.layer === 0 && e.enabled !== false).map(e => e.source_id));
+  if (state.preview.biological_neuron && afferentMode(getPath(state.config, NET)) === "shared" &&
+      active.has("input_i") && (active.has("input") || active.has("input_e"))) {
+    controls.push(h("p", { class: "notice warn compact", role: "status", text: "Both signs currently read shared input channels. Choose matched afferents or separate channel groups to build this biological model." }));
+  }
+  return controls;
+}
+
+function receivingLevels(node, edge) {
+  if (edge.enabled === false) return levelText(edge) + " (off)";
+  const depths = node.received_per_level[edge.pathway].flatMap((count, depth) =>
+    count && (edge.target_depths == null || edge.target_depths.includes(depth)) ? [depth] : []);
+  if (!depths.length) return "no contacts";
+  const labels = depths[0] === 0 ? ["soma"] : [];
+  const branches = depths.filter(depth => depth > 0);
+  if (branches.length === 1) labels.push("depth " + branches[0]);
+  if (branches.length > 1) {
+    const continuous = branches.at(-1) - branches[0] + 1 === branches.length;
+    labels.push("depths " + (continuous ? branches[0] + "–" + branches.at(-1) : branches.join(", ")));
+  }
+  return labels.join(" + ");
 }
 
 export function sourcesTable(node) {
@@ -104,7 +125,7 @@ export function sourcesTable(node) {
       const origin = external.has(edge.source_id) ? "External " + edge.source : edge.source_id;
       return h("div", {}, [h("button", { type: "button", class: "linkish",
         onclick: () => select({ kind: "connection", layer: edge.layer, index }), text: origin,
-      }), " · " + levelText(edge) + (edge.enabled === false ? " (off)" : "")]);
+      }), " · " + receivingLevels(node, edge)]);
     });
     rows.push(h("tr", {}, [h("th", { scope: "row", text: sign }), h("td", {}, links.length ? links : ["No source"]), h("td", { text: fmt(total) })]));
   }
@@ -112,5 +133,35 @@ export function sourcesTable(node) {
     h("h4", { text: "Synapse sources per neuron" }),
     h("table", { class: "levels sources" }, [h("thead", {}, [h("tr", {}, ["Synapses", "Eligible sources", "Contacts"].map(text => h("th", { scope: "col", text })))]), h("tbody", {}, rows)]),
     h("p", { class: "help", text: "Each total is the contact budget across the neuron's compartments. Sources on the same pathway share that budget. The level table gives contacts per compartment." }),
+  ]);
+}
+
+// In structured feedforward families the architecture fixes the routes.
+// Counts stay in the existing typed Connectivity form.
+export function structuredInputGuide(preview) {
+  const core = preview.resolved_config.model.core;
+  const families = ["einet", "dendritic_shunting", "dendritic_additive", "dendritic_normalized_additive",
+    "flat_shunting", "flat_additive", "flat_normalized_additive"];
+  if (preview.recurrent || !families.includes(preview.family)) return null;
+  const architecture = core.architecture;
+  const hasLocalI = Boolean(architecture.inhibitory_layer_sizes?.[0]);
+  const denseI = hasLocalI && architecture.inhibitory_network_type === "mlp";
+  const rows = [];
+  const add = (cells, sign, source, key) => {
+    const count = core.connectivity[key + "_synapses_per_branch_per_layer"]?.[0] ?? 0;
+    rows.push([cells, sign, source, String(count)]);
+  };
+  add("E cells", "E", "External E stream", "ee");
+  add("E cells", "I", hasLocalI ? "Local I cells" : "External I stream", "ie");
+  if (hasLocalI && !denseI) {
+    add("I cells", "E", "External E stream", "ei");
+    add("I cells", "I", "External I stream", "ii");
+  }
+  return h("section", { "aria-label": "First-layer feedforward sources" }, [
+    h("h4", { text: "First-layer feedforward sources" }),
+    h("table", { class: "levels" }, [h("thead", {}, [h("tr", {}, ["Receiver", "Synapses", "Source", "Per branch"].map(text => h("th", { scope: "col", text })))]),
+      h("tbody", {}, rows.map(row => h("tr", {}, row.map(text => h("td", { text })))))]),
+    denseI ? h("p", { class: "help", text: "The local inhibitory population is a dense MLP driven by the excitatory input." }) : null,
+    h("p", { class: "help", text: "Edit per-branch counts under Connectivity. A zero count omits that pathway. Architecture sets the local inhibitory population size; Transfer sets how the external channels are supplied." }),
   ]);
 }

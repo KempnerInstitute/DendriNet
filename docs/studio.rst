@@ -43,6 +43,14 @@ channel groups. This network-wide choice describes the sources. ON/OFF
 encoding changes the features themselves. In subsequent layers, a connection
 named ``input`` comes from the preceding layer's readout population.
 
+For structured feedforward E/I trees the architecture fixes the routes. The
+**First-layer feedforward sources** table names the receiver, incoming sign,
+source and configured contacts per branch. With local I cells present, they
+supply the E cells' inhibitory input. In their absence the first-layer E cells
+can receive the external I stream directly. Change contact counts under
+**Connectivity**, population sizes under **Architecture**, and external channel
+identity under **Transfer**.
+
 Install and start
 -----------------
 
