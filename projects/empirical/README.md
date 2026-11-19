@@ -42,7 +42,8 @@ Changing the YAML alone cannot substitute for the training-stream calibration.
 
 Use the study source-data asset `empirical-example-data.zip` with its recorded
 [checksum and table inventory](reproducibility/source_data.json). Run from
-the repository root with Python 3.11, NumPy 2.2.6, pandas 2.3.3 and DendriNet.
+the repository root. The verification used Python 3.10.20, NumPy 2.2.6,
+pandas 2.3.3 and DendriNet v0.3.0. The figure used Matplotlib 3.10.6.
 The analyses run on a CPU and require neither datasets nor trained weights.
 
 ```bash
@@ -85,3 +86,5 @@ The experiment uses the model checkpoint to obtain the derivatives and donor
 responses. The replay above starts at the resulting per-seed measurements.
 The [figure index](reproducibility/figures.md) describes the scope of the
 examples and identifies which comparisons have separate historical sources.
+
+Study code is copyright (c) 2026 Kempner Institute and distributed under the repository's MIT license.

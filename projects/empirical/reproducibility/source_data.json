@@ -8,5 +8,15 @@
   },
   "transmission_analysis_commit": "f3213cfcff62ffc535c1b87e71d8af3f4c880f8b",
   "context_render_commit": "9c4642fe1e860051f70bb5e9e1bd14b05c6deead",
-  "context_input_sha256": "81d46e5d0fa8e9259743512ffd60d4a06691fcd5afda187bb0bf0fede7f6e50f"
+  "context_input_sha256": "81d46e5d0fa8e9259743512ffd60d4a06691fcd5afda187bb0bf0fede7f6e50f",
+  "reader_replay_environment": {
+    "python": "3.10.20",
+    "dendrinet_source": "8e884ea37f470b33f6557a8c0c0734369d273667",
+    "numpy": "2.2.6",
+    "pandas": "2.3.3",
+    "matplotlib": "3.10.6",
+    "PyYAML": "6.0.2",
+    "torch": "2.9.1",
+    "torchvision": "0.24.1"
+  }
 }
