@@ -12,6 +12,8 @@
 
 ### DendriNet Studio 0.2.0
 
+- Open Studio from the documentation in a personal Binder session, train
+  the two-class example on a CPU and download the configuration and curves.
 - Connect two populations from the diagram or choose both endpoints and the
   projection timing before applying an edit. Surface the receiving E/I budget
   and validate route changes with DendriNet before saving them.

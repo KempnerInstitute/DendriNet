@@ -4,9 +4,24 @@ DendriNet Studio
 ================
 
 DendriNet Studio lets you draw a network, inspect the inputs to a neuron,
-train the model and compare runs in a browser on your computer. The editor
+train the model and compare runs in a browser. The editor
 and the command line use the same experiment YAML and the same DendriNet
 model builders and trainer. You can move a design between them at any point.
+
+**Try it online.** `Open DendriNet Studio
+<https://mybinder.org/v2/gh/KempnerInstitute/DendriNet/develop?urlpath=open-studio>`_
+to start a personal CPU session in your browser. Binder builds the environment
+on the first visit to a new revision. Once the editor opens, the two-class
+example is ready. Set **Training → Epochs** to ``1``, then choose **Train**.
+The example generates its own data.
+
+Use **YAML → Export** to save the configuration. In **Runs**, select your
+completed run and choose **Curves (CSV)** to save the training and validation
+history. Binder reclaims idle sessions and their workspace. For longer runs
+and persistent results, follow the local installation instructions below.
+The online link follows the repository's ``develop`` branch. To share a
+specific version, replace ``develop`` in that link with a commit that includes
+the launcher.
 
 .. contents:: On this page
    :local:

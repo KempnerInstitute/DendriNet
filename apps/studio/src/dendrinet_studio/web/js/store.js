@@ -8,7 +8,9 @@
 // The launcher puts the session token in the address fragment (#token&view=...).
 const token = location.hash.slice(1).split("&")[0];
 const listeners = new Map();
-const DRAFT_KEY = "dendrinet-studio-draft-v1";
+// A host can serve several personal Studios, each under its own URL prefix.
+const basePath = new URL(".", location.href).pathname;
+const DRAFT_KEY = "dendrinet-studio-draft-v1" + (basePath === "/" ? "" : ":" + basePath);
 const HISTORY_LIMIT = 100;
 
 export const state = {

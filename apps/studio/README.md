@@ -1,7 +1,7 @@
 # DendriNet Studio
 
 Design, check, train and compare [DendriNet](https://github.com/KempnerInstitute/DendriNet)
-models on your computer. Select a neuron population to trace the external
+models in a browser. Select a neuron population to trace the external
 and local sources of its excitatory and inhibitory contacts. Inspect the
 contact count at each dendritic level, build the network, or train and compare
 two designs. Each design exports as an ordinary DendriNet experiment YAML.
@@ -12,6 +12,15 @@ on the diagram. A same-step route carries current activity. A delayed route
 carries the previous step and can return from a later layer. The guide walks
 through a recurrent decision circuit with a feedforward readout.
 [Connect populations and mix layer dynamics](https://kempnerinstitute.github.io/DendriNet/studio.html#studio-connect)
+
+## Open a personal session online
+
+[Open Studio on Binder](https://mybinder.org/v2/gh/KempnerInstitute/DendriNet/develop?urlpath=open-studio)
+to design a network and train the two-class example on a CPU. Set **Epochs**
+to `1` in **Training**, then select **Train**. In **Runs**, select the finished
+run and download **Curves (CSV)**. Use **YAML → Export** to keep your design.
+Binder starts a temporary workspace for each visitor. The first launch for a
+new Git revision can take several minutes.
 
 ## Install and open Studio on your laptop
 
