@@ -5,6 +5,4 @@ set -euo pipefail
 python -m pip install --index-url https://download.pytorch.org/whl/cpu torch==2.9.1 torchvision==0.24.1
 python -m pip install . ./apps/studio
 
-site_packages=$(python -c 'import sysconfig; print(sysconfig.get_path("purelib"))')
-install -m 644 .binder/dendrinet_binder.py "$site_packages/dendrinet_binder.py"
-jupyter server extension enable --py dendrinet_binder --sys-prefix
+python .binder/register_studio.py

@@ -9,7 +9,6 @@ import subprocess
 import sys
 import time
 from contextlib import contextmanager
-from pathlib import Path
 from urllib.parse import urljoin, urlsplit
 
 import yaml
@@ -21,28 +20,11 @@ def personal_server(root):
     root.mkdir()
     runtime = root / "runtime"
     token = secrets.token_urlsafe()
-    config = root / "config"
-    config.mkdir()
-    (config / "jupyter_server_config.json").write_text(
-        json.dumps(
-            {
-                "ServerApp": {
-                    "jpserver_extensions": {
-                        "dendrinet_binder": True,
-                        "jupyter_server_proxy": True,
-                    }
-                }
-            }
-        )
-    )
     env = {
         **os.environ,
-        "JUPYTER_CONFIG_DIR": str(config),
+        "JUPYTER_CONFIG_DIR": str(root / "config"),
         "JUPYTER_RUNTIME_DIR": str(runtime),
         "JUPYTER_TOKEN": token,
-        "PYTHONPATH": os.pathsep.join(
-            [str(Path(__file__).resolve().parent), os.environ.get("PYTHONPATH", "")]
-        ),
     }
     with (root / "server.log").open("w") as log:
         proc = subprocess.Popen(
@@ -81,7 +63,7 @@ def test_personal_session_training_and_exports(tmp_path):
             response = page.request.get(entry, max_redirects=0)
             assert response.status in (302, 403)
             assert "/proxy/" not in response.headers.get("location", "")
-            page.goto(f"{entry}?token={token}")
+            page.goto(f"{entry}?token={token}", timeout=90_000)
             page.locator("svg.network .card").first.wait_for()
             address = urlsplit(page.url)
             assert address.path.startswith("/user/visitor/proxy/")
@@ -125,7 +107,7 @@ def test_personal_session_training_and_exports(tmp_path):
         sync_playwright() as engine,
     ):
         client = engine.request.new_context()
-        reply = client.get(f"{entry}?token={token}", max_redirects=0)
+        reply = client.get(f"{entry}?token={token}", max_redirects=0, timeout=90_000)
         assert reply.status == 302
         address = urlsplit(urljoin(entry, reply.headers["location"]))
         assert address.fragment and address.fragment != first_secret

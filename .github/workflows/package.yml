@@ -71,6 +71,7 @@ jobs:
           python "$GITHUB_WORKSPACE/setup/check_installed_sweep.py"
           python -m pytest "$GITHUB_WORKSPACE/apps/studio/tests" -q
           python -m pip install jupyter-server-proxy==4.6.1
+          python "$GITHUB_WORKSPACE/.binder/register_studio.py"
           python -m pytest "$GITHUB_WORKSPACE/.binder/test_session.py" -q
       - uses: actions/upload-artifact@v4
         with:
