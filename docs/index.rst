@@ -21,12 +21,12 @@ data for one CPU epoch:
 
 .. code-block:: bash
 
-   python -m pip install dendritic-modeling==0.5.0
+   python -m pip install --upgrade dendritic-modeling
    dendritic-example synthetic_population --output demo.yaml
    dendritic-train demo.yaml --epochs 1
 
 For a graphical first run, install the companion package with
-``python -m pip install dendrinet-studio==0.1.0`` and follow :ref:`studio-first-run`.
+``python -m pip install --upgrade dendrinet-studio`` and follow :ref:`studio-first-run`.
 
 Every model has three parts: an **encoder** that prepares the input, a
 **core** that holds the dendritic network (or a baseline), and a **decoder**

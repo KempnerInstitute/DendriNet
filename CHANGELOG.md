@@ -1,14 +1,62 @@
 # Changelog
 
-## Unreleased
+## 0.6.0
 
 - The installation guides start with the published core and Studio packages
   and show how to run the synthetic tutorial outside a source checkout.
+  The Studio guide also covers optional GPU training in a cluster allocation.
 - Release maintainers can select a project-scoped upload token when their
   package index does not support the enterprise identity issuer. Promotion
   checks the staging tag, upload job and file hashes. Trusted Publishing
   remains the default.
 - Update the Black development formatter and pre-commit hook to 26.10.1.
+
+### Core library 0.6.0
+
+- Set a population projection's travel time with `delay_steps` or
+  `delay_steps_by_level`. Delayed projections default to one update.
+  Longer delays carry source outputs across sequence chunks and support
+  backpropagation through those outputs. A zero-probability route keeps
+  its source columns without storing earlier samples.
+
+### DendriNet Studio 0.2.0
+
+- Add a compact contextual-remapping template on EMNIST Balanced. Explore
+  how a cue changes a character's target in a two-layer E/I network, or
+  export its configuration with `dendritic-example contextual_remapping_population`.
+
+- Show and edit the receiving compartment's response time at each depth.
+  Add multiple same-step excitatory sources from the receiving population
+  and see which sources share its contact budget.
+- Set a shared or depth-specific travel delay in the connection editor. The
+  diagram labels delayed routes and the inspector shows travel steps beside
+  each receiving depth's response time.
+- Open Studio from the documentation in a personal Binder session, train
+  the two-class example on a CPU and download the configuration and curves.
+- Connect two populations from the diagram or choose both endpoints and the
+  projection timing before applying an edit. Surface the receiving E/I budget
+  and validate route changes with DendriNet before saving them.
+- Add feedforward and recurrent layers in one population network. Preserve
+  explicit readouts and per-level contact settings when extending a design.
+  Copy a local inhibitory projection only when the receiver has eligible
+  inhibitory contacts. Stepped layers require exact gradient credit.
+- Apply successive inspector edits in order. Morphology and routing edits
+  use the latest validated time constants and depth-specific contact counts.
+  Resetting to uniform counts and then editing one depth preserves both edits.
+  Studio reports a missing source if a depth-restricted pathway leaves
+  contacts at an unreachable receiving depth.
+  The inspector can repair that error by adding the depth to a connection.
+  The connection editor can also add a source at an uncovered depth.
+  A confirmed removal can repair an invalid population or layer. Removing
+  the implicit readout layer preserves a compatible population override on
+  the preceding layer and clears one that no longer applies.
+  Renames and per-depth time edits use the current draft, including after Undo
+  or Redo. Editing an inactive route preserves the shared contact count.
+  Model checks, training, export and copy wait for pending connection edits.
+  YAML Export and Copy use the current design during preview refresh and
+  preserve any unapplied edits in the text editor.
+- Align populations in a column per layer, label layer dynamics, and identify
+  inhibitory feedback with both a dashed line and a bar.
 
 ## 0.5.0
 

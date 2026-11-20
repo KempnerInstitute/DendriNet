@@ -144,10 +144,29 @@ def population_requires_temporal_state(pop_config: PopulationConfig) -> bool:
     )
 
 
+def validate_stepped_credit_modes(
+    name: str, populations: dict[str, PopulationConfig]
+) -> None:
+    """All populations in a layer that steps through time need exact gradients."""
+    broadcast = sorted(
+        key
+        for key, pop in populations.items()
+        if pop.autograd_credit_mode.lower() != "exact"
+    )
+    if broadcast:
+        raise ValueError(
+            f"population_network layer {name!r} steps its populations through time, "
+            f"but {broadcast} set autograd_credit_mode='soma_broadcast', which "
+            "applies only to feedforward layers. Set autograd_credit_mode to 'exact' "
+            "for stepped populations."
+        )
+
+
 __all__ = [
     "PopulationDefinitionConfig",
     "as_population_definition_config",
     "population_config_from_definition",
     "population_level_dims",
     "population_requires_temporal_state",
+    "validate_stepped_credit_modes",
 ]

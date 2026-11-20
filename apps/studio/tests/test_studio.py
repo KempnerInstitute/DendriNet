@@ -53,6 +53,17 @@ def test_yaml_roundtrip_retains_unexposed_settings_and_random_state():
     assert result["nodes"][1]["compartments_per_neuron"] == 7
 
 
+@pytest.mark.parametrize("source", ["input", "input_e", "input_i"])
+def test_preview_rejects_delayed_external_input_like_the_builder(source):
+    document = example("recurrent_decision_population")
+    layer = document["model"]["core"]["population_network"]["layers"][0]
+    layer["connections"].append(
+        {"source": source, "target": "pyr", "timing": "delayed"}
+    )
+    with pytest.raises(ValueError, match="population output"):
+        inspect_document(document)
+
+
 def test_soma_only_preview_is_distinct_from_one_branch():
     raw = example("synthetic_population")
     raw["model"]["core"]["population_network"]["layers"][0]["populations"][1][
@@ -61,6 +72,46 @@ def test_soma_only_preview_is_distinct_from_one_branch():
     result = inspect_document(raw)
     assert result["nodes"][1]["levels_including_soma"] == [1]
     assert result["nodes"][1]["compartments_per_neuron"] == 1
+
+
+@pytest.mark.parametrize("inherit", [False, True])
+@pytest.mark.parametrize("explicit_recurrence", [False, True])
+def test_preview_matches_native_credit_for_stepped_populations(
+    inherit, explicit_recurrence
+):
+    raw = example("synthetic_population")
+    layer = raw["model"]["core"]["population_network"]["layers"][0]
+    settings = layer["populations"][1].setdefault("population", {})
+    credit = layer["population_defaults"] if inherit else settings
+    credit["autograd_credit_mode"] = "soma_broadcast"
+    assert not inspect_document(raw)["layers"][0]["steps_through_time"]
+    initialize_model(config_from_mapping(raw).model)
+    if explicit_recurrence:
+        layer["recurrent"] = True
+    else:
+        # The other population makes the whole layer stepped. Neither
+        # definition violates the constraints of its own credit rule alone.
+        layer["populations"][0]["population"].update(
+            soma_feedback_enabled=True, autograd_credit_mode="exact"
+        )
+    for check in (
+        lambda: inspect_document(raw),
+        lambda: initialize_model(config_from_mapping(raw).model),
+    ):
+        with pytest.raises(ValueError, match=r"soma_broadcast.*exact"):
+            check()
+
+
+def test_response_times_follow_the_effective_population_dynamics():
+    raw = example("synthetic_population")
+    layer = raw["model"]["core"]["population_network"]["layers"][0]
+    assert not inspect_document(raw)["layers"][0]["steps_through_time"]
+    settings = layer["populations"][1].setdefault("population", {})
+    settings["soma_feedback_enabled"] = True
+    assert inspect_document(raw)["layers"][0]["steps_through_time"]
+    settings["level_taus"] = [10, 20]
+    with pytest.raises(ValueError, match="level_taus needs 3"):
+        inspect_document(raw)
 
 
 def test_preview_keeps_projection_aliases_in_yaml_and_draws_the_resolved_pathway():
@@ -121,6 +172,47 @@ def test_configured_contacts_equal_the_synapses_of_the_built_model(document):
     assert preview["synapses_total"] == model_resource_summary(model)["active_synapses"]
 
 
+@pytest.mark.parametrize(
+    "other_route", [None, {"enabled": False}, {"probability": 0.0}]
+)
+def test_preview_and_builder_reject_contacts_without_a_source_at_their_depth(
+    other_route,
+):
+    raw = _two_layer_document()
+    layer = raw["model"]["core"]["population_network"]["layers"][1]
+    layer["recurrent"] = True
+    target = layer["populations"][1].setdefault("population", {})
+    target["rec_inhibitory_synapses_by_level"] = [1, 2, 0]
+    layer["connections"].append(
+        {
+            "source": "layer0.i",
+            "target": "e",
+            "timing": "delayed",
+            "target_levels": ["distal"],
+        }
+    )
+    if other_route is not None:
+        layer["connections"].append(
+            {
+                "source": "i",
+                "target": "e",
+                "timing": "delayed",
+                "target_levels": ["primary"],
+                **other_route,
+            }
+        )
+    with pytest.raises(ValueError, match="depth 1"):
+        initialize_model(config_from_mapping(raw).model)
+    with pytest.raises(ValueError, match="depth 1"):
+        inspect_document(raw)
+
+    target["rec_inhibitory_synapses_by_level"] = [1, 0, 0]
+    preview = inspect_document(raw)
+    receiver = next(n for n in preview["nodes"] if n["id"] == "layer1.e")
+    assert receiver["received_per_level"]["rec_inhibitory"] == [0, 0, 1]
+    initialize_model(config_from_mapping(raw).model)
+
+
 def test_invalid_keys_and_unresolved_composition_are_rejected():
     raw = example("synthetic_population")
     raw["model"]["core"]["biological_neuronn"] = True
@@ -153,6 +245,8 @@ def test_example_catalog_lists_the_tutorial_first_and_marks_downloads():
     assert {item["name"] for item in catalog} == set(example_names())
     by_name = {item["name"]: item for item in catalog}
     assert by_name["mnist_population"]["download"] is True
+    assert by_name["contextual_remapping_population"]["download"] is True
+    assert by_name["contextual_remapping_population"]["recurrent"] is False
     assert by_name["synthetic_population"]["download"] is False
     assert by_name["adding_problem_gru"]["task"] == "regression"
     assert by_name["recurrent_decision_population"]["recurrent"] is True
@@ -355,6 +449,20 @@ def test_progress_lines_become_partial_curves():
     assert progress_from_log("no progress here") is None
 
 
+def test_presentation_stream_progress_keeps_accuracy_separate_from_loss():
+    log = (
+        "[PresentationStream] epoch=1/3 train_loss=3.9200 noisy_acc=0.0319 "
+        "clean_acc=0.0266\n"
+        "[PresentationStream] epoch=2/3 train_loss=3.8100 noisy_acc=0.0372"
+    )
+    progress = progress_from_log(log)
+    assert progress["epoch"] == 2 and progress["epochs"] == 3
+    assert progress["points"] == [
+        {"epoch": 1, "train_loss": 3.92, "valid_loss": None},
+        {"epoch": 2, "train_loss": 3.81, "valid_loss": None},
+    ]
+
+
 def test_run_configurations_are_read_only_for_known_runs(tmp_path):
     runs = Runs(tmp_path)
     with pytest.raises(ValueError, match="No run"):
@@ -489,3 +597,30 @@ def test_inspection_matches_training_with_inferred_input_width(
         "active_synapses",
     ):
         assert summary[key] == trained[key]
+
+
+def test_wiring_repair_view_keeps_the_draft_budget_and_run_validation(studio):
+    raw = example("synthetic_population")
+    layer = raw["model"]["core"]["population_network"]["layers"][0]
+    layer["connections"][-1]["target_levels"] = ["distal"]
+    layer["populations"][1]["population"] = {
+        "ff_inhibitory_synapses_by_level": [4, 2, 0]
+    }
+    view, _ = studio.request("/api/wiring", {"config": raw})
+    target = next(node for node in view["nodes"] if node["id"] == "layer0.e")
+    assert target["configured_per_level"]["ff_inhibitory"] == [0, 2, 4]
+    assert target["received_per_level"]["ff_inhibitory"] == [0, 0, 4]
+    assert not {"config", "yaml", "validation"}.intersection(view)
+    for path, payload in (
+        ("/api/preview", {"config": raw}),
+        ("/api/run", {"config": raw, "kind": "inspect", "device": "cpu"}),
+    ):
+        with pytest.raises(urllib.error.HTTPError) as exc:
+            studio.request(path, payload)
+        assert exc.value.code == 400
+        assert "depth 1" in json.load(exc.value)["error"]
+    layer["populations"][1]["population"]["level_taus"] = [7]
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        studio.request("/api/wiring", {"config": raw})
+    assert exc.value.code == 400
+    assert "level_taus" in json.load(exc.value)["error"]

@@ -8,7 +8,9 @@
 // The launcher puts the session token in the address fragment (#token&view=...).
 const token = location.hash.slice(1).split("&")[0];
 const listeners = new Map();
-const DRAFT_KEY = "dendrinet-studio-draft-v1";
+// A host can serve several personal Studios, each under its own URL prefix.
+const basePath = new URL(".", location.href).pathname;
+const DRAFT_KEY = "dendrinet-studio-draft-v1" + (basePath === "/" ? "" : ":" + basePath);
 const HISTORY_LIMIT = 100;
 
 export const state = {
@@ -46,11 +48,12 @@ export function emit(event, detail) {
   }
 }
 
-export async function api(path, data) {
+export async function api(path, data, signal) {
   const response = await fetch("api/" + path, {
     method: data === undefined ? "GET" : "POST",
     headers: { "X-Studio-Token": token, "Content-Type": "application/json" },
     body: data === undefined ? undefined : JSON.stringify(data),
+    signal,
   });
   let result;
   try {
@@ -96,11 +99,11 @@ export function valueAt(path) {
 export const isPopulationNetwork = () => state.config?.model?.core?.type === "population_network";
 
 export function network() {
-  return state.config.model.core.population_network;
+  return state.config?.model?.core?.population_network;
 }
 
 export function layers() {
-  return network().layers;
+  return network()?.layers || [];
 }
 
 export function nodeView(layer, population) {
@@ -114,6 +117,100 @@ export function layerView(layer) {
 // Editing -------------------------------------------------------------------
 
 export let validationRevision = 0;
+let documentGeneration = 0;
+let topologyQueue = Promise.resolve();
+const pendingTopology = new Set();
+let validatedDraft = Promise.resolve();
+let finishValidation;
+
+function validationFinished() {
+  state.validating = false;
+  finishValidation?.();
+  finishValidation = undefined;
+}
+
+// Return synchronously when idle so Copy can use the browser's click gesture.
+export function waitForTopologyEdits() {
+  if (pendingTopology.size) return Promise.all(pendingTopology);
+}
+
+async function settleEdits() {
+  do {
+    await waitForTopologyEdits();
+    while (state.validating) await validatedDraft;
+  } while (pendingTopology.size);
+}
+
+export async function modelReady() {
+  await settleEdits();
+  if (state.error) throw new Error(state.error);
+}
+
+// Dialogs take their snapshot after earlier edits have reached the preview.
+export async function topologyReady({ allowRepair = false } = {}) {
+  const generation = documentGeneration;
+  await settleEdits();
+  if (generation !== documentGeneration) throw new Error("The design changed. Select the item and try again.");
+  if (!allowRepair && state.error) throw new Error(state.error);
+}
+
+// Stage a topology edit on a copy. A rejected route must never become the
+// document used by Train, by the YAML editor, or by draft recovery.
+export function editTopology(mutate, { revision, signal, reindexes = false } = {}) {
+  const generation = documentGeneration;
+  const pending = topologyQueue.then(async () => {
+    while (!signal?.aborted) {
+      while (state.validating) await validatedDraft;
+      if (signal?.aborted) return;
+      if (generation !== documentGeneration || (revision !== undefined && revision !== validationRevision)) {
+        throw new Error(revision === undefined ? "The design changed. Select the item and make the edit again." : "The design changed. Reopen this editor.");
+      }
+      // Bind confirmations to what the user saw. A matching revision may
+      // contain the very error the proposed edit will repair.
+      const base = validationRevision;
+      const draft = structuredClone(state.config);
+      const selection = mutate(draft);
+      const before = JSON.stringify(state.config);
+      if (JSON.stringify(draft) === before) {
+        if (selection) select(selection);
+        return;
+      }
+      let result;
+      try {
+        result = await api("preview", { config: draft }, signal);
+      } catch (error) {
+        if (signal?.aborted) return;
+        if (base !== validationRevision) continue;
+        throw error;
+      }
+      if (signal?.aborted) return;
+      // A field can also change while this request is in flight. Rebuild ordinary
+      // edits on the current draft. A dialog stays bound to the revision it showed.
+      if (base !== validationRevision) continue;
+      ++validationRevision;
+      if (reindexes) ++documentGeneration;
+      state.history.push(before);
+      if (state.history.length > HISTORY_LIMIT) state.history.shift();
+      state.future = [];
+      state.config = draft;
+      state.preview = result;
+      state.error = state.errorPath = null;
+      state.dirty = true;
+      if (selection) state.selection = selection;
+      fixSelection();
+      saveDraft();
+      emit("edited", { structural: true });
+      emit("preview", { structural: true });
+      emit("validated");
+      return;
+    }
+  });
+  // Waiting actions receive the rejection. A later edit can still be tried.
+  pendingTopology.add(pending);
+  const settled = () => { pendingTopology.delete(pending); };
+  topologyQueue = pending.then(settled, settled);
+  return pending;
+}
 
 export function edit(mutate, options = {}) {
   const before = JSON.stringify(state.config);
@@ -132,6 +229,7 @@ export function edit(mutate, options = {}) {
 
 export function undo() {
   if (!state.history.length) return;
+  ++documentGeneration;
   state.future.push(JSON.stringify(state.config));
   state.config = JSON.parse(state.history.pop());
   state.dirty = true;
@@ -142,6 +240,7 @@ export function undo() {
 
 export function redo() {
   if (!state.future.length) return;
+  ++documentGeneration;
   state.history.push(JSON.stringify(state.config));
   state.config = JSON.parse(state.future.pop());
   state.dirty = true;
@@ -152,6 +251,7 @@ export function redo() {
 
 export async function validate(options = {}) {
   const revision = ++validationRevision;
+  if (!state.validating) validatedDraft = new Promise(resolve => { finishValidation = resolve; });
   state.validating = true;
   emit("validating");
   try {
@@ -170,7 +270,7 @@ export async function validate(options = {}) {
     return false;
   } finally {
     if (revision === validationRevision) {
-      state.validating = false;
+      validationFinished();
       emit("validated");
     }
   }
@@ -186,7 +286,8 @@ export function adopt(result, name, { keepHistory = false, dirty = keepHistory }
     state.future = [];
   }
   ++validationRevision;
-  state.validating = false;
+  ++documentGeneration;
+  validationFinished();
   state.config = structuredClone(result.config);
   state.preview = result;
   state.error = null;

@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Install CPU wheels before resolving the two packages from the selected Git revision.
+python -m pip install --index-url https://download.pytorch.org/whl/cpu torch==2.9.1 torchvision==0.24.1
+python -m pip install . ./apps/studio
+
+python .binder/register_studio.py

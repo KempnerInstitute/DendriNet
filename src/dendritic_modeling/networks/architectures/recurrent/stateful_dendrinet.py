@@ -951,8 +951,8 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
         self,
         x: torch.Tensor,
         inhibitory_input: Optional[torch.Tensor] = None,
-        recurrent_input: Optional[torch.Tensor] = None,
-        rec_inhibitory_input: Optional[torch.Tensor] = None,
+        recurrent_input: torch.Tensor | tuple[torch.Tensor, ...] | None = None,
+        rec_inhibitory_input: torch.Tensor | tuple[torch.Tensor, ...] | None = None,
         state: Optional[DendriNetState] = None,
     ) -> tuple[torch.Tensor, DendriNetState]:
         """Recurrent step with per-level trace integration.
@@ -960,8 +960,9 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
         Args:
             x: FF excitatory input [batch, excitatory_input_dim].
             inhibitory_input: FF inhibitory input [batch, inhibitory_input_dim].
-            recurrent_input: Recurrent excitatory input [batch, rec_e_dim].
-            rec_inhibitory_input: Recurrent inhibitory input [batch, rec_i_dim].
+            recurrent_input: Recurrent excitatory input [batch, rec_e_dim],
+                shared across levels or one tensor per level (distal to soma).
+            rec_inhibitory_input: Recurrent inhibitory input with the same layout.
             state: Previous DendriNetState (auto-initialized if None).
 
         Returns:
@@ -974,6 +975,12 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
                 "gradients only in the feedforward forward; a stepped (recurrent) "
                 "population would train with exact gradients"
             )
+        for name, stream in (
+            ("recurrent_input", recurrent_input),
+            ("rec_inhibitory_input", rec_inhibitory_input),
+        ):
+            if isinstance(stream, tuple) and len(stream) != self.n_levels:
+                raise ValueError(f"{name} needs one tensor per level, distal to soma")
         batch_size = x.shape[0]
         device = x.device
         dtype = x.dtype
@@ -1006,8 +1013,16 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
                 layer=layer,
                 x=x,
                 inhibitory_input=inhibitory_input,
-                recurrent_input=recurrent_input,
-                rec_inhibitory_input=rec_inhibitory_input,
+                recurrent_input=(
+                    recurrent_input[level_idx]
+                    if isinstance(recurrent_input, tuple)
+                    else recurrent_input
+                ),
+                rec_inhibitory_input=(
+                    rec_inhibitory_input[level_idx]
+                    if isinstance(rec_inhibitory_input, tuple)
+                    else rec_inhibitory_input
+                ),
                 batch_size=batch_size,
                 level_dim=self._level_dims[level_idx],
                 device=device,

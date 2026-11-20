@@ -18,12 +18,16 @@ import yaml
 
 from dendritic_modeling import __version__ as core_version
 from dendritic_modeling.config import config_from_mapping
-from dendritic_modeling.config.conversion import to_plain_dict
+from dendritic_modeling.config.conversion import (
+    has_enabled_synapse_types,
+    to_plain_dict,
+)
 from dendritic_modeling.config.keys import config_from_payload
 from dendritic_modeling.config.population_routing import (
     INPUT_POLARITIES,
     canonical_input_source,
     population_readout,
+    projection_delays,
     projection_pathway,
 )
 from dendritic_modeling.config.recurrence import is_recurrent_core_config
@@ -35,6 +39,8 @@ from dendritic_modeling.networks.architectures.recurrent.population_common impor
     as_population_definition_config,
     population_config_from_definition,
     population_level_dims,
+    population_requires_temporal_state,
+    validate_stepped_credit_modes,
 )
 from dendritic_modeling.networks.architectures.recurrent.population_configs import (
     PopulationLayerConfig,
@@ -111,6 +117,7 @@ EXAMPLE_ORDER = (
     "recurrent_decision_population",
     "adding_problem_gru",
     "mnist_population",
+    "contextual_remapping_population",
 )
 
 
@@ -126,6 +133,9 @@ def example_catalog() -> list[dict[str, Any]]:
     for name in example_names():
         text = example_text(name)
         raw = yaml.safe_load(text) or {}
+        data = raw.get("data", {}) or {}
+        dataset = data.get("dataset_name", "")
+        params = (data.get("dataset_params") or {}).get(dataset) or {}
         model = raw.get("model", {}) or {}
         core = model.get("core", {}) or {}
         title, description = _example_header(text)
@@ -136,10 +146,9 @@ def example_catalog() -> list[dict[str, Any]]:
                 "description": description,
                 "family": core.get("type", ""),
                 "task": model.get("task", "classification"),
-                "dataset": (raw.get("data", {}) or {}).get("dataset_name", ""),
+                "dataset": dataset,
                 "recurrent": bool(is_recurrent_core_config(core)),
-                "download": (raw.get("data", {}) or {}).get("dataset_name")
-                in downloads,
+                "download": params.get("download", dataset in downloads),
             }
         )
     rank = {name: index for index, name in enumerate(EXAMPLE_ORDER)}
@@ -155,7 +164,9 @@ def _levels_soma_first(branch_factors: list[int]) -> list[int]:
     return list(reversed(population_level_dims(1, branch_factors)))
 
 
-def _population_graph(network: dict[str, Any]) -> dict[str, Any]:
+def _population_graph(
+    network: dict[str, Any], *, require_contact_coverage: bool = True
+) -> dict[str, Any]:
     nodes, edges, layers = [], [], []
     signs = dict(INPUT_POLARITIES)
     definitions = [
@@ -172,6 +183,7 @@ def _population_graph(network: dict[str, Any]) -> dict[str, Any]:
     settings: dict[str, Any] = {}
     for li, layer in enumerate(definitions):
         polarities = {}
+        steps_through_time = bool(layer.recurrent)
         for pi, item in enumerate(layer.populations):
             definition = as_population_definition_config(item)
             population = population_config_from_definition(
@@ -181,6 +193,12 @@ def _population_graph(network: dict[str, Any]) -> dict[str, Any]:
                 network_layer_idx=li,
             )
             levels = _levels_soma_first(population.branch_factors)
+            steps_through_time |= population_requires_temporal_state(population)
+            if population.level_taus and len(population.level_taus) != len(levels):
+                raise ValueError(
+                    f"{layer.name}.{definition.name}: level_taus needs {len(levels)} "
+                    "values from the most distal level to the soma"
+                )
             per_level = {}
             for stream in STREAMS:
                 field = stream + "_synapses"
@@ -208,6 +226,9 @@ def _population_graph(network: dict[str, Any]) -> dict[str, Any]:
                     "branch_factors": list(definition.branch_factors),
                     "levels_including_soma": levels,
                     "compartments_per_neuron": sum(levels),
+                    "has_receptor_traces": has_enabled_synapse_types(
+                        population.synapse_types
+                    ),
                     "configured_per_level": per_level,
                     "overridden": sorted(override),
                     "settings": dataclasses.asdict(population),
@@ -215,6 +236,11 @@ def _population_graph(network: dict[str, Any]) -> dict[str, Any]:
             )
         if "excitatory" not in polarities.values():
             raise ValueError(f"Layer {layer.name!r} requires an excitatory population")
+        if steps_through_time:
+            validate_stepped_credit_modes(
+                layer.name,
+                {name: settings[f"{layer.name}.{name}"] for name in polarities},
+            )
         override = (
             network.get("readout_population") if layer.name == selected_layer else None
         )
@@ -234,6 +260,7 @@ def _population_graph(network: dict[str, Any]) -> dict[str, Any]:
                 "name": layer.name,
                 "readout": readout,
                 "recurrent": bool(layer.recurrent),
+                "steps_through_time": steps_through_time,
                 "dt": layer.dt,
                 "is_readout_layer": layer.name == selected_layer,
             }
@@ -241,6 +268,7 @@ def _population_graph(network: dict[str, Any]) -> dict[str, Any]:
 
     # Resolve qualified delayed sources after all populations are known.
     reached: dict[str, dict[str, set[int] | None]] = {}
+    restricted: set[tuple[str, str]] = set()
     for li, layer in enumerate(definitions):
         for item in layer.connections:
             projection = as_population_projection_config(item)
@@ -270,12 +298,18 @@ def _population_graph(network: dict[str, Any]) -> dict[str, Any]:
                     f"in layer {layer.name!r}"
                 )
             timing = str(connection.get("timing") or "same_step").lower()
+            if external and timing == "delayed":
+                raise ValueError(
+                    f"Delayed source {declared!r} must name a population output"
+                )
             pathway = projection_pathway(
                 timing, signs[origin], str(connection.get("pathway") or "").lower()
             )
             n_levels = len(_levels_soma_first(settings[target_id].branch_factors))
             depths = projection.target_depths(n_levels)
-            if connection.get("enabled", True):
+            if projection.enabled and depths is not None:
+                restricted.add((target_id, pathway))
+            if projection.enabled and projection.probability != 0:
                 current = reached.setdefault(target_id, {}).get(pathway, set())
                 if depths is None or current is None:
                     reached[target_id][pathway] = None
@@ -290,6 +324,16 @@ def _population_graph(network: dict[str, Any]) -> dict[str, Any]:
                     "source_id": origin,
                     "target_id": target_id,
                     "timing": timing,
+                    "arrival_steps": list(
+                        reversed(
+                            projection_delays(
+                                timing,
+                                projection.delay_steps,
+                                projection.delay_steps_by_level,
+                                n_levels,
+                            )
+                        )
+                    ),
                     "pathway": pathway,
                     "target_depths": sorted(depths) if depths is not None else None,
                 }
@@ -308,6 +352,18 @@ def _population_graph(network: dict[str, Any]) -> dict[str, Any]:
                 ok = allowed is None or depth in allowed
                 if depth == 0 and not population.somatic_synapses:
                     ok = False
+                elif (
+                    require_contact_coverage
+                    and count
+                    and not ok
+                    and (node["id"], stream) in restricted
+                ):
+                    raise ValueError(
+                        f"{node['id']} has {count} {stream} contacts per compartment "
+                        f"at depth {depth}, but no active source reaches that depth. "
+                        "Set its contact count to zero or include that depth on an "
+                        "enabled connection with positive probability."
+                    )
                 counts.append(count if ok else 0)
             received[stream] = counts
         node["received_per_level"] = received
@@ -325,6 +381,20 @@ def _population_graph(network: dict[str, Any]) -> dict[str, Any]:
             n["neurons"] * n["compartments_per_neuron"] for n in nodes
         ),
         "synapses_total": sum(n["synapses_total"] for n in nodes),
+    }
+
+
+def inspect_wiring(raw: dict[str, Any]) -> dict[str, Any]:
+    """Describe the current endpoints and budgets so a user can repair coverage."""
+    if not isinstance(raw, dict):
+        raise ValueError("A configuration must be a mapping")
+    cfg = config_from_mapping(copy.deepcopy(raw))
+    core = to_plain_dict(cfg.model.core)
+    if core["type"] != "population_network":
+        raise ValueError("The connection editor requires a population network")
+    return {
+        "biological_neuron": core.get("biological_neuron"),
+        **_population_graph(core["population_network"], require_contact_coverage=False),
     }
 
 

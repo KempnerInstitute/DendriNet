@@ -1,10 +1,34 @@
 # DendriNet Studio
 
 Design, check, train and compare [DendriNet](https://github.com/KempnerInstitute/DendriNet)
-models on your computer. Select a neuron population to trace the external
+models in a browser. Select a neuron population to trace the external
 and local sources of its excitatory and inhibitory contacts. Inspect the
 contact count at each dendritic level, build the network, or train and compare
 two designs. Each design exports as an ordinary DendriNet experiment YAML.
+
+In Studio 0.2.0, choose **Connect** above the network, or select a population,
+choose **Connect from this population** and select the receiving population
+on the diagram. A same-step route carries current activity. A delayed route
+carries earlier activity and can return from a later layer. The guide walks
+through a recurrent decision circuit with a feedforward readout. Use **Add
+input source** on a receiving population to connect multiple excitatory
+populations. In **Edit connection → Travel delay**, choose a uniform delay
+or enter whole steps at each depth. The connection inspector shows these
+arrival times beside the compartment response times (τ). Studio 0.2.0 requires
+DendriNet 0.6.x. Installing Studio from PyPI selects a compatible core
+automatically. Check your versions with
+`python -m pip show dendrinet-studio dendritic-modeling`.
+[Connect populations and mix layer dynamics](https://kempnerinstitute.github.io/DendriNet/studio.html#studio-connect)
+
+## Open a personal session online
+
+[Open Studio 0.2.0 on Binder](https://mybinder.org/v2/gh/KempnerInstitute/DendriNet/studio-v0.2.0?urlpath=open-studio)
+to design a network and train the two-class example on a CPU. Set **Epochs**
+to `1` in **Training**, then select **Train**. In **Runs**, select the finished
+run and download **Curves (CSV)**. Use **YAML → Export** to keep your design.
+Binder starts a temporary workspace for each visitor. The first launch for a
+new Git revision can take several minutes.
+Before 0.2.0 is tagged, the **Try it** link in [PR #404](https://github.com/KempnerInstitute/DendriNet/pull/404) opens the review version.
 
 ## Install and open Studio on your laptop
 
@@ -21,7 +45,7 @@ Run these commands the first time on macOS or Linux.
 ```bash
 python3 -m venv ~/dendrinet-env
 source ~/dendrinet-env/bin/activate
-python -m pip install dendrinet-studio==0.1.0
+python -m pip install --upgrade dendrinet-studio
 dendrinet-studio --workspace ~/dendrinet-runs
 ```
 
@@ -36,7 +60,7 @@ also starts Studio on later visits.
 
 ```powershell
 py -3.11 -m venv "$HOME\dendrinet-env"
-& "$HOME\dendrinet-env\Scripts\python.exe" -m pip install dendrinet-studio==0.1.0
+& "$HOME\dendrinet-env\Scripts\python.exe" -m pip install --upgrade dendrinet-studio
 & "$HOME\dendrinet-env\Scripts\dendrinet-studio.exe" --workspace "$HOME\dendrinet-runs"
 ```
 
@@ -59,12 +83,18 @@ Press **Ctrl+C** in the terminal when finished. The commands above keep
 your runs in the `dendrinet-runs` folder in your home directory. Launch
 Studio with that workspace again to reopen them.
 
+To try the empirical paper's cue-dependent task, choose **Model → Start from
+→ Contextual remapping on EMNIST**. The first run downloads EMNIST. A 32-way
+cue changes the target for the same image in a compact two-layer E/I network.
+The full paper configurations and calibration instructions are in the
+[empirical project](https://github.com/KempnerInstitute/DendriNet/tree/v0.5.0/projects/empirical#build-a-network).
+
 ## What you can do
 
 - **Design population networks visually**: layers, excitatory and inhibitory
   populations, neuron counts, dendritic branching, contacts per compartment
   and per level, shunting or additive integration, dendritic gates, time
-  constants, and connections that act in the same step or one step later
+  constants, and connections that act in the same step or after a configurable delay
   (recurrent networks).
 - **Configure other model families** using typed forms and the YAML editor,
   including structured dendritic trees, GRU, LSTM and vanilla RNN baselines,
@@ -83,15 +113,15 @@ trains in seconds with no download, the same task with structured dendritic
 trees, a recurrent decision network, a GRU regression baseline and an MNIST
 network.
 
-## Remote machines
+## Remote machines and cluster GPUs
 
-```bash
-dendrinet-studio --workspace ~/studio-runs --no-browser   # on the remote machine
-ssh -L 8765:127.0.0.1:8765 user@remote-host                # on your computer
-```
-
-Open the printed address on your computer. `--no-execution` turns a machine
-into design-and-export only.
+Start `dendrinet-studio --no-browser` on your workstation or inside a GPU
+allocation. In an Open OnDemand remote desktop, paste the full printed URL
+into that desktop's browser. From a laptop, forward the printed port with
+Cursor or SSH to the host running Studio and keep the `#` token in the URL.
+Choose **GPU if available** beside **Train**, or select **CPU**. After training,
+`model_resources.json` records the device used. Use `--no-execution` for
+design and export only. [Cluster GPU instructions](https://kempnerinstitute.github.io/DendriNet/studio.html#studio-cluster-gpu)
 
 ## Privacy
 

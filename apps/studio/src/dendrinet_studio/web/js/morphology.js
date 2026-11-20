@@ -13,7 +13,12 @@ const BOTTOM = H - 40;
 const MAX_SHOWN = 6;
 const MAX_DRAWN_COMPARTMENTS = 160;
 const MAX_DRAWN_LEVELS = 10;
-const LEVEL_NAMES = (depth, deepest) => (depth === 0 ? "soma" : depth === deepest ? `${depth} · distal` : depth === 1 ? "1 · primary" : String(depth));
+export const levelName = (depth, deepest) => (depth === 0 ? "soma" : depth === deepest ? `${depth} · distal` : depth === 1 ? "1 · primary" : String(depth));
+
+export function targetDepths(levels, count) {
+  const names = { soma: 0, primary: 1, distal: count - 1 };
+  return levels?.map(depth => names[depth] ?? depth);
+}
 
 // JavaScript numbers can round the level sizes of a large imported tree.
 export function compartmentLevels(factors) {
@@ -43,7 +48,7 @@ export function drawNeuron(svg, { polarity = "excitatory", factors = [], levels 
   for (let depth = 0; depth <= shown.length; depth++) {
     const y = depth === 0 ? somaY : yOf(depth);
     const active = highlight && highlight.includes(depth);
-    svg.append(s("text", { x: 8, y: y + 4, class: "level-name" + (active ? " active" : "") }, [LEVEL_NAMES(depth, depthCount)]));
+    svg.append(s("text", { x: 8, y: y + 4, class: "level-name" + (active ? " active" : "") }, [levelName(depth, depthCount)]));
     if (depth > 0) svg.append(s("line", { x1: 62, x2: W - 10, y1: y, y2: y, class: "level-guide" + (active ? " active" : "") }));
     if (depth > 0 && shown[depth - 1] < factors[depth - 1]) {
       svg.append(s("text", { x: W - 12, y: y + 12, "text-anchor": "end", class: "more" }, [`${shown[depth - 1]} of ${fmt(factors[depth - 1])} children per parent`]));
@@ -218,7 +223,7 @@ export function levelTable({ levels, counts, neurons }) {
   const deepest = levels.length - 1;
   const totals = Object.fromEntries(streams.map(([k]) => [k, 0n]));
   for (let depth = deepest; depth >= 0; depth--) {
-    const row = h("tr", {}, [h("td", { text: LEVEL_NAMES(depth, deepest) }), h("td", { text: fmt(levels[depth]) })]);
+    const row = h("tr", {}, [h("td", { text: levelName(depth, deepest) }), h("td", { text: fmt(levels[depth]) })]);
     for (const [key] of streams) {
       const v = (counts[key] || [])[depth] || 0;
       totals[key] += BigInt(v) * levels[depth];

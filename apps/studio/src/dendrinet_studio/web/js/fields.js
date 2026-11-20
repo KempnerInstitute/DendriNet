@@ -95,7 +95,7 @@ export function textInput(value, onCommit, attrs = {}) {
   return input;
 }
 
-export function numberInput(value, onCommit, { integer = false, min, max, step, optional = false } = {}) {
+export function numberInput(value, onCommit, { integer = false, min, max, step, optional = false, positive = false } = {}) {
   const input = h("input", { type: "number", class: "input num", value: value ?? "", step: step ?? (integer ? 1 : "any"), min, max, inputmode: integer ? "numeric" : "decimal" });
   commitOn(
     input,
@@ -107,6 +107,7 @@ export function numberInput(value, onCommit, { integer = false, min, max, step, 
       const v = Number(input.value);
       if (!Number.isFinite(v)) throw new Error("Enter a finite number");
       if (integer && !Number.isInteger(v)) throw new Error("Enter a whole number");
+      if (positive && v <= 0) throw new Error("Enter a number greater than zero");
       if (min !== undefined && v < min) throw new Error(`Enter ${min} or more`);
       if (max !== undefined && v > max) throw new Error(`Enter ${max} or less`);
       return v;
@@ -129,7 +130,7 @@ export function stepper(value, onCommit, { min = 0, max, label = "" } = {}) {
     input,
     h("button", { type: "button", "aria-label": `Increase ${label}`, onclick: bump(1) }, [icon("plus")]),
   ]);
-  wrap.id = input.id = nextId("st");
+  input.id = nextId("st");
   return wrap;
 }
 
@@ -243,25 +244,22 @@ export function factorEditor(factors, onCommit) {
     wrap.append(
       h("span", { class: "factor", title: `Level ${index + 1}: each compartment has ${b} children` }, [
         h("span", { class: "factor-value", text: b }),
-        h("button", { type: "button", "aria-label": `Fewer branches at level ${index + 1}`, onclick: () => {
-          const next = [...factors];
+        h("button", { type: "button", "aria-label": `Fewer branches at level ${index + 1}`, onclick: () => onCommit(current => {
+          const next = [...current];
           if (next[index] > 1) next[index] -= 1;
           else next.splice(index, 1);
-          onCommit(next);
-        } }, [icon("minus")]),
-        h("button", { type: "button", "aria-label": `More branches at level ${index + 1}`, onclick: () => {
-          const next = [...factors];
-          next[index] += 1;
-          onCommit(next);
-        } }, [icon("plus")]),
+          return next;
+        }) }, [icon("minus")]),
+        h("button", { type: "button", "aria-label": `More branches at level ${index + 1}`, onclick: () =>
+          onCommit(current => current.map((count, i) => i === index ? count + 1 : count)) }, [icon("plus")]),
       ])
     );
   });
-  wrap.append(h("button", { type: "button", class: "btn small", onclick: () => onCommit([...factors, 2]) }, [icon("plus"), "level"]));
+  wrap.append(h("button", { type: "button", class: "btn small", onclick: () => onCommit(current => [...current, 2]) }, [icon("plus"), "level"]));
   if (!factors.length) wrap.prepend(h("span", { class: "muted", text: "Soma only" }));
   const presets = h("div", { class: "presets", role: "group", "aria-label": "Morphology presets" });
   for (const preset of MORPHOLOGY_PRESETS) {
-    presets.append(h("button", { type: "button", class: "chip mono", "aria-pressed": String(JSON.stringify(preset) === JSON.stringify(factors)), onclick: () => onCommit([...preset]), text: preset.length ? `[${preset.join(",")}]` : "soma only" }));
+    presets.append(h("button", { type: "button", class: "chip mono", "aria-pressed": String(JSON.stringify(preset) === JSON.stringify(factors)), onclick: () => onCommit(() => [...preset]), text: preset.length ? `[${preset.join(",")}]` : "soma only" }));
   }
   const box = h("div", { class: "factor-editor" }, [wrap, presets]);
   box.id = nextId("fe");
@@ -288,8 +286,7 @@ export function humanize(name) {
 
 const capitalize = text => text.charAt(0).toUpperCase() + text.slice(1);
 
-export function controlFor(spec, value, onCommit) {
-  const label = humanize(spec.name);
+export function controlFor(spec, value, onCommit, label = humanize(spec.name)) {
   switch (spec.kind) {
     case "bool":
       return switchInput(value ?? spec.default, onCommit, label);

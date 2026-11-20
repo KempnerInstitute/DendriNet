@@ -30,10 +30,9 @@ RECORD = "studio_run.json"
 KINDS = {"inspect": "Model check", "train": "Training"}
 DEVICES = {"cpu", "auto"}
 LOG_TAIL_BYTES = 40_000
-# Trainer progress lines, e.g. "epoch=10/30, train_loss=0.68 (...), valid_loss=0.71".
-_PROGRESS = re.compile(
-    r"epoch=(\d+)/(\d+),\s*train_loss=([^\s,(]+).*?valid_loss=([^\s,(]+)"
-)
+# Standard and presentation-stream trainers both log the epoch and training loss.
+_PROGRESS = re.compile(r"\bepoch=(\d+)/(\d+),?[ \t]+train_loss=([^\s,(]+)([^\r\n]*)")
+_VALID_LOSS = re.compile(r"\bvalid_loss=([^\s,(]+)")
 
 
 def json_values(value: Any) -> Any:
@@ -131,11 +130,12 @@ def progress_from_log(text: str) -> dict | None:
     epochs = None
     for match in _PROGRESS.finditer(text):
         epoch, total = int(match.group(1)), int(match.group(2))
+        validation = _VALID_LOSS.search(match.group(4))
         epochs = total
         points[epoch] = {
             "epoch": epoch,
             "train_loss": _number(match.group(3)),
-            "valid_loss": _number(match.group(4)),
+            "valid_loss": _number(validation.group(1)) if validation else None,
         }
     if not points:
         return None

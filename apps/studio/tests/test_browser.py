@@ -90,12 +90,18 @@ def two_layer_document():
     return raw
 
 
-def test_imported_file_keeps_its_omissions_and_draws_every_pathway(page):
-    raw = two_layer_document()
+def open_design(page, raw):
     page.get_by_role("tab", name="YAML").click()
     page.locator("textarea.yaml-text").fill(yaml.safe_dump(raw, sort_keys=False))
     page.get_by_role("button", name="Apply").click()
+    playwright.expect(page.locator(".yaml-status")).to_contain_text(
+        "Matches the current design"
+    )
     page.get_by_role("tab", name="Model").click()
+
+
+def test_imported_file_keeps_its_omissions_and_draws_every_pathway(page):
+    open_design(page, two_layer_document())
     playwright.expect(page.locator("svg.network .card")).to_have_count(4)
     # Input reaching layer1 is the readout of layer0; inhibition ends in a bar.
     playwright.expect(edge(page, "layer0.e", "layer1.i")).to_have_count(1)
@@ -146,6 +152,9 @@ def test_soma_only_projection_does_not_label_every_branch_with_soma_contacts(pag
     raw = example("synthetic_population")
     layer = raw["model"]["core"]["population_network"]["layers"][0]
     layer["connections"][-1]["target_levels"] = ["soma"]
+    layer["populations"][1].setdefault("population", {})[
+        "ff_inhibitory_synapses_by_level"
+    ] = [0, 0, 4]
     page.get_by_role("tab", name="YAML").click()
     page.locator("textarea.yaml-text").fill(yaml.safe_dump(raw, sort_keys=False))
     page.get_by_role("button", name="Apply").click()
@@ -184,6 +193,7 @@ def test_visual_edits_undo_and_export(page):
     # A new layer is wired from the previous layer's readout and still builds.
     page.get_by_role("tab", name="Model").click()
     page.get_by_role("button", name="Layer", exact=True).click()
+    page.get_by_role("dialog").get_by_role("button", name="Add layer").click()
     playwright.expect(page.locator("svg.network .card")).to_have_count(4)
     playwright.expect(page.locator(".status.ok")).to_contain_text("Valid")
     # An invalid edit is reported and the drawing keeps the last valid design.
@@ -191,6 +201,32 @@ def test_visual_edits_undo_and_export(page):
     page.locator("textarea.yaml-text").fill("model:\n  task: [")
     page.get_by_role("button", name="Apply").click()
     playwright.expect(page.locator(".yaml-status.error")).to_contain_text("line 2")
+    assert not page.errors, page.errors
+
+
+def test_contextual_example_opens_with_its_routes_and_exports(page):
+    template = page.get_by_role("button", name="Contextual remapping on EMNIST")
+    playwright.expect(template).to_contain_text("downloads data")
+    template.click()
+    playwright.expect(page.locator("svg.network .card")).to_have_count(4)
+    for source, target in (
+        ("input", "layer0.i"),
+        ("input", "layer0.e"),
+        ("layer0.i", "layer0.e"),
+        ("layer0.e", "layer1.i"),
+        ("layer0.e", "layer1.e"),
+        ("layer0.i", "layer1.i"),
+        ("layer0.i", "layer1.e"),
+        ("layer1.i", "layer1.e"),
+    ):
+        playwright.expect(edge(page, source, target)).to_have_count(1)
+    raw = exported(page)
+    assert raw == example("contextual_remapping_population")
+    task = raw["data"]["dataset_params"]["contextual_remapping"]
+    assert task["num_contexts"] == 32
+    assert raw["model"]["encoder"]["params"]["input_dim"] == 784 + task["num_contexts"]
+    assert raw["model"]["decoder"]["params"]["output_dim"] == 47
+    assert raw["training"]["main"]["strategy"] == "presentation_stream"
     assert not page.errors, page.errors
 
 
@@ -325,7 +361,16 @@ def test_external_route_switch_preserves_custom_placement(page):
         "input_source_identity": "paired_afferents",
         "output_activation": "relu",
     }
-    routes = net["layers"][0]["connections"]
+    layer = net["layers"][0]
+    # A second somatic source keeps the receiver buildable when the external one is off.
+    layer["populations"].append({**layer["populations"][0], "name": "backup_i"})
+    routes = layer["connections"]
+    routes.extend(
+        [
+            {"source": "input", "target": "backup_i"},
+            {"source": "backup_i", "target": "e", "target_levels": ["soma"]},
+        ]
+    )
     routes.append(
         {"source": "input_inh", "target": "e", "target_levels": ["soma"], "seed": 11}
     )
@@ -371,13 +416,403 @@ def test_structured_feedforward_sources_follow_presence_of_inhibitory_cells(page
     assert not page.errors
 
 
+def wire(page, receiver, source, timing="same_step"):
+    page.get_by_role("button", name="Connect", exact=True).click()
+    dialog = page.get_by_role("dialog", name="Connect populations")
+    dialog.get_by_label("Receiving population").select_option(receiver)
+    dialog.get_by_label("Timing", exact=True).select_option(timing)
+    dialog.get_by_label("Source", exact=True).select_option(source)
+    return dialog
+
+
+def test_add_a_second_feedforward_excitatory_source_and_build_the_export(page):
+    import torch
+
+    from dendritic_modeling.config import config_from_mapping
+    from dendritic_modeling.scripts.script_utils.setup_utils import initialize_model
+
+    raw = two_layer_document()
+    page.get_by_role("tab", name="YAML").click()
+    page.locator("textarea.yaml-text").fill(yaml.safe_dump(raw, sort_keys=False))
+    page.get_by_role("button", name="Apply").click()
+    page.get_by_role("tab", name="Model").click()
+    page.get_by_role("button", name="Edit population layer0.e", exact=True).click()
+    page.get_by_role("button", name="E population", exact=True).first.click()
+    page.get_by_role("button", name="Edit population layer0.e2").wait_for()
+    target = page.get_by_role("button", name="Edit population layer1.e", exact=True)
+    target.click()
+    source_row = page.get_by_role(
+        "region", name="Synapse sources per neuron"
+    ).get_by_role("row", name=re.compile(r"^E "))
+    original_budget = source_row.get_by_role("cell").last.inner_text()
+    page.get_by_role("button", name="Add input source").click()
+    dialog = page.get_by_role("dialog", name="Connect populations")
+    playwright.expect(dialog.get_by_label("Receiving population")).to_have_value(
+        "layer1.e"
+    )
+    dialog.get_by_label("Source", exact=True).select_option("layer0.e2")
+    playwright.expect(dialog.get_by_role("status")).to_contain_text("layer0.e.")
+    dialog.get_by_role("button", name="Add connection").click()
+    playwright.expect(edge(page, "layer0.e2", "layer1.e")).to_have_attribute(
+        "data-pathway", "ff_excitatory"
+    )
+    playwright.expect(
+        page.get_by_text("Source delay: 0 steps.", exact=False)
+    ).to_be_visible()
+    target.click()
+    playwright.expect(
+        source_row.get_by_role("button", name="layer0.e", exact=True)
+    ).to_be_visible()
+    playwright.expect(
+        source_row.get_by_role("button", name="layer0.e2", exact=True)
+    ).to_be_visible()
+    assert source_row.get_by_role("cell").last.inner_text() == original_budget
+    saved = exported(page)
+    model, _ = initialize_model(config_from_mapping(saved).model)
+    first, second = model.core_network.layers
+    assert not first.is_recurrent and not second.is_recurrent
+    assert second._stream_sources("e", "same_step", "ff_excitatory") == [
+        "layer0.e",
+        "layer0.e2",
+    ]
+    received = []
+    handle = second.populations["e"].register_forward_pre_hook(
+        lambda module, inputs: received.append(inputs[0])
+    )
+    model.core_network(torch.ones(2, 16))
+    handle.remove()
+    expected = torch.cat([first._last_outputs["e"], first._last_outputs["e2"]], dim=-1)
+    torch.testing.assert_close(received[0], expected, rtol=0, atol=0)
+    assert not page.errors
+
+
+def test_response_times_and_route_delay_survive_visual_edits_and_export(page):
+    import torch
+
+    from dendritic_modeling.config import config_from_mapping
+    from dendritic_modeling.scripts.script_utils.setup_utils import initialize_model
+
+    raw = example("recurrent_decision_population")
+    layer = raw["model"]["core"]["population_network"]["layers"][0]
+    layer["dt"] = 0.5
+    layer["connections"][-2]["target_levels"] = ["distal"]
+    layer["populations"][0]["population"] = {
+        "rec_excitatory_synapses_by_level": [2, 0, 0]
+    }
+    page.get_by_role("tab", name="YAML").click()
+    page.locator("textarea.yaml-text").fill(yaml.safe_dump(raw, sort_keys=False))
+    page.get_by_role("button", name="Apply").click()
+    page.get_by_role("tab", name="Model").click()
+    loop = page.get_by_role(
+        "button",
+        name="Connection circuit.pyr to circuit.pyr, rec_excitatory, delayed",
+        exact=True,
+    )
+    loop.press("Enter")
+    table = page.get_by_role("table", name="Response times by depth")
+    playwright.expect(
+        page.get_by_text("Source delay: 1 step.", exact=False)
+    ).to_be_visible()
+    playwright.expect(table.locator("tbody tr")).to_have_count(1)
+    playwright.expect(table.get_by_role("cell")).to_have_text(["1", "40"])
+    page.get_by_role("button", name="Edit receiving population").click()
+    soma = table.get_by_role("spinbutton", name="Response time at soma")
+    primary = table.get_by_role("spinbutton", name="Response time at 1 · primary")
+    distal = table.get_by_role("spinbutton", name="Response time at 2 · distal")
+    for control, value in [(soma, "10"), (primary, "20"), (distal, "40")]:
+        playwright.expect(control).to_have_value(value)
+    distal.fill("55")
+    distal.press("Enter")
+    page.get_by_role("button", name="Use base and ratio").wait_for()
+    primary.fill("17.5")
+    primary.press("Enter")
+    page.get_by_label("Learn one time constant per depth").click()
+    playwright.expect(
+        table.get_by_role("columnheader", name="Initial τ (learned)")
+    ).to_be_visible()
+    result = exported(page)
+    layer = result["model"]["core"]["population_network"]["layers"][0]
+    assert layer["populations"][0]["population"]["level_taus"] == [55, 17.5, 10]
+    assert layer["dt"] == 0.5 and layer["connections"][-2]["timing"] == "delayed"
+    model, _ = initialize_model(config_from_mapping(result).model)
+    pyr = model.core_network.layers[0].populations["pyr"]
+    torch.testing.assert_close(
+        pyr.current_taus.detach(), torch.tensor([55.0, 17.5, 10.0])
+    )
+    page.get_by_role("tab", name="Model").click()
+    page.get_by_role("button", name="Use base and ratio").click()
+    playwright.expect(distal).to_have_value("40")
+    assert (
+        "level_taus"
+        not in exported(page)["model"]["core"]["population_network"]["layers"][0][
+            "populations"
+        ][0]["population"]
+    )
+    assert not page.errors
+
+
+def test_set_travel_delays_in_the_connection_editor(page):
+    from dendritic_modeling.config import config_from_mapping
+    from dendritic_modeling.scripts.script_utils.setup_utils import initialize_model
+
+    page.locator(".example", has_text="Recurrent decision population network").click()
+    loop = page.get_by_role(
+        "button",
+        name="Connection circuit.pyr to circuit.pyr, rec_excitatory, delayed",
+        exact=True,
+    )
+    loop.press("Enter")
+    page.get_by_role("button", name="Edit connection", exact=True).click()
+    dialog = page.get_by_role("dialog", name="Edit connection")
+    dialog.get_by_label("Travel delay", exact=True).select_option("levels")
+    dialog.get_by_label("Travel steps at 1 · primary").fill("2")
+    dialog.get_by_label("Travel steps at 2 · distal").fill("3")
+    dialog.get_by_role("button", name="Save connection").click()
+    table = page.get_by_role("table", name="Response times by depth")
+    playwright.expect(table.locator("tbody td")).to_have_text(
+        ["1", "10", "2", "20", "3", "40"]
+    )
+    playwright.expect(loop.locator("title")).to_contain_text(
+        "1\N{EN DASH}3 steps of travel"
+    )
+    selected = page.locator('.route-row[aria-current="true"] .meta')
+    playwright.expect(selected).to_have_text("E · 1\N{EN DASH}3 Δt")
+    raw = exported(page)
+    route = raw["model"]["core"]["population_network"]["layers"][0]["connections"][-2]
+    assert route["delay_steps_by_level"] == [3, 2, 1] and "delay_steps" not in route
+    model, _ = initialize_model(config_from_mapping(raw).model)
+    assert model.core_network.layers[0].delay_history_lengths == {"pyr": 2}
+    page.get_by_role("tab", name="Model").click()
+    page.get_by_role("button", name="Edit receiving population").click()
+    page.get_by_role("button", name="level", exact=True).click()
+    playwright.expect(table.locator("tbody tr")).to_have_count(4)
+    expanded = exported(page)["model"]["core"]["population_network"]["layers"][0]
+    assert expanded["connections"][-2]["delay_steps_by_level"] == [1, 3, 2, 1]
+    page.get_by_role("tab", name="Model").click()
+    presets = page.get_by_role("group", name="Morphology presets")
+    presets.get_by_text("[2,2]", exact=True).click()
+    playwright.expect(table.locator("tbody tr")).to_have_count(3)
+    loop.press("Enter")
+    page.get_by_role("button", name="Edit connection", exact=True).click()
+    dialog.get_by_label("Travel delay", exact=True).select_option("uniform")
+    dialog.get_by_label("Travel delay (steps)").fill("4")
+    dialog.get_by_role("button", name="Save connection").click()
+    playwright.expect(table.locator("tbody td")).to_have_text(
+        ["4", "10", "4", "20", "4", "40"]
+    )
+    saved = exported(page)["model"]["core"]["population_network"]["layers"][0][
+        "connections"
+    ][-2]
+    assert saved["delay_steps"] == 4 and "delay_steps_by_level" not in saved
+    assert not page.errors
+
+
+def test_create_rewire_and_undo_without_invalidating_the_document(page):
+    # The published Add Connection button immediately duplicated input -> e.
+    dialog = wire(page, "layer0.e", "input")
+    dialog.get_by_role("button", name="Add connection").click()
+    playwright.expect(dialog.get_by_role("alert")).to_contain_text("duplicate")
+    dialog.get_by_role("button", name="Cancel").click()
+    playwright.expect(page.locator("svg.network path.edge[data-source]")).to_have_count(
+        3
+    )
+    playwright.expect(page.locator(".banner")).to_be_hidden()
+    page.get_by_role("button", name="E population", exact=True).first.click()
+    playwright.expect(
+        page.get_by_role("button", name="Edit population layer0.e2")
+    ).to_be_visible()
+    dialog = wire(page, "layer0.e", "layer0.e2")
+    dialog.get_by_role("button", name="Add connection").click()
+    playwright.expect(edge(page, "layer0.e2", "layer0.e")).to_have_attribute(
+        "data-pathway", "ff_excitatory"
+    )
+    page.get_by_role("button", name="Edit connection", exact=True).click()
+    dialog = page.get_by_role("dialog", name="Edit connection")
+    dialog.get_by_label("Timing", exact=True).select_option("delayed")
+    dialog.get_by_label("Contacts per eligible compartment").fill("2")
+    dialog.get_by_role("button", name="Save connection").click()
+    playwright.expect(edge(page, "layer0.e2", "layer0.e")).to_have_attribute(
+        "data-pathway", "rec_excitatory"
+    )
+    result = exported(page)["model"]["core"]["population_network"]["layers"][0]
+    assert (
+        result["recurrent"]
+        and result["populations"][1]["population"]["rec_excitatory_synapses"] == 2
+    )
+    assert result["connections"][-1] == {
+        "source": "e2",
+        "target": "e",
+        "timing": "delayed",
+    }
+    page.get_by_role("tab", name="Model").click()
+    page.keyboard.press("Control+z")
+    playwright.expect(edge(page, "layer0.e2", "layer0.e")).to_have_attribute(
+        "data-pathway", "ff_excitatory"
+    )
+    assert not page.errors
+
+
+def test_connecting_both_external_signs_selects_biological_afferents(page):
+    from dendritic_modeling.config import config_from_mapping
+    from dendritic_modeling.scripts.script_utils.setup_utils import initialize_model
+
+    dialog = wire(page, "layer0.e", "input_i")
+    dialog.get_by_role("button", name="Add connection").click()
+    playwright.expect(dialog.get_by_role("alert")).to_contain_text("afferent")
+    dialog.get_by_label("External afferents for both signs").select_option("paired")
+    dialog.get_by_role("button", name="Add connection").click()
+    playwright.expect(edge(page, "input_i", "layer0.e")).to_have_attribute(
+        "data-pathway", "ff_inhibitory"
+    )
+    cfg = config_from_mapping(exported(page))
+    assert (
+        cfg.model.core.population_network["transfer_params"]["input_source_identity"]
+        == "paired_afferents"
+    )
+    initialize_model(cfg.model)
+
+
+def test_hybrid_graph_runs_with_forward_and_delayed_feedback(page, tmp_path):
+    import torch
+
+    from dendritic_modeling.config import config_from_mapping
+    from dendritic_modeling.scripts.script_utils.setup_utils import setup_environment
+
+    page.get_by_role("button", name="Layer", exact=True).click()
+    dialog = page.get_by_role("dialog")
+    dialog.get_by_label("Layer name").fill("memory")
+    dialog.get_by_label("Layer dynamics").select_option("recurrent")
+    dialog.get_by_role("button", name="Add layer").click()
+    loop = edge(page, "memory.e", "memory.e")
+    playwright.expect(loop).to_have_attribute("marker-end", "url(#m-exc)")
+    # The second layer may receive first-layer outputs now and send its
+    # previous inhibitory output back, even if the sending layer is later.
+    dialog = wire(page, "memory.e", "layer0.i")
+    dialog.get_by_role("button", name="Add connection").click()
+    playwright.expect(edge(page, "layer0.i", "memory.e")).to_have_attribute(
+        "data-pathway", "ff_inhibitory"
+    )
+    dialog = wire(page, "layer0.e", "memory.i", "delayed")
+    dialog.get_by_role("button", name="Add connection").click()
+    playwright.expect(edge(page, "memory.i", "layer0.e")).to_have_attribute(
+        "data-pathway", "rec_inhibitory"
+    )
+    page.get_by_role("button", name="Layer", exact=True).click()
+    dialog = page.get_by_role("dialog")
+    dialog.get_by_label("Layer name").fill("output")
+    dialog.get_by_role("button", name="Add layer").click()
+    playwright.expect(
+        page.get_by_role("button", name="Edit population output.e")
+    ).to_be_visible()
+    raw = exported(page)
+    net = raw["model"]["core"]["population_network"]
+    assert [layer.get("recurrent", False) for layer in net["layers"]] == [
+        True,
+        True,
+        False,
+    ]
+    assert net["layers"][0]["connections"][-1]["source"] == "memory.i"
+    assert net["layers"][1]["connections"][-1]["source"] == "layer0.i"
+    raw["outputs"]["results_dir"] = str(tmp_path)
+    cfg = config_from_mapping(raw)
+    _, _, _, _, model, _ = setup_environment(
+        cfg.model, cfg.training, cfg.data, cfg.outputs, cfg.experiment, is_main=False
+    )
+    x = torch.linspace(0, 1, 3 * 4 * 16).reshape(3, 4, 16).requires_grad_()
+    core = model.core_network
+    y, hidden = core(x, return_hidden=True)
+    assert hidden is not None and torch.isfinite(y).all()
+    y.sum().backward()
+    assert torch.isfinite(x.grad).all() and x.grad[:, :-1].abs().sum() > 0
+    assert not page.errors
+
+
+def test_canvas_feedback_and_sequence_training_in_a_mixed_network(page, studio):
+    import math
+
+    raw = example("recurrent_decision_population")
+    task = raw["data"]["dataset_params"][raw["data"]["dataset_name"]]
+    task["n_samples"] = 96
+    raw["training"]["main"]["common"].update(epochs=1, batch_size=16)
+    page.get_by_role("tab", name="YAML").click()
+    page.locator("textarea.yaml-text").fill(yaml.safe_dump(raw, sort_keys=False))
+    page.get_by_role("button", name="Apply", exact=True).click()
+    page.get_by_role("tab", name="Model").click()
+    page.get_by_role("button", name="Layer", exact=True).click()
+    page.get_by_role("dialog").get_by_role("button", name="Add layer").click()
+    card = page.get_by_role("button", name="Edit population layer1.pv")
+    card.click()
+    page.get_by_role("button", name="Connect from this population").click()
+    page.get_by_role("button", name="Edit population circuit.pyr").click()
+    dialog = page.get_by_role("dialog")
+    playwright.expect(dialog.get_by_label("Source", exact=True)).to_have_value(
+        "layer1.pv"
+    )
+    playwright.expect(dialog.get_by_label("Timing", exact=True)).to_have_value(
+        "delayed"
+    )
+    dialog.get_by_role("button", name="Add connection").click()
+    playwright.expect(edge(page, "layer1.pv", "circuit.pyr")).to_have_attribute(
+        "data-timing", "delayed"
+    )
+    page.get_by_role("button", name="Train", exact=True).click()
+    name = page.get_by_role("dialog").locator("input")
+    name.fill("mixed sequence")
+    name.press("Enter")
+    card = page.locator(".run-card", has_text="mixed sequence")
+    playwright.expect(card.locator(".status")).to_contain_text(
+        "Completed", timeout=240_000
+    )
+    run = next(r for r in studio.studio_runs.snapshot()["runs"] if r["kind"] == "train")
+    (loss,) = run["summary"]["train_losses"]
+    assert math.isfinite(loss)
+    saved = yaml.safe_load((Path(run["cwd"]) / "config.yaml").read_text())
+    layers = saved["model"]["core"]["population_network"]["layers"]
+    assert [layer.get("recurrent", False) for layer in layers] == [True, False]
+    assert layers[0]["connections"][-1] == {
+        "source": "layer1.pv",
+        "target": "pyr",
+        "timing": "delayed",
+    }
+    assert not page.errors
+
+
+def test_adding_populations_and_changing_depth_keep_imported_layer_defaults(page):
+    raw = two_layer_document()
+    net = raw["model"]["core"]["population_network"]
+    net["readout_layer"] = "layer0"
+    page.get_by_role("tab", name="YAML").click()
+    page.locator("textarea.yaml-text").fill(yaml.safe_dump(raw, sort_keys=False))
+    page.get_by_role("button", name="Apply").click()
+    page.get_by_role("tab", name="Model").click()
+    page.get_by_role("button", name="Edit population layer0.e").click()
+    page.get_by_role("button", name="E population", exact=True).first.click()
+    card = page.get_by_role("button", name="Edit population layer0.e2")
+    playwright.expect(card).to_be_visible()
+    page.locator(".presets .chip", has_text="[3,3,3]").click()
+    playwright.expect(card).to_contain_text("[3, 3, 3]")
+    page.get_by_role("button", name="Layer", exact=True).click()
+    page.get_by_role("dialog").get_by_role("button", name="Add layer").click()
+    playwright.expect(
+        page.get_by_role("button", name="Edit population layer2.e")
+    ).to_be_visible()
+    net = exported(page)["model"]["core"]["population_network"]
+    assert net["readout_layer"] == "layer0"
+    assert net["layers"][0]["population_defaults"][
+        "ff_inhibitory_synapses_by_level"
+    ] == [4, 4, 6]
+    new = net["layers"][0]["populations"][-1]["population"]
+    assert new["ff_inhibitory_synapses_by_level"] == [4, 4, 4, 6]
+    assert not page.errors
+
+
 def delay_next_response(page, endpoint):
     """Deliver one real API response after a second UI action has taken place."""
     page.evaluate(
         """endpoint => {
           const fetch = window.fetch.bind(window);
           window.fetch = async (...args) => {
-            if (new URL(args[0], location.href).pathname !== "/api/" + endpoint) return fetch(...args);
+            if (new URL(args[0], document.baseURI).href !== new URL("api/" + endpoint, document.baseURI).href) return fetch(...args);
             window.fetch = fetch;
             const response = await fetch(...args);
             const json = response.json.bind(response);
@@ -396,16 +831,241 @@ def delay_next_response(page, endpoint):
     )
 
 
+def test_readout_selection_updates_both_explicit_readouts(page):
+    raw = example("synthetic_population")
+    raw["model"]["core"]["population_network"]["readout_population"] = "e"
+    page.get_by_role("tab", name="YAML").click()
+    page.locator("textarea.yaml-text").fill(yaml.safe_dump(raw, sort_keys=False))
+    page.get_by_role("button", name="Apply").click()
+    page.get_by_role("tab", name="Model").click()
+    page.locator(".tree-row.layer-row").first.click()
+    page.get_by_label("Readout population", exact=True).select_option("i")
+    playwright.expect(
+        page.get_by_role("button", name="Edit population layer0.i")
+    ).to_contain_text("readout")
+    net = exported(page)["model"]["core"]["population_network"]
+    assert net["readout_population"] == net["layers"][0]["readout_population"] == "i"
+    assert not page.errors
+
+
+def test_cancel_while_checking_a_route_keeps_draft_and_history(page):
+    dialog = wire(page, "layer0.e", "layer0.e", "delayed")
+    delay_next_response(page, "preview")
+    dialog.get_by_role("button", name="Add connection").click()
+    page.wait_for_selector("html[data-response-ready]")
+    dialog.get_by_role("button", name="Cancel").click()
+    release_response(page)
+    playwright.expect(edge(page, "layer0.e", "layer0.e")).to_have_count(0)
+    before = example("synthetic_population")
+    assert exported(page) == before
+    assert not page.errors
+
+
 def release_response(page):
     # Let the promise handlers settle before checking the resulting UI.
-    page.evaluate(
-        """async () => {
+    page.evaluate("""async () => {
         window.resumeStudioResponse();
         delete window.resumeStudioResponse;
         delete document.documentElement.dataset.responseReady;
         await new Promise(done => setTimeout(done, 0));
-    }"""
+    }""")
+
+
+def test_zero_budget_add_layer_omits_inactive_inhibition(page):
+    from dendritic_modeling.config import config_from_mapping
+    from dendritic_modeling.scripts.script_utils.setup_utils import initialize_model
+
+    raw = example("synthetic_population")
+    first = raw["model"]["core"]["population_network"]["layers"][0]
+    first["population_defaults"]["ff_inhibitory_synapses"] = 0
+    open_design(page, raw)
+    page.get_by_role("button", name="Layer", exact=True).click()
+    dialog = page.get_by_role("dialog", name="Add layer")
+    playwright.expect(dialog).to_contain_text("no eligible inhibitory contacts")
+    dialog.get_by_role("button", name="Add layer").click()
+    playwright.expect(page.locator("svg.network .card")).to_have_count(4)
+    assert edge(page, "layer1.i", "layer1.e").count() == 0
+    result = exported(page)
+    new = result["model"]["core"]["population_network"]["layers"][1]
+    assert new["population_defaults"]["ff_inhibitory_synapses"] == 0
+    assert new["connections"] == [
+        {"source": "input", "target": "i"},
+        {"source": "input", "target": "e"},
+    ]
+    initialize_model(config_from_mapping(result).model)
+    assert not page.errors
+
+
+def test_add_layer_rejects_broadcast_credit_for_stepped_template(page):
+    raw = example("synthetic_population")
+    layer = raw["model"]["core"]["population_network"]["layers"][0]
+    layer["population_defaults"]["autograd_credit_mode"] = "soma_broadcast"
+    open_design(page, raw)
+    page.get_by_role("button", name="Layer", exact=True).click()
+    dialog = page.get_by_role("dialog", name="Add layer")
+    dialog.get_by_label("Layer dynamics").select_option("recurrent")
+    dialog.get_by_role("button", name="Add layer").click()
+    playwright.expect(dialog.get_by_role("alert")).to_contain_text("exact")
+    assert page.locator("svg.network .card").count() == 2
+    dialog.get_by_role("button", name="Cancel").click()
+    assert exported(page) == raw
+    assert not page.errors
+
+
+def test_retimed_restricted_route_only_funds_the_selected_depth(page):
+    import torch
+
+    from dendritic_modeling.config import config_from_mapping
+    from dendritic_modeling.scripts.script_utils.setup_utils import initialize_model
+
+    raw = two_layer_document()
+    open_design(page, raw)
+    route = page.get_by_role(
+        "button",
+        name="Connection layer0.i to layer1.e, ff_inhibitory, same_step",
+        exact=True,
     )
+    route.press("Enter")
+    page.get_by_role("switch", name="All levels").click()
+    page.locator("#lvl-0").uncheck()
+    page.locator("#lvl-1").uncheck()
+    page.get_by_role("button", name="Edit connection", exact=True).click()
+    dialog = page.get_by_role("dialog", name="Edit connection")
+    dialog.get_by_label("Timing", exact=True).select_option("delayed")
+    dialog.get_by_label("Contacts per eligible compartment").fill("3")
+    dialog.get_by_role("button", name="Save connection").click()
+    playwright.expect(edge(page, "layer0.i", "layer1.e")).to_have_attribute(
+        "data-pathway", "rec_inhibitory"
+    )
+    result = exported(page)
+    layer = result["model"]["core"]["population_network"]["layers"][1]
+    saved = next(c for c in layer["connections"] if c.get("source") == "layer0.i")
+    assert saved["target_levels"] == [2] and saved["timing"] == "delayed"
+    assert layer["populations"][1]["population"][
+        "rec_inhibitory_synapses_by_level"
+    ] == [3, 0, 0]
+    model, _ = initialize_model(config_from_mapping(result).model)
+    assert torch.isfinite(model.core_network(torch.ones(2, 5, 16))).all()
+    assert not page.errors
+
+
+@pytest.mark.parametrize("field", ["response time", "contact count"])
+def test_pending_depth_edit_survives_adding_a_morphology_level(page, field):
+    page.locator(".example", has_text="Recurrent decision population network").click()
+    page.get_by_role("button", name="Edit population circuit.pyr", exact=True).click()
+    if field == "response time":
+        label, value, key, expected = (
+            "Response time at 1 · primary",
+            "25",
+            "level_taus",
+            [80, 40, 25, 10],
+        )
+    else:
+        page.get_by_text("Set counts per level", exact=True).click()
+        label, value, key, expected = (
+            "Recurrent excitatory contacts at level 1 · primary",
+            "3",
+            "rec_excitatory_synapses_by_level",
+            [2, 2, 3, 2],
+        )
+
+    delay_next_response(page, "preview")
+    control = page.get_by_role("spinbutton", name=label, exact=True)
+    control.fill(value)
+    control.press("Enter")
+    page.wait_for_selector("html[data-response-ready]")
+    page.get_by_role("button", name="level", exact=True).click()
+    release_response(page)
+    table = page.get_by_role("table", name="Response times by depth")
+    playwright.expect(table.locator("tbody tr")).to_have_count(4)
+    saved = exported(page)["model"]["core"]["population_network"]["layers"][0][
+        "populations"
+    ][0]
+    assert saved["population"][key] == expected
+    assert not page.errors
+
+
+def test_queued_edits_to_connection_controls_survive_in_order(page):
+    page.locator(".example", has_text="Recurrent decision population network").click()
+    page.get_by_role(
+        "button",
+        name="Connection circuit.pyr to circuit.pyr, rec_excitatory, delayed",
+        exact=True,
+    ).press("Enter")
+    delay_next_response(page, "preview")
+    probability = page.get_by_label("Connection probability", exact=True)
+    probability.fill("0.4")
+    probability.press("Enter")
+    page.wait_for_selector("html[data-response-ready]")
+    seed = page.get_by_label("Seed", exact=True)
+    seed.fill("27")
+    seed.press("Enter")
+    release_response(page)
+    # Wait for the validated draft itself, independent of the values typed into the form.
+    page.wait_for_function(
+        """async () => {
+        const {state} = await import('./js/store.js');
+        const c = state.config.model.core.population_network.layers[0].connections.at(-2);
+        return c.probability === 0.4 && c.seed === 27;
+    }""",
+        timeout=5000,
+    )
+    page.get_by_role("button", name="Undo (Ctrl+Z)", exact=True).click()
+    playwright.expect(seed).to_have_value("")
+    saved = exported(page)["model"]["core"]["population_network"]["layers"][0][
+        "connections"
+    ][-2]
+    assert saved["probability"] == 0.4 and "seed" not in saved
+    assert not page.errors
+
+
+def test_stale_topology_dialog_waits_for_validation_then_rejects_later_edits(page):
+    page.get_by_role("button", name="Edit population layer0.e", exact=True).click()
+    delay_next_response(page, "preview")
+    contacts = page.locator(
+        'input[data-key$="populations.1.population.ff_inhibitory_synapses"]'
+    )
+    contacts.fill("0")
+    contacts.press("Enter")
+    page.wait_for_selector("html[data-response-ready]")
+    page.get_by_role("button", name="Layer", exact=True).click()
+    dialog = page.get_by_role("dialog", name="Add layer")
+    assert not dialog.count()
+    release_response(page)
+    playwright.expect(dialog).to_contain_text("no eligible inhibitory contacts")
+    page.evaluate("""async () => {
+        const {edit} = await import('./js/store.js');
+        await edit(cfg => { cfg.experiment.seed = 753; });
+    }""")
+    dialog.get_by_role("button", name="Add layer").click()
+    playwright.expect(dialog.get_by_role("alert")).to_contain_text("design changed")
+    dialog.get_by_role("button", name="Cancel").click()
+    saved = exported(page)
+    assert saved["experiment"]["seed"] == 753
+    assert len(saved["model"]["core"]["population_network"]["layers"]) == 1
+    assert not page.errors
+
+
+def test_queued_edits_rebase_morphology_on_a_later_field_edit(page):
+    page.locator(".example", has_text="Recurrent decision population network").click()
+    page.get_by_role("button", name="Edit population circuit.pyr", exact=True).click()
+    delay_next_response(page, "preview")
+    add = page.get_by_role("button", name="More branches at level 1", exact=True)
+    add.click()
+    page.wait_for_selector("html[data-response-ready]")
+    add.click()
+    primary = page.get_by_role("spinbutton", name="Response time at 1 · primary")
+    primary.fill("25")
+    primary.press("Enter")
+    release_response(page)
+    playwright.expect(
+        page.get_by_role("button", name="Edit population circuit.pyr")
+    ).to_contain_text("[4, 2]")
+    saved = exported(page)["model"]["core"]["population_network"]["layers"][0][
+        "populations"
+    ][0]
+    assert saved["population"]["level_taus"] == [40, 25, 10]
+    assert not page.errors
 
 
 def test_morphology_drawing_is_bounded_and_keeps_the_real_level_counts(page):
@@ -439,14 +1099,12 @@ def test_morphology_drawing_is_bounded_and_keeps_the_real_level_counts(page):
             playwright.expect(neuron).to_have_attribute(
                 "aria-label", re.compile(f"{drawn} of {total:,} compartments")
             )
-    label = page.evaluate(
-        """async () => {
+    label = page.evaluate("""async () => {
           const { drawNeuron } = await import("./js/morphology.js");
           const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
           drawNeuron(svg, {counts: {ff_excitatory: [2000000]}});
           return [svg.querySelector(".count-label").textContent, svg.querySelectorAll(".bouton").length];
-        }"""
-    )
+        }""")
     assert label == ["2000000 E each", 0]
     assert not page.errors, page.errors
 
@@ -472,12 +1130,10 @@ def test_adopting_an_example_supersedes_inflight_model_validation(page, invalid)
         page.get_by_role("button", name="Train", exact=True)
     ).to_be_enabled()
     release_response(page)
-    assert page.evaluate(
-        """async () => {
+    assert page.evaluate("""async () => {
         const { state } = await import("./js/store.js");
         return !state.validating && !state.error && JSON.stringify(state.config) === JSON.stringify(state.preview.config);
-    }"""
-    )
+    }""")
     assert not page.errors, page.errors
 
 
@@ -525,12 +1181,10 @@ def test_delayed_yaml_dump_preserves_newer_text_or_document(page, intervening_ac
     page.get_by_role("tab", name="YAML").click()
     editor = page.locator("textarea.yaml-text")
     delay_next_response(page, "dump")
-    page.evaluate(
-        """async () => {
+    page.evaluate("""async () => {
         const { edit } = await import("./js/store.js");
         await edit(config => { config.unknown_option = true; });
-    }"""
-    )
+    }""")
     page.locator("html[data-response-ready]").wait_for()
     if intervening_action == "type":
         expected = "# keep my edit\n" + editor.input_value()
@@ -572,3 +1226,559 @@ def test_typing_during_apply_preserves_the_new_yaml(page, invalid_submission):
     page.get_by_role("button", name="Apply").click()
     playwright.expect(page.locator(".yaml-status")).to_contain_text("Matches")
     assert page.evaluate(read_seed) == 102
+
+
+@pytest.mark.parametrize("inherited", [False, True])
+def test_uniform_reset_preserves_later_depth_edit(page, inherited):
+    raw = example("synthetic_population")
+    layer = raw["model"]["core"]["population_network"]["layers"][0]
+    field = "ff_inhibitory_synapses_by_level"
+    settings = (
+        layer["population_defaults"]
+        if inherited
+        else layer["populations"][1].setdefault("population", {})
+    )
+    settings[field] = [2, 3, 6]
+    if inherited:
+        # The inhibitory population has a shallower tree than the receiver.
+        layer["populations"][0].setdefault("population", {})[field] = []
+    open_design(page, raw)
+    page.get_by_role("button", name="Edit population layer0.e", exact=True).click()
+    page.get_by_text("Set counts per level", exact=True).click()
+    delay_next_response(page, "preview")
+    page.get_by_role("button", name="Use one count for all levels").click()
+    page.wait_for_selector("html[data-response-ready]")
+    primary = page.get_by_role(
+        "spinbutton", name="Inhibitory contacts at level 1 · primary"
+    )
+    primary.fill("7")
+    primary.press("Enter")
+    release_response(page)
+    page.evaluate("async () => (await import('./js/store.js')).topologyReady()")
+    saved = exported(page)["model"]["core"]["population_network"]["layers"][0]
+    assert saved["populations"][1]["population"][field] == [4, 7, 4]
+    undo = page.get_by_role("button", name="Undo (Ctrl+Z)", exact=True)
+    undo.click()
+    rolled_back = exported(page)["model"]["core"]["population_network"]["layers"][0]
+    assert rolled_back["populations"][1].get("population", {}).get(field) == (
+        [] if inherited else None
+    )
+    undo.click()
+    assert exported(page) == raw
+    assert not page.errors
+
+
+@pytest.mark.parametrize("primary_source", [False, True])
+def test_retimed_route_requires_coverage_for_existing_contacts(page, primary_source):
+    from dendritic_modeling.config import config_from_mapping
+    from dendritic_modeling.scripts.script_utils.setup_utils import initialize_model
+
+    raw = two_layer_document()
+    layer = raw["model"]["core"]["population_network"]["layers"][1]
+    layer["connections"][2]["target_levels"] = ["distal"]
+    field = "rec_inhibitory_synapses_by_level"
+    layer["populations"][1].setdefault("population", {})[field] = [0, 2, 0]
+    if primary_source:
+        layer["recurrent"] = True
+        layer["connections"].append(
+            {
+                "source": "i",
+                "target": "e",
+                "timing": "delayed",
+                "target_levels": ["primary"],
+            }
+        )
+    open_design(page, raw)
+    page.get_by_role(
+        "button",
+        name="Connection layer0.i to layer1.e, ff_inhibitory, same_step",
+        exact=True,
+    ).press("Enter")
+    page.get_by_role("button", name="Edit connection", exact=True).click()
+    dialog = page.get_by_role("dialog", name="Edit connection")
+    dialog.get_by_label("Timing", exact=True).select_option("delayed")
+    dialog.get_by_label("Contacts per eligible compartment").fill("1")
+    dialog.get_by_role("button", name="Save connection").click()
+    if primary_source:
+        playwright.expect(dialog).not_to_be_visible()
+        result = exported(page)
+        saved = result["model"]["core"]["population_network"]["layers"][1]
+        assert saved["populations"][1]["population"][field] == [1, 2, 0]
+        initialize_model(config_from_mapping(result).model)
+    else:
+        playwright.expect(dialog.get_by_role("alert")).to_contain_text("depth 1")
+        dialog.get_by_role("button", name="Cancel").click()
+        assert exported(page) == raw
+    assert not page.errors
+
+
+def capture_clipboard(page):
+    page.evaluate("""() => {
+        Object.defineProperty(navigator.clipboard, "writeText", {
+            value: async text => {
+                window.copiedYaml = text;
+                document.documentElement.dataset.copyReady = "yes";
+            }
+        });
+        Object.defineProperty(navigator.clipboard, "write", {
+            value: async ([item]) => {
+                window.copiedYaml = await (await item.getType("text/plain")).text();
+                document.documentElement.dataset.copyReady = "yes";
+            }
+        });
+    }""")
+
+
+@pytest.mark.parametrize("action", ["Export", "Copy"])
+def test_yaml_output_follows_undo_while_preview_is_pending(page, action):
+    capture_clipboard(page)
+    page.get_by_role("tab", name="YAML").click()
+    editor = page.locator("textarea.yaml-text")
+    original = yaml.safe_load(editor.input_value())
+    page.evaluate("""async () => {
+        const {edit} = await import("./js/store.js");
+        await edit(cfg => { cfg.experiment.seed = 284; });
+    }""")
+    playwright.expect(editor).to_have_value(re.compile(r"seed: 284\b"))
+    delay_next_response(page, "preview")
+    page.get_by_role("button", name="Undo (Ctrl+Z)", exact=True).click()
+    page.wait_for_selector("html[data-response-ready]")
+
+    def output():
+        button = page.get_by_role("button", name=action, exact=True)
+        if action == "Export":
+            with page.expect_download() as event:
+                button.click()
+            return Path(event.value.path()).read_text()
+        page.evaluate("delete document.documentElement.dataset.copyReady")
+        button.click()
+        page.locator("html[data-copy-ready]").wait_for()
+        return page.evaluate("window.copiedYaml")
+
+    assert yaml.safe_load(output()) == original
+    edited = "# Unapplied text\nexperiment: ["
+    editor.fill(edited)
+    assert output() == edited
+    release_response(page)
+    assert editor.input_value() == edited
+    assert not page.errors
+
+
+def test_connection_depth_can_repair_an_invalid_contact_edit(page):
+    raw = example("synthetic_population")
+    layer = raw["model"]["core"]["population_network"]["layers"][0]
+    layer["connections"][-1]["target_levels"] = ["distal"]
+    field = "ff_inhibitory_synapses_by_level"
+    layer["populations"][1]["population"] = {field: [4, 0, 0]}
+    open_design(page, raw)
+    page.get_by_role("button", name="Edit population layer0.e", exact=True).click()
+    page.get_by_text("Set counts per level", exact=True).click()
+    primary = page.get_by_role(
+        "spinbutton", name="Inhibitory contacts at level 1 · primary"
+    )
+    primary.fill("2")
+    primary.press("Enter")
+    page.wait_for_function(
+        """async () => (await import('./js/store.js')).state.error?.includes('depth 1')"""
+    )
+    page.get_by_role(
+        "button", name="Connection layer0.i to layer0.e, ff_inhibitory, same_step"
+    ).press("Enter")
+    page.locator("#lvl-1").click()
+    page.wait_for_function(
+        """async () => !(await import('./js/store.js')).state.error""", timeout=4000
+    )
+    saved = exported(page)["model"]["core"]["population_network"]["layers"][0]
+    assert saved["connections"][-1]["target_levels"] == [1, 2]
+    assert saved["populations"][1]["population"][field] == [4, 2, 0]
+    assert not page.errors
+
+
+@pytest.mark.parametrize("operation", ["reset", "undo", "redo"])
+def test_tau_edit_uses_current_depth_settings(page, operation):
+    raw = example("recurrent_decision_population")
+    layer = raw["model"]["core"]["population_network"]["layers"][0]
+    own = layer["populations"][0].setdefault("population", {})
+    own["level_taus"] = [61, 31, 11]
+    open_design(page, raw)
+    page.get_by_role("button", name="Edit population circuit.pyr", exact=True).click()
+    reset = page.get_by_role("button", name="Use base and ratio")
+    undo = page.get_by_role("button", name="Undo (Ctrl+Z)", exact=True)
+    redo = page.get_by_role("button", name=re.compile("^Redo"))
+    distal = page.get_by_role("spinbutton", name="Response time at 2 · distal")
+    if operation != "reset":
+        reset.click()
+        playwright.expect(distal).to_have_value("40")
+        if operation == "redo":
+            undo.click()
+            playwright.expect(distal).to_have_value("61")
+    delay_next_response(page, "preview")
+    {"reset": reset, "undo": undo, "redo": redo}[operation].click()
+    page.wait_for_selector("html[data-response-ready]")
+    primary = page.get_by_role("spinbutton", name="Response time at 1 · primary")
+    primary.fill("25")
+    primary.press("Enter")
+    release_response(page)
+    page.evaluate("async () => (await import('./js/store.js')).topologyReady()")
+    pop = exported(page)["model"]["core"]["population_network"]["layers"][0][
+        "populations"
+    ][0]
+    assert pop["population"]["level_taus"] == (
+        [61, 25, 11] if operation == "undo" else [40, 25, 10]
+    )
+    assert not page.errors
+
+
+@pytest.mark.parametrize("kind", ["population", "layer"])
+def test_rapid_renames_follow_current_references(page, kind):
+    raw = two_layer_document()
+    net = raw["model"]["core"]["population_network"]
+    net.update(readout_layer="layer0", readout_population="e")
+    open_design(page, raw)
+    if kind == "population":
+        page.get_by_role("button", name="Edit population layer0.e", exact=True).click()
+    else:
+        page.locator(".tree-row.layer-row").first.click()
+    name = page.get_by_label("Name", exact=True)
+    delay_next_response(page, "preview")
+    name.fill("intermediate")
+    name.press("Enter")
+    page.wait_for_selector("html[data-response-ready]")
+    name.fill("final")
+    name.press("Enter")
+    release_response(page)
+    page.evaluate("async () => (await import('./js/store.js')).topologyReady()")
+    saved = exported(page)["model"]["core"]["population_network"]
+    first, second = saved["layers"]
+    if kind == "population":
+        assert (
+            first["populations"][1]["name"]
+            == first["readout_population"]
+            == saved["readout_population"]
+            == "final"
+        )
+        assert [c["target"] for c in first["connections"]] == ["i", "final", "final"]
+        assert second["connections"][1]["source"] == "layer0.final"
+    else:
+        assert first["name"] == saved["readout_layer"] == "final"
+        assert [c["source"] for c in second["connections"][1:3]] == [
+            "final.e",
+            "final.i",
+        ]
+    assert not page.errors
+
+
+@pytest.mark.parametrize("action", ["Check model", "Train", "Export", "Copy"])
+def test_model_actions_wait_for_connection_edit(page, action):
+    capture_clipboard(page)
+    page.route(
+        "**/api/run",
+        lambda route: route.fulfill(
+            json={"id": "captured", "name": "captured", "kind": "train"}
+        ),
+    )
+    page.get_by_role(
+        "button", name="Connection layer0.i to layer0.e, ff_inhibitory, same_step"
+    ).press("Enter")
+    delay_next_response(page, "preview")
+    probability = page.get_by_label("Connection probability", exact=True)
+    probability.fill("0.4")
+    probability.press("Enter")
+    page.wait_for_selector("html[data-response-ready]")
+    if action in ("Copy", "Export"):
+        page.get_by_role("tab", name="YAML").click()
+    button = page.get_by_role("button", name=action, exact=True)
+    if action == "Export":
+        with page.expect_download() as event:
+            button.click()
+            release_response(page)
+        document = yaml.safe_load(Path(event.value.path()).read_text())
+    elif action == "Copy":
+        button.click()
+        release_response(page)
+        page.locator("html[data-copy-ready]").wait_for()
+        document = yaml.safe_load(page.evaluate("window.copiedYaml"))
+    else:
+        with page.expect_response("**/api/run") as launched:
+            button.click()
+            if action == "Train":
+                # The confirmation describes the validated model and its dataset.
+                playwright.expect(
+                    page.get_by_role("dialog", name="Train this model")
+                ).to_have_count(0, timeout=1000)
+            release_response(page)
+            if action == "Train":
+                page.get_by_role("button", name="Start training", exact=True).click()
+        document = launched.value.request.post_data_json["config"]
+    route = document["model"]["core"]["population_network"]["layers"][0]["connections"][
+        -1
+    ]
+    assert route.get("probability") == 0.4
+    assert not page.errors
+
+
+@pytest.mark.parametrize("action", ["Check model", "Train", "Export", "Copy"])
+def test_rejected_topology_edit_aborts_action_and_allows_retry(page, action):
+    runs = []
+    downloads = []
+    capture_clipboard(page)
+    page.on("download", lambda download: downloads.append(download))
+
+    def capture_run(route):
+        runs.append(route.request.post_data_json)
+        route.fulfill(json={"id": "captured"})
+
+    page.route("**/api/run", capture_run)
+    delay_next_response(page, "preview")
+    page.evaluate("""async () => {
+        const {editTopology} = await import('./js/store.js');
+        editTopology(cfg => {cfg.model.core.population_network.layers[0].connections[0].target = 'missing';}).catch(() => {});
+    }""")
+    page.wait_for_selector("html[data-response-ready]")
+    if action in ("Export", "Copy"):
+        page.get_by_role("tab", name="YAML").click()
+    page.get_by_role("button", name=action, exact=True).click()
+    release_response(page)
+    playwright.expect(
+        page.locator(".toast").filter(has_text="missing").first
+    ).to_be_visible(timeout=4000)
+    assert not runs and not downloads
+    assert page.evaluate("window.copiedYaml") is None
+    playwright.expect(page.get_by_role("dialog")).not_to_be_visible()
+    with page.expect_response("**/api/run"):
+        page.get_by_role("button", name="Check model", exact=True).click()
+    assert len(runs) == 1
+    assert not page.errors
+
+
+@pytest.mark.parametrize("inactive", [{"enabled": False}, {"probability": 0.0}])
+def test_saving_inactive_connection_preserves_shared_zero_budget(page, inactive):
+    raw = two_layer_document()
+    layer = raw["model"]["core"]["population_network"]["layers"][1]
+    layer["connections"][2].update(inactive)
+    field = "ff_inhibitory_synapses_by_level"
+    layer["populations"][1].setdefault("population", {})[field] = [0, 0, 0]
+    open_design(page, raw)
+    routes = page.locator("details.route-list").nth(1)
+    routes.locator("summary").click()
+    routes.locator(".route-row").nth(2).click()
+    page.get_by_role("button", name="Edit connection", exact=True).click()
+    dialog = page.get_by_role("dialog", name="Edit connection")
+    playwright.expect(
+        dialog.get_by_label("Contacts per eligible compartment")
+    ).to_be_hidden()
+    dialog.get_by_role("button", name="Save connection").click()
+    playwright.expect(dialog).not_to_be_visible()
+    saved = exported(page)["model"]["core"]["population_network"]["layers"][1]
+    assert saved["populations"] == layer["populations"]
+    assert saved["connections"] == layer["connections"]
+    assert not page.errors
+
+
+@pytest.mark.parametrize(
+    "readout",
+    ["unique", "compatible", "conflicting", "explicit_final", "explicit_elsewhere"],
+)
+def test_remove_last_layer_resolves_readout_before_deletion(page, readout):
+    raw = two_layer_document()
+    net = raw["model"]["core"]["population_network"]
+    first, last = net["layers"]
+    if readout == "unique":
+        last["populations"][1]["name"] = last["readout_population"] = "output"
+        for conn in last["connections"]:
+            if conn["target"] == "e":
+                conn["target"] = "output"
+        net["readout_population"] = "output"
+    elif readout == "explicit_final":
+        net.update(readout_layer="layer1", readout_population="e")
+    elif readout == "explicit_elsewhere":
+        net.update(readout_layer="layer0", readout_population="e")
+    else:
+        net["readout_population"] = last["readout_population"] = "i"
+        if readout == "compatible":
+            del first["readout_population"]
+    open_design(page, raw)
+    page.locator(".tree-row.layer-row").last.click()
+    page.get_by_role("button", name="Remove layer", exact=True).click()
+    page.get_by_role("dialog", name="Remove layer").get_by_role(
+        "button", name="Remove", exact=True
+    ).click()
+    playwright.expect(page.locator(".tree-row.layer-row")).to_have_count(1)
+    saved = exported(page)["model"]["core"]["population_network"]
+    assert saved["layers"] == [first]
+    assert saved.get("readout_population") == {
+        "compatible": "i",
+        "explicit_elsewhere": "e",
+    }.get(readout)
+    assert saved.get("readout_layer") == (
+        "layer0" if readout == "explicit_elsewhere" else None
+    )
+    page.get_by_role("button", name="Undo (Ctrl+Z)", exact=True).click()
+    assert exported(page) == raw
+    assert not page.errors
+
+
+def invalid_population_times(page, li, pi):
+    # An ordinary edit retains invalid input so the user can correct it.
+    assert (
+        page.evaluate(
+            """async ([li, pi]) => {
+        const {edit} = await import('./js/store.js');
+        return edit(cfg => {
+            const pop = cfg.model.core.population_network.layers[li].populations[pi];
+            (pop.population ||= {}).level_taus = [7];
+        }, {structural: true});
+    }""",
+            [li, pi],
+        )
+        is False
+    )
+    playwright.expect(page.locator(".banner")).to_contain_text("level_taus")
+
+
+@pytest.mark.parametrize("kind", ["population", "layer"])
+def test_removal_repairs_invalid_draft_and_undo_restores_it(page, kind):
+    raw = two_layer_document()
+    open_design(page, raw)
+    invalid_population_times(page, 1, 0)
+    if kind == "population":
+        page.get_by_role("button", name="Edit population layer1.i", exact=True).click()
+    else:
+        page.locator(".tree-row.layer-row").last.click()
+    title = f"Remove {kind}"
+    page.get_by_role("button", name=title, exact=True).click()
+    dialog = page.get_by_role("dialog", name=title)
+    playwright.expect(dialog).to_be_visible(timeout=4000)
+    dialog.get_by_role("button", name="Remove", exact=True).click()
+    playwright.expect(page.locator(".banner")).to_be_hidden()
+    saved = exported(page)["model"]["core"]["population_network"]["layers"]
+    before = raw["model"]["core"]["population_network"]["layers"]
+    assert saved[0] == before[0]
+    if kind == "population":
+        assert saved[1]["populations"] == [before[1]["populations"][1]]
+        assert saved[1]["connections"] == before[1]["connections"][1:3]
+    else:
+        assert len(saved) == 1
+    page.get_by_role("button", name="Undo (Ctrl+Z)", exact=True).click()
+    invalid = exported(page)["model"]["core"]["population_network"]["layers"]
+    assert invalid[1]["populations"][0]["population"]["level_taus"] == [7]
+    page.get_by_role("button", name="Undo (Ctrl+Z)", exact=True).click()
+    assert exported(page) == raw
+    assert not page.errors
+
+
+@pytest.mark.parametrize("decision", ["cancel", "stale", "unrelated"])
+def test_removal_repair_never_commits_a_stale_or_invalid_proposal(page, decision):
+    raw = two_layer_document()
+    open_design(page, raw)
+    invalid_population_times(page, 1, 0)
+    li = 0 if decision == "unrelated" else 1
+    page.get_by_role("button", name=f"Edit population layer{li}.i", exact=True).click()
+    page.get_by_role("button", name="Remove population", exact=True).click()
+    dialog = page.get_by_role("dialog", name="Remove population")
+    playwright.expect(dialog).to_be_visible(timeout=4000)
+    if decision == "stale":
+        page.evaluate("""async () => {
+            const {edit} = await import('./js/store.js');
+            await edit(cfg => { cfg.experiment.seed = 913; });
+        }""")
+    dialog.get_by_role(
+        "button", name="Cancel" if decision == "cancel" else "Remove", exact=True
+    ).click()
+    if decision != "cancel":
+        playwright.expect(page.locator(".toast.error").last).to_contain_text(
+            "design changed" if decision == "stale" else "level_taus"
+        )
+    actual = exported(page)
+    expected = raw["model"]["core"]["population_network"]["layers"]
+    expected[1]["populations"][0]["population"]["level_taus"] = [7]
+    assert actual["model"]["core"]["population_network"]["layers"] == expected
+    if decision == "stale":
+        assert actual["experiment"]["seed"] == 913
+    assert not page.errors
+
+
+def test_inspector_handles_a_population_removed_by_pending_undo(page):
+    page.get_by_role("button", name="I population", exact=True).click()
+    added = page.get_by_role("button", name="Edit population layer0.i2", exact=True)
+    playwright.expect(added).to_be_visible()
+    delay_next_response(page, "preview")
+    page.get_by_role("button", name="Undo (Ctrl+Z)", exact=True).click()
+    page.wait_for_selector("html[data-response-ready]")
+    added.click()
+    assert not page.errors
+    playwright.expect(
+        page.get_by_role("button", name="Remove population", exact=True)
+    ).not_to_be_visible()
+    release_response(page)
+    playwright.expect(added).to_have_count(0)
+    assert exported(page) == example("synthetic_population")
+    assert not page.errors
+
+
+def test_interrupted_inline_edit_names_the_action_the_user_can_retry(page):
+    page.get_by_role(
+        "button", name="Connection layer0.i to layer0.e, ff_inhibitory, same_step"
+    ).press("Enter")
+    seed = page.get_by_label("Seed", exact=True)
+    seed.fill("21")
+    seed.press("Enter")
+    page.evaluate("async () => (await import('./js/store.js')).topologyReady()")
+    delay_next_response(page, "preview")
+    probability = page.get_by_label("Connection probability", exact=True)
+    probability.fill("0.3")
+    probability.press("Enter")
+    page.wait_for_selector("html[data-response-ready]")
+    page.get_by_role("button", name="Undo (Ctrl+Z)", exact=True).click()
+    release_response(page)
+    playwright.expect(page.locator(".toast.error").last).to_contain_text("edit again")
+    assert exported(page) == example("synthetic_population")
+    assert not page.errors
+
+
+@pytest.mark.parametrize("intervening_undo", [False, True])
+def test_connection_dialog_repairs_uncovered_contacts_from_current_draft(
+    page, intervening_undo
+):
+    raw = two_layer_document()
+    layer = raw["model"]["core"]["population_network"]["layers"][1]
+    layer["connections"].pop()
+    layer["connections"][2]["target_levels"] = ["distal"]
+    field = "ff_inhibitory_synapses_by_level"
+    layer["populations"][1].setdefault("population", {})[field] = [4, 0, 0]
+    open_design(page, raw)
+    page.get_by_role("button", name="Edit population layer1.e", exact=True).click()
+    page.get_by_text("Set counts per level", exact=True).click()
+    count = page.get_by_role(
+        "spinbutton", name="Inhibitory contacts at level 1 · primary"
+    )
+    count.fill("2")
+    count.press("Enter")
+    playwright.expect(page.locator(".banner")).to_contain_text("depth 1")
+    if intervening_undo:
+        delay_next_response(page, "wiring")
+    page.get_by_role("button", name="Connection", exact=True).click()
+    dialog = page.get_by_role("dialog", name="Connect populations")
+    if intervening_undo:
+        page.wait_for_selector("html[data-response-ready]", timeout=5000)
+        page.get_by_role("button", name="Undo (Ctrl+Z)", exact=True).click()
+        release_response(page)
+        playwright.expect(page.locator(".toast.error").last).to_contain_text(
+            "design changed"
+        )
+        playwright.expect(dialog).not_to_be_visible()
+        assert exported(page) == raw
+    else:
+        playwright.expect(dialog).to_be_visible(timeout=4000)
+        dialog.get_by_label("Receiving population").select_option("layer1.e")
+        dialog.get_by_label("Source", exact=True).select_option("layer1.i")
+        dialog.get_by_role("button", name="Add connection").click()
+        playwright.expect(dialog).not_to_be_visible()
+        playwright.expect(page.locator(".banner")).to_be_hidden()
+        layers = exported(page)["model"]["core"]["population_network"]["layers"]
+        assert layers[1]["connections"] == [
+            *layer["connections"],
+            {"source": "i", "target": "e"},
+        ]
+        assert layers[1]["populations"][1]["population"][field] == [4, 2, 0]
+    assert not page.errors

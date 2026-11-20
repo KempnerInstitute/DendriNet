@@ -146,7 +146,8 @@ class PopulationStateCodec:
     The order is network layer order, population declaration order, the five
     trace-bank names in ``TRACE_FIELDS`` order, level order within a bank, and
     finally that population's delayed output.  Dictionary insertion order in a
-    runtime state therefore cannot change the vector convention.
+    runtime state therefore cannot change the vector convention. Extra travel-delay
+    histories follow each layer's populations in sorted source-name order.
     """
 
     TRACE_FIELDS = _TRACE_FIELDS
@@ -304,6 +305,26 @@ class PopulationStateCodec:
                         f"[batch, {expected_output_dim}], got {tuple(output.shape)}"
                     )
                 tensors.append(output)
+            histories = layer_state.delay_history or {}
+            if set(histories) != set(layer.delay_history_lengths):
+                raise ValueError(
+                    f"layer {layer_index} travel-delay history keys differ"
+                )
+            for source in sorted(histories):
+                tensor = histories[source]
+                expected = (
+                    layer.delay_history_lengths[source],
+                    layer._source_dim(source),
+                )
+                if (
+                    not isinstance(tensor, torch.Tensor)
+                    or tensor.ndim != 3
+                    or tuple(tensor.shape[1:]) != expected
+                ):
+                    raise ValueError(
+                        f"invalid delay_history shape for {source!r}, expected [batch, {expected}]"
+                    )
+                tensors.append(tensor)
 
         if not tensors:
             raise ValueError("PopulationNetwork recurrent state has no tensors")
@@ -364,6 +385,23 @@ class PopulationStateCodec:
                         layer_name=self._layer_names[layer_index],
                         population_name=population_name,
                         field="outputs",
+                        level_index=None,
+                        shape=tuple(tensor.shape),
+                        start=offset,
+                        stop=stop,
+                    )
+                )
+                offset = stop
+            for source in sorted(layer_state.delay_history or {}):
+                tensor = tensors[tensor_index]
+                tensor_index += 1
+                stop = offset + tensor.numel()
+                specs.append(
+                    StateTensorSpec(
+                        layer_index=layer_index,
+                        layer_name=self._layer_names[layer_index],
+                        population_name=source,
+                        field="delay_history",
                         level_index=None,
                         shape=tuple(tensor.shape),
                         start=offset,
@@ -447,6 +485,15 @@ class PopulationStateCodec:
                 PopulationLayerState(
                     population_states=population_states,
                     outputs=outputs,
+                    delay_history={
+                        source: values[
+                            f"layers[{layer_index}].{self._layer_names[layer_index]}.{source}.delay_history"
+                        ]
+                        for source in self.network.layers[
+                            layer_index
+                        ].delay_history_lengths
+                    }
+                    or None,
                 )
             )
         return rebuilt

@@ -73,6 +73,7 @@ def make_server(
         example,
         example_catalog,
         inspect_document,
+        inspect_wiring,
         parse_document,
         parse_value,
     )
@@ -195,6 +196,8 @@ def make_server(
                 path = urlsplit(self.path).path
                 if path == "/api/preview":
                     self.json_reply(preview(data))
+                elif path == "/api/wiring":
+                    self.json_reply(inspect_wiring(data["config"]))
                 elif path == "/api/parse":
                     self.json_reply({"value": parse_value(str(data["yaml"]))})
                 elif path == "/api/dump":

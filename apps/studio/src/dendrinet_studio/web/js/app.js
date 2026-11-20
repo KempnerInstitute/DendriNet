@@ -1,7 +1,7 @@
 // DendriNet Studio: application shell, views, runs polling and actions.
 
 import { h, s, icon } from "./dom.js";
-import { state, api, on, adopt, undo, redo, readDraft, clearDraft, configKey } from "./store.js";
+import { state, api, on, adopt, undo, redo, readDraft, clearDraft, configKey, modelReady } from "./store.js";
 import { mountModel, renderModel, currentCheck } from "./design.js";
 import { mountData, renderData, mountTraining, renderTraining, mountOptions, renderOptions } from "./forms.js";
 import { mountYaml, refreshYaml } from "./yamlview.js";
@@ -184,10 +184,11 @@ function device() {
 }
 
 async function checkModel() {
-  if (state.error) return toast(`Fix the configuration first: ${state.error}`, { kind: "error" });
   try {
+    await modelReady();
+    const key = configKey();
     const run = await api("run", { config: state.config, kind: "inspect", device: device(), name: `Model check · ${state.docName}` });
-    state.modelCheck = { key: configKey(), runId: run.id };
+    state.modelCheck = { key, runId: run.id };
     toast("Building the model to count its parameters and synapses…", { kind: "info" });
     renderViews();
     refreshRuns();
@@ -197,19 +198,20 @@ async function checkModel() {
 }
 
 async function train() {
-  if (state.error) return toast(`Fix the configuration first: ${state.error}`, { kind: "error" });
-  const p = state.preview;
-  const stem = (state.docName || "model").replace(/\.(ya?ml)$/i, "");
-  const epochs = p.resolved_config.training?.main?.common?.epochs;
-  const name = await promptDialog({
-    title: "Train this model",
-    label: "Run name",
-    value: `${stem}${epochs ? ` · ${epochs} epochs` : ""}`,
-    confirm: "Start training",
-    help: `Runs on ${device() === "cpu" ? "the CPU" : "a GPU if one is available, else the CPU"} with ${state.runs?.threads ?? state.schema.threads} threads. The dataset ${p.dataset} is prepared (or downloaded) first. Everything is saved under ${state.runs?.workspace || state.schema.workspace}.`,
-  });
-  if (name === null) return;
   try {
+    await modelReady();
+    const p = state.preview;
+    const stem = (state.docName || "model").replace(/\.(ya?ml)$/i, "");
+    const epochs = p.resolved_config.training?.main?.common?.epochs;
+    const name = await promptDialog({
+      title: "Train this model",
+      label: "Run name",
+      value: `${stem}${epochs ? ` · ${epochs} epochs` : ""}`,
+      confirm: "Start training",
+      help: `Runs on ${device() === "cpu" ? "the CPU" : "a GPU if one is available, else the CPU"} with ${state.runs?.threads ?? state.schema.threads} threads. The dataset ${p.dataset} is prepared (or downloaded) first. Everything is saved under ${state.runs?.workspace || state.schema.workspace}.`,
+    });
+    if (name === null) return;
+    await modelReady();
     const run = await api("run", { config: state.config, kind: "train", device: device(), name });
     state.focusRun = run.id;
     showView("runs");

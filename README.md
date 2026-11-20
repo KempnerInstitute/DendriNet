@@ -28,19 +28,37 @@ For the Python library and command-line tools, install the core from PyPI
 in a Python 3.10 or later environment.
 
 ```bash
-python -m pip install dendritic-modeling==0.5.0
+python -m pip install --upgrade dendritic-modeling
 ```
 
 The import name is `dendritic_modeling`. The examples run on a CPU.
 The installation guide covers virtual environments, CPU and CUDA builds
 of PyTorch, optional dependencies and editable installs for contributors.
-[PyPI release](https://pypi.org/project/dendritic-modeling/0.5.0/) ·
+[Core on PyPI](https://pypi.org/project/dendritic-modeling/) ·
 [Installation guide](docs/installation.rst)
 
 ## DendriNet Studio
 
 Studio lets you draw feedforward and recurrent networks, inspect a neuron's
-dendrites and compare runs in your browser. Open a terminal on your laptop.
+dendrites and compare runs in your browser.
+
+**[Open Studio 0.2.0 online](https://mybinder.org/v2/gh/KempnerInstitute/DendriNet/studio-v0.2.0?urlpath=open-studio)**
+to try the editor in a personal CPU session. No account or local installation is
+required. In **Training**, set **Epochs** to `1` and select **Train** to try the
+two-class example. Download your YAML and loss curves before the session expires.
+Before 0.2.0 is tagged, use the **Try it** link in [PR #404](https://github.com/KempnerInstitute/DendriNet/pull/404).
+
+For GPU training, start Studio on an allocated compute node and choose
+**GPU if available** beside **Train**. You can open it through Open OnDemand,
+Cursor or SSH. [Cluster GPU instructions](docs/studio.rst#train-on-a-cluster-gpu)
+
+With Studio 0.2.0 and DendriNet 0.6.x, select a population to add an
+incoming source, or select a delayed connection to set its travel time at
+each dendritic depth. The laptop commands below install the latest
+compatible pair published on PyPI. Check your installed versions with
+`python -m pip show dendrinet-studio dendritic-modeling`.
+
+To keep runs on your own computer, open a terminal on your laptop.
 On an Apple silicon Mac or a Linux laptop with Python 3.10 or later, run
 these commands the first time. Installing Studio also installs DendriNet and
 PyTorch. On a Mac, use the arm64 build of Python.
@@ -48,7 +66,7 @@ PyTorch. On a Mac, use the arm64 build of Python.
 ```bash
 python3 -m venv ~/dendrinet-env
 source ~/dendrinet-env/bin/activate
-python -m pip install dendrinet-studio==0.1.0
+python -m pip install --upgrade dendrinet-studio
 dendrinet-studio --workspace ~/dendrinet-runs
 ```
 
@@ -70,7 +88,7 @@ Press **Ctrl+C** in the terminal to stop Studio. Next time, activate the
 same environment and repeat the `dendrinet-studio --workspace` command above
 to see your saved runs. The editor also exports YAML for `dendritic-train`.
 [Illustrated Studio guide](https://kempnerinstitute.github.io/DendriNet/studio.html#studio-first-run) ·
-[Studio on PyPI](https://pypi.org/project/dendrinet-studio/0.1.0/)
+[Studio on PyPI](https://pypi.org/project/dendrinet-studio/)
 
 ## First steps
 

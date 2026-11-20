@@ -1,0 +1,172 @@
+# Contextual remapping on EMNIST. One of 32 cues changes the required answer
+# for the same character. Two feedforward layers each contain excitatory and
+# inhibitory shunting neurons. Compact CPU tutorial; downloads EMNIST once.
+config_version: 4
+experiment:
+  seed: 62000
+  train_valid_split: 0.0
+  checkpointing:
+    enabled: false
+data:
+  dataset_name: contextual_remapping
+  dataset_params:
+    contextual_remapping:
+      download: true
+      generator_device: cpu
+      num_contexts: 32
+      context_scale: 8.0
+      gain_min: 0.05
+      gain_max: 20.0
+      noise_divisor_min: 1.0
+      noise_divisor_max: 4.0
+      pool_per_class: 200
+      validation_per_class: 4
+model:
+  task: classification
+  encoder:
+    type: identity
+    params:
+      input_dim: 816
+  core:
+    type: population_network
+    biological_neuron: true
+    population_network:
+      # 784 pixels followed by an uncorrupted 32-channel cue.
+      input_dim: 816
+      input_transform: nonnegative
+      layers:
+      - name: layer0
+        readout_population: e
+        population_defaults:
+          ff_excitatory_synapses: 40
+          ff_excitatory_synapses_by_level: [40, 40, 0]
+          ff_inhibitory_synapses: 4
+          rec_excitatory_synapses: 0
+          rec_inhibitory_synapses: 0
+          topk_type: standard
+          weight_transform: exp
+          use_shunting: true
+          leak_conductance: 1.0
+          learnable_leak: false
+          reactivate: true
+          reactivation_type: param_tanh
+          reactivation_init_m: 1.5
+          reactivation_init_b: 0.5
+          reactivation_init_policy: fixed
+          dbl_init_method: analytical_expectation
+          initial_child_conductance: 1.0
+          efficient_blocklinear: true
+          somatic_synapses: true
+          adaptive_initialization: false
+        populations:
+        - name: i
+          n_neurons: 18
+          polarity: inhibitory
+          branch_factors: [3, 2]
+          population:
+            ff_inhibitory_synapses_by_level: [0, 0, 0]
+        - name: e
+          n_neurons: 48
+          polarity: excitatory
+          branch_factors: [3, 2]
+          population:
+            ff_inhibitory_synapses_by_level: [4, 4, 6]
+        connections:
+        - {source: input, target: i}
+        - {source: input, target: e}
+        - {source: i, target: e}
+      - name: layer1
+        readout_population: e
+        population_defaults:
+          ff_excitatory_synapses: 40
+          ff_excitatory_synapses_by_level: [40, 40, 0]
+          ff_inhibitory_synapses: 4
+          ff_inhibitory_synapses_by_level: [4, 4, 4]
+          rec_excitatory_synapses: 0
+          rec_inhibitory_synapses: 0
+          topk_type: standard
+          weight_transform: exp
+          use_shunting: true
+          leak_conductance: 1.0
+          learnable_leak: false
+          reactivate: true
+          reactivation_type: param_tanh
+          reactivation_init_m: 1.5
+          reactivation_init_b: 0.5
+          reactivation_init_policy: fixed
+          dbl_init_method: analytical_expectation
+          initial_child_conductance: 1.0
+          efficient_blocklinear: true
+          somatic_synapses: true
+          adaptive_initialization: false
+        populations:
+        - name: i
+          n_neurons: 18
+          polarity: inhibitory
+          branch_factors: [3, 2]
+        - name: e
+          n_neurons: 48
+          polarity: excitatory
+          branch_factors: [3, 2]
+        connections:
+        - {source: layer0.e, target: i}
+        - {source: layer0.e, target: e}
+        - {source: layer0.i, target: i}
+        - {source: layer0.i, target: e}
+        - {source: i, target: e}
+  decoder:
+    type: MLP
+    params:
+      hidden_dims: []
+      output_dim: 47
+      output_init: xavier_uniform
+training:
+  main:
+    strategy: presentation_stream
+    common:
+      epochs: 3
+      batch_size: 64
+      loss_function: ce
+      early_stopping: false
+      load_best_state_dict: true
+      lr_schedule: cosine
+      grad_clip_value: 0.0
+      weight_boosting: false
+      synapse_decay_rate: 0.01
+      use_amp: false
+      param_groups:
+        lr: 0.002
+        split_params: true
+        topk_lr: 0.002
+        blocklinear_lr: 0.002
+        reactivation_lr: 0.002
+        decoder_lr: 0.002
+      print_every: 1
+      suppress_prints: false
+      plot_losses: false
+      num_workers: 0
+    optimizer:
+      name: adam
+      lr: 0.002
+      weight_decay: 0.0
+    strategies:
+      presentation_stream:
+        presentations_per_epoch: 1024
+        lr_terminal_multiplier: 0.01
+        evaluation_batch_size: 64
+  encoder:
+    strategy: standard
+    common:
+      epochs: 0
+analysis:
+  performance_analysis:
+    enabled: true
+    final_splits: [valid]
+    params:
+      accuracy: true
+      categorical_loglikelihood: true
+outputs:
+  run_name: contextual_remapping_population
+  results_dir: outputs
+distributed:
+  mode: none

@@ -28,6 +28,7 @@ from dendritic_modeling.networks.architectures.recurrent.population_common impor
     population_config_from_definition as _population_config_from_definition,
     population_level_dims as _population_level_dims,
     population_requires_temporal_state as _population_requires_temporal_state,
+    validate_stepped_credit_modes,
 )
 from dendritic_modeling.networks.architectures.recurrent.population_configs import (
     PopulationLayerConfig,
@@ -44,6 +45,9 @@ from dendritic_modeling.networks.architectures.recurrent.population_constants im
     _REC_EXC,
     _REC_INH,
     _SAME_STEP,
+)
+from dendritic_modeling.networks.architectures.recurrent.population_delays import (
+    plan_delayed_streams,
 )
 from dendritic_modeling.networks.architectures.recurrent.population_sources import (
     _as_projection_config,
@@ -74,7 +78,7 @@ class PopulationLayer(nn.Module):
     """A directional population-network layer.
 
     Same-step population-to-population edges must form a DAG. Delayed edges use
-    previous-timestep outputs and may be cyclic.
+    earlier source outputs and may be cyclic.
     """
 
     def __init__(
@@ -229,6 +233,9 @@ class PopulationLayer(nn.Module):
                 dt=config.dt,
             )
 
+        self._delay_streams, self.delay_history_lengths = plan_delayed_streams(
+            self.connections, self.population_configs
+        )
         self.output_dim = self._population_dims[self.readout_population]
         self._is_recurrent = (
             self.recurrent
@@ -238,17 +245,7 @@ class PopulationLayer(nn.Module):
         if self._is_recurrent:  # forward() steps every population
             for population in self.populations.values():
                 population.prepare_stepped_gradient_scaling()
-        broadcast = sorted(
-            name
-            for name, pop_cfg in self.population_configs.items()
-            if str(pop_cfg.autograd_credit_mode).lower() != "exact"
-        )
-        if self._is_recurrent and broadcast:
-            raise ValueError(
-                f"population_network layer {config.name!r} steps its populations "
-                f"through time, but {broadcast} set autograd_credit_mode="
-                "'soma_broadcast', which applies only to feedforward layers"
-            )
+            validate_stepped_credit_modes(config.name, self.population_configs)
 
     # Tensors of the last forward pass kept for analyses; copies and pickles
     # hold them detached (networks.utils.forward_caches).
@@ -765,6 +762,17 @@ class PopulationLayer(nn.Module):
         return PopulationLayerState(
             population_states=population_states,
             outputs=outputs,
+            delay_history={
+                source: torch.zeros(
+                    batch_size,
+                    length,
+                    self._source_dim(source),
+                    device=device,
+                    dtype=dtype,
+                )
+                for source, length in self.delay_history_lengths.items()
+            }
+            or None,
         )
 
     def _collect_stream(
@@ -777,7 +785,8 @@ class PopulationLayer(nn.Module):
         delayed_external_inputs: dict[str, torch.Tensor] | None,
         current_outputs: dict[str, torch.Tensor],
         previous_outputs: dict[str, torch.Tensor],
-    ) -> torch.Tensor | None:
+        delay_history: dict[str, torch.Tensor] | None = None,
+    ) -> torch.Tensor | tuple[torch.Tensor, ...] | None:
         values = []
         source_outputs = current_outputs if timing == _SAME_STEP else previous_outputs
         for source in self._stream_sources(target, timing, pathway):
@@ -795,6 +804,10 @@ class PopulationLayer(nn.Module):
                 values.append(source_inputs[source])
             else:
                 values.append(source_outputs[source])
+        if timing == _DELAYED and self._delay_streams:
+            plan = self._delay_streams.get((target, pathway))
+            if plan is not None:
+                return plan.read(values, delay_history)
         return _concat_or_none(values)
 
     def forward(
@@ -890,6 +903,7 @@ class PopulationLayer(nn.Module):
                 delayed_external_inputs=delayed_external_inputs,
                 current_outputs=current_outputs,
                 previous_outputs=state.outputs,
+                delay_history=state.delay_history,
             )
             rec_inh = self._collect_stream(
                 target=name,
@@ -899,6 +913,7 @@ class PopulationLayer(nn.Module):
                 delayed_external_inputs=delayed_external_inputs,
                 current_outputs=current_outputs,
                 previous_outputs=state.outputs,
+                delay_history=state.delay_history,
             )
             if x_ff is None:
                 raise ValueError(
@@ -914,9 +929,25 @@ class PopulationLayer(nn.Module):
             current_outputs[name] = out
             new_population_states[name] = new_state
 
+        history = None
+        if self.delay_history_lengths:
+            # Each planned stream has already read its history. Rotate it only
+            # after all populations have read the same preceding network update.
+            previous = {**state.outputs, **delayed_external_inputs}
+            history = {
+                source: torch.cat(
+                    (
+                        previous[source].unsqueeze(1),
+                        state.delay_history[source][:, :-1, :],
+                    ),
+                    dim=1,
+                )
+                for source in self.delay_history_lengths
+            }
         new_layer_state = PopulationLayerState(
             population_states=new_population_states,
             outputs=current_outputs,
+            delay_history=history,
         )
         self._last_outputs = current_outputs
         if self.store_routing:

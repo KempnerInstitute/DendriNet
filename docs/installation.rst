@@ -22,22 +22,27 @@ the released core package:
 
 .. code-block:: bash
 
-   python -m pip install dendritic-modeling==0.5.0
+   python -m pip install --upgrade dendritic-modeling
    python -m pip check
 
 The Python import name is ``dendritic_modeling``. For a graphical editor,
-install ``dendrinet-studio==0.1.0`` and launch it locally:
+install ``dendrinet-studio`` and launch it locally:
 
 .. code-block:: bash
 
-   python -m pip install dendrinet-studio==0.1.0
+   python -m pip install --upgrade dendrinet-studio
    dendrinet-studio --workspace my-runs
 
-Installing Studio on its own also installs a compatible core (0.5.x).
-See :ref:`studio-first-run` to train a synthetic network in the browser.
+Pip selects a compatible core when you install Studio. Studio 0.2.0 uses
+core 0.6.x and supports per-depth travel delays. Studio 0.1.0 uses core
+0.5.x. To check which pair you have, run
+``python -m pip show dendrinet-studio dendritic-modeling``.
+See :ref:`studio-first-run` to train a synthetic network in the browser or
+:ref:`studio-cluster-gpu` to use an allocated GPU from Open OnDemand, Cursor
+or SSH.
 The published files are on the
-`core PyPI page <https://pypi.org/project/dendritic-modeling/0.5.0/>`_ and the
-`Studio PyPI page <https://pypi.org/project/dendrinet-studio/0.1.0/>`_.
+`core PyPI page <https://pypi.org/project/dendritic-modeling/>`_ and the
+`Studio PyPI page <https://pypi.org/project/dendrinet-studio/>`_.
 
 Pip resolves PyTorch and torchvision as dependencies. To select Linux
 CPU-only wheels or a particular CUDA build, install a compatible torch and
