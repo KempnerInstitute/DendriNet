@@ -421,9 +421,11 @@ loader checks it before replacing the current design. If you continue typing
 during validation, choose **Apply** again to use the latest text. Restoring
 an unsaved design keeps its browser draft available across reloads. Syntax errors include
 the line when the parser can identify it. **Import** opens a standalone
-experiment. **Export** writes its settings as YAML. Re-exporting preserves
-configuration values, including options without a graphical control.
-Comments and original formatting are lost. For a sweep, use
+experiment. **Export** and **Copy** use the current design, even immediately
+after **Undo** or **Redo**. If the editor contains unapplied changes, both use the text
+exactly as written. The generated YAML preserves configuration values,
+including options without a graphical control. Applying a file regenerates
+its formatting and omits its comments. For a sweep, use
 ``dendritic-sweep --config my_sweep.yaml --generate-only`` and import one
 generated experiment. For a file that uses ``extends``, open an already
 composed experiment with its parent settings included. See :ref:`config-extends`

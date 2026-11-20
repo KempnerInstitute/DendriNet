@@ -786,7 +786,7 @@ def delay_next_response(page, endpoint):
         """endpoint => {
           const fetch = window.fetch.bind(window);
           window.fetch = async (...args) => {
-            if (new URL(args[0], location.href).pathname !== "/api/" + endpoint) return fetch(...args);
+            if (new URL(args[0], document.baseURI).href !== new URL("api/" + endpoint, document.baseURI).href) return fetch(...args);
             window.fetch = fetch;
             const response = await fetch(...args);
             const json = response.json.bind(response);
@@ -1283,4 +1283,50 @@ def test_retimed_route_requires_coverage_for_existing_contacts(page, primary_sou
         playwright.expect(dialog.get_by_role("alert")).to_contain_text("depth 1")
         dialog.get_by_role("button", name="Cancel").click()
         assert exported(page) == raw
+    assert not page.errors
+
+
+@pytest.mark.parametrize("action", ["Export", "Copy"])
+def test_yaml_output_follows_undo_while_preview_is_pending(page, action):
+    page.get_by_role("tab", name="YAML").click()
+    editor = page.locator("textarea.yaml-text")
+    original = yaml.safe_load(editor.input_value())
+    page.evaluate("""async () => {
+        const {edit} = await import("./js/store.js");
+        await edit(cfg => { cfg.experiment.seed = 284; });
+        Object.defineProperty(navigator.clipboard, "writeText", {
+            value: async text => {
+                window.copiedYaml = text;
+                document.documentElement.dataset.copyReady = "yes";
+            }
+        });
+        Object.defineProperty(navigator.clipboard, "write", {
+            value: async ([item]) => {
+                window.copiedYaml = await (await item.getType("text/plain")).text();
+                document.documentElement.dataset.copyReady = "yes";
+            }
+        });
+    }""")
+    playwright.expect(editor).to_have_value(re.compile(r"seed: 284\b"))
+    delay_next_response(page, "preview")
+    page.get_by_role("button", name="Undo (Ctrl+Z)", exact=True).click()
+    page.wait_for_selector("html[data-response-ready]")
+
+    def output():
+        button = page.get_by_role("button", name=action, exact=True)
+        if action == "Export":
+            with page.expect_download() as event:
+                button.click()
+            return Path(event.value.path()).read_text()
+        page.evaluate("delete document.documentElement.dataset.copyReady")
+        button.click()
+        page.locator("html[data-copy-ready]").wait_for()
+        return page.evaluate("window.copiedYaml")
+
+    assert yaml.safe_load(output()) == original
+    edited = "# Unapplied text\nexperiment: ["
+    editor.fill(edited)
+    assert output() == edited
+    release_response(page)
+    assert editor.input_value() == edited
     assert not page.errors

@@ -11,6 +11,7 @@ let area = null;
 let gutter = null;
 let status = null;
 let baseline = "";
+let baselineRevision = -1;
 let editorRevision = 0;
 
 // A response belongs to one request, one text edit and one model revision.
@@ -57,7 +58,7 @@ export function mountYaml(container) {
           h("span", { class: "spacer" }),
           h("button", { type: "button", class: "btn", onclick: () => file.click() }, [icon("upload"), "Import"]),
           h("button", { type: "button", class: "btn", onclick: exportYaml }, [icon("download"), "Export"]),
-          h("button", { type: "button", class: "btn", onclick: async () => toast((await copyText(area.value)) ? "YAML copied." : "Copy failed.", { kind: "info" }) }, [icon("copy"), "Copy"]),
+          h("button", { type: "button", class: "btn", onclick: async () => toast((await copyText(yamlForOutput())) ? "YAML copied." : "Copy failed.", { kind: "info" }) }, [icon("copy"), "Copy"]),
         ]),
         h("div", { class: "yaml-editor" }, [gutter, area]),
         h("div", { class: "panel-foot" }, [
@@ -95,21 +96,29 @@ export function mountYaml(container) {
   refreshYaml(true);
 }
 
+function currentDesignYaml() {
+  if (!state.error && typeof state.preview?.yaml === "string" &&
+      JSON.stringify(state.config) === JSON.stringify(state.preview.config)) return state.preview.yaml;
+  const config = structuredClone(state.config);
+  return api("dump", { config }).then(result => result.yaml, () => JSON.stringify(config, null, 2));
+}
+
+function yamlForOutput() {
+  // An edited buffer belongs to the user. A clean buffer can still show the
+  // previous design while an undo or a model edit is waiting for its preview.
+  return area.value !== baseline || baselineRevision === validationRevision ? area.value : currentDesignYaml();
+}
+
 // Show the current configuration (unless the text holds unapplied edits).
 export async function refreshYaml(force = false) {
   if (!area) return;
   if (!force && area.value !== baseline) return;
   const current = beginRequest();
-  let text = state.preview && !state.error ? state.preview.yaml : null;
-  if (text === null || text === undefined || JSON.stringify(state.config) !== JSON.stringify(state.preview?.config)) {
-    try {
-      text = (await api("dump", { config: state.config })).yaml;
-    } catch (error) {
-      text = JSON.stringify(state.config, null, 2);
-    }
-  }
+  const yaml = currentDesignYaml();
+  const text = typeof yaml === "string" ? yaml : await yaml;
   if (!current()) return;
   baseline = text;
+  baselineRevision = validationRevision;
   area.value = text;
   syncGutter();
   markChanged();
@@ -145,6 +154,7 @@ async function apply(name) {
     if (!current()) return;
     adopt(result, name || state.docName, { keepHistory: true });
     baseline = area.value;
+    baselineRevision = validationRevision;
     syncGutter();
     markChanged();
     toast("Configuration applied. Undo restores the previous design.", { kind: "ok" });
@@ -162,8 +172,9 @@ async function apply(name) {
   }
 }
 
-function exportYaml() {
+async function exportYaml() {
   const name = (state.docName || "dendrinet_model").replace(/\.(ya?ml)$/i, "").replace(/[^\w.-]+/g, "_");
-  download(`${name}.yaml`, area.value, "text/yaml");
-  if (area.value !== baseline) toast("Exported the edited text, which has not been applied or checked.", { kind: "warn" });
+  const edited = area.value !== baseline;
+  download(`${name}.yaml`, await yamlForOutput(), "text/yaml");
+  if (edited) toast("Exported the edited text, which has not been applied or checked.", { kind: "warn" });
 }

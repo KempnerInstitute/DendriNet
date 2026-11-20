@@ -134,7 +134,13 @@ export function download(filename, text, type = "text/plain") {
 
 export async function copyText(text) {
   try {
-    await navigator.clipboard.writeText(text);
+    if (typeof text !== "string" && typeof ClipboardItem === "function" && navigator.clipboard.write) {
+      // Start the clipboard write during the click, even if serialization is pending.
+      const blob = text.then(value => new Blob([value], { type: "text/plain" }));
+      await navigator.clipboard.write([new ClipboardItem({ "text/plain": blob })]);
+    } else {
+      await navigator.clipboard.writeText(typeof text === "string" ? text : await text);
+    }
     return true;
   } catch (error) {
     return false;
