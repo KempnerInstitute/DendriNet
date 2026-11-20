@@ -37,7 +37,9 @@ Pip selects a compatible core when you install Studio. Studio 0.2.0 uses
 core 0.6.x and supports per-depth travel delays. Studio 0.1.0 uses core
 0.5.x. To check which pair you have, run
 ``python -m pip show dendrinet-studio dendritic-modeling``.
-See :ref:`studio-first-run` to train a synthetic network in the browser.
+See :ref:`studio-first-run` to train a synthetic network in the browser or
+:ref:`studio-cluster-gpu` to use an allocated GPU from Open OnDemand, Cursor
+or SSH.
 The published files are on the
 `core PyPI page <https://pypi.org/project/dendritic-modeling/>`_ and the
 `Studio PyPI page <https://pypi.org/project/dendrinet-studio/>`_.

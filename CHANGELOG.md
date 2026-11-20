@@ -4,6 +4,7 @@
 
 - The installation guides start with the published core and Studio packages
   and show how to run the synthetic tutorial outside a source checkout.
+  The Studio guide also covers optional GPU training in a cluster allocation.
 - Release maintainers can select a project-scoped upload token when their
   package index does not support the enterprise identity issuer. Promotion
   checks the staging tag, upload job and file hashes. Trusted Publishing

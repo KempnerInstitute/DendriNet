@@ -113,15 +113,15 @@ trains in seconds with no download, the same task with structured dendritic
 trees, a recurrent decision network, a GRU regression baseline and an MNIST
 network.
 
-## Remote machines
+## Remote machines and cluster GPUs
 
-```bash
-dendrinet-studio --workspace ~/studio-runs --no-browser   # on the remote machine
-ssh -L 8765:127.0.0.1:8765 user@remote-host                # on your computer
-```
-
-Open the printed address on your computer. `--no-execution` turns a machine
-into design-and-export only.
+Start `dendrinet-studio --no-browser` on your workstation or inside a GPU
+allocation. In an Open OnDemand remote desktop, paste the full printed URL
+into that desktop's browser. From a laptop, forward the printed port with
+Cursor or SSH to the host running Studio and keep the `#` token in the URL.
+Choose **GPU if available** beside **Train**, or select **CPU**. After training,
+`model_resources.json` records the device used. Use `--no-execution` for
+design and export only. [Cluster GPU instructions](https://kempnerinstitute.github.io/DendriNet/studio.html#studio-cluster-gpu)
 
 ## Privacy
 

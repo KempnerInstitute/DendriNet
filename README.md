@@ -48,6 +48,10 @@ required. In **Training**, set **Epochs** to `1` and select **Train** to try the
 two-class example. Download your YAML and loss curves before the session expires.
 Before 0.2.0 is tagged, use the **Try it** link in [PR #404](https://github.com/KempnerInstitute/DendriNet/pull/404).
 
+For GPU training, start Studio on an allocated compute node and choose
+**GPU if available** beside **Train**. You can open it through Open OnDemand,
+Cursor or SSH. [Cluster GPU instructions](docs/studio.rst#train-on-a-cluster-gpu)
+
 With Studio 0.2.0 and DendriNet 0.6.x, select a population to add an
 incoming source, or select a delayed connection to set its travel time at
 each dendritic depth. The laptop commands below install the latest

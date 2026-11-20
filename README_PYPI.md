@@ -27,7 +27,8 @@ populations, trace incoming E and I connections, and compare training runs on
 your computer. Launch it with `dendrinet-studio --workspace my-runs`. Designs
 export as YAML that the core training command accepts. The
 [Studio guide](https://kempnerinstitute.github.io/DendriNet/studio.html)
-includes a first run with generated data and a worked synapse-count example.
+includes a first run with generated data, a worked synapse-count example,
+and [instructions for training on a cluster GPU](https://kempnerinstitute.github.io/DendriNet/studio.html#studio-cluster-gpu).
 
 - [Documentation](https://kempnerinstitute.github.io/DendriNet/)
 - [Source and examples](https://github.com/KempnerInstitute/DendriNet)

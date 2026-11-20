@@ -84,20 +84,79 @@ its dependencies and any required datasets have been downloaded.
      - Also accept requests addressed to ``NAME``, for a trusted proxy in
        front of the local port. Repeatable.
 
-On a remote machine (a workstation or a cluster compute node), start Studio
-with ``--no-browser``, forward its port from your computer and open the
-printed address locally:
+.. _studio-cluster-gpu:
+
+Train on a cluster GPU
+----------------------
+
+Studio trains on the machine where you start the server. To use a cluster
+GPU, start Studio inside a GPU allocation and open the editor from your
+browser. The public Binder demo runs on a CPU.
+
+**1. Open a terminal on an allocated GPU node.** If you already have a GPU
+session, use its terminal. Otherwise, choose one of these routes.
+
+* **Browser only.** In Open OnDemand, choose **Interactive Apps → Remote
+  Desktop** and request one GPU on your lab's partition and account. For a
+  small example, four CPU cores, 16 GB of host memory and one hour are
+  sufficient. Launch the desktop and open a terminal inside it. On Harvard's
+  Cannon cluster, connect to the FASRC VPN first. The ``kempner_interactive``
+  partition provides 20 GB A100 slices. See the
+  `FASRC Remote Desktop guide <https://docs.rc.fas.harvard.edu/kb/vdi-apps/>`_
+  and the `Kempner partition guide <https://handbook.eng.kempnerinstitute.harvard.edu/s1_high_performance_computing/general_hpc_concepts/understanding_slurm.html>`_.
+* **Slurm terminal.** From a login shell, run the following command with
+  your GPU partition and billing account in place of ``PARTITION`` and
+  ``ACCOUNT``. Once the allocation starts, ``hostname`` gives you the
+  compute node to use for port forwarding.
+
+  .. code-block:: bash
+
+     srun --partition=PARTITION --account=ACCOUNT --nodes=1 --ntasks=1 \
+         --gres=gpu:1 --cpus-per-task=4 --mem=16G --time=01:00:00 --pty bash -l
+
+**2. Start Studio on the compute node.** Activate a Python environment with
+a CUDA-enabled PyTorch build (see :doc:`installation`). Install Studio once
+in that environment. From a writable shared directory where you want to keep
+your runs, check that PyTorch can see the allocated device, then start Studio.
 
 .. code-block:: bash
 
-   # on the remote machine
-   dendrinet-studio --workspace ~/studio-runs --no-browser
-   # on your computer
-   ssh -L 8765:127.0.0.1:8765 user@remote-host
+   python -m pip install dendrinet-studio
+   python -c "import torch; print(torch.cuda.get_device_name(0))" && \
+       dendrinet-studio --no-browser --threads 4 --workspace "$PWD/studio-runs"
 
-Use the actual port printed by Studio on both sides of the tunnel. If a
-scheduler assigned a compute node, the tunnel must reach the machine running
-Studio. A new session prints a new token.
+If the check fails, verify the GPU allocation and the PyTorch installation
+in that shell. Keep the Studio process running while you use the editor.
+
+**3. Open the editor.** Use the full printed URL, including the session
+token after ``#``.
+
+* **Open OnDemand.** Paste the URL into the browser **inside the remote
+  desktop**. This route needs no SSH tunnel.
+* **Cursor or VS Code.** Connect the editor's remote window to the
+  **allocated compute node**. In the **Ports** panel, choose **Forward a
+  Port** and enter Studio's printed port. Open the forwarded local address
+  in your laptop browser and append the printed ``#`` and token. If the
+  editor assigned a different local port, use the one shown in **Ports**.
+* **SSH.** From your laptop, the example below forwards port 8765 through
+  a login host to Studio on the compute host. Substitute your SSH username,
+  the two hostnames and the port Studio printed. Then open that URL in your
+  laptop browser. For a directly accessible workstation, omit
+  ``-J user@login-host`` and use the workstation as the destination.
+
+  .. code-block:: bash
+
+     ssh -N -o ExitOnForwardFailure=yes -J user@login-host \
+         -L 127.0.0.1:8765:127.0.0.1:8765 user@compute-host
+
+**4. Train and verify the device.** Choose **GPU if available** beside
+**Train**. Studio uses CPU by default, and a GPU request also falls back to
+CPU if PyTorch cannot see CUDA. After training, open ``model_resources.json``
+under the run's ``results`` directory. A GPU run records ``runtime_device``
+as ``cuda`` and gives the GPU model in ``cuda_device_name``. The
+``device`` field in ``studio_run.json`` records the requested mode
+(``auto`` or ``cpu``). You can select **CPU** for the next run in the same
+session. Stop Studio with Ctrl+C and end the allocation when you finish.
 
 .. _studio-first-run:
 
@@ -532,7 +591,7 @@ Troubleshooting
 
 * **Browser says the site cannot be reached.** Confirm the command is still
   running and use its printed port. A browser on another computer needs a
-  connection to that host (see :ref:`studio-install`). If the page opens but
+  connection to that host (see :ref:`studio-cluster-gpu`). If the page opens but
   cannot reach the local service, reopen the complete URL with its current token.
 * **The diagram looks valid but Check model fails.** The live preview validates
   the configuration. The check also constructs the model with a sample from the
