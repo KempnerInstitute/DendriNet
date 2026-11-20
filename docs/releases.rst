@@ -128,7 +128,8 @@ Use a remote configured for authorized pushes. If a push fails after the
 local tags are created, verify that both resolve to the reviewed commit
 with ``git rev-parse 'v0.6.0^{commit}' 'studio-v0.2.0^{commit}'``. Then
 repeat the push to the authorized remote. Pushing tags alone does not
-upload packages.
+upload packages. After the tags appear on GitHub, open the Studio documentation’s
+Binder link and check that the tagged session opens before staging the packages.
 
 For a Studio-only release, bump the version in ``apps/studio/pyproject.toml``
 and ``apps/studio/src/dendrinet_studio/__init__.py`` together. Create only

@@ -45,6 +45,10 @@
   Studio reports a missing source if a depth-restricted pathway leaves
   contacts at an unreachable receiving depth.
   The inspector can repair that error by adding the depth to a connection.
+  The connection editor can also add a source at an uncovered depth.
+  A confirmed removal can repair an invalid population or layer. Removing
+  the implicit readout layer preserves a compatible population override on
+  the preceding layer and clears one that no longer applies.
   Renames and per-depth time edits use the current draft, including after Undo
   or Redo. Editing an inactive route preserves the shared contact count.
   Model checks, training, export and copy wait for pending connection edits.

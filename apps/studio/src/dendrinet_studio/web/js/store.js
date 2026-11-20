@@ -99,11 +99,11 @@ export function valueAt(path) {
 export const isPopulationNetwork = () => state.config?.model?.core?.type === "population_network";
 
 export function network() {
-  return state.config.model.core.population_network;
+  return state.config?.model?.core?.population_network;
 }
 
 export function layers() {
-  return network().layers;
+  return network()?.layers || [];
 }
 
 export function nodeView(layer, population) {
@@ -134,19 +134,24 @@ export function waitForTopologyEdits() {
   if (pendingTopology.size) return Promise.all(pendingTopology);
 }
 
-export async function modelReady() {
+async function settleEdits() {
   do {
     await waitForTopologyEdits();
     while (state.validating) await validatedDraft;
   } while (pendingTopology.size);
+}
+
+export async function modelReady() {
+  await settleEdits();
   if (state.error) throw new Error(state.error);
 }
 
 // Dialogs take their snapshot after earlier edits have reached the preview.
-export async function topologyReady() {
+export async function topologyReady({ allowRepair = false } = {}) {
   const generation = documentGeneration;
-  await modelReady();
-  if (generation !== documentGeneration) throw new Error("The design changed. Reopen this editor.");
+  await settleEdits();
+  if (generation !== documentGeneration) throw new Error("The design changed. Select the item and try again.");
+  if (!allowRepair && state.error) throw new Error(state.error);
 }
 
 // Stage a topology edit on a copy. A rejected route must never become the
@@ -157,11 +162,11 @@ export function editTopology(mutate, { revision, signal, reindexes = false } = {
     while (!signal?.aborted) {
       while (state.validating) await validatedDraft;
       if (signal?.aborted) return;
-      if (generation !== documentGeneration || (revision !== undefined && revision !== validationRevision))
-        throw new Error("The design changed. Reopen this editor.");
-      // An inspector edit at a known path can repair an invalid field. A dialog
-      // relies on the valid preview it opened with. Both must validate the result.
-      if (revision !== undefined && state.error) throw new Error(state.error);
+      if (generation !== documentGeneration || (revision !== undefined && revision !== validationRevision)) {
+        throw new Error(revision === undefined ? "The design changed. Select the item and make the edit again." : "The design changed. Reopen this editor.");
+      }
+      // Bind confirmations to what the user saw. A matching revision may
+      // contain the very error the proposed edit will repair.
       const base = validationRevision;
       const draft = structuredClone(state.config);
       const selection = mutate(draft);

@@ -6,7 +6,7 @@
 // diagram of encoder, core and decoder.
 
 import { h, s, icon, fmt, polarityGlyph, download } from "./dom.js";
-import { state, api, edit, editTopology, topologyReady, validationRevision, select, adopt, emit, getPath, deletePath, isPopulationNetwork, layers, nodeView, configKey } from "./store.js";
+import { state, api, edit, editTopology, topologyReady, validationRevision, select, adopt, emit, getPath, deletePath, isPopulationNetwork, layers, layerView, nodeView, configKey } from "./store.js";
 import { field, textInput, numberInput, stepper, selectInput, switchInput, segmented, mappingInput, factorEditor, sectionForm, disclosure, humanize, controlFor, describeCount, rebuildKeepingFocus } from "./fields.js";
 import { drawNetwork, drawOverview, layoutNetwork, svgForExport } from "./graph.js";
 import { externalControls, sourcesTable, structuredInputGuide } from "./afferents.js";
@@ -16,10 +16,10 @@ import { connectionEditor as showConnectionDialog } from "./wiring.js";
 import { travelLabel, travelRange } from "./travel.js";
 
 const NET = "model.core.population_network";
-const connectionEditor = topologyDialog(showConnectionDialog);
+const connectionEditor = topologyDialog(showConnectionDialog, { allowRepair: true });
 const addLayer = topologyDialog(newLayerDialog);
-const removePopulation = topologyDialog(confirmRemovePopulation);
-const removeLayer = topologyDialog(confirmRemoveLayer);
+const removePopulation = topologyDialog(confirmRemovePopulation, { allowRepair: true });
+const removeLayer = topologyDialog(confirmRemoveLayer, { allowRepair: true });
 const STREAMS = [
   ["ff_excitatory", "Excitatory", "same step"],
   ["ff_inhibitory", "Inhibitory", "same step"],
@@ -530,6 +530,10 @@ function group(title, children, note) {
   return h("section", { class: "group" }, [h("h3", { class: "eyebrow", text: title }), note ? h("p", { class: "help", text: note }) : null, ...[].concat(children).filter(Boolean)]);
 }
 
+function selectionNotice() {
+  return h("p", { class: "help", role: "status", text: state.validating ? "Updating the selection…" : "Select an item in the current design." });
+}
+
 // Contexts that read and write per-population options --------------------------------
 
 function populationSetting(layer, item, name) {
@@ -776,8 +780,12 @@ function populationInspector(sel) {
   const li = sel.layer;
   const pi = sel.population;
   const layer = layers()[li];
-  const item = layer.populations[pi];
+  const item = layer?.populations?.[pi];
   const node = nodeView(li, pi);
+  if (!item || !node) return selectionNotice();
+  const name = item.name ?? node.name;
+  const layerName = layer.name ?? node.layer_name;
+  if (state.validating && (name !== node.name || layerName !== node.layer_name)) return selectionNotice();
   const itemPath = `${NET}.layers.${li}.populations.${pi}`;
   const ctx = populationContext(li, pi);
   const polarity = item.polarity || node?.polarity || "excitatory";
@@ -788,7 +796,7 @@ function populationInspector(sel) {
   const factors = node?.branch_factors || item.branch_factors || [];
   const levels = factors.length + 1;
   return [
-    head(polarityGlyph(polarity, 18), `${polarity === "inhibitory" ? "Inhibitory" : "Excitatory"} population · ${node.name}`, `in ${node.layer_name}${node ? ` · ${fmt(node.synapses_per_neuron)} contacts per neuron` : ""}`),
+    head(polarityGlyph(polarity, 18), `${polarity === "inhibitory" ? "Inhibitory" : "Excitatory"} population · ${name}`, `in ${layerName} · ${fmt(node.synapses_per_neuron)} contacts per neuron`),
     group("Population", [
       field({ label: "Name", control: textInput(item.name ?? node.name, v => renamePopulation(li, pi, v.trim())), key: `${itemPath}.name` }),
       field({ label: "Cell type", control: segmented(polarity, [["excitatory", "Excitatory", "exc"], ["inhibitory", "Inhibitory", "inh"]], v => setItem("polarity", v, true), "Cell type"), key: `${itemPath}.polarity`, help: "Excitatory populations send excitation; inhibitory populations send inhibition." }),
@@ -811,7 +819,7 @@ function populationInspector(sel) {
     group("Initialization", groupedOptions(ctx, "Initialization"), "How synaptic weights, couplings and gates start."),
     recurrentRelevant ? timeConstantsGroup(ctx, node) : null,
     allOptions(ctx, `pop-${li}-${pi}`),
-    h("div", { class: "danger-zone" }, [h("button", { type: "button", class: "btn danger small", onclick: () => removePopulation(li, pi) }, [icon("trash"), "Remove population"])]),
+    h("div", { class: "danger-zone" }, [h("button", { type: "button", class: "btn danger small", onclick: () => removePopulation(li, pi, layerName, name) }, [icon("trash"), "Remove population"])]),
   ].filter(Boolean);
 }
 
@@ -820,18 +828,19 @@ function populationInspector(sel) {
 function connectionInspector(sel) {
   const li = sel.layer;
   const layer = layers()[li];
-  const list = layer.connections || [];
+  const list = layer?.connections || [];
   const conn = list[sel.index];
   const path = `${NET}.layers.${li}.connections.${sel.index}`;
-  const edge = state.preview.edges.filter(e => e.layer === li)[sel.index];
-  const target = edge ? state.preview.nodes.find(n => n.id === edge.target_id) : null;
+  const edge = state.preview?.edges?.filter(e => e.layer === li)[sel.index];
+  if (!conn || !edge) return selectionNotice();
+  const target = state.preview.nodes.find(n => n.id === edge.target_id);
   const set = (name, value) =>
     safeTopology(cfg => {
       const c = getPath(cfg, path);
       if (value === null || value === undefined || value === "") delete c[name];
       else c[name] = value;
     });
-  const derived = edge ? edge.pathway : "";
+  const derived = edge.pathway;
   const levels = target ? target.levels_including_soma.length : 1;
   const allLevels = conn.target_levels === undefined || conn.target_levels === null;
   const levelBoxes = h("div", { class: "level-checks" });
@@ -893,7 +902,9 @@ function layerInspector(sel) {
   const li = sel.layer;
   const layer = layers()[li];
   const path = `${NET}.layers.${li}`;
-  const view = state.preview.layers[li];
+  const view = layerView(li);
+  if (!layer || !view || (state.validating && (layer.name ?? view.name) !== view.name)) return selectionNotice();
+  const name = layer.name ?? view.name;
   const set = (name, value, structural = false) =>
     edit(cfg => {
       const l = getPath(cfg, path);
@@ -932,7 +943,7 @@ function layerInspector(sel) {
       h("button", { type: "button", class: "btn small", onclick: () => addPopulation(li, "inhibitory") }, [icon("plus"), "I population"]),
       h("button", { type: "button", class: "btn small", onclick: () => connectionEditor(li) }, [icon("plus"), "Connection"]),
     ]),
-    layers().length > 1 ? h("div", { class: "danger-zone" }, [h("button", { type: "button", class: "btn danger small", onclick: () => removeLayer(li) }, [icon("trash"), "Remove layer"])]) : null,
+    layers().length > 1 ? h("div", { class: "danger-zone" }, [h("button", { type: "button", class: "btn danger small", onclick: () => removeLayer(li, name) }, [icon("trash"), "Remove layer"])]) : null,
   ].filter(Boolean);
 }
 
@@ -1054,8 +1065,8 @@ function reportTopologyError(error) {
   renderModel();
 }
 
-function topologyDialog(open) {
-  return (...args) => topologyReady().then(() => open(...args)).catch(reportTopologyError);
+function topologyDialog(open, options) {
+  return (...args) => topologyReady(options).then(() => open(...args)).catch(reportTopologyError);
 }
 
 function safeTopology(mutate, options) {
@@ -1138,12 +1149,17 @@ function newLayerDialog() {
   });
 }
 
-async function confirmRemovePopulation(li, pi) {
+function suppliesReadout(net, li, layerName) {
+  return net.readout_layer ? net.readout_layer === layerName : li === net.layers.length - 1;
+}
+
+async function confirmRemovePopulation(li, pi, layerName, name) {
   const revision = validationRevision;
   const layer = layers()[li];
-  const node = nodeView(li, pi);
-  const name = node.name;
-  const qualified = node.id;
+  const item = layer?.populations?.[pi];
+  if (!item || (layer.name ?? layerView(li)?.name) !== layerName || (item.name ?? nodeView(li, pi)?.name) !== name)
+    throw new Error("The selection changed. Select the population again.");
+  const qualified = `${layerName}.${name}`;
   const affected = (layer.connections || []).filter(c => c.source === name || c.target === name).length + layers().reduce((a, l) => a + (l.connections || []).filter(c => c.source === qualified).length, 0);
   if (!(await confirmDialog({ title: "Remove population", text: `Remove ${qualified}${affected ? ` and its ${describeCount(affected, "connection")}` : ""}? Undo restores it.`, confirm: "Remove" }))) return;
   await safeTopology(cfg => {
@@ -1153,7 +1169,7 @@ async function confirmRemovePopulation(li, pi) {
     l.connections = (l.connections || []).filter(c => c.source !== name && c.target !== name);
     for (const other of net.layers) other.connections = (other.connections || []).filter(c => c.source !== qualified);
     if (l.readout_population === name) delete l.readout_population;
-    if (net.readout_population === name && (net.readout_layer || net.layers.at(-1).name) === l.name) delete net.readout_population;
+    if (net.readout_population === name && suppliesReadout(net, li, layerName)) delete net.readout_population;
     return { kind: "layer", layer: li };
   }, { revision, reindexes: true });
 }
@@ -1166,16 +1182,26 @@ async function removeConnection(li, index) {
   }, { reindexes: true });
 }
 
-async function confirmRemoveLayer(li) {
+async function confirmRemoveLayer(li, name) {
   const revision = validationRevision;
   const layer = layers()[li];
-  if (!(await confirmDialog({ title: "Remove layer", text: `Remove ${layer.name} with its ${describeCount(layer.populations.length, "population")}? Undo restores it.`, confirm: "Remove" }))) return;
+  if (!layer || (layer.name ?? layerView(li)?.name) !== name)
+    throw new Error("The selection changed. Select the layer again.");
+  if (!(await confirmDialog({ title: "Remove layer", text: `Remove ${name} with its ${describeCount(layer.populations.length, "population")}? Undo restores it.`, confirm: "Remove" }))) return;
   await safeTopology(cfg => {
     const net = getPath(cfg, NET);
+    const removedReadout = suppliesReadout(net, li, name);
     net.layers.splice(li, 1);
-    const prefix = `${layer.name}.`;
+    const prefix = `${name}.`;
     for (const other of net.layers) other.connections = (other.connections || []).filter(c => !String(c.source).startsWith(prefix));
-    if (net.readout_layer === layer.name) { delete net.readout_layer; delete net.readout_population; }
+    if (removedReadout) {
+      const next = net.layers.at(-1);
+      const pop = net.readout_population;
+      // An implicit last-layer override can still be valid on its successor.
+      const compatible = next?.populations.some(p => p.name === pop) && (!next.readout_population || next.readout_population === pop);
+      if (net.readout_layer || (pop && !compatible)) delete net.readout_population;
+      if (net.readout_layer) delete net.readout_layer;
+    }
     return { kind: "layer", layer: Math.max(0, li - 1) };
   }, { revision, reindexes: true });
 }
@@ -1197,8 +1223,7 @@ function renamePopulation(li, pi, name) {
     }
     if (l.readout_population === old) l.readout_population = name;
     for (const other of net.layers) for (const c of other.connections || []) if (c.source === `${layerName}.${old}`) c.source = `${layerName}.${name}`;
-    const suppliesReadout = net.readout_layer ? net.readout_layer === layerName : li === net.layers.length - 1;
-    if (suppliesReadout && net.readout_population === old) net.readout_population = name;
+    if (suppliesReadout(net, li, layerName) && net.readout_population === old) net.readout_population = name;
   }, { structural: true });
 }
 

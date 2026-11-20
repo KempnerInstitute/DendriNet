@@ -597,3 +597,30 @@ def test_inspection_matches_training_with_inferred_input_width(
         "active_synapses",
     ):
         assert summary[key] == trained[key]
+
+
+def test_wiring_repair_view_keeps_the_draft_budget_and_run_validation(studio):
+    raw = example("synthetic_population")
+    layer = raw["model"]["core"]["population_network"]["layers"][0]
+    layer["connections"][-1]["target_levels"] = ["distal"]
+    layer["populations"][1]["population"] = {
+        "ff_inhibitory_synapses_by_level": [4, 2, 0]
+    }
+    view, _ = studio.request("/api/wiring", {"config": raw})
+    target = next(node for node in view["nodes"] if node["id"] == "layer0.e")
+    assert target["configured_per_level"]["ff_inhibitory"] == [0, 2, 4]
+    assert target["received_per_level"]["ff_inhibitory"] == [0, 0, 4]
+    assert not {"config", "yaml", "validation"}.intersection(view)
+    for path, payload in (
+        ("/api/preview", {"config": raw}),
+        ("/api/run", {"config": raw, "kind": "inspect", "device": "cpu"}),
+    ):
+        with pytest.raises(urllib.error.HTTPError) as exc:
+            studio.request(path, payload)
+        assert exc.value.code == 400
+        assert "depth 1" in json.load(exc.value)["error"]
+    layer["populations"][1]["population"]["level_taus"] = [7]
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        studio.request("/api/wiring", {"config": raw})
+    assert exc.value.code == 400
+    assert "level_taus" in json.load(exc.value)["error"]

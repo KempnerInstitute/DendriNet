@@ -8,8 +8,8 @@ train the model and compare runs in a browser. The editor
 and the command line use the same experiment YAML and the same DendriNet
 model builders and trainer. You can move a design between them at any point.
 
-**Try it online.** `Open DendriNet Studio
-<https://mybinder.org/v2/gh/KempnerInstitute/DendriNet/156b6ee0bcb70a9d1ee0e7086a45f99bec3fa429?urlpath=open-studio>`_
+**Try it online.** `Open DendriNet Studio 0.2.0
+<https://mybinder.org/v2/gh/KempnerInstitute/DendriNet/studio-v0.2.0?urlpath=open-studio>`_
 to start a personal CPU session in your browser. Binder builds the environment
 on the first visit to a new revision. Once the editor opens, the two-class
 example is ready. Set **Training → Epochs** to ``1``, then choose **Train**.
@@ -19,8 +19,9 @@ Use **YAML → Export** to save the configuration. In **Runs**, select your
 completed run and choose **Curves (CSV)** to save the training and validation
 history. Binder reclaims idle sessions and their workspace. For longer runs
 and persistent results, follow the local installation instructions below.
-The online link pins a Git revision. Sharing it opens the same tutorial and
-software in a fresh workspace.
+The online link uses the Studio release tag, so each visitor starts with the same
+software and tutorial. Before the tag is available, the **Try it** link in
+`PR #404 <https://github.com/KempnerInstitute/DendriNet/pull/404>`_ opens the review version.
 
 .. contents:: On this page
    :local:
@@ -424,7 +425,11 @@ To extend a population network:
 
 An invalid edit is reported and the drawing keeps the last valid preview.
 If a depth has contacts but no source, select its connection and include
-that depth in **Placement**, or set the receiving count to zero.
+that depth in **Placement**, add a source with **Connection**, or set the
+receiving count to zero. The connection editor reads the current draft's
+endpoints and budgets. You can also remove a population or layer containing an
+invalid setting. Studio checks the entire proposed design before saving a
+repair. **Undo** restores the previous draft, including the setting you removed.
 **Check model**, **Train**, **Export** and **Copy** wait for pending connection
 edits. If an edit is rejected, Studio shows the reason so you can correct it
 before trying the action again. Editing a disabled or zero-probability route

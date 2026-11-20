@@ -22,12 +22,13 @@ automatically. Check your versions with
 
 ## Open a personal session online
 
-[Open Studio on Binder](https://mybinder.org/v2/gh/KempnerInstitute/DendriNet/156b6ee0bcb70a9d1ee0e7086a45f99bec3fa429?urlpath=open-studio)
+[Open Studio 0.2.0 on Binder](https://mybinder.org/v2/gh/KempnerInstitute/DendriNet/studio-v0.2.0?urlpath=open-studio)
 to design a network and train the two-class example on a CPU. Set **Epochs**
 to `1` in **Training**, then select **Train**. In **Runs**, select the finished
 run and download **Curves (CSV)**. Use **YAML → Export** to keep your design.
 Binder starts a temporary workspace for each visitor. The first launch for a
 new Git revision can take several minutes.
+Before 0.2.0 is tagged, the **Try it** link in [PR #404](https://github.com/KempnerInstitute/DendriNet/pull/404) opens the review version.
 
 ## Install and open Studio on your laptop
 

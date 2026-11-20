@@ -1573,3 +1573,212 @@ def test_saving_inactive_connection_preserves_shared_zero_budget(page, inactive)
     assert saved["populations"] == layer["populations"]
     assert saved["connections"] == layer["connections"]
     assert not page.errors
+
+
+@pytest.mark.parametrize(
+    "readout",
+    ["unique", "compatible", "conflicting", "explicit_final", "explicit_elsewhere"],
+)
+def test_remove_last_layer_resolves_readout_before_deletion(page, readout):
+    raw = two_layer_document()
+    net = raw["model"]["core"]["population_network"]
+    first, last = net["layers"]
+    if readout == "unique":
+        last["populations"][1]["name"] = last["readout_population"] = "output"
+        for conn in last["connections"]:
+            if conn["target"] == "e":
+                conn["target"] = "output"
+        net["readout_population"] = "output"
+    elif readout == "explicit_final":
+        net.update(readout_layer="layer1", readout_population="e")
+    elif readout == "explicit_elsewhere":
+        net.update(readout_layer="layer0", readout_population="e")
+    else:
+        net["readout_population"] = last["readout_population"] = "i"
+        if readout == "compatible":
+            del first["readout_population"]
+    open_design(page, raw)
+    page.locator(".tree-row.layer-row").last.click()
+    page.get_by_role("button", name="Remove layer", exact=True).click()
+    page.get_by_role("dialog", name="Remove layer").get_by_role(
+        "button", name="Remove", exact=True
+    ).click()
+    playwright.expect(page.locator(".tree-row.layer-row")).to_have_count(1)
+    saved = exported(page)["model"]["core"]["population_network"]
+    assert saved["layers"] == [first]
+    assert saved.get("readout_population") == {
+        "compatible": "i",
+        "explicit_elsewhere": "e",
+    }.get(readout)
+    assert saved.get("readout_layer") == (
+        "layer0" if readout == "explicit_elsewhere" else None
+    )
+    page.get_by_role("button", name="Undo (Ctrl+Z)", exact=True).click()
+    assert exported(page) == raw
+    assert not page.errors
+
+
+def invalid_population_times(page, li, pi):
+    # An ordinary edit retains invalid input so the user can correct it.
+    assert (
+        page.evaluate(
+            """async ([li, pi]) => {
+        const {edit} = await import('./js/store.js');
+        return edit(cfg => {
+            const pop = cfg.model.core.population_network.layers[li].populations[pi];
+            (pop.population ||= {}).level_taus = [7];
+        }, {structural: true});
+    }""",
+            [li, pi],
+        )
+        is False
+    )
+    playwright.expect(page.locator(".banner")).to_contain_text("level_taus")
+
+
+@pytest.mark.parametrize("kind", ["population", "layer"])
+def test_removal_repairs_invalid_draft_and_undo_restores_it(page, kind):
+    raw = two_layer_document()
+    open_design(page, raw)
+    invalid_population_times(page, 1, 0)
+    if kind == "population":
+        page.get_by_role("button", name="Edit population layer1.i", exact=True).click()
+    else:
+        page.locator(".tree-row.layer-row").last.click()
+    title = f"Remove {kind}"
+    page.get_by_role("button", name=title, exact=True).click()
+    dialog = page.get_by_role("dialog", name=title)
+    playwright.expect(dialog).to_be_visible(timeout=4000)
+    dialog.get_by_role("button", name="Remove", exact=True).click()
+    playwright.expect(page.locator(".banner")).to_be_hidden()
+    saved = exported(page)["model"]["core"]["population_network"]["layers"]
+    before = raw["model"]["core"]["population_network"]["layers"]
+    assert saved[0] == before[0]
+    if kind == "population":
+        assert saved[1]["populations"] == [before[1]["populations"][1]]
+        assert saved[1]["connections"] == before[1]["connections"][1:3]
+    else:
+        assert len(saved) == 1
+    page.get_by_role("button", name="Undo (Ctrl+Z)", exact=True).click()
+    invalid = exported(page)["model"]["core"]["population_network"]["layers"]
+    assert invalid[1]["populations"][0]["population"]["level_taus"] == [7]
+    page.get_by_role("button", name="Undo (Ctrl+Z)", exact=True).click()
+    assert exported(page) == raw
+    assert not page.errors
+
+
+@pytest.mark.parametrize("decision", ["cancel", "stale", "unrelated"])
+def test_removal_repair_never_commits_a_stale_or_invalid_proposal(page, decision):
+    raw = two_layer_document()
+    open_design(page, raw)
+    invalid_population_times(page, 1, 0)
+    li = 0 if decision == "unrelated" else 1
+    page.get_by_role("button", name=f"Edit population layer{li}.i", exact=True).click()
+    page.get_by_role("button", name="Remove population", exact=True).click()
+    dialog = page.get_by_role("dialog", name="Remove population")
+    playwright.expect(dialog).to_be_visible(timeout=4000)
+    if decision == "stale":
+        page.evaluate("""async () => {
+            const {edit} = await import('./js/store.js');
+            await edit(cfg => { cfg.experiment.seed = 913; });
+        }""")
+    dialog.get_by_role(
+        "button", name="Cancel" if decision == "cancel" else "Remove", exact=True
+    ).click()
+    if decision != "cancel":
+        playwright.expect(page.locator(".toast.error").last).to_contain_text(
+            "design changed" if decision == "stale" else "level_taus"
+        )
+    actual = exported(page)
+    expected = raw["model"]["core"]["population_network"]["layers"]
+    expected[1]["populations"][0]["population"]["level_taus"] = [7]
+    assert actual["model"]["core"]["population_network"]["layers"] == expected
+    if decision == "stale":
+        assert actual["experiment"]["seed"] == 913
+    assert not page.errors
+
+
+def test_inspector_handles_a_population_removed_by_pending_undo(page):
+    page.get_by_role("button", name="I population", exact=True).click()
+    added = page.get_by_role("button", name="Edit population layer0.i2", exact=True)
+    playwright.expect(added).to_be_visible()
+    delay_next_response(page, "preview")
+    page.get_by_role("button", name="Undo (Ctrl+Z)", exact=True).click()
+    page.wait_for_selector("html[data-response-ready]")
+    added.click()
+    assert not page.errors
+    playwright.expect(
+        page.get_by_role("button", name="Remove population", exact=True)
+    ).not_to_be_visible()
+    release_response(page)
+    playwright.expect(added).to_have_count(0)
+    assert exported(page) == example("synthetic_population")
+    assert not page.errors
+
+
+def test_interrupted_inline_edit_names_the_action_the_user_can_retry(page):
+    page.get_by_role(
+        "button", name="Connection layer0.i to layer0.e, ff_inhibitory, same_step"
+    ).press("Enter")
+    seed = page.get_by_label("Seed", exact=True)
+    seed.fill("21")
+    seed.press("Enter")
+    page.evaluate("async () => (await import('./js/store.js')).topologyReady()")
+    delay_next_response(page, "preview")
+    probability = page.get_by_label("Connection probability", exact=True)
+    probability.fill("0.3")
+    probability.press("Enter")
+    page.wait_for_selector("html[data-response-ready]")
+    page.get_by_role("button", name="Undo (Ctrl+Z)", exact=True).click()
+    release_response(page)
+    playwright.expect(page.locator(".toast.error").last).to_contain_text("edit again")
+    assert exported(page) == example("synthetic_population")
+    assert not page.errors
+
+
+@pytest.mark.parametrize("intervening_undo", [False, True])
+def test_connection_dialog_repairs_uncovered_contacts_from_current_draft(
+    page, intervening_undo
+):
+    raw = two_layer_document()
+    layer = raw["model"]["core"]["population_network"]["layers"][1]
+    layer["connections"].pop()
+    layer["connections"][2]["target_levels"] = ["distal"]
+    field = "ff_inhibitory_synapses_by_level"
+    layer["populations"][1].setdefault("population", {})[field] = [4, 0, 0]
+    open_design(page, raw)
+    page.get_by_role("button", name="Edit population layer1.e", exact=True).click()
+    page.get_by_text("Set counts per level", exact=True).click()
+    count = page.get_by_role(
+        "spinbutton", name="Inhibitory contacts at level 1 · primary"
+    )
+    count.fill("2")
+    count.press("Enter")
+    playwright.expect(page.locator(".banner")).to_contain_text("depth 1")
+    if intervening_undo:
+        delay_next_response(page, "wiring")
+    page.get_by_role("button", name="Connection", exact=True).click()
+    dialog = page.get_by_role("dialog", name="Connect populations")
+    if intervening_undo:
+        page.wait_for_selector("html[data-response-ready]", timeout=5000)
+        page.get_by_role("button", name="Undo (Ctrl+Z)", exact=True).click()
+        release_response(page)
+        playwright.expect(page.locator(".toast.error").last).to_contain_text(
+            "design changed"
+        )
+        playwright.expect(dialog).not_to_be_visible()
+        assert exported(page) == raw
+    else:
+        playwright.expect(dialog).to_be_visible(timeout=4000)
+        dialog.get_by_label("Receiving population").select_option("layer1.e")
+        dialog.get_by_label("Source", exact=True).select_option("layer1.i")
+        dialog.get_by_role("button", name="Add connection").click()
+        playwright.expect(dialog).not_to_be_visible()
+        playwright.expect(page.locator(".banner")).to_be_hidden()
+        layers = exported(page)["model"]["core"]["population_network"]["layers"]
+        assert layers[1]["connections"] == [
+            *layer["connections"],
+            {"source": "i", "target": "e"},
+        ]
+        assert layers[1]["populations"][1]["population"][field] == [4, 2, 0]
+    assert not page.errors

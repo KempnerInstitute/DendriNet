@@ -164,7 +164,9 @@ def _levels_soma_first(branch_factors: list[int]) -> list[int]:
     return list(reversed(population_level_dims(1, branch_factors)))
 
 
-def _population_graph(network: dict[str, Any]) -> dict[str, Any]:
+def _population_graph(
+    network: dict[str, Any], *, require_contact_coverage: bool = True
+) -> dict[str, Any]:
     nodes, edges, layers = [], [], []
     signs = dict(INPUT_POLARITIES)
     definitions = [
@@ -350,7 +352,12 @@ def _population_graph(network: dict[str, Any]) -> dict[str, Any]:
                 ok = allowed is None or depth in allowed
                 if depth == 0 and not population.somatic_synapses:
                     ok = False
-                elif count and not ok and (node["id"], stream) in restricted:
+                elif (
+                    require_contact_coverage
+                    and count
+                    and not ok
+                    and (node["id"], stream) in restricted
+                ):
                     raise ValueError(
                         f"{node['id']} has {count} {stream} contacts per compartment "
                         f"at depth {depth}, but no active source reaches that depth. "
@@ -374,6 +381,20 @@ def _population_graph(network: dict[str, Any]) -> dict[str, Any]:
             n["neurons"] * n["compartments_per_neuron"] for n in nodes
         ),
         "synapses_total": sum(n["synapses_total"] for n in nodes),
+    }
+
+
+def inspect_wiring(raw: dict[str, Any]) -> dict[str, Any]:
+    """Describe the current endpoints and budgets so a user can repair coverage."""
+    if not isinstance(raw, dict):
+        raise ValueError("A configuration must be a mapping")
+    cfg = config_from_mapping(copy.deepcopy(raw))
+    core = to_plain_dict(cfg.model.core)
+    if core["type"] != "population_network":
+        raise ValueError("The connection editor requires a population network")
+    return {
+        "biological_neuron": core.get("biological_neuron"),
+        **_population_graph(core["population_network"], require_contact_coverage=False),
     }
 
 

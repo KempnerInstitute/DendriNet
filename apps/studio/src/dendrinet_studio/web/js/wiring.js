@@ -3,7 +3,7 @@
 import { h } from "./dom.js";
 import { field } from "./fields.js";
 import { afferentMode } from "./afferents.js";
-import { state, editTopology, validationRevision } from "./store.js";
+import { state, api, editTopology, validationRevision } from "./store.js";
 import { dialog } from "./ui.js";
 import { travelEditor } from "./travel.js";
 import { targetDepths } from "./morphology.js";
@@ -12,10 +12,14 @@ const option = (value, label) => h("option", { value, text: label });
 const selectBox = () => h("select", { class: "input" });
 const externalNames = ["input", "input_e", "input_i"];
 
-export function connectionEditor(li, { index, from, to } = {}) {
-  const view = state.preview;
+export async function connectionEditor(li, { index, from, to } = {}) {
   const revision = validationRevision;
+  // A source can repair uncovered contacts. Derive its endpoints and budgets
+  // from this draft, then submit the proposed connection to full validation.
+  const view = state.error ? await api("wiring", { config: state.config }) : state.preview;
+  if (revision !== validationRevision || !view.layers[li]) throw new Error("The design changed. Reopen the connection editor.");
   const original = view.edges.filter(e => e.layer === li)[index];
+  if (index !== undefined && !original) throw new Error("The connection changed. Select it again.");
   const initialTarget = original?.target_id || to || (from ? "" : (state.selection.kind === "population" && state.selection.layer === li
     ? view.nodes.find(n => n.layer === li && n.population === state.selection.population)?.id
     : view.layers[li].name + "." + view.layers[li].readout));
