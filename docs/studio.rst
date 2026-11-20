@@ -423,6 +423,12 @@ To extend a population network:
    network to choose which layer supplies the decoder.
 
 An invalid edit is reported and the drawing keeps the last valid preview.
+If a depth has contacts but no source, select its connection and include
+that depth in **Placement**, or set the receiving count to zero.
+**Check model**, **Train**, **Export** and **Copy** wait for pending connection
+edits. If an edit is rejected, Studio shows the reason so you can correct it
+before trying the action again. Editing a disabled or zero-probability route
+preserves the contact budget it shares with other sources.
 Small neurons are drawn in full when their branches fit. For large trees,
 the neuron view draws representative branches and labels how many children
 each represents. The caption gives the number drawn and the total, including

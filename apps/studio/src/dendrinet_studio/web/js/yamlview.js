@@ -3,7 +3,7 @@
 // the design, and the line the reader stopped at is marked.
 
 import { h, icon, download, copyText } from "./dom.js";
-import { state, api, adopt, validationRevision } from "./store.js";
+import { state, api, adopt, validationRevision, waitForTopologyEdits } from "./store.js";
 import { toast } from "./ui.js";
 
 let root = null;
@@ -58,7 +58,7 @@ export function mountYaml(container) {
           h("span", { class: "spacer" }),
           h("button", { type: "button", class: "btn", onclick: () => file.click() }, [icon("upload"), "Import"]),
           h("button", { type: "button", class: "btn", onclick: exportYaml }, [icon("download"), "Export"]),
-          h("button", { type: "button", class: "btn", onclick: async () => toast((await copyText(yamlForOutput())) ? "YAML copied." : "Copy failed.", { kind: "info" }) }, [icon("copy"), "Copy"]),
+          h("button", { type: "button", class: "btn", onclick: copyYaml }, [icon("copy"), "Copy"]),
         ]),
         h("div", { class: "yaml-editor" }, [gutter, area]),
         h("div", { class: "panel-foot" }, [
@@ -104,6 +104,8 @@ function currentDesignYaml() {
 }
 
 function yamlForOutput() {
+  const ready = waitForTopologyEdits();
+  if (ready) return ready.then(yamlForOutput);
   // An edited buffer belongs to the user. A clean buffer can still show the
   // previous design while an undo or a model edit is waiting for its preview.
   return area.value !== baseline || baselineRevision === validationRevision ? area.value : currentDesignYaml();
@@ -173,8 +175,23 @@ async function apply(name) {
 }
 
 async function exportYaml() {
-  const name = (state.docName || "dendrinet_model").replace(/\.(ya?ml)$/i, "").replace(/[^\w.-]+/g, "_");
-  const edited = area.value !== baseline;
-  download(`${name}.yaml`, await yamlForOutput(), "text/yaml");
-  if (edited) toast("Exported the edited text, which has not been applied or checked.", { kind: "warn" });
+  try {
+    const text = await yamlForOutput();
+    const name = (state.docName || "dendrinet_model").replace(/\.(ya?ml)$/i, "").replace(/[^\w.-]+/g, "_");
+    download(`${name}.yaml`, text, "text/yaml");
+    if (area.value !== baseline) toast("Exported the edited text, which has not been applied or checked.", { kind: "warn" });
+  } catch (error) {
+    toast(error.message, { kind: "error" });
+  }
+}
+
+async function copyYaml() {
+  try {
+    const text = yamlForOutput();
+    // Request clipboard access during the click and surface a rejected edit.
+    const [copied] = await Promise.all([copyText(text), text]);
+    toast(copied ? "YAML copied." : "Copy failed.", { kind: copied ? "info" : "error" });
+  } catch (error) {
+    toast(error.message, { kind: "error" });
+  }
 }

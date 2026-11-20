@@ -6,6 +6,7 @@ import { afferentMode } from "./afferents.js";
 import { state, editTopology, validationRevision } from "./store.js";
 import { dialog } from "./ui.js";
 import { travelEditor } from "./travel.js";
+import { targetDepths } from "./morphology.js";
 
 const option = (value, label) => h("option", { value, text: label });
 const selectBox = () => h("select", { class: "input" });
@@ -95,10 +96,10 @@ export function connectionEditor(li, { index, from, to } = {}) {
     const available = target?.configured_per_level[pathway] || [];
     // A disabled soma and levels that an edited projection masks out cannot
     // contribute contacts, even if the underlying population budget is nonzero.
-    const depths = original?.target_levels?.map(d =>
-      d === "distal" ? available.length - 1 : d === "primary" ? 1 : d === "soma" ? 0 : d);
+    const depths = targetDepths(original?.target_levels, available.length);
     eligible = available.map((_, d) => (d > 0 || target.settings.somatic_synapses) && (depths == null || depths.includes(d)));
-    const needsContacts = target && sources.value && eligible.some(Boolean) && !available.some((v, d) => eligible[d] && v > 0);
+    const active = original?.enabled !== false && original?.probability !== 0;
+    const needsContacts = active && target && sources.value && eligible.some(Boolean) && !available.some((v, d) => eligible[d] && v > 0);
     budgetField.hidden = !needsContacts;
     contacts.disabled = !needsContacts;
     const notes = [];

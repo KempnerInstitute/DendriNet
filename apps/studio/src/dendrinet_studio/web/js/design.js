@@ -10,7 +10,7 @@ import { state, api, edit, editTopology, topologyReady, validationRevision, sele
 import { field, textInput, numberInput, stepper, selectInput, switchInput, segmented, mappingInput, factorEditor, sectionForm, disclosure, humanize, controlFor, describeCount, rebuildKeepingFocus } from "./fields.js";
 import { drawNetwork, drawOverview, layoutNetwork, svgForExport } from "./graph.js";
 import { externalControls, sourcesTable, structuredInputGuide } from "./afferents.js";
-import { compartmentLevels, drawNeuron, levelName, levelTable, neuronLegend } from "./morphology.js";
+import { compartmentLevels, drawNeuron, levelName, levelTable, neuronLegend, targetDepths } from "./morphology.js";
 import { toast, confirmDialog, dialog } from "./ui.js";
 import { connectionEditor as showConnectionDialog } from "./wiring.js";
 import { travelLabel, travelRange } from "./travel.js";
@@ -532,6 +532,10 @@ function group(title, children, note) {
 
 // Contexts that read and write per-population options --------------------------------
 
+function populationSetting(layer, item, name) {
+  return item.population?.[name] ?? layer.population_defaults?.[name] ?? popSpec(name)?.default;
+}
+
 function populationContext(li, pi) {
   const layer = layers()[li];
   const item = layer.populations[pi];
@@ -539,6 +543,10 @@ function populationContext(li, pi) {
   const node = nodeView(li, pi);
   return {
     keyOf: name => `${itemPath}.population.${name}`,
+    current: name => {
+      const current = layers()[li];
+      return populationSetting(current, current.populations[pi], name);
+    },
     ownOf: name => item.population?.[name],
     inheritedOf: name =>
       layer.population_defaults?.[name] !== undefined ? { value: layer.population_defaults[name], source: "layer default" } : { value: node?.settings?.[name] ?? popSpec(name)?.default, source: "default" },
@@ -653,10 +661,8 @@ function perLevelEditor(ctx, node, recurrentRelevant) {
       const input = numberInput(current, value => {
         const field = key + "_synapses_by_level";
         // A reset or another depth edit can be newer than the last preview.
-        const setting = name => getPath(state.config, ctx.keyOf(name)) ??
-          layers()[node.layer].population_defaults?.[name] ?? popSpec(name)?.default;
-        const old = setting(field);
-        const list = old?.length ? [...old] : Array(levels).fill(setting(key + "_synapses"));
+        const old = ctx.current(field);
+        const list = old?.length ? [...old] : Array(levels).fill(ctx.current(key + "_synapses"));
         list[levels - depth - 1] = value;
         ctx.write(field, list);
       }, { integer: true, min: 0 });
@@ -703,8 +709,7 @@ function depthTimeTable(node, { ctx, edge } = {}) {
     if (ctx) {
       cell = numberInput(value, next => {
         // Resolve the latest edits, including changes made before the previous preview arrived.
-        const setting = key => ctx.ownOf(key) ?? ctx.inheritedOf(key).value;
-        const timing = { level_taus: setting("level_taus"), tau_base: setting("tau_base"), tau_ratio: setting("tau_ratio") };
+        const timing = { level_taus: ctx.current("level_taus"), tau_base: ctx.current("tau_base"), tau_ratio: ctx.current("tau_ratio") };
         const list = Array.from({ length: deepest + 1 }, (_, i) => tauAtDepth(timing, deepest - i));
         list[deepest - depth] = next;
         ctx.write("level_taus", list);
@@ -733,7 +738,7 @@ function timeConstantsGroup(ctx, node) {
     const inherited = layers()[node.layer].population_defaults?.level_taus;
     if (node.settings.level_taus.length) {
       fields.push(h("button", { type: "button", class: "btn small",
-        onclick: () => inherited?.length ? ctx.write("level_taus", []) : ctx.remove("level_taus"),
+        onclick: () => layers()[node.layer].population_defaults?.level_taus?.length ? ctx.write("level_taus", []) : ctx.remove("level_taus"),
         text: "Use base and ratio" }));
     }
     if (inherited?.length && ctx.ownOf("level_taus") !== undefined) {
@@ -785,7 +790,7 @@ function populationInspector(sel) {
   return [
     head(polarityGlyph(polarity, 18), `${polarity === "inhibitory" ? "Inhibitory" : "Excitatory"} population · ${node.name}`, `in ${node.layer_name}${node ? ` · ${fmt(node.synapses_per_neuron)} contacts per neuron` : ""}`),
     group("Population", [
-      field({ label: "Name", control: textInput(node.name, v => renamePopulation(li, pi, v.trim())), key: `${itemPath}.name` }),
+      field({ label: "Name", control: textInput(item.name ?? node.name, v => renamePopulation(li, pi, v.trim())), key: `${itemPath}.name` }),
       field({ label: "Cell type", control: segmented(polarity, [["excitatory", "Excitatory", "exc"], ["inhibitory", "Inhibitory", "inh"]], v => setItem("polarity", v, true), "Cell type"), key: `${itemPath}.polarity`, help: "Excitatory populations send excitation; inhibitory populations send inhibition." }),
       field({ label: "Neurons", control: stepper(item.n_neurons ?? node?.neurons, v => setItem("n_neurons", v), { min: 1, label: "neurons" }), key: `${itemPath}.n_neurons`, error: state.errorPath === `${itemPath}.n_neurons` ? state.error : null }),
     ]),
@@ -837,11 +842,10 @@ function connectionInspector(sel) {
     box.addEventListener("change", () => {
       const checked = box.checked;
       safeTopology(cfg => {
-        const current = state.preview.edges.filter(e => e.layer === li)[sel.index];
-        const chosen = new Set(current.target_depths ?? Array.from({ length: levels }, (_, i) => i));
+        const route = getPath(cfg, path);
+        const chosen = new Set(targetDepths(route.target_levels, levels) ?? Array.from({ length: levels }, (_, i) => i));
         if (checked) chosen.add(depth);
         else chosen.delete(depth);
-        const route = getPath(cfg, path);
         if (chosen.size) route.target_levels = [...chosen].sort((a, b) => a - b);
         else delete route.target_levels;
       });
@@ -901,7 +905,7 @@ function layerInspector(sel) {
   return [
     head(icon("layers"), `Layer · ${view.name}`, `${describeCount(layer.populations.length, "population")} · ${describeCount((layer.connections || []).length, "connection")}`),
     group("Layer", [
-      field({ label: "Name", control: textInput(view.name, v => renameLayer(li, v.trim())), key: `${path}.name` }),
+      field({ label: "Name", control: textInput(layer.name ?? view.name, v => renameLayer(li, v.trim())), key: `${path}.name` }),
       field({ label: "Readout population", control: selectInput(layer.readout_population || "", ["", ...state.preview.nodes.filter(n => n.layer === li).map(n => n.name)], v => safeTopology(cfg => {
         const net = getPath(cfg, NET);
         const row = net.layers[li];
@@ -1178,7 +1182,8 @@ async function confirmRemoveLayer(li) {
 
 function renamePopulation(li, pi, name) {
   const layer = layers()[li];
-  const old = nodeView(li, pi).name;
+  const old = layer.populations[pi].name ?? nodeView(li, pi).name;
+  const layerName = layer.name ?? state.preview.layers[li].name;
   if (!name || name === old) return;
   if (!/^[A-Za-z_][\w-]*$/.test(name)) return toast("Use letters, digits, - and _ (starting with a letter).", { kind: "warn" });
   if (layer.populations.some(p => p.name === name)) return toast(`${layer.name} already has a population called ${name}.`, { kind: "warn" });
@@ -1191,13 +1196,14 @@ function renamePopulation(li, pi, name) {
       if (c.target === old) c.target = name;
     }
     if (l.readout_population === old) l.readout_population = name;
-    for (const other of net.layers) for (const c of other.connections || []) if (c.source === `${l.name}.${old}`) c.source = `${l.name}.${name}`;
-    if (net.readout_population === old && (net.readout_layer || net.layers.at(-1).name) === l.name) net.readout_population = name;
+    for (const other of net.layers) for (const c of other.connections || []) if (c.source === `${layerName}.${old}`) c.source = `${layerName}.${name}`;
+    const suppliesReadout = net.readout_layer ? net.readout_layer === layerName : li === net.layers.length - 1;
+    if (suppliesReadout && net.readout_population === old) net.readout_population = name;
   }, { structural: true });
 }
 
 function renameLayer(li, name) {
-  const old = state.preview.layers[li].name;
+  const old = layers()[li].name ?? state.preview.layers[li].name;
   if (!name || name === old) return;
   if (!/^[A-Za-z_][\w-]*$/.test(name)) return toast("Use letters, digits, - and _ (starting with a letter).", { kind: "warn" });
   if (layers().some(l => l.name === name)) return toast(`A layer called ${name} already exists.`, { kind: "warn" });
@@ -1213,26 +1219,29 @@ function setFactors(li, pi, update) {
   const itemPath = `${NET}.layers.${li}.populations.${pi}`;
   return safeTopology(cfg => {
     const node = nodeView(li, pi);
-    const factors = update(node.branch_factors);
-    const levels = factors.length + 1;
+    const layer = getPath(cfg, NET).layers[li];
     const item = getPath(cfg, itemPath);
+    const setting = name => populationSetting(layer, item, name);
+    const factors = update(item.branch_factors ?? node.branch_factors);
+    const levels = factors.length + 1;
     item.branch_factors = factors;
     // Counts and time constants in YAML run from distal to soma. Retain
     // every surviving depth and use the configured defaults on new branches.
     for (const [key] of STREAMS) {
       const scalar = key + "_synapses";
       const field = scalar + "_by_level";
-      const old = node.settings[field];
+      const old = setting(field);
       if (old?.length && old.length !== levels) {
-        (item.population ||= {})[field] = Array.from({ length: levels }, (_, d) => old.at(-1 - d) ?? node.settings[scalar]).reverse();
+        (item.population ||= {})[field] = Array.from({ length: levels }, (_, d) => old.at(-1 - d) ?? setting(scalar)).reverse();
       }
     }
-    const taus = node.settings.level_taus;
+    const taus = setting("level_taus");
     if (taus?.length && taus.length !== levels) {
-      (item.population ||= {}).level_taus = Array.from({ length: levels }, (_, d) => tauAtDepth(node.settings, d)).reverse();
+      const timing = { level_taus: taus, tau_base: setting("tau_base"), tau_ratio: setting("tau_ratio") };
+      (item.population ||= {}).level_taus = Array.from({ length: levels }, (_, d) => tauAtDepth(timing, d)).reverse();
     }
-    for (const route of getPath(cfg, NET).layers[li].connections || []) {
-      if (route.target !== node.name || !route.delay_steps_by_level || route.delay_steps_by_level.length === levels) continue;
+    for (const route of layer.connections || []) {
+      if (route.target !== (item.name ?? node.name) || !route.delay_steps_by_level || route.delay_steps_by_level.length === levels) continue;
       const delays = route.delay_steps_by_level;
       route.delay_steps_by_level = Array.from({ length: levels }, (_, depth) => delays.at(-1 - depth) ?? 1).reverse();
     }

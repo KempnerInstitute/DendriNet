@@ -119,6 +119,7 @@ export function layerView(layer) {
 export let validationRevision = 0;
 let documentGeneration = 0;
 let topologyQueue = Promise.resolve();
+const pendingTopology = new Set();
 let validatedDraft = Promise.resolve();
 let finishValidation;
 
@@ -128,16 +129,23 @@ function validationFinished() {
   finishValidation = undefined;
 }
 
-async function waitForValidDraft() {
-  while (state.validating) await validatedDraft;
+// Return synchronously when idle so Copy can use the browser's click gesture.
+export function waitForTopologyEdits() {
+  if (pendingTopology.size) return Promise.all(pendingTopology);
+}
+
+export async function modelReady() {
+  do {
+    await waitForTopologyEdits();
+    while (state.validating) await validatedDraft;
+  } while (pendingTopology.size);
   if (state.error) throw new Error(state.error);
 }
 
 // Dialogs take their snapshot after earlier edits have reached the preview.
 export async function topologyReady() {
   const generation = documentGeneration;
-  await topologyQueue;
-  await waitForValidDraft();
+  await modelReady();
   if (generation !== documentGeneration) throw new Error("The design changed. Reopen this editor.");
 }
 
@@ -147,10 +155,13 @@ export function editTopology(mutate, { revision, signal, reindexes = false } = {
   const generation = documentGeneration;
   const pending = topologyQueue.then(async () => {
     while (!signal?.aborted) {
-      await waitForValidDraft();
+      while (state.validating) await validatedDraft;
       if (signal?.aborted) return;
       if (generation !== documentGeneration || (revision !== undefined && revision !== validationRevision))
         throw new Error("The design changed. Reopen this editor.");
+      // An inspector edit at a known path can repair an invalid field. A dialog
+      // relies on the valid preview it opened with. Both must validate the result.
+      if (revision !== undefined && state.error) throw new Error(state.error);
       const base = validationRevision;
       const draft = structuredClone(state.config);
       const selection = mutate(draft);
@@ -189,8 +200,10 @@ export function editTopology(mutate, { revision, signal, reindexes = false } = {
       return;
     }
   });
-  // Return failures to this caller and allow the next independent edit to run.
-  topologyQueue = pending.catch(() => {});
+  // Waiting actions receive the rejection. A later edit can still be tried.
+  pendingTopology.add(pending);
+  const settled = () => { pendingTopology.delete(pending); };
+  topologyQueue = pending.then(settled, settled);
   return pending;
 }
 

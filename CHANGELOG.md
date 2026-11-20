@@ -44,6 +44,10 @@
   Resetting to uniform counts and then editing one depth preserves both edits.
   Studio reports a missing source if a depth-restricted pathway leaves
   contacts at an unreachable receiving depth.
+  The inspector can repair that error by adding the depth to a connection.
+  Renames and per-depth time edits use the current draft, including after Undo
+  or Redo. Editing an inactive route preserves the shared contact count.
+  Model checks, training, export and copy wait for pending connection edits.
   YAML Export and Copy use the current design during preview refresh and
   preserve any unapplied edits in the text editor.
 - Align populations in a column per layer, label layer dynamics, and identify

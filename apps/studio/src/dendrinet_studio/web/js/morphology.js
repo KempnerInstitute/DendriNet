@@ -15,6 +15,11 @@ const MAX_DRAWN_COMPARTMENTS = 160;
 const MAX_DRAWN_LEVELS = 10;
 export const levelName = (depth, deepest) => (depth === 0 ? "soma" : depth === deepest ? `${depth} · distal` : depth === 1 ? "1 · primary" : String(depth));
 
+export function targetDepths(levels, count) {
+  const names = { soma: 0, primary: 1, distal: count - 1 };
+  return levels?.map(depth => names[depth] ?? depth);
+}
+
 // JavaScript numbers can round the level sizes of a large imported tree.
 export function compartmentLevels(factors) {
   const levels = [1n];
