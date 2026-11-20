@@ -22,7 +22,7 @@ automatically. Check your versions with
 
 ## Open a personal session online
 
-[Open Studio on Binder](https://mybinder.org/v2/gh/KempnerInstitute/DendriNet/9d1500ec580981ad47953abf259950cfd893634a?urlpath=open-studio)
+[Open Studio on Binder](https://mybinder.org/v2/gh/KempnerInstitute/DendriNet/94ee48da0e04b8e4c34c4830fecb85897bc230a1?urlpath=open-studio)
 to design a network and train the two-class example on a CPU. Set **Epochs**
 to `1` in **Training**, then select **Train**. In **Runs**, select the finished
 run and download **Curves (CSV)**. Use **YAML → Export** to keep your design.
