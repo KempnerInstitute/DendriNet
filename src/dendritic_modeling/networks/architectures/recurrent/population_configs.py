@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from dendritic_modeling.config.base import BaseConfig
+from dendritic_modeling.config.population_routing import projection_delays
 from dendritic_modeling.networks.architectures.recurrent.population_common import (
     PopulationDefinitionConfig,
 )
@@ -43,6 +44,10 @@ class PopulationProjectionConfig(BaseConfig):
     # "primary" (children of the soma), "distal" (outermost level) or depths
     # from the soma (0 = soma). None contacts every level.
     target_levels: list[str | int] | None = None
+    # Whole network updates before source activity reaches this projection.
+    # Write a common delay or one delay per target level, distal through soma.
+    delay_steps: int | None = None
+    delay_steps_by_level: list[int] | None = None
 
     def __post_init__(self) -> None:
         self.source = str(self.source)
@@ -58,6 +63,7 @@ class PopulationProjectionConfig(BaseConfig):
                 "connection timing must be 'same_step' or 'delayed', "
                 f"got {self.timing!r}"
             )
+        projection_delays(self.timing, self.delay_steps, self.delay_steps_by_level)
         if self.probability is not None:
             self.probability = float(self.probability)
             if self.probability < 0.0 or self.probability > 1.0:

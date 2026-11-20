@@ -18,12 +18,16 @@ import yaml
 
 from dendritic_modeling import __version__ as core_version
 from dendritic_modeling.config import config_from_mapping
-from dendritic_modeling.config.conversion import to_plain_dict
+from dendritic_modeling.config.conversion import (
+    has_enabled_synapse_types,
+    to_plain_dict,
+)
 from dendritic_modeling.config.keys import config_from_payload
 from dendritic_modeling.config.population_routing import (
     INPUT_POLARITIES,
     canonical_input_source,
     population_readout,
+    projection_delays,
     projection_pathway,
 )
 from dendritic_modeling.config.recurrence import is_recurrent_core_config
@@ -216,6 +220,9 @@ def _population_graph(network: dict[str, Any]) -> dict[str, Any]:
                     "branch_factors": list(definition.branch_factors),
                     "levels_including_soma": levels,
                     "compartments_per_neuron": sum(levels),
+                    "has_receptor_traces": has_enabled_synapse_types(
+                        population.synapse_types
+                    ),
                     "configured_per_level": per_level,
                     "overridden": sorted(override),
                     "settings": dataclasses.asdict(population),
@@ -303,6 +310,16 @@ def _population_graph(network: dict[str, Any]) -> dict[str, Any]:
                     "source_id": origin,
                     "target_id": target_id,
                     "timing": timing,
+                    "arrival_steps": list(
+                        reversed(
+                            projection_delays(
+                                timing,
+                                projection.delay_steps,
+                                projection.delay_steps_by_level,
+                                n_levels,
+                            )
+                        )
+                    ),
                     "pathway": pathway,
                     "target_depths": sorted(depths) if depths is not None else None,
                 }

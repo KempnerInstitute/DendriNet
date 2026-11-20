@@ -19,8 +19,8 @@ Use **YAML → Export** to save the configuration. In **Runs**, select your
 completed run and choose **Curves (CSV)** to save the training and validation
 history. Binder reclaims idle sessions and their workspace. For longer runs
 and persistent results, follow the local installation instructions below.
-The online link pins a verified Git revision of Studio 0.2.0 and DendriNet
-0.5.0. Sharing it opens the same tutorial and software in a fresh workspace.
+The online link pins a Git revision. Sharing it opens the same tutorial and
+software in a fresh workspace.
 
 .. contents:: On this page
    :local:
@@ -139,13 +139,14 @@ outgoing synapses. Timing identifies which source activity its target uses.
    of the first layer. An explicitly selected decoder layer stays selected.
 #. Select the inhibitory population ``readout.pv`` on the diagram. Choose
    **Connect from this population**, then select ``circuit.pyr`` on the
-   diagram. The editor proposes **Previous step** for this feedback path.
+   diagram. The editor proposes **Delayed** for this feedback path.
    Check the source, destination and inhibitory sign and choose **Add
    connection**. The same operation is available through **Connect** on
    the diagram toolbar, using menus for both populations.
 #. Expand **connections** under the receiving layer or select the line in
    the diagram to inspect the route. The inhibitory line ends in a bar.
-   Dashes and Δt indicate the one-step delay. Use **Edit connection** to
+   Dashes indicate a delayed route. The label gives its travel time in steps
+   (Δt for one step, a range for times that differ by depth). Use **Edit connection** to
    rewire it or the inspector to set its probability and target depths.
    Synapse counts belong to the receiving population and are shared by
    sources on the same pathway. The editor asks for a positive budget
@@ -158,8 +159,8 @@ outgoing synapses. Timing identifies which source activity its target uses.
 
 **Same step** uses current activity. Its source may be the layer input, a
 population in an earlier layer, or a local population if the route keeps
-same-step wiring acyclic. **Previous step** uses a population's output from
-the preceding update. It supports self-connections, loops within a layer and
+same-step wiring acyclic. **Delayed** uses an earlier population output,
+one update earlier by default. It supports self-connections, loops within a layer and
 feedback from a later layer. Adding one enables recurrence on the receiving
 layer. A recurrent layer can receive both kinds of input. A feedforward
 layer can supply delayed activity to another layer.
@@ -183,11 +184,22 @@ the core's distal-to-soma order. **Use base and ratio** restores the
 geometric progression. **Learn one time constant per depth** shows the
 values that training starts from.
 
-The layer's **Time step dt** controls integration. Core 0.5 supports a delay
-of one update per delayed projection. A static example presented for one
-step has no previous activity to feed back. Use the decision example to
-observe feedback across time. The separate GRU and LSTM core types retain
-their own architecture and parameter forms.
+To change when a signal arrives, open **Edit connection → Travel delay**.
+Choose one whole number of steps for the projection, or select **Set delay
+by depth**. For example, enter 1 at the soma, 2 at the primary branches and
+3 at the distal branches. A signal emitted on update 0 then arrives on
+updates 1, 2 and 3. Select the finished connection to see travel steps and
+response τ side by side. Each projection has its own travel settings;
+all projections into a receiving depth share its compartment time constant.
+If you add a dendritic depth, its explicit travel delay starts at one step.
+The layer's **Time step dt** sets the target's integration time per update.
+Use a sequence with enough updates for the longest delay. Signals in transit
+at the end of a sequence are retained when the core's hidden state is carried
+into the next chunk.
+
+Configurable travel delays require Studio 0.2.0 and DendriNet 0.6.0.
+To try them from a checkout containing this feature, install both packages
+with ``python -m pip install -e . -e ./apps/studio``.
 
 .. figure:: _static/studio/hybrid.png
    :alt: Two layers with E and I populations. Current-step excitation flows
@@ -279,7 +291,7 @@ What Studio supports
        the soma, the integration rule (shunting or the additive rules), leak,
        dendritic gates, initialization, time constants and every other
        population option; connections between populations with their timing
-       (same step or delayed by one step), pathway, target levels,
+       (same step or delayed, including by depth), pathway, target levels,
        probability and seed.
    * - Structured dendritic trees (``dendritic_shunting``,
        ``dendritic_additive``, ``einet`` and the other structured types)
@@ -353,7 +365,7 @@ To extend a population network:
    per cell. The **soma only** preset gives a point neuron. Use **Contacts
    on the soma** when the design calls for direct somatic input.
 #. Use **Connection** to choose a source and target. Set whether the
-   connection carries current-step or previous-step activity and which
+   connection carries current or delayed activity and which
    target depths receive it. Use **Synapses** on the receiving population
    for the corresponding feedforward or recurrent E or I contact count.
 #. Use **Layer** to extend the stack. Select a layer to choose its readout

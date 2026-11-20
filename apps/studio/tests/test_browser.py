@@ -470,7 +470,7 @@ def test_response_times_and_route_delay_survive_visual_edits_and_export(page):
         page.get_by_text("Source delay: 1 step.", exact=False)
     ).to_be_visible()
     playwright.expect(table.locator("tbody tr")).to_have_count(1)
-    playwright.expect(table.get_by_role("cell")).to_have_text("40")
+    playwright.expect(table.get_by_role("cell")).to_have_text(["1", "40"])
     page.get_by_role("button", name="Edit receiving population").click()
     soma = table.get_by_role("spinbutton", name="Response time at soma")
     primary = table.get_by_role("spinbutton", name="Response time at 1 · primary")
@@ -504,6 +504,62 @@ def test_response_times_and_route_delay_survive_visual_edits_and_export(page):
             "populations"
         ][0]["population"]
     )
+    assert not page.errors
+
+
+def test_set_travel_delays_in_the_connection_editor(page):
+    from dendritic_modeling.config import config_from_mapping
+    from dendritic_modeling.scripts.script_utils.setup_utils import initialize_model
+
+    page.locator(".example", has_text="Recurrent decision population network").click()
+    loop = page.get_by_role(
+        "button",
+        name="Connection circuit.pyr to circuit.pyr, rec_excitatory, delayed",
+        exact=True,
+    )
+    loop.press("Enter")
+    page.get_by_role("button", name="Edit connection", exact=True).click()
+    dialog = page.get_by_role("dialog", name="Edit connection")
+    dialog.get_by_label("Travel delay", exact=True).select_option("levels")
+    dialog.get_by_label("Travel steps at 1 · primary").fill("2")
+    dialog.get_by_label("Travel steps at 2 · distal").fill("3")
+    dialog.get_by_role("button", name="Save connection").click()
+    table = page.get_by_role("table", name="Response times by depth")
+    playwright.expect(table.locator("tbody td")).to_have_text(
+        ["1", "10", "2", "20", "3", "40"]
+    )
+    playwright.expect(loop.locator("title")).to_contain_text(
+        "1\N{EN DASH}3 steps of travel"
+    )
+    selected = page.locator('.route-row[aria-current="true"] .meta')
+    playwright.expect(selected).to_have_text("E · 1\N{EN DASH}3 Δt")
+    raw = exported(page)
+    route = raw["model"]["core"]["population_network"]["layers"][0]["connections"][-2]
+    assert route["delay_steps_by_level"] == [3, 2, 1] and "delay_steps" not in route
+    model, _ = initialize_model(config_from_mapping(raw).model)
+    assert model.core_network.layers[0].delay_history_lengths == {"pyr": 2}
+    page.get_by_role("tab", name="Model").click()
+    page.get_by_role("button", name="Edit receiving population").click()
+    page.get_by_role("button", name="level", exact=True).click()
+    playwright.expect(table.locator("tbody tr")).to_have_count(4)
+    expanded = exported(page)["model"]["core"]["population_network"]["layers"][0]
+    assert expanded["connections"][-2]["delay_steps_by_level"] == [1, 3, 2, 1]
+    page.get_by_role("tab", name="Model").click()
+    presets = page.get_by_role("group", name="Morphology presets")
+    presets.get_by_text("[2,2]", exact=True).click()
+    playwright.expect(table.locator("tbody tr")).to_have_count(3)
+    loop.press("Enter")
+    page.get_by_role("button", name="Edit connection", exact=True).click()
+    dialog.get_by_label("Travel delay", exact=True).select_option("uniform")
+    dialog.get_by_label("Travel delay (steps)").fill("4")
+    dialog.get_by_role("button", name="Save connection").click()
+    playwright.expect(table.locator("tbody td")).to_have_text(
+        ["4", "10", "4", "20", "4", "40"]
+    )
+    saved = exported(page)["model"]["core"]["population_network"]["layers"][0][
+        "connections"
+    ][-2]
+    assert saved["delay_steps"] == 4 and "delay_steps_by_level" not in saved
     assert not page.errors
 
 

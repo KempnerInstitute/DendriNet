@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dendritic_modeling"
-version = "0.5.0"
+version = "0.6.0"
 description = "DendriNet: PyTorch library for neural networks of dendritic neurons"
 readme = "README_PYPI.md"
 license = "MIT"

@@ -10,11 +10,21 @@
   remains the default.
 - Update the Black development formatter and pre-commit hook to 26.10.1.
 
+### Core library 0.6.0
+
+- Set a population projection's travel time with `delay_steps` or
+  `delay_steps_by_level`. Delayed projections default to one update.
+  Longer delays carry source outputs across sequence chunks and support
+  backpropagation through those outputs.
+
 ### DendriNet Studio 0.2.0
 
 - Show and edit the receiving compartment's response time at each depth.
   Add multiple same-step excitatory sources from the receiving population
   and see which sources share its contact budget.
+- Set a shared or depth-specific travel delay in the connection editor. The
+  diagram labels delayed routes and the inspector shows travel steps beside
+  each receiving depth's response time.
 - Open Studio from the documentation in a personal Binder session, train
   the two-class example on a CPU and download the configuration and curves.
 - Connect two populations from the diagram or choose both endpoints and the

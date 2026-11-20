@@ -5,6 +5,7 @@ import { field } from "./fields.js";
 import { afferentMode } from "./afferents.js";
 import { state, editTopology, validationRevision } from "./store.js";
 import { dialog } from "./ui.js";
+import { travelEditor } from "./travel.js";
 
 const option = (value, label) => h("option", { value, text: label });
 const selectBox = () => h("select", { class: "input" });
@@ -26,12 +27,13 @@ export function connectionEditor(li, { index, from, to } = {}) {
   }
   targets.value = initialTarget || "";
   const timing = selectBox();
-  timing.append(option("same_step", "Same step · feedforward"), option("delayed", "Previous step · recurrent"));
+  timing.append(option("same_step", "Same step · feedforward"), option("delayed", "Delayed · recurrent"));
   const start = view.nodes.find(n => n.id === from);
   const end = view.nodes.find(n => n.id === to);
   const needsDelay = start && end && (start.layer > end.layer || start.id === end.id);
   timing.value = original?.timing || (needsDelay ? "delayed" : "same_step");
   const sources = selectBox();
+  const travel = travelEditor(original);
   const sign = selectBox();
   const afferents = selectBox();
   afferents.append(option("", "Choose input organization"), option("paired", "Distinct E and I afferents with matched features"), option("split", "Separate groups of input channels"));
@@ -48,6 +50,7 @@ export function connectionEditor(li, { index, from, to } = {}) {
   function refreshSources() {
     target = view.nodes.find(n => n.id === targets.value);
     delayed = timing.value === "delayed";
+    travel.show(target, delayed);
     sources.replaceChildren(option("", "Choose a source"));
     if (target && !delayed) {
       const external = h("optgroup", { label: target.layer ? "Layer input" : "External input" });
@@ -101,7 +104,7 @@ export function connectionEditor(li, { index, from, to } = {}) {
     const notes = [];
     if (target && sources.value) notes.push(sources.value + " → " + target.id + ".");
     if (delayed) {
-      notes.push("Uses the preceding time step. Feedback needs at least two input steps to act.");
+      notes.push("Uses earlier source activity. The source is zero before the sequence starts.");
       if (target && !view.layers[target.layer].recurrent) notes.push("This will enable recurrence on " + target.layer_name + ".");
     } else notes.push("Uses the current input or population response. Same-step routes must be acyclic.");
     if (target) {
@@ -120,7 +123,7 @@ export function connectionEditor(li, { index, from, to } = {}) {
   return dialog({
     title: original ? "Edit connection" : "Connect populations",
     body: [field({ label: "Receiving population", control: targets }),
-      field({ label: "Timing", control: timing }), field({ label: "Source", control: sources }),
+      field({ label: "Timing", control: timing }), field({ label: "Source", control: sources }), travel.element,
       field({ label: "Pathway sign", control: sign }), afferentField, budgetField, summary],
     actions: [{ label: "Cancel", submit: false }, { label: original ? "Save connection" : "Add connection", primary: true, value: true }],
     onConfirm: async signal => {
@@ -145,6 +148,7 @@ export function connectionEditor(li, { index, from, to } = {}) {
         if (!original || original.source !== source) route.source = source;
         route.target = target.name;
         if (delayed || "timing" in route) route.timing = timing.value;
+        travel.save(route);
         if (sign.value) route.pathway = pathway;
         else delete route.pathway;
         if (delayed) dst.recurrent = true;

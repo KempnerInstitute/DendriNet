@@ -13,6 +13,7 @@ import { externalControls, sourcesTable, structuredInputGuide } from "./afferent
 import { compartmentLevels, drawNeuron, levelName, levelTable, neuronLegend } from "./morphology.js";
 import { toast, confirmDialog, dialog } from "./ui.js";
 import { connectionEditor } from "./wiring.js";
+import { travelLabel, travelRange } from "./travel.js";
 
 const NET = "model.core.population_network";
 const STREAMS = [
@@ -135,6 +136,7 @@ function decoderText() {
 
 function populationOutline() {
   const p = state.preview;
+  const nodesById = new Map(p.nodes.map(node => [node.id, node]));
   const sel = state.selection;
   const tree = h("div", { class: "tree" });
   const width = getPath(p.resolved_config, NET).input_dim;
@@ -144,7 +146,7 @@ function populationOutline() {
       treeRow({ cls: "layer-row", current: sel.kind === "layer" && sel.layer === li, onclick: () => select({ kind: "layer", layer: li }) }, [
         icon("layers"),
         h("span", { class: "grow", text: layer.name }),
-        h("span", { class: "meta", text: [layer.recurrent ? "recurrent" : null, `readout ${layer.readout}`].filter(Boolean).join(" · ") }),
+        h("span", { class: "meta", text: [layer.recurrent ? "recurrent" : layer.steps_through_time ? "stateful" : null, `readout ${layer.readout}`].filter(Boolean).join(" · ") }),
       ])
     );
     for (const node of p.nodes.filter(n => n.layer === li)) {
@@ -162,11 +164,14 @@ function populationOutline() {
     group.open = sel.kind === "connection" && sel.layer === li;
     group.append(h("summary", { text: describeCount(edges.length, "connection") }));
     edges.forEach((edge, index) => {
-      const delayed = edge.timing === "delayed";
+      const range = edge.timing === "delayed" ? travelRange(edge, nodesById.get(edge.target_id)) : null;
+      const labels = [edge.pathway.endsWith("inhibitory") ? "I" : "E"];
+      if (range) labels.push(travelLabel(range));
+      if (edge.enabled === false) labels.push("off");
       group.append(treeRow({ cls: "route-row", current: group.open && sel.index === index,
         onclick: () => select({ kind: "connection", layer: li, index }) },
       [h("span", { class: "grow", text: edge.source + " → " + edge.target }),
-        h("span", { class: "meta", text: (edge.pathway.endsWith("inhibitory") ? "I" : "E") + (delayed ? " · Δt" : "") + (edge.enabled === false ? " · off" : "") })]));
+        h("span", { class: "meta", text: labels.join(" · ") })]));
     });
     tree.append(group);
   });
@@ -350,7 +355,7 @@ function networkLegend() {
     h("span", { class: "legend-item" }, [polarityGlyph("inhibitory"), "I population"]),
     legendItem([s("path", { d: "M2 7H19", class: "edge exc" }), s("path", { d: "M18 3L25 7L18 11Z", class: "marker-exc" })], "excitation (arrow)"),
     legendItem([s("path", { d: "M2 7H22", class: "edge inh" }), s("path", { d: "M23 1V13", class: "marker-inh" })], "inhibition (bar end)"),
-    legendItem([s("path", { d: "M2 7H24", class: "edge exc delayed" })], "delayed one step (Δt)"),
+    legendItem([s("path", { d: "M2 7H24", class: "edge exc delayed" })], "travel delay (steps of Δt)"),
     legendItem([s("path", { d: "M2 7H24", class: "edge exc disabled" })], "switched off"),
   ];
 }
@@ -697,10 +702,11 @@ function depthTimeTable(node, { ctx, edge } = {}) {
       cell.setAttribute("aria-label", "Response time at " + label);
       cell.dataset.key = ctx.keyOf("level_taus") + "." + (deepest - depth);
     }
-    rows.push(h("tr", {}, [h("th", { scope: "row", text: label }), h("td", {}, [cell])]));
+    rows.push(h("tr", {}, [h("th", { scope: "row", text: label }),
+      edge ? h("td", { text: String(edge.arrival_steps[depth]) }) : null, h("td", {}, [cell])]));
   }
   if (!rows.length) return h("p", { class: "help", text: "This route has no active contacts at the selected depths." });
-  const columns = ["Receiving depth", node.settings.learnable_tau ? "Initial τ (learned)" : "Response τ (fixed)"];
+  const columns = ["Receiving depth", ...(edge ? ["Travel steps"] : []), node.settings.learnable_tau ? "Initial τ (learned)" : "Response τ (fixed)"];
   return h("table", { class: "levels" + (ctx ? " editable" : ""), "aria-label": "Response times by depth" }, [
     h("thead", {}, [h("tr", {}, columns.map(text => h("th", { scope: "col", text })))]), h("tbody", {}, rows),
   ]);
@@ -830,17 +836,19 @@ function connectionInspector(sel) {
     h("button", { type: "button", class: "btn small", disabled: sel.index >= list.length - 1, onclick: () => select({ kind: "connection", layer: li, index: sel.index + 1 }) }, ["Next"]),
   ]);
   const inhibitory = derived.endsWith("inhibitory");
+  const travel = edge && target ? travelRange(edge, target) : null;
   return [
-    head(icon(inhibitory ? "minus" : "chevron"), `Connection · ${edge?.source ?? "input"} → ${conn.target}`, edge ? `${derived.replace("_", " ")} · ${edge.timing === "delayed" ? "delayed one step" : "same step"}` : ""),
+    head(icon(inhibitory ? "minus" : "chevron"), `Connection · ${edge?.source ?? "input"} → ${conn.target}`, edge ? `${derived.replace("_", " ")} · ${edge.timing === "delayed" ? "delayed" : "same step"}` : ""),
     nav,
     group("Route", [
       h("p", { text: (edge?.source_id || "input") + " → " + edge?.target_id }),
       h("button", { type: "button", class: "btn small", onclick: () => connectionEditor(li, { index: sel.index }) }, ["Edit connection"]),
     ]),
     edge && target ? group("Connection timing", [
-      h("p", { text: edge.timing === "delayed" ? "Source delay: 1 step. Every contacted depth reads the same previous population output." : "Source delay: 0 steps. Every contacted depth reads the current source output." }),
+      travel === null ? null : h("p", { text: `Source delay: ${travel} ${travel === "1" ? "step" : "steps"}.` }),
       state.preview.layers[li].steps_through_time ? [
-        h("p", { class: "help", text: `The target integrates its inputs at each depth with the response time below (layer dt = ${state.preview.layers[li].dt}).` }),
+        h("p", { class: "help", text: `Compartment τ uses the same time units as the layer step (dt = ${state.preview.layers[li].dt}).` +
+          (target.has_receptor_traces ? " This target also has receptor-specific synaptic time constants." : "") }),
         depthTimeTable(target, { edge }),
         h("button", { type: "button", class: "btn small", onclick: () => select({ kind: "population", layer: li, population: target.population }), text: "Edit receiving population" }),
       ] : h("p", { class: "help", text: "This feedforward layer computes its response directly at each step." }),
@@ -886,7 +894,7 @@ function layerInspector(sel) {
           else delete net.readout_population;
         }
       }), { allowCustom: false, labels: { "": "First excitatory population" } }), key: `${path}.readout_population`, help: "The next layer's input route and the selected decoder readout use this population. Connect additional populations by name." }),
-      field({ label: "Recurrent", control: switchInput(Boolean(layer.recurrent), v => safeTopology(cfg => { getPath(cfg, path).recurrent = v; }), "Recurrent"), key: `${path}.recurrent`, help: "Receives same-step and previous-step activity. Remove or retime delayed connections before switching off." }),
+      field({ label: "Recurrent", control: switchInput(Boolean(layer.recurrent), v => safeTopology(cfg => { getPath(cfg, path).recurrent = v; }), "Recurrent"), key: `${path}.recurrent`, help: "Receives current and delayed population activity. Remove or retime delayed connections before switching off." }),
       recurrentRelevant ? field({ label: "Time step dt", control: numberInput(layer.dt ?? 1, v => set("dt", v), { min: 0, positive: true }), key: `${path}.dt` }) : null,
       field({ label: "Connection seed", control: numberInput(layer.connection_seed ?? null, v => set("connection_seed", v), { integer: true, optional: true }), key: `${path}.connection_seed` }),
     ]),
@@ -1190,6 +1198,11 @@ function setFactors(li, pi, factors) {
     const taus = node.settings.level_taus;
     if (taus?.length && taus.length !== levels) {
       (item.population ||= {}).level_taus = Array.from({ length: levels }, (_, d) => tauAtDepth(node.settings, d)).reverse();
+    }
+    for (const route of getPath(cfg, NET).layers[li].connections || []) {
+      if (route.target !== node.name || !route.delay_steps_by_level || route.delay_steps_by_level.length === levels) continue;
+      const delays = route.delay_steps_by_level;
+      route.delay_steps_by_level = Array.from({ length: levels }, (_, depth) => delays.at(-1 - depth) ?? 1).reverse();
     }
   });
 }

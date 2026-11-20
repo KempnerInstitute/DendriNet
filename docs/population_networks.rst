@@ -35,7 +35,7 @@ configuration loads; the corresponding settings are population options (see
 ``layers[].connections[]``
    Directed records from a source (the network input, a population of the same
    layer or a population of another layer) to a population of the layer, read
-   either in the same timestep or from the previous timestep.
+   either in the same timestep or after a configured number of updates.
 
 ``layers[].population_defaults`` and ``layers[].populations[].population``
    Population options: synapse counts, integration rule, reactivation gates,
@@ -87,7 +87,7 @@ How a layer computes
 ~~~~~~~~~~~~~~~~~~~~
 
 Each population has up to four input streams: the same-step streams
-``ff_excitatory`` and ``ff_inhibitory``, and the delayed (previous-timestep)
+``ff_excitatory`` and ``ff_inhibitory``, and the delayed
 streams ``rec_excitatory`` and ``rec_inhibitory``. A connection adds its source
 to one stream of its target: the network input and excitatory populations
 enter an excitatory stream, inhibitory populations an inhibitory stream. The
@@ -171,7 +171,15 @@ directed connection into a population of that layer:
    * - ``timing``
      - ``same_step``
      - ``same_step`` reads the source in the current timestep; ``delayed``
-       reads its output from the previous timestep.
+       reads an earlier output (one update earlier by default).
+   * - ``delay_steps``
+     - 0 for same-step, 1 for delayed
+     - Integer travel delay shared by the contacted depths. A delayed
+       projection requires at least one update.
+   * - ``delay_steps_by_level``
+     - ``null``
+     - Alternative to ``delay_steps`` for a delayed projection. Supply one
+       positive integer per depth, from the most distal level to the soma.
    * - ``pathway``
      - from the source
      - Input stream of the target: ``ff_excitatory`` or ``ff_inhibitory`` for
@@ -277,7 +285,7 @@ Cross-layer sources
 A source of the form ``layer_name.population_name`` (a qualified source) reads
 a population of another layer. Same-step qualified sources must come from
 earlier layers. Delayed qualified sources may come from any other layer,
-including later layers, and read that population's previous-timestep output;
+including later layers, and read that population's output at the specified lag;
 the target layer must set ``recurrent: true``. A qualified source that names
 its own layer raises; use the plain population name instead.
 
@@ -312,9 +320,9 @@ Timing
 Same-step connections between populations of a layer must form a directed
 acyclic graph; a cycle such as ``i -> e`` together with ``e -> i`` raises when
 the configuration loads. Delayed connections (``timing: delayed``) read the
-source's output from the previous timestep, so they may form cycles, including
+source's output from an earlier timestep, so they may form cycles, including
 a population connected to itself. They require ``recurrent: true`` on the
-layer, and at the first timestep they read zeros. Mutual E/I interaction is
+layer. A source sample preceding the start of the sequence is zero. Mutual E/I interaction is
 therefore written as one same-step direction and one delayed direction, or as
 two delayed connections.
 
@@ -542,7 +550,8 @@ controls:
 
 ``model.core.population_network.layers[].dt``
    The integration step :math:`\Delta t` of every population in the layer
-   (default 1.0). A delayed connection always reads the previous step.
+   (default 1.0). All layers advance once per network update. Travel
+   delays count these updates; ``dt`` sets the target layer's time scale.
 
 ``tau_base`` and ``tau_ratio``
    Per-level time constants when ``level_taus`` is empty:
@@ -560,9 +569,20 @@ controls:
 ``learnable_tau``
    Learns one time constant per level, stored as its logarithm.
 
-``connections[].timing``
-   ``delayed`` connections read the source output of the previous step;
-   ``same_step`` connections read the current step.
+``connections[].delay_steps`` and ``delay_steps_by_level``
+   Travel delay selects the source sample before the receiving compartment
+   filters it. In a tree with two dendritic depths, a delayed projection
+   with ``delay_steps_by_level: [3, 2, 1]`` delivers the same source pulse
+   to the soma one update later, to primary branches two updates later,
+   and to distal branches three updates later. Each source can have its own
+   delay even when several share an excitatory or inhibitory contact budget.
+   ``target_levels`` still determines which depths have eligible contacts.
+   A uniform delay of one is the default. A same-step projection has zero delay.
+
+When processing a sequence in chunks, supply the returned hidden state to
+the next call to retain signals in transit. A fresh state starts with zero
+history. Longer delays retain additional source outputs in the receiving
+layer's state. No additional synaptic weights are required.
 
 Receptor traces (``synapse_types``), the spiking soma (``spike_tau``,
 ``spike_readout_tau``) and dendritic plateaus (``dendritic_spike_plateau_tau``)

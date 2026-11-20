@@ -7,7 +7,7 @@ shunting and additive integration, population networks, training and analysis.
 ## Install and train a first model
 
 ```bash
-python -m pip install dendritic-modeling==0.5.0
+python -m pip install dendritic-modeling
 dendritic-example synthetic_population --output demo.yaml
 dendritic-train demo.yaml --epochs 1
 ```

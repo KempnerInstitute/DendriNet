@@ -4,6 +4,7 @@
 // ones in a bar; delayed connections are dashed and labelled Δt.
 
 import { s, fmt } from "./dom.js";
+import { travelLabel, travelRange } from "./travel.js";
 
 const CARD_W = 204;
 const CARD_H = 105;
@@ -142,6 +143,7 @@ export function drawNetwork(svg, preview, { selection, onSelectPopulation, onSel
     ({ x: p.x, y: p.y, w: id.startsWith("__") ? IO_W : CARD_W, h: id.startsWith("__") ? IO_H : CARD_H }));
   for (const lane of lanes) occupied.push({ x: lane.x, y: 12, w: lane.width, h: 41 });
   const labelTasks = [];
+  const nodesById = new Map(preview.nodes.map(node => [node.id, node]));
   preview.edges.forEach((edge, index) => {
     const external = !positions[edge.source_id];
     const src = external ? positions.__input : positions[edge.source_id];
@@ -184,11 +186,13 @@ export function drawNetwork(svg, preview, { selection, onSelectPopulation, onSel
       }
     });
     const countLabel = edgeCountLabel(preview, edge, incoming[edge.target_id]);
-    hit.append(s("title", {}, [`${edge.source_id} → ${edge.target_id} · ${countLabel} · ${edge.timing === "delayed" ? "delayed" : "same step"}${edge.target_levels ? " · levels " + edge.target_levels.join(", ") : ""}${edge.probability != null ? " · p " + edge.probability : ""}${edge.enabled === false ? " · off" : ""}`]));
+    const travel = edge.timing === "delayed" ? travelRange(edge, nodesById.get(edge.target_id)) : null;
+    const timeLabel = travel ? `${travel} ${travel === "1" ? "step" : "steps"} of travel` : edge.timing === "delayed" ? "delayed" : "same step";
+    hit.append(s("title", {}, [`${edge.source_id} → ${edge.target_id} · ${countLabel} · ${timeLabel}${edge.target_levels ? " · levels " + edge.target_levels.join(", ") : ""}${edge.probability != null ? " · p " + edge.probability : ""}${edge.enabled === false ? " · off" : ""}`]));
     edgeLayer.append(path, hit);
     // Chip at the middle of the curve.
     const labels = [];
-    if (edge.timing === "delayed") labels.push("Δt");
+    if (travel) labels.push(travelLabel(travel));
     if (edge.enabled === false) labels.push("off");
     if (edge.target_levels) labels.push("→ " + edge.target_levels.join(","));
     if (edge.probability != null) labels.push("p " + edge.probability);

@@ -23,6 +23,7 @@ from dendritic_modeling.config.population_routing import (
     INPUT_POLARITIES as _EXTERNAL_POLARITIES,
     canonical_input_source as _canonical_external_source,
     population_readout,
+    projection_delays,
     projection_pathway,
 )
 from dendritic_modeling.config.recurrence import _STRUCTURED_EI_TYPES
@@ -500,6 +501,11 @@ def _validate_population_network_connections(
         layer_name = layer_names[layer_idx]
         local_names = set(population_dims.get(layer_name, {}))
         local_polarities = population_polarities.get(layer_name, {})
+        target_levels = {
+            pop.get("name"): len(_as_list(pop.get("branch_factors", [1]))) + 1
+            for pop in layer.get("populations", []) or []
+            if isinstance(pop, dict)
+        }
         input_polarity = previous_readout_polarity
         override = (
             config.get("readout_population") if layer_name == readout_layer else None
@@ -531,6 +537,16 @@ def _validate_population_network_connections(
                     f"{target!r} is not a population"
                 )
                 continue
+            if "delay_steps" in connection or "delay_steps_by_level" in connection:
+                try:
+                    projection_delays(
+                        timing,
+                        connection.get("delay_steps"),
+                        connection.get("delay_steps_by_level"),
+                        target_levels.get(target),
+                    )
+                except ValueError as exc:
+                    errors.append(f"{layer_name} connection {source}->{target}: {exc}")
             if timing == _DELAYED and not bool(layer.get("recurrent", False)):
                 errors.append(
                     f"population_network layer {layer_name!r} delayed connection "

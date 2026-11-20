@@ -74,6 +74,18 @@ def test_soma_only_preview_is_distinct_from_one_branch():
     assert result["nodes"][1]["compartments_per_neuron"] == 1
 
 
+def test_response_times_follow_the_effective_population_dynamics():
+    raw = example("synthetic_population")
+    layer = raw["model"]["core"]["population_network"]["layers"][0]
+    assert not inspect_document(raw)["layers"][0]["steps_through_time"]
+    settings = layer["populations"][1].setdefault("population", {})
+    settings["soma_feedback_enabled"] = True
+    assert inspect_document(raw)["layers"][0]["steps_through_time"]
+    settings["level_taus"] = [10, 20]
+    with pytest.raises(ValueError, match="level_taus needs 3"):
+        inspect_document(raw)
+
+
 def test_preview_keeps_projection_aliases_in_yaml_and_draws_the_resolved_pathway():
     raw = example("synthetic_population")
     core = raw["model"]["core"]

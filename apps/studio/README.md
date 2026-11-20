@@ -9,8 +9,14 @@ two designs. Each design exports as an ordinary DendriNet experiment YAML.
 In Studio 0.2.0, choose **Connect** above the network, or select a population,
 choose **Connect from this population** and select the receiving population
 on the diagram. A same-step route carries current activity. A delayed route
-carries the previous step and can return from a later layer. The guide walks
-through a recurrent decision circuit with a feedforward readout.
+carries earlier activity and can return from a later layer. The guide walks
+through a recurrent decision circuit with a feedforward readout. Use **Add
+input source** on a receiving population to connect multiple excitatory
+populations. In **Edit connection → Travel delay**, choose a uniform delay
+or enter whole steps at each depth. The connection inspector shows these
+arrival times beside the compartment response times (τ). This editor uses
+DendriNet 0.6.0. To run this revision locally, install the core and Studio
+together from the checkout with `python -m pip install -e . -e ./apps/studio`.
 [Connect populations and mix layer dynamics](https://kempnerinstitute.github.io/DendriNet/studio.html#studio-connect)
 
 ## Open a personal session online
@@ -80,7 +86,7 @@ Studio with that workspace again to reopen them.
 - **Design population networks visually**: layers, excitatory and inhibitory
   populations, neuron counts, dendritic branching, contacts per compartment
   and per level, shunting or additive integration, dendritic gates, time
-  constants, and connections that act in the same step or one step later
+  constants, and connections that act in the same step or after a configurable delay
   (recurrent networks).
 - **Configure other model families** using typed forms and the YAML editor,
   including structured dendritic trees, GRU, LSTM and vanilla RNN baselines,
