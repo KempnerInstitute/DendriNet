@@ -150,7 +150,8 @@ outgoing synapses. Timing identifies which source activity its target uses.
    rewire it or the inspector to set its probability and target depths.
    Synapse counts belong to the receiving population and are shared by
    sources on the same pathway. The editor asks for a positive budget
-   when the selected pathway currently has zero contacts.
+   when its eligible depths have zero contacts. On a depth-restricted
+   route, this sets the budget only at the selected depths.
    When a biological model receives both signs from external input, choose
    matched afferent populations or separate channel groups in the editor.
 #. Open **YAML** to see the route under ``circuit.connections``, with source
@@ -165,6 +166,13 @@ feedback from a later layer. Adding one enables recurrence on the receiving
 layer. A recurrent layer can receive both kinds of input. A feedforward
 layer can supply delayed activity to another layer.
 
+When copying a layer, Studio adds local inhibition only if the receiving E
+population has eligible inhibitory contacts. You can add an inhibitory
+route and set its budget later with **Add input source**. A layer that steps
+through time requires ``autograd_credit_mode: exact`` for every population,
+including settings inherited from layer defaults. Studio checks this before
+it saves the design.
+
 To combine excitation from two populations, select the receiving population
 and choose **Add input source**. Choose **Same step** and select the source
 by name. Repeat for the second source. For example, ``layer0.e`` and
@@ -174,6 +182,12 @@ The neuron's **Synapse sources per neuron** table lists the two named
 sources together. A budget of four excitatory contacts per compartment
 selects four across both source pools; the split can vary among compartments.
 
+To connect at just one depth, select the connection, open **Placement**,
+turn off **All levels of the target**, and leave only the desired depth
+checked. Depth 0 is the soma. If no other source supplies this pathway at
+an excluded depth, set its contact count to zero in the receiving
+population's **Synapses per compartment → Set counts per level**.
+
 Select a recurrent connection to see its source delay and the response
 time constant (τ) at each depth it contacts. To edit those times, select
 **Edit receiving population**, then **Time constants**. In the decision
@@ -182,7 +196,8 @@ have response times of 10, 20 and 40 model time units. Larger values
 smooth the input over more time. Editing a row writes ``level_taus`` in
 the core's distal-to-soma order. **Use base and ratio** restores the
 geometric progression. **Learn one time constant per depth** shows the
-values that training starts from.
+values that training starts from. For a uniform response time, use
+**Use base and ratio** and set **Ratio per outward depth** to 1.
 
 To change when a signal arrives, open **Edit connection → Travel delay**.
 Choose one whole number of steps for the projection, or select **Set delay

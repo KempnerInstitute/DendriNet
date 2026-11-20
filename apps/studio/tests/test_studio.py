@@ -74,6 +74,34 @@ def test_soma_only_preview_is_distinct_from_one_branch():
     assert result["nodes"][1]["compartments_per_neuron"] == 1
 
 
+@pytest.mark.parametrize("inherit", [False, True])
+@pytest.mark.parametrize("explicit_recurrence", [False, True])
+def test_preview_matches_native_credit_for_stepped_populations(
+    inherit, explicit_recurrence
+):
+    raw = example("synthetic_population")
+    layer = raw["model"]["core"]["population_network"]["layers"][0]
+    settings = layer["populations"][1].setdefault("population", {})
+    credit = layer["population_defaults"] if inherit else settings
+    credit["autograd_credit_mode"] = "soma_broadcast"
+    assert not inspect_document(raw)["layers"][0]["steps_through_time"]
+    initialize_model(config_from_mapping(raw).model)
+    if explicit_recurrence:
+        layer["recurrent"] = True
+    else:
+        # The other population makes the whole layer stepped. Neither
+        # definition violates the constraints of its own credit rule alone.
+        layer["populations"][0]["population"].update(
+            soma_feedback_enabled=True, autograd_credit_mode="exact"
+        )
+    for check in (
+        lambda: inspect_document(raw),
+        lambda: initialize_model(config_from_mapping(raw).model),
+    ):
+        with pytest.raises(ValueError, match=r"soma_broadcast.*exact"):
+            check()
+
+
 def test_response_times_follow_the_effective_population_dynamics():
     raw = example("synthetic_population")
     layer = raw["model"]["core"]["population_network"]["layers"][0]

@@ -6,16 +6,20 @@
 // diagram of encoder, core and decoder.
 
 import { h, s, icon, fmt, polarityGlyph, download } from "./dom.js";
-import { state, api, edit, editTopology, validationRevision, select, adopt, emit, getPath, deletePath, isPopulationNetwork, layers, nodeView, configKey } from "./store.js";
+import { state, api, edit, editTopology, topologyReady, validationRevision, select, adopt, emit, getPath, deletePath, isPopulationNetwork, layers, nodeView, configKey } from "./store.js";
 import { field, textInput, numberInput, stepper, selectInput, switchInput, segmented, mappingInput, factorEditor, sectionForm, disclosure, humanize, controlFor, describeCount, rebuildKeepingFocus } from "./fields.js";
 import { drawNetwork, drawOverview, layoutNetwork, svgForExport } from "./graph.js";
 import { externalControls, sourcesTable, structuredInputGuide } from "./afferents.js";
 import { compartmentLevels, drawNeuron, levelName, levelTable, neuronLegend } from "./morphology.js";
 import { toast, confirmDialog, dialog } from "./ui.js";
-import { connectionEditor } from "./wiring.js";
+import { connectionEditor as showConnectionDialog } from "./wiring.js";
 import { travelLabel, travelRange } from "./travel.js";
 
 const NET = "model.core.population_network";
+const connectionEditor = topologyDialog(showConnectionDialog);
+const addLayer = topologyDialog(newLayerDialog);
+const removePopulation = topologyDialog(confirmRemovePopulation);
+const removeLayer = topologyDialog(confirmRemoveLayer);
 const STREAMS = [
   ["ff_excitatory", "Excitatory", "same step"],
   ["ff_inhibitory", "Inhibitory", "same step"],
@@ -647,9 +651,12 @@ function perLevelEditor(ctx, node, recurrentRelevant) {
     for (const [key, label] of streams) {
       const current = node.configured_per_level[key][depth];
       const input = numberInput(current, value => {
-        const list = [...node.configured_per_level[key]];
-        list[depth] = value;
-        ctx.write(`${key}_synapses_by_level`, list.reverse());
+        const field = key + "_synapses_by_level";
+        const setting = name => ctx.ownOf(name) ?? ctx.inheritedOf(name).value;
+        const old = setting(field);
+        const list = old?.length ? [...old] : Array(levels).fill(setting(key + "_synapses"));
+        list[levels - depth - 1] = value;
+        ctx.write(field, list);
       }, { integer: true, min: 0 });
       input.setAttribute("aria-label", `${label} contacts at level ${names(depth)}`);
       input.dataset.key = `${ctx.keyOf(`${key}_synapses_by_level`)}.${depth}`;
@@ -685,7 +692,7 @@ function depthTimeTable(node, { ctx, edge } = {}) {
   const deepest = node.branch_factors.length;
   const rows = [];
   for (let depth = 0; depth <= deepest; depth++) {
-    if (edge && (edge.enabled === false || !node.received_per_level[edge.pathway][depth] ||
+    if (edge && (edge.enabled === false || edge.probability === 0 || !node.received_per_level[edge.pathway][depth] ||
       (edge.target_depths && !edge.target_depths.includes(depth)))) continue;
     const label = levelName(depth, deepest);
     const value = tauAtDepth(node.settings, depth);
@@ -825,8 +832,16 @@ function connectionInspector(sel) {
     box.checked = !allLevels && (edge?.target_depths || []).includes(depth);
     box.disabled = allLevels;
     box.addEventListener("change", () => {
-      const chosen = [...levelBoxes.querySelectorAll("input")].filter(b => b.checked).map(b => Number(b.id.slice(4)));
-      set("target_levels", chosen.length ? chosen.sort((a, b) => a - b) : null, true);
+      const checked = box.checked;
+      safeTopology(cfg => {
+        const current = state.preview.edges.filter(e => e.layer === li)[sel.index];
+        const chosen = new Set(current.target_depths ?? Array.from({ length: levels }, (_, i) => i));
+        if (checked) chosen.add(depth);
+        else chosen.delete(depth);
+        const route = getPath(cfg, path);
+        if (chosen.size) route.target_levels = [...chosen].sort((a, b) => a - b);
+        else delete route.target_levels;
+      });
     });
     levelBoxes.append(h("label", { class: "check", for: `lvl-${depth}` }, [box, levelName(depth, levels - 1)]));
   }
@@ -1022,51 +1037,62 @@ function uniqueName(existing, stem) {
   return name;
 }
 
-async function safeTopology(mutate) {
-  try { await editTopology(mutate); }
-  catch (error) {
-    toast(error.message, { kind: "error" });
-    renderModel();
-  }
+function hasContacts(node, pathway) {
+  return node.configured_per_level[pathway].some((count, depth) =>
+    count > 0 && (depth > 0 || node.settings.somatic_synapses));
+}
+
+function reportTopologyError(error) {
+  toast(error.message, { kind: "error" });
+  renderModel();
+}
+
+function topologyDialog(open) {
+  return (...args) => topologyReady().then(() => open(...args)).catch(reportTopologyError);
+}
+
+function safeTopology(mutate, options) {
+  return editTopology(mutate, options).catch(reportTopologyError);
 }
 
 function addPopulation(li, polarity) {
-  const layer = layers()[li];
-  const nodes = state.preview.nodes.filter(n => n.layer === li);
-  const template = nodes.find(n => n.polarity === polarity) || nodes[0];
-  const readout = state.preview.layers[li].readout;
-  const name = uniqueName(nodes.map(p => p.name), polarity === "inhibitory" ? "i" : "e");
-  // Reuse compatible geometry and per-level defaults, including for an
-  // imported population whose definition inherits part of its configuration.
-  const previous = state.preview.layers[li - 1];
-  const prevNode = previous && state.preview.nodes.find(n => n.layer === li - 1 && n.name === previous.readout);
-  const source = prevNode?.polarity === "inhibitory"
-    ? state.preview.nodes.find(n => n.layer === li - 1 && n.polarity === "excitatory").id : "input";
   return safeTopology(cfg => {
-    const l = getPath(cfg, NET).layers[li];
+    const layer = getPath(cfg, NET).layers[li];
+    const nodes = state.preview.nodes.filter(n => n.layer === li);
+    const template = nodes.find(n => n.polarity === polarity) || nodes[0];
+    const readout = state.preview.layers[li].readout;
+    const name = uniqueName(nodes.map(p => p.name), polarity === "inhibitory" ? "i" : "e");
+    const previous = state.preview.layers[li - 1];
+    const prevNode = previous && state.preview.nodes.find(n => n.layer === li - 1 && n.name === previous.readout);
+    const source = prevNode?.polarity === "inhibitory"
+      ? state.preview.nodes.find(n => n.layer === li - 1 && n.polarity === "excitatory").id : "input";
     const item = structuredClone(layer.populations[template.population]);
     Object.assign(item, { name, polarity, n_neurons: 8 });
-    const index = l.populations.push(item) - 1;
-    (l.connections ||= []).push({ source, target: name });
-    if (polarity === "inhibitory" && readout) l.connections.push({ source: name, target: readout });
+    const index = layer.populations.push(item) - 1;
+    (layer.connections ||= []).push({ source, target: name });
+    if (polarity === "inhibitory" && hasContacts(nodes.find(n => n.name === readout), "ff_inhibitory"))
+      layer.connections.push({ source: name, target: readout });
     return { kind: "population", layer: li, population: index };
   });
 }
 
-function addLayer() {
+function newLayerDialog() {
   const index = layers().length;
   const last = layers()[index - 1];
   const previous = state.preview.layers[index - 1];
   const nodes = state.preview.nodes.filter(n => n.layer === index - 1);
   const pyr = nodes.find(n => n.polarity === "excitatory" && n.name === previous.readout) || nodes.find(n => n.polarity === "excitatory");
   const inh = nodes.find(n => n.polarity === "inhibitory");
+  const localInhibition = hasContacts(pyr, "ff_inhibitory");
   const revision = validationRevision;
   const name = h("input", { class: "input", value: uniqueName(state.preview.layers.map(l => l.name), "layer" + index), required: true });
   const mode = selectInput("feedforward", ["feedforward", "recurrent"], () => {}, { labels: { feedforward: "Feedforward", recurrent: "Recurrent" }, allowCustom: false });
   const info = h("p", { class: "help" });
   function describe() {
     const route = mode.value === "recurrent" ? " It also starts with a one-step excitatory feedback loop." : "";
-    info.textContent = "The new E and I populations receive excitation from " + pyr.id + "; the I population inhibits the E population." + route;
+    const inhibition = localInhibition ? "The I population inhibits the E population."
+      : "The copied E population has no eligible inhibitory contacts. Add an inhibitory connection later to set its contact budget.";
+    info.textContent = "The new E and I populations receive excitation from " + pyr.id + ". " + inhibition + route;
   }
   mode.addEventListener("change", describe);
   describe();
@@ -1086,12 +1112,12 @@ function addLayer() {
       const layer = {
         name: layerName, readout_population: e.name,
         ...(last.population_defaults && { population_defaults: structuredClone(last.population_defaults) }),
-        populations: [i, e], connections: [{ source, target: i.name }, { source, target: e.name }, { source: i.name, target: e.name }],
+        populations: [i, e], connections: [{ source, target: i.name }, { source, target: e.name }],
       };
+      if (localInhibition) layer.connections.push({ source: i.name, target: e.name });
       if (mode.value === "recurrent") {
         layer.recurrent = true;
-        const contacts = pyr.configured_per_level.rec_excitatory;
-        if (!contacts.some((v, d) => v > 0 && (d > 0 || pyr.settings.somatic_synapses))) {
+        if (!hasContacts(pyr, "rec_excitatory")) {
           const own = e.population ||= {};
           own.rec_excitatory_synapses = 1;
           if (pyr.settings.rec_excitatory_synapses_by_level?.length) own.rec_excitatory_synapses_by_level = [];
@@ -1105,7 +1131,8 @@ function addLayer() {
   });
 }
 
-async function removePopulation(li, pi) {
+async function confirmRemovePopulation(li, pi) {
+  const revision = validationRevision;
   const layer = layers()[li];
   const node = nodeView(li, pi);
   const name = node.name;
@@ -1121,7 +1148,7 @@ async function removePopulation(li, pi) {
     if (l.readout_population === name) delete l.readout_population;
     if (net.readout_population === name && (net.readout_layer || net.layers.at(-1).name) === l.name) delete net.readout_population;
     return { kind: "layer", layer: li };
-  });
+  }, { revision, reindexes: true });
 }
 
 async function removeConnection(li, index) {
@@ -1129,10 +1156,11 @@ async function removeConnection(li, index) {
     const list = getPath(cfg, NET).layers[li].connections;
     list.splice(index, 1);
     return list.length ? { kind: "connection", layer: li, index: Math.min(index, list.length - 1) } : { kind: "layer", layer: li };
-  });
+  }, { reindexes: true });
 }
 
-async function removeLayer(li) {
+async function confirmRemoveLayer(li) {
+  const revision = validationRevision;
   const layer = layers()[li];
   if (!(await confirmDialog({ title: "Remove layer", text: `Remove ${layer.name} with its ${describeCount(layer.populations.length, "population")}? Undo restores it.`, confirm: "Remove" }))) return;
   await safeTopology(cfg => {
@@ -1142,7 +1170,7 @@ async function removeLayer(li) {
     for (const other of net.layers) other.connections = (other.connections || []).filter(c => !String(c.source).startsWith(prefix));
     if (net.readout_layer === layer.name) { delete net.readout_layer; delete net.readout_population; }
     return { kind: "layer", layer: Math.max(0, li - 1) };
-  });
+  }, { revision, reindexes: true });
 }
 
 function renamePopulation(li, pi, name) {
@@ -1178,11 +1206,12 @@ function renameLayer(li, name) {
   }, { structural: true });
 }
 
-function setFactors(li, pi, factors) {
+function setFactors(li, pi, update) {
   const itemPath = `${NET}.layers.${li}.populations.${pi}`;
-  const node = nodeView(li, pi);
-  const levels = factors.length + 1;
   return safeTopology(cfg => {
+    const node = nodeView(li, pi);
+    const factors = update(node.branch_factors);
+    const levels = factors.length + 1;
     const item = getPath(cfg, itemPath);
     item.branch_factors = factors;
     // Counts and time constants in YAML run from distal to soma. Retain

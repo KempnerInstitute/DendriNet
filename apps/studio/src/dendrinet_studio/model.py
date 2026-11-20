@@ -40,6 +40,7 @@ from dendritic_modeling.networks.architectures.recurrent.population_common impor
     population_config_from_definition,
     population_level_dims,
     population_requires_temporal_state,
+    validate_stepped_credit_modes,
 )
 from dendritic_modeling.networks.architectures.recurrent.population_configs import (
     PopulationLayerConfig,
@@ -230,6 +231,11 @@ def _population_graph(network: dict[str, Any]) -> dict[str, Any]:
             )
         if "excitatory" not in polarities.values():
             raise ValueError(f"Layer {layer.name!r} requires an excitatory population")
+        if steps_through_time:
+            validate_stepped_credit_modes(
+                layer.name,
+                {name: settings[f"{layer.name}.{name}"] for name in polarities},
+            )
         override = (
             network.get("readout_population") if layer.name == selected_layer else None
         )

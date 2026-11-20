@@ -59,9 +59,10 @@ export function travelEditor(original) {
 }
 
 export function travelRange(edge, target) {
+  if (edge.enabled === false || edge.probability === 0) return null;
   const delays = edge.arrival_steps.filter((_, depth) =>
     (edge.target_depths == null || edge.target_depths.includes(depth)) && target.received_per_level[edge.pathway][depth]);
-  if (!delays.length || edge.enabled === false) return null;
+  if (!delays.length) return null;
   const min = Math.min(...delays), max = Math.max(...delays);
   return min === max ? String(min) : `${min}–${max}`;
 }

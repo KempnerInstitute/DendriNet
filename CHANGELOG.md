@@ -15,7 +15,8 @@
 - Set a population projection's travel time with `delay_steps` or
   `delay_steps_by_level`. Delayed projections default to one update.
   Longer delays carry source outputs across sequence chunks and support
-  backpropagation through those outputs.
+  backpropagation through those outputs. A zero-probability route keeps
+  its source columns without storing earlier samples.
 
 ### DendriNet Studio 0.2.0
 
@@ -32,6 +33,10 @@
   and validate route changes with DendriNet before saving them.
 - Add feedforward and recurrent layers in one population network. Preserve
   explicit readouts and per-level contact settings when extending a design.
+  Copy a local inhibitory projection only when the receiver has eligible
+  inhibitory contacts. Stepped layers require exact gradient credit.
+- Apply successive inspector edits in order. Morphology and routing edits
+  use the latest validated time constants and depth-specific contact counts.
 - Align populations in a column per layer, label layer dynamics, and identify
   inhibitory feedback with both a dashed line and a bar.
 

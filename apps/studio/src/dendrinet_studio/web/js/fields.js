@@ -244,25 +244,22 @@ export function factorEditor(factors, onCommit) {
     wrap.append(
       h("span", { class: "factor", title: `Level ${index + 1}: each compartment has ${b} children` }, [
         h("span", { class: "factor-value", text: b }),
-        h("button", { type: "button", "aria-label": `Fewer branches at level ${index + 1}`, onclick: () => {
-          const next = [...factors];
+        h("button", { type: "button", "aria-label": `Fewer branches at level ${index + 1}`, onclick: () => onCommit(current => {
+          const next = [...current];
           if (next[index] > 1) next[index] -= 1;
           else next.splice(index, 1);
-          onCommit(next);
-        } }, [icon("minus")]),
-        h("button", { type: "button", "aria-label": `More branches at level ${index + 1}`, onclick: () => {
-          const next = [...factors];
-          next[index] += 1;
-          onCommit(next);
-        } }, [icon("plus")]),
+          return next;
+        }) }, [icon("minus")]),
+        h("button", { type: "button", "aria-label": `More branches at level ${index + 1}`, onclick: () =>
+          onCommit(current => current.map((count, i) => i === index ? count + 1 : count)) }, [icon("plus")]),
       ])
     );
   });
-  wrap.append(h("button", { type: "button", class: "btn small", onclick: () => onCommit([...factors, 2]) }, [icon("plus"), "level"]));
+  wrap.append(h("button", { type: "button", class: "btn small", onclick: () => onCommit(current => [...current, 2]) }, [icon("plus"), "level"]));
   if (!factors.length) wrap.prepend(h("span", { class: "muted", text: "Soma only" }));
   const presets = h("div", { class: "presets", role: "group", "aria-label": "Morphology presets" });
   for (const preset of MORPHOLOGY_PRESETS) {
-    presets.append(h("button", { type: "button", class: "chip mono", "aria-pressed": String(JSON.stringify(preset) === JSON.stringify(factors)), onclick: () => onCommit([...preset]), text: preset.length ? `[${preset.join(",")}]` : "soma only" }));
+    presets.append(h("button", { type: "button", class: "chip mono", "aria-pressed": String(JSON.stringify(preset) === JSON.stringify(factors)), onclick: () => onCommit(() => [...preset]), text: preset.length ? `[${preset.join(",")}]` : "soma only" }));
   }
   const box = h("div", { class: "factor-editor" }, [wrap, presets]);
   box.id = nextId("fe");

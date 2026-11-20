@@ -28,6 +28,7 @@ from dendritic_modeling.networks.architectures.recurrent.population_common impor
     population_config_from_definition as _population_config_from_definition,
     population_level_dims as _population_level_dims,
     population_requires_temporal_state as _population_requires_temporal_state,
+    validate_stepped_credit_modes,
 )
 from dendritic_modeling.networks.architectures.recurrent.population_configs import (
     PopulationLayerConfig,
@@ -244,17 +245,7 @@ class PopulationLayer(nn.Module):
         if self._is_recurrent:  # forward() steps every population
             for population in self.populations.values():
                 population.prepare_stepped_gradient_scaling()
-        broadcast = sorted(
-            name
-            for name, pop_cfg in self.population_configs.items()
-            if str(pop_cfg.autograd_credit_mode).lower() != "exact"
-        )
-        if self._is_recurrent and broadcast:
-            raise ValueError(
-                f"population_network layer {config.name!r} steps its populations "
-                f"through time, but {broadcast} set autograd_credit_mode="
-                "'soma_broadcast', which applies only to feedforward layers"
-            )
+            validate_stepped_credit_modes(config.name, self.population_configs)
 
     # Tensors of the last forward pass kept for analyses; copies and pickles
     # hold them detached (networks.utils.forward_caches).
@@ -940,12 +931,8 @@ class PopulationLayer(nn.Module):
 
         history = None
         if self.delay_history_lengths:
-            if state.delay_history is None:
-                raise ValueError(
-                    "Missing multi-step delay history; initialize the state for this network"
-                )
-            # Both maps refer to the preceding network update, even for feedback
-            # from a later layer. Keep the old state intact for BPTT and replay.
+            # Each planned stream has already read its history. Rotate it only
+            # after all populations have read the same preceding network update.
             previous = {**state.outputs, **delayed_external_inputs}
             history = {
                 source: torch.cat(

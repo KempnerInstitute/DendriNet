@@ -156,14 +156,14 @@ export function connectionEditor(li, { index, from, to } = {}) {
           const own = dst.populations[target.population].population ||= {};
           const key = pathway + "_synapses";
           const levels = target.configured_per_level[pathway];
-          if (target.settings[key + "_by_level"]?.length) {
+          if (target.settings[key + "_by_level"]?.length || eligible.includes(false)) {
             own[key + "_by_level"] = levels.map((v, d) => eligible[d] ? contacts.valueAsNumber : v).reverse();
           } else own[key] = contacts.valueAsNumber;
         }
         const pos = original && li === target.layer ? index : list.length;
         list.splice(pos, 0, route);
         return { kind: "connection", layer: target.layer, index: pos };
-      }, { revision, signal });
+      }, { revision, signal, reindexes: original && li !== target.layer });
     },
   });
 }
