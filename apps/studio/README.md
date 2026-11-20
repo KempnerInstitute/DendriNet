@@ -15,7 +15,7 @@ through a recurrent decision circuit with a feedforward readout.
 
 ## Open a personal session online
 
-[Open Studio on Binder](https://mybinder.org/v2/gh/KempnerInstitute/DendriNet/develop?urlpath=open-studio)
+[Open Studio on Binder](https://mybinder.org/v2/gh/KempnerInstitute/DendriNet/fbc8326a3798ddc3f43fbd59b1f9da3993158061?urlpath=open-studio)
 to design a network and train the two-class example on a CPU. Set **Epochs**
 to `1` in **Training**, then select **Train**. In **Runs**, select the finished
 run and download **Curves (CSV)**. Use **YAML → Export** to keep your design.

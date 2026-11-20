@@ -9,7 +9,7 @@ and the command line use the same experiment YAML and the same DendriNet
 model builders and trainer. You can move a design between them at any point.
 
 **Try it online.** `Open DendriNet Studio
-<https://mybinder.org/v2/gh/KempnerInstitute/DendriNet/develop?urlpath=open-studio>`_
+<https://mybinder.org/v2/gh/KempnerInstitute/DendriNet/fbc8326a3798ddc3f43fbd59b1f9da3993158061?urlpath=open-studio>`_
 to start a personal CPU session in your browser. Binder builds the environment
 on the first visit to a new revision. Once the editor opens, the two-class
 example is ready. Set **Training → Epochs** to ``1``, then choose **Train**.
@@ -19,9 +19,8 @@ Use **YAML → Export** to save the configuration. In **Runs**, select your
 completed run and choose **Curves (CSV)** to save the training and validation
 history. Binder reclaims idle sessions and their workspace. For longer runs
 and persistent results, follow the local installation instructions below.
-The online link follows the repository's ``develop`` branch. To share a
-specific version, replace ``develop`` in that link with a commit that includes
-the launcher.
+The online link pins a verified Git revision of Studio 0.2.0 and DendriNet
+0.5.0. Sharing it opens the same tutorial and software in a fresh workspace.
 
 .. contents:: On this page
    :local:

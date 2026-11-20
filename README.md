@@ -42,7 +42,7 @@ of PyTorch, optional dependencies and editable installs for contributors.
 Studio lets you draw feedforward and recurrent networks, inspect a neuron's
 dendrites and compare runs in your browser.
 
-**[Open Studio online](https://mybinder.org/v2/gh/KempnerInstitute/DendriNet/develop?urlpath=open-studio)**
+**[Open Studio online](https://mybinder.org/v2/gh/KempnerInstitute/DendriNet/fbc8326a3798ddc3f43fbd59b1f9da3993158061?urlpath=open-studio)**
 to try the editor in a personal CPU session. No account or local installation is
 required. In **Training**, set **Epochs** to `1` and select **Train** to try the
 two-class example. Download your YAML and loss curves before the session expires.
