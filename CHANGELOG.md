@@ -20,6 +20,10 @@
 
 ### DendriNet Studio 0.2.0
 
+- Add a compact contextual-remapping template on EMNIST Balanced. Explore
+  how a cue changes a character's target in a two-layer E/I network, or
+  export its configuration with `dendritic-example contextual_remapping_population`.
+
 - Show and edit the receiving compartment's response time at each depth.
   Add multiple same-step excitatory sources from the receiving population
   and see which sources share its contact budget.

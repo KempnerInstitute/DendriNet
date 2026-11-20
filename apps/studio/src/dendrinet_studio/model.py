@@ -117,6 +117,7 @@ EXAMPLE_ORDER = (
     "recurrent_decision_population",
     "adding_problem_gru",
     "mnist_population",
+    "contextual_remapping_population",
 )
 
 
@@ -132,6 +133,9 @@ def example_catalog() -> list[dict[str, Any]]:
     for name in example_names():
         text = example_text(name)
         raw = yaml.safe_load(text) or {}
+        data = raw.get("data", {}) or {}
+        dataset = data.get("dataset_name", "")
+        params = (data.get("dataset_params") or {}).get(dataset) or {}
         model = raw.get("model", {}) or {}
         core = model.get("core", {}) or {}
         title, description = _example_header(text)
@@ -142,10 +146,9 @@ def example_catalog() -> list[dict[str, Any]]:
                 "description": description,
                 "family": core.get("type", ""),
                 "task": model.get("task", "classification"),
-                "dataset": (raw.get("data", {}) or {}).get("dataset_name", ""),
+                "dataset": dataset,
                 "recurrent": bool(is_recurrent_core_config(core)),
-                "download": (raw.get("data", {}) or {}).get("dataset_name")
-                in downloads,
+                "download": params.get("download", dataset in downloads),
             }
         )
     rank = {name: index for index, name in enumerate(EXAMPLE_ORDER)}

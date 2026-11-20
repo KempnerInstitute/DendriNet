@@ -245,6 +245,8 @@ def test_example_catalog_lists_the_tutorial_first_and_marks_downloads():
     assert {item["name"] for item in catalog} == set(example_names())
     by_name = {item["name"]: item for item in catalog}
     assert by_name["mnist_population"]["download"] is True
+    assert by_name["contextual_remapping_population"]["download"] is True
+    assert by_name["contextual_remapping_population"]["recurrent"] is False
     assert by_name["synthetic_population"]["download"] is False
     assert by_name["adding_problem_gru"]["task"] == "regression"
     assert by_name["recurrent_decision_population"]["recurrent"] is True
@@ -445,6 +447,20 @@ def test_progress_lines_become_partial_curves():
     }
     assert progress["points"][1]["train_loss"] is None
     assert progress_from_log("no progress here") is None
+
+
+def test_presentation_stream_progress_keeps_accuracy_separate_from_loss():
+    log = (
+        "[PresentationStream] epoch=1/3 train_loss=3.9200 noisy_acc=0.0319 "
+        "clean_acc=0.0266\n"
+        "[PresentationStream] epoch=2/3 train_loss=3.8100 noisy_acc=0.0372"
+    )
+    progress = progress_from_log(log)
+    assert progress["epoch"] == 2 and progress["epochs"] == 3
+    assert progress["points"] == [
+        {"epoch": 1, "train_loss": 3.92, "valid_loss": None},
+        {"epoch": 2, "train_loss": 3.81, "valid_loss": None},
+    ]
 
 
 def test_run_configurations_are_read_only_for_known_runs(tmp_path):

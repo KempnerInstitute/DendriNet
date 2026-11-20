@@ -82,6 +82,12 @@ Press **Ctrl+C** in the terminal when finished. The commands above keep
 your runs in the `dendrinet-runs` folder in your home directory. Launch
 Studio with that workspace again to reopen them.
 
+To try the empirical paper's cue-dependent task, choose **Model → Start from
+→ Contextual remapping on EMNIST**. The first run downloads EMNIST. A 32-way
+cue changes the target for the same image in a compact two-layer E/I network.
+The full paper configurations and calibration instructions are in the
+[empirical project](https://github.com/KempnerInstitute/DendriNet/tree/v0.5.0/projects/empirical#build-a-network).
+
 ## What you can do
 
 - **Design population networks visually**: layers, excitatory and inhibitory

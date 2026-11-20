@@ -363,9 +363,38 @@ The installed examples cover each kind of model:
        sequence.
    * - ``mnist_population``
      - The tutorial's network on MNIST digits; the first run downloads MNIST.
+   * - ``contextual_remapping_population``
+     - The same EMNIST character has a different target under each of 32 cues.
+       Two feedforward E/I layers receive the image and cue through the first layer.
 
 Export any of them without Studio with
 ``dendritic-example <name> --output my_model.yaml``.
+
+Contextual remapping on EMNIST
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In **Model → Start from**, choose **Contextual remapping on EMNIST**.
+Each presentation has 784 image pixels and an uncorrupted one-hot cue.
+Gain and noise vary across presentations. The target is
+``(character class + cue index) % 47``. For example, the same class-10
+character has target 10 with cue 0 and target 11 with cue 1.
+
+Select the excitatory population **e** in the second layer to trace its
+inputs. It receives excitation from the first layer's **e** population and
+inhibition from both the first layer's **i** and its own layer's **i**.
+Both first-layer populations receive the external image and cue.
+Choose **CPU**, then **Check model** or **Train**. The first build or run
+downloads the EMNIST archive (about 536 MiB compressed) to the shared data
+cache. With EMNIST Balanced already cached, the template also runs offline.
+
+The short run demonstrates wiring and training. It uses 48 excitatory and
+18 inhibitory neurons per layer, fixed leak and three epochs of 1,024 freshly
+sampled presentations. Its trainable branch gates start from the slope and
+offset given in the YAML. For the paper's Figure 7 settings, the
+`empirical project <https://github.com/KempnerInstitute/DendriNet/tree/v0.5.0/projects/empirical#build-a-network>`_
+provides the full shunting and additive configurations, the training-stream
+gate calibration and the library version used for those experiments. Use
+**YAML → Import** to explore either full-size network in Studio.
 
 Working in Studio
 -----------------

@@ -204,6 +204,32 @@ def test_visual_edits_undo_and_export(page):
     assert not page.errors, page.errors
 
 
+def test_contextual_example_opens_with_its_routes_and_exports(page):
+    template = page.get_by_role("button", name="Contextual remapping on EMNIST")
+    playwright.expect(template).to_contain_text("downloads data")
+    template.click()
+    playwright.expect(page.locator("svg.network .card")).to_have_count(4)
+    for source, target in (
+        ("input", "layer0.i"),
+        ("input", "layer0.e"),
+        ("layer0.i", "layer0.e"),
+        ("layer0.e", "layer1.i"),
+        ("layer0.e", "layer1.e"),
+        ("layer0.i", "layer1.i"),
+        ("layer0.i", "layer1.e"),
+        ("layer1.i", "layer1.e"),
+    ):
+        playwright.expect(edge(page, source, target)).to_have_count(1)
+    raw = exported(page)
+    assert raw == example("contextual_remapping_population")
+    task = raw["data"]["dataset_params"]["contextual_remapping"]
+    assert task["num_contexts"] == 32
+    assert raw["model"]["encoder"]["params"]["input_dim"] == 784 + task["num_contexts"]
+    assert raw["model"]["decoder"]["params"]["output_dim"] == 47
+    assert raw["training"]["main"]["strategy"] == "presentation_stream"
+    assert not page.errors, page.errors
+
+
 def test_other_families_open_with_their_own_forms(page):
     for title, family in (
         ("GRU baseline for regression", "GRU"),
