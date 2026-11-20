@@ -652,7 +652,9 @@ function perLevelEditor(ctx, node, recurrentRelevant) {
       const current = node.configured_per_level[key][depth];
       const input = numberInput(current, value => {
         const field = key + "_synapses_by_level";
-        const setting = name => ctx.ownOf(name) ?? ctx.inheritedOf(name).value;
+        // A reset or another depth edit can be newer than the last preview.
+        const setting = name => getPath(state.config, ctx.keyOf(name)) ??
+          layers()[node.layer].population_defaults?.[name] ?? popSpec(name)?.default;
         const old = setting(field);
         const list = old?.length ? [...old] : Array(levels).fill(setting(key + "_synapses"));
         list[levels - depth - 1] = value;
@@ -666,16 +668,17 @@ function perLevelEditor(ctx, node, recurrentRelevant) {
   }
   table.append(body);
   const clearButton = h("button", { type: "button", class: "btn small", onclick: () => {
-    safeTopology(cfg => {
+    edit(cfg => {
+      const layer = getPath(cfg, NET).layers[node.layer];
       for (const [key] of STREAMS) {
         const path = ctx.keyOf(key + "_synapses_by_level");
-        const inherited = layers()[node.layer].population_defaults?.[key + "_synapses_by_level"];
+        const inherited = layer.population_defaults?.[key + "_synapses_by_level"];
         if (inherited?.length) {
-          const item = getPath(cfg, NET).layers[node.layer].populations[node.population];
+          const item = layer.populations[node.population];
           (item.population ||= {})[key + "_synapses_by_level"] = [];
         } else deletePath(cfg, path);
       }
-    });
+    }, { structural: true });
   } }, ["Use one count for all levels"]);
   return h("div", {}, [table, h("p", { class: "help", text: "Saved as *_synapses_by_level lists, which run from the most distal level to the soma." }), clearButton]);
 }

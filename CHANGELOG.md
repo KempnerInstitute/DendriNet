@@ -37,6 +37,9 @@
   inhibitory contacts. Stepped layers require exact gradient credit.
 - Apply successive inspector edits in order. Morphology and routing edits
   use the latest validated time constants and depth-specific contact counts.
+  Resetting to uniform counts and then editing one depth preserves both edits.
+  Studio reports a missing source if a depth-restricted pathway leaves
+  contacts at an unreachable receiving depth.
 - Align populations in a column per layer, label layer dynamics, and identify
   inhibitory feedback with both a dashed line and a bar.
 

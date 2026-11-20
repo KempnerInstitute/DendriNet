@@ -263,6 +263,7 @@ def _population_graph(network: dict[str, Any]) -> dict[str, Any]:
 
     # Resolve qualified delayed sources after all populations are known.
     reached: dict[str, dict[str, set[int] | None]] = {}
+    restricted: set[tuple[str, str]] = set()
     for li, layer in enumerate(definitions):
         for item in layer.connections:
             projection = as_population_projection_config(item)
@@ -301,7 +302,9 @@ def _population_graph(network: dict[str, Any]) -> dict[str, Any]:
             )
             n_levels = len(_levels_soma_first(settings[target_id].branch_factors))
             depths = projection.target_depths(n_levels)
-            if connection.get("enabled", True):
+            if projection.enabled and depths is not None:
+                restricted.add((target_id, pathway))
+            if projection.enabled and projection.probability != 0:
                 current = reached.setdefault(target_id, {}).get(pathway, set())
                 if depths is None or current is None:
                     reached[target_id][pathway] = None
@@ -344,6 +347,13 @@ def _population_graph(network: dict[str, Any]) -> dict[str, Any]:
                 ok = allowed is None or depth in allowed
                 if depth == 0 and not population.somatic_synapses:
                     ok = False
+                elif count and not ok and (node["id"], stream) in restricted:
+                    raise ValueError(
+                        f"{node['id']} has {count} {stream} contacts per compartment "
+                        f"at depth {depth}, but no active source reaches that depth. "
+                        "Set its contact count to zero or include that depth on an "
+                        "enabled connection with positive probability."
+                    )
                 counts.append(count if ok else 0)
             received[stream] = counts
         node["received_per_level"] = received

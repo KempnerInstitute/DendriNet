@@ -152,6 +152,9 @@ def test_soma_only_projection_does_not_label_every_branch_with_soma_contacts(pag
     raw = example("synthetic_population")
     layer = raw["model"]["core"]["population_network"]["layers"][0]
     layer["connections"][-1]["target_levels"] = ["soma"]
+    layer["populations"][1].setdefault("population", {})[
+        "ff_inhibitory_synapses_by_level"
+    ] = [0, 0, 4]
     page.get_by_role("tab", name="YAML").click()
     page.locator("textarea.yaml-text").fill(yaml.safe_dump(raw, sort_keys=False))
     page.get_by_role("button", name="Apply").click()
@@ -332,7 +335,16 @@ def test_external_route_switch_preserves_custom_placement(page):
         "input_source_identity": "paired_afferents",
         "output_activation": "relu",
     }
-    routes = net["layers"][0]["connections"]
+    layer = net["layers"][0]
+    # A second somatic source keeps the receiver buildable when the external one is off.
+    layer["populations"].append({**layer["populations"][0], "name": "backup_i"})
+    routes = layer["connections"]
+    routes.extend(
+        [
+            {"source": "input", "target": "backup_i"},
+            {"source": "backup_i", "target": "e", "target_levels": ["soma"]},
+        ]
+    )
     routes.append(
         {"source": "input_inh", "target": "e", "target_levels": ["soma"], "seed": 11}
     )
@@ -1188,3 +1200,87 @@ def test_typing_during_apply_preserves_the_new_yaml(page, invalid_submission):
     page.get_by_role("button", name="Apply").click()
     playwright.expect(page.locator(".yaml-status")).to_contain_text("Matches")
     assert page.evaluate(read_seed) == 102
+
+
+@pytest.mark.parametrize("inherited", [False, True])
+def test_uniform_reset_preserves_later_depth_edit(page, inherited):
+    raw = example("synthetic_population")
+    layer = raw["model"]["core"]["population_network"]["layers"][0]
+    field = "ff_inhibitory_synapses_by_level"
+    settings = (
+        layer["population_defaults"]
+        if inherited
+        else layer["populations"][1].setdefault("population", {})
+    )
+    settings[field] = [2, 3, 6]
+    if inherited:
+        # The inhibitory population has a shallower tree than the receiver.
+        layer["populations"][0].setdefault("population", {})[field] = []
+    open_design(page, raw)
+    page.get_by_role("button", name="Edit population layer0.e", exact=True).click()
+    page.get_by_text("Set counts per level", exact=True).click()
+    delay_next_response(page, "preview")
+    page.get_by_role("button", name="Use one count for all levels").click()
+    page.wait_for_selector("html[data-response-ready]")
+    primary = page.get_by_role(
+        "spinbutton", name="Inhibitory contacts at level 1 · primary"
+    )
+    primary.fill("7")
+    primary.press("Enter")
+    release_response(page)
+    page.evaluate("async () => (await import('./js/store.js')).topologyReady()")
+    saved = exported(page)["model"]["core"]["population_network"]["layers"][0]
+    assert saved["populations"][1]["population"][field] == [4, 7, 4]
+    undo = page.get_by_role("button", name="Undo (Ctrl+Z)", exact=True)
+    undo.click()
+    rolled_back = exported(page)["model"]["core"]["population_network"]["layers"][0]
+    assert rolled_back["populations"][1].get("population", {}).get(field) == (
+        [] if inherited else None
+    )
+    undo.click()
+    assert exported(page) == raw
+    assert not page.errors
+
+
+@pytest.mark.parametrize("primary_source", [False, True])
+def test_retimed_route_requires_coverage_for_existing_contacts(page, primary_source):
+    from dendritic_modeling.config import config_from_mapping
+    from dendritic_modeling.scripts.script_utils.setup_utils import initialize_model
+
+    raw = two_layer_document()
+    layer = raw["model"]["core"]["population_network"]["layers"][1]
+    layer["connections"][2]["target_levels"] = ["distal"]
+    field = "rec_inhibitory_synapses_by_level"
+    layer["populations"][1].setdefault("population", {})[field] = [0, 2, 0]
+    if primary_source:
+        layer["recurrent"] = True
+        layer["connections"].append(
+            {
+                "source": "i",
+                "target": "e",
+                "timing": "delayed",
+                "target_levels": ["primary"],
+            }
+        )
+    open_design(page, raw)
+    page.get_by_role(
+        "button",
+        name="Connection layer0.i to layer1.e, ff_inhibitory, same_step",
+        exact=True,
+    ).press("Enter")
+    page.get_by_role("button", name="Edit connection", exact=True).click()
+    dialog = page.get_by_role("dialog", name="Edit connection")
+    dialog.get_by_label("Timing", exact=True).select_option("delayed")
+    dialog.get_by_label("Contacts per eligible compartment").fill("1")
+    dialog.get_by_role("button", name="Save connection").click()
+    if primary_source:
+        playwright.expect(dialog).not_to_be_visible()
+        result = exported(page)
+        saved = result["model"]["core"]["population_network"]["layers"][1]
+        assert saved["populations"][1]["population"][field] == [1, 2, 0]
+        initialize_model(config_from_mapping(result).model)
+    else:
+        playwright.expect(dialog.get_by_role("alert")).to_contain_text("depth 1")
+        dialog.get_by_role("button", name="Cancel").click()
+        assert exported(page) == raw
+    assert not page.errors

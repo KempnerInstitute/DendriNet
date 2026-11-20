@@ -172,6 +172,47 @@ def test_configured_contacts_equal_the_synapses_of_the_built_model(document):
     assert preview["synapses_total"] == model_resource_summary(model)["active_synapses"]
 
 
+@pytest.mark.parametrize(
+    "other_route", [None, {"enabled": False}, {"probability": 0.0}]
+)
+def test_preview_and_builder_reject_contacts_without_a_source_at_their_depth(
+    other_route,
+):
+    raw = _two_layer_document()
+    layer = raw["model"]["core"]["population_network"]["layers"][1]
+    layer["recurrent"] = True
+    target = layer["populations"][1].setdefault("population", {})
+    target["rec_inhibitory_synapses_by_level"] = [1, 2, 0]
+    layer["connections"].append(
+        {
+            "source": "layer0.i",
+            "target": "e",
+            "timing": "delayed",
+            "target_levels": ["distal"],
+        }
+    )
+    if other_route is not None:
+        layer["connections"].append(
+            {
+                "source": "i",
+                "target": "e",
+                "timing": "delayed",
+                "target_levels": ["primary"],
+                **other_route,
+            }
+        )
+    with pytest.raises(ValueError, match="depth 1"):
+        initialize_model(config_from_mapping(raw).model)
+    with pytest.raises(ValueError, match="depth 1"):
+        inspect_document(raw)
+
+    target["rec_inhibitory_synapses_by_level"] = [1, 0, 0]
+    preview = inspect_document(raw)
+    receiver = next(n for n in preview["nodes"] if n["id"] == "layer1.e")
+    assert receiver["received_per_level"]["rec_inhibitory"] == [0, 0, 1]
+    initialize_model(config_from_mapping(raw).model)
+
+
 def test_invalid_keys_and_unresolved_composition_are_rejected():
     raw = example("synthetic_population")
     raw["model"]["core"]["biological_neuronn"] = True

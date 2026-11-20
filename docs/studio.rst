@@ -184,9 +184,14 @@ selects four across both source pools; the split can vary among compartments.
 
 To connect at just one depth, select the connection, open **Placement**,
 turn off **All levels of the target**, and leave only the desired depth
-checked. Depth 0 is the soma. If no other source supplies this pathway at
-an excluded depth, set its contact count to zero in the receiving
-population's **Synapses per compartment → Set counts per level**.
+checked. Depth 0 is the soma. For a pathway with restricted target levels,
+each receiving depth with a positive contact count needs at least one enabled
+source with a positive connection probability. If changing a route would leave
+a depth without a source, Studio identifies the population, pathway and depth.
+Connect another source there first, or set the count to zero under
+**Synapses per compartment → Set counts per level**. **Use one count for all
+levels** restores the population's uniform counts. You can then override an
+individual depth; Undo reverses the two edits separately.
 
 Select a recurrent connection to see its source delay and the response
 time constant (τ) at each depth it contacts. To edit those times, select
