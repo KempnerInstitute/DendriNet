@@ -21,7 +21,7 @@ together from the checkout with `python -m pip install -e . -e ./apps/studio`.
 
 ## Open a personal session online
 
-[Open Studio on Binder](https://mybinder.org/v2/gh/KempnerInstitute/DendriNet/fbc8326a3798ddc3f43fbd59b1f9da3993158061?urlpath=open-studio)
+[Open Studio on Binder](https://mybinder.org/v2/gh/KempnerInstitute/DendriNet/979a8459356ace68fd67d04b3d53404ea72a1c79?urlpath=open-studio)
 to design a network and train the two-class example on a CPU. Set **Epochs**
 to `1` in **Training**, then select **Train**. In **Runs**, select the finished
 run and download **Curves (CSV)**. Use **YAML → Export** to keep your design.

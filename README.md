@@ -42,10 +42,16 @@ of PyTorch, optional dependencies and editable installs for contributors.
 Studio lets you draw feedforward and recurrent networks, inspect a neuron's
 dendrites and compare runs in your browser.
 
-**[Open Studio online](https://mybinder.org/v2/gh/KempnerInstitute/DendriNet/fbc8326a3798ddc3f43fbd59b1f9da3993158061?urlpath=open-studio)**
+**[Open Studio online](https://mybinder.org/v2/gh/KempnerInstitute/DendriNet/979a8459356ace68fd67d04b3d53404ea72a1c79?urlpath=open-studio)**
 to try the editor in a personal CPU session. No account or local installation is
 required. In **Training**, set **Epochs** to `1` and select **Train** to try the
 two-class example. Download your YAML and loss curves before the session expires.
+
+The online preview pairs Studio 0.2.0 with DendriNet 0.6.0. Select a
+population to add another incoming source, or select a recurrent connection
+to set its travel delay at each dendritic depth. The laptop commands below
+install the current PyPI release. To run the preview from this checkout,
+install both packages with `python -m pip install -e . -e ./apps/studio`.
 
 To keep runs on your own computer, open a terminal on your laptop.
 On an Apple silicon Mac or a Linux laptop with Python 3.10 or later, run

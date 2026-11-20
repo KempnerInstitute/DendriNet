@@ -9,7 +9,7 @@ and the command line use the same experiment YAML and the same DendriNet
 model builders and trainer. You can move a design between them at any point.
 
 **Try it online.** `Open DendriNet Studio
-<https://mybinder.org/v2/gh/KempnerInstitute/DendriNet/fbc8326a3798ddc3f43fbd59b1f9da3993158061?urlpath=open-studio>`_
+<https://mybinder.org/v2/gh/KempnerInstitute/DendriNet/979a8459356ace68fd67d04b3d53404ea72a1c79?urlpath=open-studio>`_
 to start a personal CPU session in your browser. Binder builds the environment
 on the first visit to a new revision. Once the editor opens, the two-class
 example is ready. Set **Training → Epochs** to ``1``, then choose **Train**.
