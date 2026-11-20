@@ -190,6 +190,142 @@ def test_masked_depths_and_disabled_routes_use_no_unnecessary_history():
     assert not net.layers[1].delay_history_lengths
 
 
+def _branched_config():
+    config = _network().config
+    config.input_dim = 4
+    upstream, downstream = config.layers
+    for source, size in zip(upstream["populations"], (4, 7, 5), strict=True):
+        source["n_neurons"] = size
+    downstream["populations"][0].update(n_neurons=3, branch_factors=[2, 3])
+    downstream["population_defaults"]["topk_type"] = "indexed"
+    return config
+
+
+def test_branched_sparse_arrivals_and_chunked_gradients():
+    config = _branched_config()
+    torch.manual_seed(182)
+    net = PopulationNetwork(config).double()
+    x = torch.rand(2, 8, 4, dtype=torch.float64, requires_grad=True)
+    branches = net.layers[1].populations["pyr"].branch_layers
+    exc = [b.branch_recurrent for b in branches]
+    inh = [b.branch_rec_inhibition for b in branches]
+    for synapse, rows in zip(exc, (18, 6, 3), strict=True):
+        assert synapse.connection_indices.shape == (rows, 2)
+        assert synapse.in_features == 11
+    assert any((s.connection_indices < 4).any() for s in exc)
+    assert any((s.connection_indices >= 4).any() for s in exc)
+
+    # Independently gather the stored contacts from the appropriate source
+    # frames. This checks what the synapses deliver to every compartment.
+    sources = []
+
+    def at(source, t, delay):
+        return (
+            sources[t - delay][source]
+            if t >= delay
+            else torch.zeros_like(sources[0][source])
+        )
+
+    with torch.no_grad(), ExitStack() as hooks:
+        currents = {}
+
+        def capture(module, args, output):
+            currents[module] = output
+
+        for synapse in exc + inh:
+            hooks.enter_context(synapse.register_forward_hook(capture))
+        hidden = None
+        for t in range(x.shape[1]):
+            _, hidden = net(x[:, t : t + 1], hidden, return_hidden=True)
+            sources.append(hidden[0].outputs)
+            for level, (e_syn, i_syn) in enumerate(zip(exc, inh, strict=True)):
+                arrivals = torch.cat(
+                    (at("e", t, (3, 2, 1)[level]), at("other", t, 2)), dim=-1
+                )
+                for syn, past in (
+                    (e_syn, arrivals),
+                    (i_syn, at("i", t, (1, 2, 3)[level])),
+                ):
+                    expected = (
+                        past[:, syn.connection_indices] * syn.effective_sparse_weight()
+                    ).sum(-1)
+                    torch.testing.assert_close(currents[syn], expected)
+    assert all(
+        any(s[name].abs().any() for s in sources) for name in ("e", "other", "i")
+    )
+
+    weights = tuple(net.parameters())
+
+    def evaluate(chunks):
+        hidden = None
+        parts = []
+        for chunk in chunks:
+            out, hidden = net(chunk, hidden, return_hidden=True)
+            parts.append(out)
+        values = torch.cat(parts, dim=1)
+        grads = torch.autograd.grad(
+            values.square().sum(), (x, *weights), allow_unused=True
+        )
+        return values, grads
+
+    full, full_grads = evaluate([x])
+    chunked, chunked_grads = evaluate(x.split((1, 2, 5), dim=1))
+    torch.testing.assert_close(chunked, full, rtol=0, atol=0)
+    assert full_grads[0].abs().sum() > 0
+    for actual, expected in zip(chunked_grads, full_grads, strict=True):
+        if expected is None:
+            assert actual is None
+        else:
+            torch.testing.assert_close(actual, expected, rtol=1e-12, atol=1e-14)
+
+
+def test_zero_probability_delay_keeps_source_columns_without_storing_history():
+    config = _branched_config()
+    edge = config.layers[1]["connections"][1]
+    del edge["delay_steps_by_level"]
+    edge.update(probability=0, delay_steps=10000)
+    torch.manual_seed(27)
+    net = PopulationNetwork(config).double()
+    layer = net.layers[1]
+    assert layer.delay_history_lengths == {"up.other": 1, "up.i": 2}
+    assert layer._stream_sources("pyr", "delayed", "rec_excitatory") == [
+        "up.e",
+        "up.other",
+    ]
+    edge["delay_steps"] = 1
+    torch.manual_seed(27)
+    reference = PopulationNetwork(config).double()
+    x = torch.rand(2, 6, 4, dtype=torch.float64)
+    out, hidden = net(x, return_hidden=True)
+    assert "up.e" not in hidden[1].delay_history
+    torch.testing.assert_close(out, reference(x), rtol=0, atol=0)
+    for branch in layer.populations["pyr"].branch_layers:
+        assert branch.branch_recurrent.in_features == 11
+        assert (branch.branch_recurrent.connection_indices >= 4).all()
+
+
+def test_invalid_travel_history_and_per_level_streams_are_rejected():
+    net = _network()
+    x = torch.rand(2, 3, 1, dtype=torch.float64)
+    _, hidden = net(x, return_hidden=True)
+    codec = PopulationStateCodec(net, hidden)
+    invalid = [hidden[0], hidden[1].clone()]
+    invalid[1].delay_history = None
+    with pytest.raises(ValueError, match="delay history keys differ"):
+        codec.flatten(invalid)
+    with pytest.raises(ValueError, match="delay history"):
+        net(x, invalid)
+    for value in (0, torch.zeros(2, 2), torch.zeros(2, 2, 3)):
+        invalid[1] = hidden[1].clone()
+        invalid[1].delay_history["up.e"] = value
+        with pytest.raises(ValueError, match="invalid delay_history shape"):
+            codec.flatten(invalid)
+    pop = net.layers[1].populations["pyr"]
+    for field in ("recurrent_input", "rec_inhibitory_input"):
+        with pytest.raises(ValueError, match=f"{field} needs one tensor per level"):
+            pop.step(x[:, 0], **{field: (x[:, 0],)})
+
+
 def test_checkpoint_reload_and_compiled_layer_preserve_travel_delays(tmp_path):
     net = _network()
     path = tmp_path / "weights.pt"

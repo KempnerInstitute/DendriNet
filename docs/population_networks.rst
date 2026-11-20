@@ -582,7 +582,9 @@ controls:
 When processing a sequence in chunks, supply the returned hidden state to
 the next call to retain signals in transit. A fresh state starts with zero
 history. Longer delays retain additional source outputs in the receiving
-layer's state. No additional synaptic weights are required.
+layer's state. A projection with ``probability: 0`` keeps its columns in
+the synapse mask but requires no history for that route. No additional
+synaptic weights are required.
 
 Receptor traces (``synapse_types``), the spiking soma (``spike_tau``,
 ``spike_readout_tau``) and dendritic plateaus (``dendritic_spike_plateau_tau``)

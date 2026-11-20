@@ -63,7 +63,11 @@ def plan_delayed_streams(
         )
         if not conn.enabled:
             continue
-        if max(delays) > 1:
+        # A zero-probability source still occupies its input columns, but
+        # its mask is empty at every depth, so no older samples are needed.
+        if conn.probability == 0:
+            delays = (1,) * n
+        elif max(delays) > 1:
             depths = conn.target_depths(n)
             field = f"{conn.pathway}_synapses"
             contacts = resolve_synapses_by_level(
