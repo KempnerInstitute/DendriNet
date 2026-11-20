@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.0
 
 - The installation guides start with the published core and Studio packages
   and show how to run the synthetic tutorial outside a source checkout.

@@ -28,13 +28,13 @@ For the Python library and command-line tools, install the core from PyPI
 in a Python 3.10 or later environment.
 
 ```bash
-python -m pip install dendritic-modeling==0.5.0
+python -m pip install --upgrade dendritic-modeling
 ```
 
 The import name is `dendritic_modeling`. The examples run on a CPU.
 The installation guide covers virtual environments, CPU and CUDA builds
 of PyTorch, optional dependencies and editable installs for contributors.
-[PyPI release](https://pypi.org/project/dendritic-modeling/0.5.0/) ·
+[Core on PyPI](https://pypi.org/project/dendritic-modeling/) ·
 [Installation guide](docs/installation.rst)
 
 ## DendriNet Studio
@@ -47,11 +47,11 @@ to try the editor in a personal CPU session. No account or local installation is
 required. In **Training**, set **Epochs** to `1` and select **Train** to try the
 two-class example. Download your YAML and loss curves before the session expires.
 
-The online preview pairs Studio 0.2.0 with DendriNet 0.6.0. Select a
-population to add another incoming source, or select a recurrent connection
-to set its travel delay at each dendritic depth. The laptop commands below
-install the current PyPI release. To run the preview from this checkout,
-install both packages with `python -m pip install -e . -e ./apps/studio`.
+With Studio 0.2.0 and DendriNet 0.6.x, select a population to add an
+incoming source, or select a delayed connection to set its travel time at
+each dendritic depth. The laptop commands below install the latest
+compatible pair published on PyPI. Check your installed versions with
+`python -m pip show dendrinet-studio dendritic-modeling`.
 
 To keep runs on your own computer, open a terminal on your laptop.
 On an Apple silicon Mac or a Linux laptop with Python 3.10 or later, run

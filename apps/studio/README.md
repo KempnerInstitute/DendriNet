@@ -14,9 +14,10 @@ through a recurrent decision circuit with a feedforward readout. Use **Add
 input source** on a receiving population to connect multiple excitatory
 populations. In **Edit connection → Travel delay**, choose a uniform delay
 or enter whole steps at each depth. The connection inspector shows these
-arrival times beside the compartment response times (τ). This editor uses
-DendriNet 0.6.0. To run this revision locally, install the core and Studio
-together from the checkout with `python -m pip install -e . -e ./apps/studio`.
+arrival times beside the compartment response times (τ). Studio 0.2.0 requires
+DendriNet 0.6.x. Installing Studio from PyPI selects a compatible core
+automatically. Check your versions with
+`python -m pip show dendrinet-studio dendritic-modeling`.
 [Connect populations and mix layer dynamics](https://kempnerinstitute.github.io/DendriNet/studio.html#studio-connect)
 
 ## Open a personal session online

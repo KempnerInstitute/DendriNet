@@ -212,9 +212,10 @@ Use a sequence with enough updates for the longest delay. Signals in transit
 at the end of a sequence are retained when the core's hidden state is carried
 into the next chunk.
 
-Configurable travel delays require Studio 0.2.0 and DendriNet 0.6.0.
-To try them from a checkout containing this feature, install both packages
-with ``python -m pip install -e . -e ./apps/studio``.
+Configurable travel delays are available in Studio 0.2.0 with DendriNet
+0.6.x. Check the installed versions with
+``python -m pip show dendrinet-studio dendritic-modeling``. See
+:ref:`studio-install` for PyPI and source installation instructions.
 
 .. figure:: _static/studio/hybrid.png
    :alt: Two layers with E and I populations. Current-step excitation flows

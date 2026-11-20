@@ -21,7 +21,7 @@ data for one CPU epoch:
 
 .. code-block:: bash
 
-   python -m pip install dendritic-modeling==0.5.0
+   python -m pip install --upgrade dendritic-modeling
    dendritic-example synthetic_population --output demo.yaml
    dendritic-train demo.yaml --epochs 1
 
