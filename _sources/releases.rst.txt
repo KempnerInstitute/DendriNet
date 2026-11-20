@@ -25,11 +25,11 @@ normal installation of Studio can resolve its dependency. Pull requests and
 pushes to ``develop`` build and test the packages without uploading to an
 index. **TestPyPI uploads are publicly downloadable too.**
 
-The examples below use core **0.5.0** and Studio **0.1.0**. Substitute the
-approved versions for a new release. Both example versions are already on
-PyPI. For installation, see :doc:`installation`. For the paper's example
-configurations, data and scripts, see the
+The commands below stage and publish core **0.6.0** and Studio **0.2.0**.
+For the install commands readers should use, see :doc:`installation`.
+The empirical paper's examples and data remain attached to the
 `v0.5.0 release <https://github.com/KempnerInstitute/DendriNet/releases/tag/v0.5.0>`_.
+Its supplement records the versions used for training and for the worked examples.
 
 1. Prepare the release pull request
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -37,7 +37,7 @@ configurations, data and scripts, see the
 * Set the core version in ``pyproject.toml`` and
   ``src/dendritic_modeling/__init__.py``. Set the Studio version in
   ``apps/studio/pyproject.toml`` and ``apps/studio/src/dendrinet_studio/__init__.py``.
-  For this stable pair, use ``dendritic_modeling>=0.5.0,<0.6`` in Studio's
+  For this pair, use ``dendritic_modeling>=0.6.0,<0.7`` in Studio's
   dependencies. Include the release notes in ``CHANGELOG.md``.
 * Push only the reviewed candidate branch and open its PR against ``develop``.
   Review the package contents and any public study examples. The
@@ -49,7 +49,7 @@ configurations, data and scripts, see the
 * Merge after review and passing CI. Record the merge commit from the PR
   and verify the checks on ``develop``. The documentation workflow also
   deploys the Sphinx site to the Pages branch on this push. The hosted page
-  is the Studio manual. The application runs locally. Under **Settings →
+  is the Studio manual. Readers can run the application locally or in the linked personal Binder session. Under **Settings →
   Pages**, verify the publishing source and access for the intended readers.
   Before announcing public documentation, open the
   `Studio guide <https://kempnerinstitute.github.io/DendriNet/studio.html>`_
@@ -58,7 +58,8 @@ configurations, data and scripts, see the
 2. Set up publishing access
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-This one-time setup can be done while the PR is under review.
+Both projects already exist on both indices. Reuse their publishing settings.
+Review the environment restrictions and credentials before staging.
 
 #. Use maintainer accounts on both `PyPI <https://pypi.org/>`_ and
    `TestPyPI <https://test.pypi.org/>`_. The indices use separate accounts.
@@ -100,28 +101,49 @@ after verifying the published files.
 3. Tag the reviewed merge
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-From an authenticated clone, set ``release_commit`` to the merged PR's
-full commit SHA. Verify its ancestry and versions before creating tags. If
-the branch has advanced, keep the reviewed SHA.
+After the PR has merged and checks on ``develop`` pass, open its merge
+commit in GitHub and copy the **full commit SHA**. In an authenticated
+clone, set ``release_commit`` to that SHA. The example below retrieves it
+from PR 404 using the official GitHub CLI. The guard stops if the commit
+is absent from ``origin/develop``. Both tags point to the same commit even
+if another change has since landed on the branch.
 
 .. code-block:: bash
 
-   git fetch origin develop
-   git merge-base --is-ancestor "$release_commit" origin/develop
-   git show "${release_commit}:pyproject.toml"
-   git show "${release_commit}:apps/studio/pyproject.toml"
-   git tag -a v0.5.0 "$release_commit" -m "DendriNet 0.5.0"
-   git tag -a studio-v0.1.0 "$release_commit" -m "DendriNet Studio 0.1.0"
-   git push origin refs/tags/v0.5.0 refs/tags/studio-v0.1.0
+   (
+     set -eu
+     repo=KempnerInstitute/DendriNet
+     release_commit=$(gh pr view 404 --repo "$repo" --json mergeCommit --jq '.mergeCommit.oid // empty')
+     test -n "$release_commit"
+     git fetch origin develop
+     git merge-base --is-ancestor "$release_commit" origin/develop
+     git show "${release_commit}:pyproject.toml" | grep -Fx 'version = "0.6.0"'
+     git show "${release_commit}:apps/studio/pyproject.toml" | grep -Fx 'version = "0.2.0"'
+     git tag -a v0.6.0 "$release_commit" -m "DendriNet 0.6.0"
+     git tag -a studio-v0.2.0 "$release_commit" -m "DendriNet Studio 0.2.0"
+     git push --atomic origin refs/tags/v0.6.0 refs/tags/studio-v0.2.0
+   )
 
-Use a remote configured for authorized pushes. The release check requires
-the tag to match the distribution's declared version and its commit to be
-in the history of ``origin/develop``. Pushing a tag alone does not upload files.
+Use a remote configured for authorized pushes. If a push fails after the
+local tags are created, verify that both resolve to the reviewed commit
+with ``git rev-parse 'v0.6.0^{commit}' 'studio-v0.2.0^{commit}'``. Then
+repeat the push to the authorized remote. Pushing tags alone does not
+upload packages. After the tags appear on GitHub, open the Studio documentation’s
+Binder link and check that the tagged session opens before staging the packages.
+
+For a Studio-only release, bump the version in ``apps/studio/pyproject.toml``
+and ``apps/studio/src/dendrinet_studio/__init__.py`` together. Create only
+the matching ``studio-vX.Y.Z`` tag on the reviewed merge. Run the staging
+and promotion workflows below for ``distribution=studio`` using this tag.
+Install and test the staged Studio wheel with the published compatible core.
+Users with an earlier Studio install can upgrade it with
+``python -m pip install --upgrade dendrinet-studio``.
 
 4. Stage and install both packages from TestPyPI
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Use an authenticated GitHub CLI on your workstation. GitHub registers a
+Use the `official GitHub CLI <https://cli.github.com/>`_ on your workstation.
+Run ``gh --version`` and ``gh auth status`` first. GitHub registers a
 manually dispatched workflow from the repository's default branch, which
 must already contain ``.github/workflows/package.yml``. Pass the **tag**
 as the workflow ref. See the `GitHub manual dispatch guide
@@ -130,10 +152,11 @@ as the workflow ref. See the `GitHub manual dispatch guide
 .. code-block:: bash
 
    repo=KempnerInstitute/DendriNet
-   gh workflow run package.yml --repo "$repo" --ref v0.5.0 \
-     -f distribution=core -f target=testpypi
-   gh workflow run package.yml --repo "$repo" --ref studio-v0.1.0 \
-     -f distribution=studio -f target=testpypi
+   upload_auth=trusted-publisher  # use project-token for environment-scoped tokens
+   gh workflow run package.yml --repo "$repo" --ref v0.6.0 \
+     -f distribution=core -f target=testpypi -f authentication="$upload_auth"
+   gh workflow run package.yml --repo "$repo" --ref studio-v0.2.0 \
+     -f distribution=studio -f target=testpypi -f authentication="$upload_auth"
 
 In GitHub Actions, record the numeric **run ID** from each run's URL
 (``/actions/runs/<ID>``) with its distribution and tag. Wait for both runs,
@@ -148,7 +171,7 @@ dependencies from the production index at installation.
    . .venv/bin/activate
    python -m pip download --index-url https://test.pypi.org/simple/ \
      --only-binary=:all: --no-deps --dest wheels \
-     'dendritic-modeling==0.5.0' 'dendrinet-studio==0.1.0'
+     'dendritic-modeling==0.6.0' 'dendrinet-studio==0.2.0'
    python -m pip install --index-url https://pypi.org/simple/ wheels/*.whl
    python -m pip check
    dendritic-example synthetic_population --output demo.yaml
@@ -164,16 +187,19 @@ explains why dependencies are downloaded separately.
 5. Promote core, then Studio
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Set ``core_stage_id`` and ``studio_stage_id`` to the respective IDs from
-step 4. Run the first command and wait for a successful **publish** job.
-Then run the second and wait for it to succeed.
+In the same shell, set ``core_stage_id`` and ``studio_stage_id`` to the
+numeric run IDs from step 4. Use the authentication configured for the
+production environment. Run the core command first. Wait for the upload
+job to succeed and check the core version on PyPI before starting Studio.
 
 .. code-block:: bash
 
-   gh workflow run package.yml --repo "$repo" --ref v0.5.0 \
-     -f distribution=core -f target=pypi -f staging_run_id="$core_stage_id"
-   gh workflow run package.yml --repo "$repo" --ref studio-v0.1.0 \
-     -f distribution=studio -f target=pypi -f staging_run_id="$studio_stage_id"
+   gh workflow run package.yml --repo "$repo" --ref v0.6.0 \
+     -f distribution=core -f target=pypi -f authentication="$upload_auth" \
+     -f staging_run_id="$core_stage_id"
+   gh workflow run package.yml --repo "$repo" --ref studio-v0.2.0 \
+     -f distribution=studio -f target=pypi -f authentication="$upload_auth" \
+     -f staging_run_id="$studio_stage_id"
 
 For each distribution, CI verifies the staging run's repository, workflow,
 release tag, commit and successful TestPyPI upload job. It downloads the
@@ -186,22 +212,20 @@ To compare the filenames and SHA-256 digests after an upload, run the
 current verifier from a checkout at the release tag with its ``origin/develop``
 ref. It reads package metadata from that commit. Use Python 3.11 or later
 with ``packaging`` installed and the two files downloaded from the build.
-For the original v0.5.0 tag, set ``verifier`` to the absolute path of
-``setup/verify_release.py`` in the current maintainer checkout:
+From the checked-out release tag, run:
 
 .. code-block:: bash
 
-   python "$verifier" core refs/tags/v0.5.0 --staged dist/core --index testpypi
-   python "$verifier" core refs/tags/v0.5.0 --staged dist/core --index pypi
-
-The workflow's project-token option is available on release tags that
-contain the updated workflow.
+   python setup/verify_release.py core refs/tags/v0.6.0 --staged dist/core --index testpypi
+   python setup/verify_release.py core refs/tags/v0.6.0 --staged dist/core --index pypi
+   python setup/verify_release.py studio refs/tags/studio-v0.2.0 --staged dist/studio --index testpypi
+   python setup/verify_release.py studio refs/tags/studio-v0.2.0 --staged dist/studio --index pypi
 
 Finally, in a second empty environment, install only
-``python -m pip install dendrinet-studio==0.1.0``. Run ``python -m pip check``,
+``python -m pip install dendrinet-studio==0.2.0``. Run ``python -m pip check``,
 inspect both installed versions with
 ``python -m pip show dendritic-modeling dendrinet-studio``, and repeat the
-local tutorial. The core-only install is ``python -m pip install dendritic-modeling==0.5.0``.
+local tutorial. The core-only install is ``python -m pip install dendritic-modeling==0.6.0``.
 Link the two PyPI pages and the Studio guide in the release notes. Keep
 research workflows on their recorded versions until their numerical
 comparisons qualify a newer release.

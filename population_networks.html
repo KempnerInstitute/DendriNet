@@ -6,14 +6,14 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Population networks &mdash; DendriNet v0.5.0</title>
+  <title>Population networks &mdash; DendriNet v0.6.0</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
 
   
       <script src="_static/jquery.js?v=5d32c60e"></script>
       <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="_static/documentation_options.js?v=1dd76d02"></script>
+      <script src="_static/documentation_options.js?v=8fa8b3e9"></script>
       <script src="_static/doctools.js?v=fd6eb6e6"></script>
       <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
       <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
@@ -181,7 +181,7 @@ morphology (<code class="docutils literal notranslate"><span class="pre">branch_
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">layers[].connections[]</span></code></dt><dd><p>Directed records from a source (the network input, a population of the same
 layer or a population of another layer) to a population of the layer, read
-either in the same timestep or from the previous timestep.</p>
+either in the same timestep or after a configured number of updates.</p>
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">layers[].population_defaults</span></code> and <code class="docutils literal notranslate"><span class="pre">layers[].populations[].population</span></code></dt><dd><p>Population options: synapse counts, integration rule, reactivation gates,
 sparse synapse type, time constants and temporal dynamics.</p>
@@ -231,7 +231,7 @@ examples use, not the defaults.</span><a class="headerlink" href="#id3" title="L
 <section id="how-a-layer-computes">
 <h3>How a layer computes<a class="headerlink" href="#how-a-layer-computes" title="Link to this heading"></a></h3>
 <p>Each population has up to four input streams: the same-step streams
-<code class="docutils literal notranslate"><span class="pre">ff_excitatory</span></code> and <code class="docutils literal notranslate"><span class="pre">ff_inhibitory</span></code>, and the delayed (previous-timestep)
+<code class="docutils literal notranslate"><span class="pre">ff_excitatory</span></code> and <code class="docutils literal notranslate"><span class="pre">ff_inhibitory</span></code>, and the delayed
 streams <code class="docutils literal notranslate"><span class="pre">rec_excitatory</span></code> and <code class="docutils literal notranslate"><span class="pre">rec_inhibitory</span></code>. A connection adds its source
 to one stream of its target: the network input and excitatory populations
 enter an excitatory stream, inhibitory populations an inhibitory stream. The
@@ -329,7 +329,17 @@ another layer.</p></td>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">timing</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">same_step</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">same_step</span></code> reads the source in the current timestep; <code class="docutils literal notranslate"><span class="pre">delayed</span></code>
-reads its output from the previous timestep.</p></td>
+reads an earlier output (one update earlier by default).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">delay_steps</span></code></p></td>
+<td><p>0 for same-step, 1 for delayed</p></td>
+<td><p>Integer travel delay shared by the contacted depths. A delayed
+projection requires at least one update.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">delay_steps_by_level</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">null</span></code></p></td>
+<td><p>Alternative to <code class="docutils literal notranslate"><span class="pre">delay_steps</span></code> for a delayed projection. Supply one
+positive integer per depth, from the most distal level to the soma.</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">pathway</span></code></p></td>
 <td><p>from the source</p></td>
@@ -436,7 +446,7 @@ non-normalized data.</p>
 <p>A source of the form <code class="docutils literal notranslate"><span class="pre">layer_name.population_name</span></code> (a qualified source) reads
 a population of another layer. Same-step qualified sources must come from
 earlier layers. Delayed qualified sources may come from any other layer,
-including later layers, and read that population’s previous-timestep output;
+including later layers, and read that population’s output at the specified lag;
 the target layer must set <code class="docutils literal notranslate"><span class="pre">recurrent:</span> <span class="pre">true</span></code>. A qualified source that names
 its own layer raises; use the plain population name instead.</p>
 <p>In this excerpt of <code class="docutils literal notranslate"><span class="pre">model.core.population_network</span></code>, the second layer reads
@@ -468,9 +478,9 @@ both populations of the first layer instead of only its readout population:</p>
 <p>Same-step connections between populations of a layer must form a directed
 acyclic graph; a cycle such as <code class="docutils literal notranslate"><span class="pre">i</span> <span class="pre">-&gt;</span> <span class="pre">e</span></code> together with <code class="docutils literal notranslate"><span class="pre">e</span> <span class="pre">-&gt;</span> <span class="pre">i</span></code> raises when
 the configuration loads. Delayed connections (<code class="docutils literal notranslate"><span class="pre">timing:</span> <span class="pre">delayed</span></code>) read the
-source’s output from the previous timestep, so they may form cycles, including
+source’s output from an earlier timestep, so they may form cycles, including
 a population connected to itself. They require <code class="docutils literal notranslate"><span class="pre">recurrent:</span> <span class="pre">true</span></code> on the
-layer, and at the first timestep they read zeros. Mutual E/I interaction is
+layer. A source sample preceding the start of the sequence is zero. Mutual E/I interaction is
 therefore written as one same-step direction and one delayed direction, or as
 two delayed connections.</p>
 </section>
@@ -688,7 +698,8 @@ directly, and the time constants have no effect. Timing has these independent
 controls:</p>
 <dl class="simple">
 <dt><code class="docutils literal notranslate"><span class="pre">model.core.population_network.layers[].dt</span></code></dt><dd><p>The integration step <span class="math notranslate nohighlight">\(\Delta t\)</span> of every population in the layer
-(default 1.0). A delayed connection always reads the previous step.</p>
+(default 1.0). All layers advance once per network update. Travel
+delays count these updates; <code class="docutils literal notranslate"><span class="pre">dt</span></code> sets the target layer’s time scale.</p>
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">tau_base</span></code> and <code class="docutils literal notranslate"><span class="pre">tau_ratio</span></code></dt><dd><p>Per-level time constants when <code class="docutils literal notranslate"><span class="pre">level_taus</span></code> is empty:
 <span class="math notranslate nohighlight">\(\tau_l = \tau_{\text{base}}\, r^{\,n - 1 - l}\)</span> for levels
@@ -703,10 +714,22 @@ length must equal the number of levels (<code class="docutils literal notranslat
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">learnable_tau</span></code></dt><dd><p>Learns one time constant per level, stored as its logarithm.</p>
 </dd>
-<dt><code class="docutils literal notranslate"><span class="pre">connections[].timing</span></code></dt><dd><p><code class="docutils literal notranslate"><span class="pre">delayed</span></code> connections read the source output of the previous step;
-<code class="docutils literal notranslate"><span class="pre">same_step</span></code> connections read the current step.</p>
+<dt><code class="docutils literal notranslate"><span class="pre">connections[].delay_steps</span></code> and <code class="docutils literal notranslate"><span class="pre">delay_steps_by_level</span></code></dt><dd><p>Travel delay selects the source sample before the receiving compartment
+filters it. In a tree with two dendritic depths, a delayed projection
+with <code class="docutils literal notranslate"><span class="pre">delay_steps_by_level:</span> <span class="pre">[3,</span> <span class="pre">2,</span> <span class="pre">1]</span></code> delivers the same source pulse
+to the soma one update later, to primary branches two updates later,
+and to distal branches three updates later. Each source can have its own
+delay even when several share an excitatory or inhibitory contact budget.
+<code class="docutils literal notranslate"><span class="pre">target_levels</span></code> still determines which depths have eligible contacts.
+A uniform delay of one is the default. A same-step projection has zero delay.</p>
 </dd>
 </dl>
+<p>When processing a sequence in chunks, supply the returned hidden state to
+the next call to retain signals in transit. A fresh state starts with zero
+history. Longer delays retain additional source outputs in the receiving
+layer’s state. A projection with <code class="docutils literal notranslate"><span class="pre">probability:</span> <span class="pre">0</span></code> keeps its columns in
+the synapse mask but requires no history for that route. No additional
+synaptic weights are required.</p>
 <p>Receptor traces (<code class="docutils literal notranslate"><span class="pre">synapse_types</span></code>), the spiking soma (<code class="docutils literal notranslate"><span class="pre">spike_tau</span></code>,
 <code class="docutils literal notranslate"><span class="pre">spike_readout_tau</span></code>) and dendritic plateaus (<code class="docutils literal notranslate"><span class="pre">dendritic_spike_plateau_tau</span></code>)
 have their own time constants, which use the same <code class="docutils literal notranslate"><span class="pre">dt</span></code>; see

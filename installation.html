@@ -6,14 +6,14 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Installation &mdash; DendriNet v0.5.0</title>
+  <title>Installation &mdash; DendriNet v0.6.0</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
 
   
       <script src="_static/jquery.js?v=5d32c60e"></script>
       <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="_static/documentation_options.js?v=1dd76d02"></script>
+      <script src="_static/documentation_options.js?v=8fa8b3e9"></script>
       <script src="_static/doctools.js?v=fd6eb6e6"></script>
       <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/js/theme.js"></script>
@@ -149,21 +149,26 @@ kernels of indexed synapses need one.</p>
 <p>On Windows PowerShell, use <code class="docutils literal notranslate"><span class="pre">py</span> <span class="pre">-m</span> <span class="pre">venv</span> <span class="pre">.venv</span></code> and run
 <code class="docutils literal notranslate"><span class="pre">.\.venv\Scripts\Activate.ps1</span></code>. In the activated environment, install
 the released core package:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>dendritic-modeling<span class="o">==</span><span class="m">0</span>.5.0
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--upgrade<span class="w"> </span>dendritic-modeling
 python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>check
 </pre></div>
 </div>
 <p>The Python import name is <code class="docutils literal notranslate"><span class="pre">dendritic_modeling</span></code>. For a graphical editor,
-install <code class="docutils literal notranslate"><span class="pre">dendrinet-studio==0.1.0</span></code> and launch it locally:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>dendrinet-studio<span class="o">==</span><span class="m">0</span>.1.0
+install <code class="docutils literal notranslate"><span class="pre">dendrinet-studio</span></code> and launch it locally:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--upgrade<span class="w"> </span>dendrinet-studio
 dendrinet-studio<span class="w"> </span>--workspace<span class="w"> </span>my-runs
 </pre></div>
 </div>
-<p>Installing Studio on its own also installs a compatible core (0.5.x).
-See <a class="reference internal" href="studio.html#studio-first-run"><span class="std std-ref">Train your first network</span></a> to train a synthetic network in the browser.
+<p>Pip selects a compatible core when you install Studio. Studio 0.2.0 uses
+core 0.6.x and supports per-depth travel delays. Studio 0.1.0 uses core
+0.5.x. To check which pair you have, run
+<code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">pip</span> <span class="pre">show</span> <span class="pre">dendrinet-studio</span> <span class="pre">dendritic-modeling</span></code>.
+See <a class="reference internal" href="studio.html#studio-first-run"><span class="std std-ref">Train your first network</span></a> to train a synthetic network in the browser or
+<a class="reference internal" href="studio.html#studio-cluster-gpu"><span class="std std-ref">Train on a cluster GPU</span></a> to use an allocated GPU from Open OnDemand, Cursor
+or SSH.
 The published files are on the
-<a class="reference external" href="https://pypi.org/project/dendritic-modeling/0.5.0/">core PyPI page</a> and the
-<a class="reference external" href="https://pypi.org/project/dendrinet-studio/0.1.0/">Studio PyPI page</a>.</p>
+<a class="reference external" href="https://pypi.org/project/dendritic-modeling/">core PyPI page</a> and the
+<a class="reference external" href="https://pypi.org/project/dendrinet-studio/">Studio PyPI page</a>.</p>
 <p>Pip resolves PyTorch and torchvision as dependencies. To select Linux
 CPU-only wheels or a particular CUDA build, install a compatible torch and
 torchvision pair in the same environment first, using the

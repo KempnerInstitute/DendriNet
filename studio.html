@@ -6,14 +6,14 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>DendriNet Studio &mdash; DendriNet v0.5.0</title>
+  <title>DendriNet Studio &mdash; DendriNet v0.6.0</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
 
   
       <script src="_static/jquery.js?v=5d32c60e"></script>
       <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="_static/documentation_options.js?v=1dd76d02"></script>
+      <script src="_static/documentation_options.js?v=8fa8b3e9"></script>
       <script src="_static/doctools.js?v=fd6eb6e6"></script>
       <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/js/theme.js"></script>
@@ -48,9 +48,14 @@
 <li class="toctree-l1"><a class="reference internal" href="releases.html">Preparing a public release</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">DendriNet Studio</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#install-and-start">Install and start</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#train-on-a-cluster-gpu">Train on a cluster GPU</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#train-your-first-network">Train your first network</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#connect-populations-and-mix-layer-dynamics">Connect populations and mix layer dynamics</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#trace-excitation-and-inhibition-into-a-neuron">Trace excitation and inhibition into a neuron</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#what-studio-supports">What Studio supports</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#what-studio-supports">What Studio supports</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#contextual-remapping-on-emnist">Contextual remapping on EMNIST</a></li>
+</ul>
+</li>
 <li class="toctree-l2"><a class="reference internal" href="#working-in-studio">Working in Studio</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#model-checks-previews-and-runs">Model checks, previews and runs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#troubleshooting">Troubleshooting</a></li>
@@ -139,22 +144,36 @@
   <section id="dendrinet-studio">
 <span id="studio"></span><h1>DendriNet Studio<a class="headerlink" href="#dendrinet-studio" title="Link to this heading"></a></h1>
 <p>DendriNet Studio lets you draw a network, inspect the inputs to a neuron,
-train the model and compare runs in a browser on your computer. The editor
+train the model and compare runs in a browser. The editor
 and the command line use the same experiment YAML and the same DendriNet
 model builders and trainer. You can move a design between them at any point.</p>
+<p><strong>Try it online.</strong> <a class="reference external" href="https://mybinder.org/v2/gh/KempnerInstitute/DendriNet/studio-v0.2.0?urlpath=open-studio">Open DendriNet Studio 0.2.0</a>
+to start a personal CPU session in your browser. Binder builds the environment
+on the first visit to a new revision. Once the editor opens, the two-class
+example is ready. Set <strong>Training → Epochs</strong> to <code class="docutils literal notranslate"><span class="pre">1</span></code>, then choose <strong>Train</strong>.
+The example generates its own data.</p>
+<p>Use <strong>YAML → Export</strong> to save the configuration. In <strong>Runs</strong>, select your
+completed run and choose <strong>Curves (CSV)</strong> to save the training and validation
+history. Binder reclaims idle sessions and their workspace. For longer runs
+and persistent results, follow the local installation instructions below.
+The online link uses the Studio release tag, so each visitor starts with the same
+software and tutorial. Before the tag is available, the <strong>Try it</strong> link in
+<a class="reference external" href="https://github.com/KempnerInstitute/DendriNet/pull/404">PR #404</a> opens the review version.</p>
 <nav class="contents local" id="on-this-page">
 <p class="topic-title">On this page</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="#install-and-start" id="id6">Install and start</a></p></li>
-<li><p><a class="reference internal" href="#train-your-first-network" id="id7">Train your first network</a></p></li>
-<li><p><a class="reference internal" href="#trace-excitation-and-inhibition-into-a-neuron" id="id8">Trace excitation and inhibition into a neuron</a></p></li>
-<li><p><a class="reference internal" href="#what-studio-supports" id="id9">What Studio supports</a></p></li>
-<li><p><a class="reference internal" href="#working-in-studio" id="id10">Working in Studio</a></p></li>
-<li><p><a class="reference internal" href="#model-checks-previews-and-runs" id="id11">Model checks, previews and runs</a></p></li>
-<li><p><a class="reference internal" href="#troubleshooting" id="id12">Troubleshooting</a></p></li>
-<li><p><a class="reference internal" href="#privacy-and-security" id="id13">Privacy and security</a></p></li>
-<li><p><a class="reference internal" href="#accessibility" id="id14">Accessibility</a></p></li>
-<li><p><a class="reference internal" href="#for-developers" id="id15">For developers</a></p></li>
+<li><p><a class="reference internal" href="#install-and-start" id="id7">Install and start</a></p></li>
+<li><p><a class="reference internal" href="#train-on-a-cluster-gpu" id="id8">Train on a cluster GPU</a></p></li>
+<li><p><a class="reference internal" href="#train-your-first-network" id="id9">Train your first network</a></p></li>
+<li><p><a class="reference internal" href="#connect-populations-and-mix-layer-dynamics" id="id10">Connect populations and mix layer dynamics</a></p></li>
+<li><p><a class="reference internal" href="#trace-excitation-and-inhibition-into-a-neuron" id="id11">Trace excitation and inhibition into a neuron</a></p></li>
+<li><p><a class="reference internal" href="#what-studio-supports" id="id12">What Studio supports</a></p></li>
+<li><p><a class="reference internal" href="#working-in-studio" id="id13">Working in Studio</a></p></li>
+<li><p><a class="reference internal" href="#model-checks-previews-and-runs" id="id14">Model checks, previews and runs</a></p></li>
+<li><p><a class="reference internal" href="#troubleshooting" id="id15">Troubleshooting</a></p></li>
+<li><p><a class="reference internal" href="#privacy-and-security" id="id16">Privacy and security</a></p></li>
+<li><p><a class="reference internal" href="#accessibility" id="id17">Accessibility</a></p></li>
+<li><p><a class="reference internal" href="#for-developers" id="id18">For developers</a></p></li>
 </ul>
 </nav>
 <figure class="align-default" id="id1">
@@ -168,10 +187,10 @@ compartment tree with its contacts per compartment.</span><a class="headerlink" 
 </figcaption>
 </figure>
 <section id="install-and-start">
-<span id="studio-install"></span><h2><a class="toc-backref" href="#id6" role="doc-backlink">Install and start</a><a class="headerlink" href="#install-and-start" title="Link to this heading"></a></h2>
+<span id="studio-install"></span><h2><a class="toc-backref" href="#id7" role="doc-backlink">Install and start</a><a class="headerlink" href="#install-and-start" title="Link to this heading"></a></h2>
 <p>In a fresh Python 3.10 or later environment on your computer, install Studio
 from PyPI. Pip installs the compatible core library and PyTorch.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>dendrinet-studio<span class="o">==</span><span class="m">0</span>.1.0
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--upgrade<span class="w"> </span>dendrinet-studio
 dendrinet-studio<span class="w"> </span>--workspace<span class="w"> </span>my-runs
 </pre></div>
 </div>
@@ -218,21 +237,76 @@ front of the local port. Repeatable.</p></td>
 </tr>
 </tbody>
 </table>
-<p>On a remote machine (a workstation or a cluster compute node), start Studio
-with <code class="docutils literal notranslate"><span class="pre">--no-browser</span></code>, forward its port from your computer and open the
-printed address locally:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># on the remote machine</span>
-dendrinet-studio<span class="w"> </span>--workspace<span class="w"> </span>~/studio-runs<span class="w"> </span>--no-browser
-<span class="c1"># on your computer</span>
-ssh<span class="w"> </span>-L<span class="w"> </span><span class="m">8765</span>:127.0.0.1:8765<span class="w"> </span>user@remote-host
+</section>
+<section id="train-on-a-cluster-gpu">
+<span id="studio-cluster-gpu"></span><h2><a class="toc-backref" href="#id8" role="doc-backlink">Train on a cluster GPU</a><a class="headerlink" href="#train-on-a-cluster-gpu" title="Link to this heading"></a></h2>
+<p>Studio trains on the machine where you start the server. To use a cluster
+GPU, start Studio inside a GPU allocation and open the editor from your
+browser. The public Binder demo runs on a CPU.</p>
+<p><strong>1. Open a terminal on an allocated GPU node.</strong> If you already have a GPU
+session, use its terminal. Otherwise, choose one of these routes.</p>
+<ul>
+<li><p><strong>Browser only.</strong> In Open OnDemand, choose <strong>Interactive Apps → Remote
+Desktop</strong> and request one GPU on your lab’s partition and account. For a
+small example, four CPU cores, 16 GB of host memory and one hour are
+sufficient. Launch the desktop and open a terminal inside it. On Harvard’s
+Cannon cluster, connect to the FASRC VPN first. The <code class="docutils literal notranslate"><span class="pre">kempner_interactive</span></code>
+partition provides 20 GB A100 slices. See the
+<a class="reference external" href="https://docs.rc.fas.harvard.edu/kb/vdi-apps/">FASRC Remote Desktop guide</a>
+and the <a class="reference external" href="https://handbook.eng.kempnerinstitute.harvard.edu/s1_high_performance_computing/general_hpc_concepts/understanding_slurm.html">Kempner partition guide</a>.</p></li>
+<li><p><strong>Slurm terminal.</strong> From a login shell, run the following command with
+your GPU partition and billing account in place of <code class="docutils literal notranslate"><span class="pre">PARTITION</span></code> and
+<code class="docutils literal notranslate"><span class="pre">ACCOUNT</span></code>. Once the allocation starts, <code class="docutils literal notranslate"><span class="pre">hostname</span></code> gives you the
+compute node to use for port forwarding.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>srun<span class="w"> </span>--partition<span class="o">=</span>PARTITION<span class="w"> </span>--account<span class="o">=</span>ACCOUNT<span class="w"> </span>--nodes<span class="o">=</span><span class="m">1</span><span class="w"> </span>--ntasks<span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--gres<span class="o">=</span>gpu:1<span class="w"> </span>--cpus-per-task<span class="o">=</span><span class="m">4</span><span class="w"> </span>--mem<span class="o">=</span>16G<span class="w"> </span>--time<span class="o">=</span><span class="m">01</span>:00:00<span class="w"> </span>--pty<span class="w"> </span>bash<span class="w"> </span>-l
 </pre></div>
 </div>
-<p>Use the actual port printed by Studio on both sides of the tunnel. If a
-scheduler assigned a compute node, the tunnel must reach the machine running
-Studio. A new session prints a new token.</p>
+</li>
+</ul>
+<p><strong>2. Start Studio on the compute node.</strong> Activate a Python environment with
+a CUDA-enabled PyTorch build (see <a class="reference internal" href="installation.html"><span class="doc">Installation</span></a>). Install Studio once
+in that environment. From a writable shared directory where you want to keep
+your runs, check that PyTorch can see the allocated device, then start Studio.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>dendrinet-studio
+python<span class="w"> </span>-c<span class="w"> </span><span class="s2">"import torch; print(torch.cuda.get_device_name(0))"</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>dendrinet-studio<span class="w"> </span>--no-browser<span class="w"> </span>--threads<span class="w"> </span><span class="m">4</span><span class="w"> </span>--workspace<span class="w"> </span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">/studio-runs"</span>
+</pre></div>
+</div>
+<p>If the check fails, verify the GPU allocation and the PyTorch installation
+in that shell. Keep the Studio process running while you use the editor.</p>
+<p><strong>3. Open the editor.</strong> Use the full printed URL, including the session
+token after <code class="docutils literal notranslate"><span class="pre">#</span></code>.</p>
+<ul>
+<li><p><strong>Open OnDemand.</strong> Paste the URL into the browser <strong>inside the remote
+desktop</strong>. This route needs no SSH tunnel.</p></li>
+<li><p><strong>Cursor or VS Code.</strong> Connect the editor’s remote window to the
+<strong>allocated compute node</strong>. In the <strong>Ports</strong> panel, choose <strong>Forward a
+Port</strong> and enter Studio’s printed port. Open the forwarded local address
+in your laptop browser and append the printed <code class="docutils literal notranslate"><span class="pre">#</span></code> and token. If the
+editor assigned a different local port, use the one shown in <strong>Ports</strong>.</p></li>
+<li><p><strong>SSH.</strong> From your laptop, the example below forwards port 8765 through
+a login host to Studio on the compute host. Substitute your SSH username,
+the two hostnames and the port Studio printed. Then open that URL in your
+laptop browser. For a directly accessible workstation, omit
+<code class="docutils literal notranslate"><span class="pre">-J</span> <span class="pre">user&#64;login-host</span></code> and use the workstation as the destination.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>-N<span class="w"> </span>-o<span class="w"> </span><span class="nv">ExitOnForwardFailure</span><span class="o">=</span>yes<span class="w"> </span>-J<span class="w"> </span>user@login-host<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-L<span class="w"> </span><span class="m">127</span>.0.0.1:8765:127.0.0.1:8765<span class="w"> </span>user@compute-host
+</pre></div>
+</div>
+</li>
+</ul>
+<p><strong>4. Train and verify the device.</strong> Choose <strong>GPU if available</strong> beside
+<strong>Train</strong>. Studio uses CPU by default, and a GPU request also falls back to
+CPU if PyTorch cannot see CUDA. After training, open <code class="docutils literal notranslate"><span class="pre">model_resources.json</span></code>
+under the run’s <code class="docutils literal notranslate"><span class="pre">results</span></code> directory. A GPU run records <code class="docutils literal notranslate"><span class="pre">runtime_device</span></code>
+as <code class="docutils literal notranslate"><span class="pre">cuda</span></code> and gives the GPU model in <code class="docutils literal notranslate"><span class="pre">cuda_device_name</span></code>. The
+<code class="docutils literal notranslate"><span class="pre">device</span></code> field in <code class="docutils literal notranslate"><span class="pre">studio_run.json</span></code> records the requested mode
+(<code class="docutils literal notranslate"><span class="pre">auto</span></code> or <code class="docutils literal notranslate"><span class="pre">cpu</span></code>). You can select <strong>CPU</strong> for the next run in the same
+session. Stop Studio with Ctrl+C and end the allocation when you finish.</p>
 </section>
 <section id="train-your-first-network">
-<span id="studio-first-run"></span><h2><a class="toc-backref" href="#id7" role="doc-backlink">Train your first network</a><a class="headerlink" href="#train-your-first-network" title="Link to this heading"></a></h2>
+<span id="studio-first-run"></span><h2><a class="toc-backref" href="#id9" role="doc-backlink">Train your first network</a><a class="headerlink" href="#train-your-first-network" title="Link to this heading"></a></h2>
 <ol class="arabic simple">
 <li><p>In <strong>Model</strong>, open the two-class population example under <strong>Start from</strong>
 (<code class="docutils literal notranslate"><span class="pre">synthetic_population.yaml</span></code>). It generates its own data. Select
@@ -256,16 +330,113 @@ as <code class="docutils literal notranslate"><span class="pre">demo.yaml</span>
 directly, use <code class="docutils literal notranslate"><span class="pre">dendritic-example</span> <span class="pre">synthetic_population</span> <span class="pre">--output</span> <span class="pre">original.yaml</span></code>.</p></li>
 </ol>
 </section>
+<section id="connect-populations-and-mix-layer-dynamics">
+<span id="studio-connect"></span><h2><a class="toc-backref" href="#id10" role="doc-backlink">Connect populations and mix layer dynamics</a><a class="headerlink" href="#connect-populations-and-mix-layer-dynamics" title="Link to this heading"></a></h2>
+<p>The population editor in Studio 0.2.0 can put feedforward and recurrent
+layers in the same design. E and I identify the sign of a population’s
+outgoing synapses. Timing identifies which source activity its target uses.</p>
+<ol class="arabic simple">
+<li><p>Open the <strong>Recurrent decision population network</strong> example in <strong>Model</strong>.
+Choose <strong>Layer</strong>, name the new layer <code class="docutils literal notranslate"><span class="pre">readout</span></code>, choose <strong>Feedforward</strong>,
+and select <strong>Add layer</strong>. The new populations receive the current output
+of the first layer. An explicitly selected decoder layer stays selected.</p></li>
+<li><p>Select the inhibitory population <code class="docutils literal notranslate"><span class="pre">readout.pv</span></code> on the diagram. Choose
+<strong>Connect from this population</strong>, then select <code class="docutils literal notranslate"><span class="pre">circuit.pyr</span></code> on the
+diagram. The editor proposes <strong>Delayed</strong> for this feedback path.
+Check the source, destination and inhibitory sign and choose <strong>Add
+connection</strong>. The same operation is available through <strong>Connect</strong> on
+the diagram toolbar, using menus for both populations.</p></li>
+<li><p>Expand <strong>connections</strong> under the receiving layer or select the line in
+the diagram to inspect the route. The inhibitory line ends in a bar.
+Dashes indicate a delayed route. The label gives its travel time in steps
+(Δt for one step, a range for times that differ by depth). Use <strong>Edit connection</strong> to
+rewire it or the inspector to set its probability and target depths.
+Synapse counts belong to the receiving population and are shared by
+sources on the same pathway. The editor asks for a positive budget
+when its eligible depths have zero contacts. On a depth-restricted
+route, this sets the budget only at the selected depths.
+When a biological model receives both signs from external input, choose
+matched afferent populations or separate channel groups in the editor.</p></li>
+<li><p>Open <strong>YAML</strong> to see the route under <code class="docutils literal notranslate"><span class="pre">circuit.connections</span></code>, with source
+<code class="docutils literal notranslate"><span class="pre">readout.pv</span></code>, target <code class="docutils literal notranslate"><span class="pre">pyr</span></code> and <code class="docutils literal notranslate"><span class="pre">timing:</span> <span class="pre">delayed</span></code>. Choose <strong>Check
+model</strong> to construct it, or <strong>Train</strong> to run the sequence task.</p></li>
+</ol>
+<p><strong>Same step</strong> uses current activity. Its source may be the layer input, a
+population in an earlier layer, or a local population if the route keeps
+same-step wiring acyclic. <strong>Delayed</strong> uses an earlier population output,
+one update earlier by default. It supports self-connections, loops within a layer and
+feedback from a later layer. Adding one enables recurrence on the receiving
+layer. A recurrent layer can receive both kinds of input. A feedforward
+layer can supply delayed activity to another layer.</p>
+<p>When copying a layer, Studio adds local inhibition only if the receiving E
+population has eligible inhibitory contacts. You can add an inhibitory
+route and set its budget later with <strong>Add input source</strong>. A layer that steps
+through time requires <code class="docutils literal notranslate"><span class="pre">autograd_credit_mode:</span> <span class="pre">exact</span></code> for every population,
+including settings inherited from layer defaults. Studio checks this before
+it saves the design.</p>
+<p>To combine excitation from two populations, select the receiving population
+and choose <strong>Add input source</strong>. Choose <strong>Same step</strong> and select the source
+by name. Repeat for the second source. For example, <code class="docutils literal notranslate"><span class="pre">layer0.e</span></code> and
+<code class="docutils literal notranslate"><span class="pre">layer0.e2</span></code> can both supply <code class="docutils literal notranslate"><span class="pre">layer1.e</span></code> with recurrence off.
+<strong>Previous readout</strong> selects only the previous layer’s designated readout.
+The neuron’s <strong>Synapse sources per neuron</strong> table lists the two named
+sources together. A budget of four excitatory contacts per compartment
+selects four across both source pools; the split can vary among compartments.</p>
+<p>To connect at just one depth, select the connection, open <strong>Placement</strong>,
+turn off <strong>All levels of the target</strong>, and leave only the desired depth
+checked. Depth 0 is the soma. For a pathway with restricted target levels,
+each receiving depth with a positive contact count needs at least one enabled
+source with a positive connection probability. If changing a route would leave
+a depth without a source, Studio identifies the population, pathway and depth.
+Connect another source there first, or set the count to zero under
+<strong>Synapses per compartment → Set counts per level</strong>. <strong>Use one count for all
+levels</strong> restores the population’s uniform counts. You can then override an
+individual depth; Undo reverses the two edits separately.</p>
+<p>Select a recurrent connection to see its source delay and the response
+time constant (τ) at each depth it contacts. To edit those times, select
+<strong>Edit receiving population</strong>, then <strong>Time constants</strong>. In the decision
+example, the soma, primary branches and distal branches of <code class="docutils literal notranslate"><span class="pre">circuit.pyr</span></code>
+have response times of 10, 20 and 40 model time units. Larger values
+smooth the input over more time. Editing a row writes <code class="docutils literal notranslate"><span class="pre">level_taus</span></code> in
+the core’s distal-to-soma order. <strong>Use base and ratio</strong> restores the
+geometric progression. <strong>Learn one time constant per depth</strong> shows the
+values that training starts from. For a uniform response time, use
+<strong>Use base and ratio</strong> and set <strong>Ratio per outward depth</strong> to 1.</p>
+<p>To change when a signal arrives, open <strong>Edit connection → Travel delay</strong>.
+Choose one whole number of steps for the projection, or select <strong>Set delay
+by depth</strong>. For example, enter 1 at the soma, 2 at the primary branches and
+3 at the distal branches. A signal emitted on update 0 then arrives on
+updates 1, 2 and 3. Select the finished connection to see travel steps and
+response τ side by side. Each projection has its own travel settings;
+all projections into a receiving depth share its compartment time constant.
+If you add a dendritic depth, its explicit travel delay starts at one step.
+The layer’s <strong>Time step dt</strong> sets the target’s integration time per update.
+Use a sequence with enough updates for the longest delay. Signals in transit
+at the end of a sequence are retained when the core’s hidden state is carried
+into the next chunk.</p>
+<p>Configurable travel delays are available in Studio 0.2.0 with DendriNet
+0.6.x. Check the installed versions with
+<code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">pip</span> <span class="pre">show</span> <span class="pre">dendrinet-studio</span> <span class="pre">dendritic-modeling</span></code>. See
+<a class="reference internal" href="#studio-install"><span class="std std-ref">Install and start</span></a> for PyPI and source installation instructions.</p>
+<figure class="align-default" id="id2">
+<a class="reference internal image-reference" href="_images/hybrid.png"><img alt="Two layers with E and I populations. Current-step excitation flows from the decision circuit into the readout layer. A dashed return path ends in an inhibitory bar on the circuit's excitatory cells." src="_images/hybrid.png" style="width: 100%;" />
+</a>
+<figcaption>
+<p><span class="caption-text">The feedback circuit from the example above. Select a line or its entry
+in the receiving layer’s connection list to see its source and timing.</span><a class="headerlink" href="#id2" title="Link to this image"></a></p>
+</figcaption>
+</figure>
+</section>
 <section id="trace-excitation-and-inhibition-into-a-neuron">
-<span id="studio-afferents"></span><h2><a class="toc-backref" href="#id8" role="doc-backlink">Trace excitation and inhibition into a neuron</a><a class="headerlink" href="#trace-excitation-and-inhibition-into-a-neuron" title="Link to this heading"></a></h2>
+<span id="studio-afferents"></span><h2><a class="toc-backref" href="#id11" role="doc-backlink">Trace excitation and inhibition into a neuron</a><a class="headerlink" href="#trace-excitation-and-inhibition-into-a-neuron" title="Link to this heading"></a></h2>
 <p>Select a first-layer population in <strong>Model</strong>. Its polarity describes the
 synapses it <em>sends</em>. <strong>Synapse sources per neuron</strong> shows the inputs it
 <em>receives</em>. In the two-class tutorial, external excitation drives both
 populations. The excitatory neurons receive their inhibitory contacts from
 the local inhibitory neurons. In a design with direct external inhibition,
 the table names the external inhibitory stream instead.</p>
-<table class="docutils align-default" id="id2">
-<caption><span class="caption-text">First-layer inputs in a population network</span><a class="headerlink" href="#id2" title="Link to this table"></a></caption>
+<table class="docutils align-default" id="id3">
+<caption><span class="caption-text">First-layer inputs in a population network</span><a class="headerlink" href="#id3" title="Link to this table"></a></caption>
 <colgroup>
 <col style="width: 35.0%" />
 <col style="width: 65.0%" />
@@ -306,7 +477,7 @@ readout. See <a class="reference internal" href="population_networks.html"><span
 Depth 0 is the soma. The level table gives the count on one compartment.
 The source table sums the budget over one neuron. Two sources on the same
 pathway share that budget. Enabling an additional source does not double it.</p>
-<figure class="align-default" id="id3">
+<figure class="align-default" id="id4">
 <a class="reference internal image-reference" href="_images/synapse_sources.png"><img alt="Source table for one neuron with 4,800 contacts from external input E and 1,200 from external input I, both at dendritic depths 1 through 4." src="_images/synapse_sources.png" style="width: 351px;" />
 </a>
 <figcaption>
@@ -315,7 +486,7 @@ pathway share that budget. Enabling an additional source does not double it.</p>
 neuron. Both external populations carry matched features. To inspect this
 design from the repository, import
 <code class="docutils literal notranslate"><span class="pre">projects/empirical/configs/cifar_primary_shunting.yaml</span></code> in the YAML view.
-The study’s README gives the library version used for its published runs.</span><a class="headerlink" href="#id3" title="Link to this image"></a></p>
+The study’s README gives the library version used for its published runs.</span><a class="headerlink" href="#id4" title="Link to this image"></a></p>
 </figcaption>
 </figure>
 <p>For structured feedforward E/I cores, <strong>First-layer feedforward sources</strong>
@@ -326,7 +497,7 @@ cells can receive the external I stream directly. Change counts under
 channel identity under <strong>Transfer</strong>.</p>
 </section>
 <section id="what-studio-supports">
-<h2><a class="toc-backref" href="#id9" role="doc-backlink">What Studio supports</a><a class="headerlink" href="#what-studio-supports" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id12" role="doc-backlink">What Studio supports</a><a class="headerlink" href="#what-studio-supports" title="Link to this heading"></a></h2>
 <table class="docutils align-default">
 <colgroup>
 <col style="width: 30.0%" />
@@ -345,7 +516,7 @@ compartment for each pathway (one count or one per level), contacts on
 the soma, the integration rule (shunting or the additive rules), leak,
 dendritic gates, initialization, time constants and every other
 population option; connections between populations with their timing
-(same step or delayed by one step), pathway, target levels,
+(same step or delayed, including by depth), pathway, target levels,
 probability and seed.</p></td>
 </tr>
 <tr class="row-odd"><td><p>Structured dendritic trees (<code class="docutils literal notranslate"><span class="pre">dendritic_shunting</span></code>,
@@ -362,12 +533,12 @@ sparsity, gate and implementation sections.</p></td>
 </tr>
 </tbody>
 </table>
-<figure class="align-default" id="id4">
+<figure class="align-default" id="id5">
 <a class="reference internal image-reference" href="_images/recurrent_view.png"><img alt="A recurrent population network in the Model view: delayed recurrent connections are dashed and labelled with a delta-t." src="_images/recurrent_view.png" style="width: 100%;" />
 </a>
 <figcaption>
 <p><span class="caption-text">The recurrent decision example. Delayed connections (dashed, Δt) carry the
-previous time step’s activity, which makes the layer recurrent.</span><a class="headerlink" href="#id4" title="Link to this image"></a></p>
+previous time step’s activity, which makes the layer recurrent.</span><a class="headerlink" href="#id5" title="Link to this image"></a></p>
 </figcaption>
 </figure>
 <p>For every family Studio edits the task (classification or regression), the
@@ -409,13 +580,40 @@ sequence.</p></td>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">mnist_population</span></code></p></td>
 <td><p>The tutorial’s network on MNIST digits; the first run downloads MNIST.</p></td>
 </tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">contextual_remapping_population</span></code></p></td>
+<td><p>The same EMNIST character has a different target under each of 32 cues.
+Two feedforward E/I layers receive the image and cue through the first layer.</p></td>
+</tr>
 </tbody>
 </table>
 <p>Export any of them without Studio with
 <code class="docutils literal notranslate"><span class="pre">dendritic-example</span> <span class="pre">&lt;name&gt;</span> <span class="pre">--output</span> <span class="pre">my_model.yaml</span></code>.</p>
+<section id="contextual-remapping-on-emnist">
+<h3>Contextual remapping on EMNIST<a class="headerlink" href="#contextual-remapping-on-emnist" title="Link to this heading"></a></h3>
+<p>In <strong>Model → Start from</strong>, choose <strong>Contextual remapping on EMNIST</strong>.
+Each presentation has 784 image pixels and an uncorrupted one-hot cue.
+Gain and noise vary across presentations. The target is
+<code class="docutils literal notranslate"><span class="pre">(character</span> <span class="pre">class</span> <span class="pre">+</span> <span class="pre">cue</span> <span class="pre">index)</span> <span class="pre">%</span> <span class="pre">47</span></code>. For example, the same class-10
+character has target 10 with cue 0 and target 11 with cue 1.</p>
+<p>Select the excitatory population <strong>e</strong> in the second layer to trace its
+inputs. It receives excitation from the first layer’s <strong>e</strong> population and
+inhibition from both the first layer’s <strong>i</strong> and its own layer’s <strong>i</strong>.
+Both first-layer populations receive the external image and cue.
+Choose <strong>CPU</strong>, then <strong>Check model</strong> or <strong>Train</strong>. The first build or run
+downloads the EMNIST archive (about 536 MiB compressed) to the shared data
+cache. With EMNIST Balanced already cached, the template also runs offline.</p>
+<p>The short run demonstrates wiring and training. It uses 48 excitatory and
+18 inhibitory neurons per layer, fixed leak and three epochs of 1,024 freshly
+sampled presentations. Its trainable branch gates start from the slope and
+offset given in the YAML. For the paper’s Figure 7 settings, the
+<a class="reference external" href="https://github.com/KempnerInstitute/DendriNet/tree/v0.5.0/projects/empirical#build-a-network">empirical project</a>
+provides the full shunting and additive configurations, the training-stream
+gate calibration and the library version used for those experiments. Use
+<strong>YAML → Import</strong> to explore either full-size network in Studio.</p>
+</section>
 </section>
 <section id="working-in-studio">
-<h2><a class="toc-backref" href="#id10" role="doc-backlink">Working in Studio</a><a class="headerlink" href="#working-in-studio" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id13" role="doc-backlink">Working in Studio</a><a class="headerlink" href="#working-in-studio" title="Link to this heading"></a></h2>
 <p>The tabs at the top hold the views of one design. <strong>Check model</strong> and
 <strong>Train</strong> work on the design as it is; the status next to the file name says
 whether DendriNet accepts it (a word and an icon, never a colour alone).</p>
@@ -431,7 +629,7 @@ For example, <code class="docutils literal notranslate"><span class="pre">[2,</s
 per cell. The <strong>soma only</strong> preset gives a point neuron. Use <strong>Contacts
 on the soma</strong> when the design calls for direct somatic input.</p></li>
 <li><p>Use <strong>Connection</strong> to choose a source and target. Set whether the
-connection carries current-step or previous-step activity and which
+connection carries current or delayed activity and which
 target depths receive it. Use <strong>Synapses</strong> on the receiving population
 for the corresponding feedforward or recurrent E or I contact count.</p></li>
 <li><p>Use <strong>Layer</strong> to extend the stack. Select a layer to choose its readout
@@ -439,6 +637,16 @@ population. The next layer receives that population’s output. Select the
 network to choose which layer supplies the decoder.</p></li>
 </ol>
 <p>An invalid edit is reported and the drawing keeps the last valid preview.
+If a depth has contacts but no source, select its connection and include
+that depth in <strong>Placement</strong>, add a source with <strong>Connection</strong>, or set the
+receiving count to zero. The connection editor reads the current draft’s
+endpoints and budgets. You can also remove a population or layer containing an
+invalid setting. Studio checks the entire proposed design before saving a
+repair. <strong>Undo</strong> restores the previous draft, including the setting you removed.
+<strong>Check model</strong>, <strong>Train</strong>, <strong>Export</strong> and <strong>Copy</strong> wait for pending connection
+edits. If an edit is rejected, Studio shows the reason so you can correct it
+before trying the action again. Editing a disabled or zero-probability route
+preserves the contact budget it shares with other sources.
 Small neurons are drawn in full when their branches fit. For large trees,
 the neuron view draws representative branches and labels how many children
 each represents. The caption gives the number drawn and the total, including
@@ -462,9 +670,11 @@ loader checks it before replacing the current design. If you continue typing
 during validation, choose <strong>Apply</strong> again to use the latest text. Restoring
 an unsaved design keeps its browser draft available across reloads. Syntax errors include
 the line when the parser can identify it. <strong>Import</strong> opens a standalone
-experiment. <strong>Export</strong> writes its settings as YAML. Re-exporting preserves
-configuration values, including options without a graphical control.
-Comments and original formatting are lost. For a sweep, use
+experiment. <strong>Export</strong> and <strong>Copy</strong> use the current design, even immediately
+after <strong>Undo</strong> or <strong>Redo</strong>. If the editor contains unapplied changes, both use the text
+exactly as written. The generated YAML preserves configuration values,
+including options without a graphical control. Applying a file regenerates
+its formatting and omits its comments. For a sweep, use
 <code class="docutils literal notranslate"><span class="pre">dendritic-sweep</span> <span class="pre">--config</span> <span class="pre">my_sweep.yaml</span> <span class="pre">--generate-only</span></code> and import one
 generated experiment. For a file that uses <code class="docutils literal notranslate"><span class="pre">extends</span></code>, open an already
 composed experiment with its parent settings included. See <a class="reference internal" href="configuration_guide.html#config-extends"><span class="std std-ref">Composing configs with extends</span></a>
@@ -476,16 +686,16 @@ The view compares final measures in a dot plot and a table and lists
 settings that differ. Select a run to see its status, timing, model size,
 command, folder, notes and worker log. <strong>Open in editor</strong> loads its
 configuration back into the design. The curves can be exported as CSV.</p>
-<figure class="align-default" id="id5">
+<figure class="align-default" id="id6">
 <a class="reference internal image-reference" href="_images/runs_view.png"><img alt="The Runs view comparing two training runs: overlaid loss curves, final accuracies and the settings that differ." src="_images/runs_view.png" style="width: 100%;" />
 </a>
 <figcaption>
-<p><span class="caption-text">Two runs of the tutorial compared in the Runs view.</span><a class="headerlink" href="#id5" title="Link to this image"></a></p>
+<p><span class="caption-text">Two runs of the tutorial compared in the Runs view.</span><a class="headerlink" href="#id6" title="Link to this image"></a></p>
 </figcaption>
 </figure>
 </section>
 <section id="model-checks-previews-and-runs">
-<h2><a class="toc-backref" href="#id11" role="doc-backlink">Model checks, previews and runs</a><a class="headerlink" href="#model-checks-previews-and-runs" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id14" role="doc-backlink">Model checks, previews and runs</a><a class="headerlink" href="#model-checks-previews-and-runs" title="Link to this heading"></a></h2>
 <p>The preview that redraws the design after every edit validates the
 configuration and resolves the population graph; it does not build weights,
 download data or touch a random stream. A population card shows the contact
@@ -522,11 +732,11 @@ submission stay with <code class="docutils literal notranslate"><span class="pre
 which read the exported YAML.</p>
 </section>
 <section id="troubleshooting">
-<h2><a class="toc-backref" href="#id12" role="doc-backlink">Troubleshooting</a><a class="headerlink" href="#troubleshooting" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id15" role="doc-backlink">Troubleshooting</a><a class="headerlink" href="#troubleshooting" title="Link to this heading"></a></h2>
 <ul class="simple">
 <li><p><strong>Browser says the site cannot be reached.</strong> Confirm the command is still
 running and use its printed port. A browser on another computer needs a
-connection to that host (see <a class="reference internal" href="#studio-install"><span class="std std-ref">Install and start</span></a>). If the page opens but
+connection to that host (see <a class="reference internal" href="#studio-cluster-gpu"><span class="std std-ref">Train on a cluster GPU</span></a>). If the page opens but
 cannot reach the local service, reopen the complete URL with its current token.</p></li>
 <li><p><strong>The diagram looks valid but Check model fails.</strong> The live preview validates
 the configuration. The check also constructs the model with a sample from the
@@ -538,7 +748,7 @@ enabled, clear any field error and finish or stop the current worker.</p></li>
 </ul>
 </section>
 <section id="privacy-and-security">
-<h2><a class="toc-backref" href="#id13" role="doc-backlink">Privacy and security</a><a class="headerlink" href="#privacy-and-security" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id16" role="doc-backlink">Privacy and security</a><a class="headerlink" href="#privacy-and-security" title="Link to this heading"></a></h2>
 <p>Studio listens on the loopback interface only. Its programming interface
 requires the session token and an accepted host name. Treat the printed URL
 as private. The browser interface loads its assets locally and has no
@@ -547,7 +757,7 @@ dataset needs downloading. The server and its workspace are intended for
 one user.</p>
 </section>
 <section id="accessibility">
-<h2><a class="toc-backref" href="#id14" role="doc-backlink">Accessibility</a><a class="headerlink" href="#accessibility" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id17" role="doc-backlink">Accessibility</a><a class="headerlink" href="#accessibility" title="Link to this heading"></a></h2>
 <p>Meaning never rests on colour alone: excitatory and inhibitory populations
 differ by shape (triangle, circle) and by line ends (arrow, bar), delayed
 connections are dashed, statuses carry an icon and a word, and every run in a
@@ -557,7 +767,7 @@ to select elements with the keyboard. Light and dark
 themes follow the operating system.</p>
 </section>
 <section id="for-developers">
-<h2><a class="toc-backref" href="#id15" role="doc-backlink">For developers</a><a class="headerlink" href="#for-developers" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id18" role="doc-backlink">For developers</a><a class="headerlink" href="#for-developers" title="Link to this heading"></a></h2>
 <p>Studio lives in <code class="docutils literal notranslate"><span class="pre">apps/studio</span></code> of the DendriNet repository and is built as
 its own wheel. The server (<code class="docutils literal notranslate"><span class="pre">dendrinet_studio.server</span></code>) is the Python
 standard library’s HTTP server; the client is plain HTML, CSS and JavaScript

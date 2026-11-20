@@ -4,9 +4,24 @@ DendriNet Studio
 ================
 
 DendriNet Studio lets you draw a network, inspect the inputs to a neuron,
-train the model and compare runs in a browser on your computer. The editor
+train the model and compare runs in a browser. The editor
 and the command line use the same experiment YAML and the same DendriNet
 model builders and trainer. You can move a design between them at any point.
+
+**Try it online.** `Open DendriNet Studio 0.2.0
+<https://mybinder.org/v2/gh/KempnerInstitute/DendriNet/studio-v0.2.0?urlpath=open-studio>`_
+to start a personal CPU session in your browser. Binder builds the environment
+on the first visit to a new revision. Once the editor opens, the two-class
+example is ready. Set **Training → Epochs** to ``1``, then choose **Train**.
+The example generates its own data.
+
+Use **YAML → Export** to save the configuration. In **Runs**, select your
+completed run and choose **Curves (CSV)** to save the training and validation
+history. Binder reclaims idle sessions and their workspace. For longer runs
+and persistent results, follow the local installation instructions below.
+The online link uses the Studio release tag, so each visitor starts with the same
+software and tutorial. Before the tag is available, the **Try it** link in
+`PR #404 <https://github.com/KempnerInstitute/DendriNet/pull/404>`_ opens the review version.
 
 .. contents:: On this page
    :local:
@@ -33,7 +48,7 @@ from PyPI. Pip installs the compatible core library and PyTorch.
 
 .. code-block:: bash
 
-   python -m pip install dendrinet-studio==0.1.0
+   python -m pip install --upgrade dendrinet-studio
    dendrinet-studio --workspace my-runs
 
 For an editable install, run ``python -m pip install -e . -e ./apps/studio``
@@ -69,20 +84,79 @@ its dependencies and any required datasets have been downloaded.
      - Also accept requests addressed to ``NAME``, for a trusted proxy in
        front of the local port. Repeatable.
 
-On a remote machine (a workstation or a cluster compute node), start Studio
-with ``--no-browser``, forward its port from your computer and open the
-printed address locally:
+.. _studio-cluster-gpu:
+
+Train on a cluster GPU
+----------------------
+
+Studio trains on the machine where you start the server. To use a cluster
+GPU, start Studio inside a GPU allocation and open the editor from your
+browser. The public Binder demo runs on a CPU.
+
+**1. Open a terminal on an allocated GPU node.** If you already have a GPU
+session, use its terminal. Otherwise, choose one of these routes.
+
+* **Browser only.** In Open OnDemand, choose **Interactive Apps → Remote
+  Desktop** and request one GPU on your lab's partition and account. For a
+  small example, four CPU cores, 16 GB of host memory and one hour are
+  sufficient. Launch the desktop and open a terminal inside it. On Harvard's
+  Cannon cluster, connect to the FASRC VPN first. The ``kempner_interactive``
+  partition provides 20 GB A100 slices. See the
+  `FASRC Remote Desktop guide <https://docs.rc.fas.harvard.edu/kb/vdi-apps/>`_
+  and the `Kempner partition guide <https://handbook.eng.kempnerinstitute.harvard.edu/s1_high_performance_computing/general_hpc_concepts/understanding_slurm.html>`_.
+* **Slurm terminal.** From a login shell, run the following command with
+  your GPU partition and billing account in place of ``PARTITION`` and
+  ``ACCOUNT``. Once the allocation starts, ``hostname`` gives you the
+  compute node to use for port forwarding.
+
+  .. code-block:: bash
+
+     srun --partition=PARTITION --account=ACCOUNT --nodes=1 --ntasks=1 \
+         --gres=gpu:1 --cpus-per-task=4 --mem=16G --time=01:00:00 --pty bash -l
+
+**2. Start Studio on the compute node.** Activate a Python environment with
+a CUDA-enabled PyTorch build (see :doc:`installation`). Install Studio once
+in that environment. From a writable shared directory where you want to keep
+your runs, check that PyTorch can see the allocated device, then start Studio.
 
 .. code-block:: bash
 
-   # on the remote machine
-   dendrinet-studio --workspace ~/studio-runs --no-browser
-   # on your computer
-   ssh -L 8765:127.0.0.1:8765 user@remote-host
+   python -m pip install dendrinet-studio
+   python -c "import torch; print(torch.cuda.get_device_name(0))" && \
+       dendrinet-studio --no-browser --threads 4 --workspace "$PWD/studio-runs"
 
-Use the actual port printed by Studio on both sides of the tunnel. If a
-scheduler assigned a compute node, the tunnel must reach the machine running
-Studio. A new session prints a new token.
+If the check fails, verify the GPU allocation and the PyTorch installation
+in that shell. Keep the Studio process running while you use the editor.
+
+**3. Open the editor.** Use the full printed URL, including the session
+token after ``#``.
+
+* **Open OnDemand.** Paste the URL into the browser **inside the remote
+  desktop**. This route needs no SSH tunnel.
+* **Cursor or VS Code.** Connect the editor's remote window to the
+  **allocated compute node**. In the **Ports** panel, choose **Forward a
+  Port** and enter Studio's printed port. Open the forwarded local address
+  in your laptop browser and append the printed ``#`` and token. If the
+  editor assigned a different local port, use the one shown in **Ports**.
+* **SSH.** From your laptop, the example below forwards port 8765 through
+  a login host to Studio on the compute host. Substitute your SSH username,
+  the two hostnames and the port Studio printed. Then open that URL in your
+  laptop browser. For a directly accessible workstation, omit
+  ``-J user@login-host`` and use the workstation as the destination.
+
+  .. code-block:: bash
+
+     ssh -N -o ExitOnForwardFailure=yes -J user@login-host \
+         -L 127.0.0.1:8765:127.0.0.1:8765 user@compute-host
+
+**4. Train and verify the device.** Choose **GPU if available** beside
+**Train**. Studio uses CPU by default, and a GPU request also falls back to
+CPU if PyTorch cannot see CUDA. After training, open ``model_resources.json``
+under the run's ``results`` directory. A GPU run records ``runtime_device``
+as ``cuda`` and gives the GPU model in ``cuda_device_name``. The
+``device`` field in ``studio_run.json`` records the requested mode
+(``auto`` or ``cpu``). You can select **CPU** for the next run in the same
+session. Stop Studio with Ctrl+C and end the allocation when you finish.
 
 .. _studio-first-run:
 
@@ -109,6 +183,113 @@ Train your first network
    as ``demo.yaml``, you can run it in the same environment with
    ``dendritic-train demo.yaml``. To get the original, unedited example
    directly, use ``dendritic-example synthetic_population --output original.yaml``.
+
+.. _studio-connect:
+
+Connect populations and mix layer dynamics
+------------------------------------------
+
+The population editor in Studio 0.2.0 can put feedforward and recurrent
+layers in the same design. E and I identify the sign of a population's
+outgoing synapses. Timing identifies which source activity its target uses.
+
+#. Open the **Recurrent decision population network** example in **Model**.
+   Choose **Layer**, name the new layer ``readout``, choose **Feedforward**,
+   and select **Add layer**. The new populations receive the current output
+   of the first layer. An explicitly selected decoder layer stays selected.
+#. Select the inhibitory population ``readout.pv`` on the diagram. Choose
+   **Connect from this population**, then select ``circuit.pyr`` on the
+   diagram. The editor proposes **Delayed** for this feedback path.
+   Check the source, destination and inhibitory sign and choose **Add
+   connection**. The same operation is available through **Connect** on
+   the diagram toolbar, using menus for both populations.
+#. Expand **connections** under the receiving layer or select the line in
+   the diagram to inspect the route. The inhibitory line ends in a bar.
+   Dashes indicate a delayed route. The label gives its travel time in steps
+   (Δt for one step, a range for times that differ by depth). Use **Edit connection** to
+   rewire it or the inspector to set its probability and target depths.
+   Synapse counts belong to the receiving population and are shared by
+   sources on the same pathway. The editor asks for a positive budget
+   when its eligible depths have zero contacts. On a depth-restricted
+   route, this sets the budget only at the selected depths.
+   When a biological model receives both signs from external input, choose
+   matched afferent populations or separate channel groups in the editor.
+#. Open **YAML** to see the route under ``circuit.connections``, with source
+   ``readout.pv``, target ``pyr`` and ``timing: delayed``. Choose **Check
+   model** to construct it, or **Train** to run the sequence task.
+
+**Same step** uses current activity. Its source may be the layer input, a
+population in an earlier layer, or a local population if the route keeps
+same-step wiring acyclic. **Delayed** uses an earlier population output,
+one update earlier by default. It supports self-connections, loops within a layer and
+feedback from a later layer. Adding one enables recurrence on the receiving
+layer. A recurrent layer can receive both kinds of input. A feedforward
+layer can supply delayed activity to another layer.
+
+When copying a layer, Studio adds local inhibition only if the receiving E
+population has eligible inhibitory contacts. You can add an inhibitory
+route and set its budget later with **Add input source**. A layer that steps
+through time requires ``autograd_credit_mode: exact`` for every population,
+including settings inherited from layer defaults. Studio checks this before
+it saves the design.
+
+To combine excitation from two populations, select the receiving population
+and choose **Add input source**. Choose **Same step** and select the source
+by name. Repeat for the second source. For example, ``layer0.e`` and
+``layer0.e2`` can both supply ``layer1.e`` with recurrence off.
+**Previous readout** selects only the previous layer's designated readout.
+The neuron's **Synapse sources per neuron** table lists the two named
+sources together. A budget of four excitatory contacts per compartment
+selects four across both source pools; the split can vary among compartments.
+
+To connect at just one depth, select the connection, open **Placement**,
+turn off **All levels of the target**, and leave only the desired depth
+checked. Depth 0 is the soma. For a pathway with restricted target levels,
+each receiving depth with a positive contact count needs at least one enabled
+source with a positive connection probability. If changing a route would leave
+a depth without a source, Studio identifies the population, pathway and depth.
+Connect another source there first, or set the count to zero under
+**Synapses per compartment → Set counts per level**. **Use one count for all
+levels** restores the population's uniform counts. You can then override an
+individual depth; Undo reverses the two edits separately.
+
+Select a recurrent connection to see its source delay and the response
+time constant (τ) at each depth it contacts. To edit those times, select
+**Edit receiving population**, then **Time constants**. In the decision
+example, the soma, primary branches and distal branches of ``circuit.pyr``
+have response times of 10, 20 and 40 model time units. Larger values
+smooth the input over more time. Editing a row writes ``level_taus`` in
+the core's distal-to-soma order. **Use base and ratio** restores the
+geometric progression. **Learn one time constant per depth** shows the
+values that training starts from. For a uniform response time, use
+**Use base and ratio** and set **Ratio per outward depth** to 1.
+
+To change when a signal arrives, open **Edit connection → Travel delay**.
+Choose one whole number of steps for the projection, or select **Set delay
+by depth**. For example, enter 1 at the soma, 2 at the primary branches and
+3 at the distal branches. A signal emitted on update 0 then arrives on
+updates 1, 2 and 3. Select the finished connection to see travel steps and
+response τ side by side. Each projection has its own travel settings;
+all projections into a receiving depth share its compartment time constant.
+If you add a dendritic depth, its explicit travel delay starts at one step.
+The layer's **Time step dt** sets the target's integration time per update.
+Use a sequence with enough updates for the longest delay. Signals in transit
+at the end of a sequence are retained when the core's hidden state is carried
+into the next chunk.
+
+Configurable travel delays are available in Studio 0.2.0 with DendriNet
+0.6.x. Check the installed versions with
+``python -m pip show dendrinet-studio dendritic-modeling``. See
+:ref:`studio-install` for PyPI and source installation instructions.
+
+.. figure:: _static/studio/hybrid.png
+   :alt: Two layers with E and I populations. Current-step excitation flows
+         from the decision circuit into the readout layer. A dashed return
+         path ends in an inhibitory bar on the circuit's excitatory cells.
+   :width: 100%
+
+   The feedback circuit from the example above. Select a line or its entry
+   in the receiving layer's connection list to see its source and timing.
 
 .. _studio-afferents:
 
@@ -191,7 +372,7 @@ What Studio supports
        the soma, the integration rule (shunting or the additive rules), leak,
        dendritic gates, initialization, time constants and every other
        population option; connections between populations with their timing
-       (same step or delayed by one step), pathway, target levels,
+       (same step or delayed, including by depth), pathway, target levels,
        probability and seed.
    * - Structured dendritic trees (``dendritic_shunting``,
        ``dendritic_additive``, ``einet`` and the other structured types)
@@ -242,9 +423,38 @@ The installed examples cover each kind of model:
        sequence.
    * - ``mnist_population``
      - The tutorial's network on MNIST digits; the first run downloads MNIST.
+   * - ``contextual_remapping_population``
+     - The same EMNIST character has a different target under each of 32 cues.
+       Two feedforward E/I layers receive the image and cue through the first layer.
 
 Export any of them without Studio with
 ``dendritic-example <name> --output my_model.yaml``.
+
+Contextual remapping on EMNIST
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In **Model → Start from**, choose **Contextual remapping on EMNIST**.
+Each presentation has 784 image pixels and an uncorrupted one-hot cue.
+Gain and noise vary across presentations. The target is
+``(character class + cue index) % 47``. For example, the same class-10
+character has target 10 with cue 0 and target 11 with cue 1.
+
+Select the excitatory population **e** in the second layer to trace its
+inputs. It receives excitation from the first layer's **e** population and
+inhibition from both the first layer's **i** and its own layer's **i**.
+Both first-layer populations receive the external image and cue.
+Choose **CPU**, then **Check model** or **Train**. The first build or run
+downloads the EMNIST archive (about 536 MiB compressed) to the shared data
+cache. With EMNIST Balanced already cached, the template also runs offline.
+
+The short run demonstrates wiring and training. It uses 48 excitatory and
+18 inhibitory neurons per layer, fixed leak and three epochs of 1,024 freshly
+sampled presentations. Its trainable branch gates start from the slope and
+offset given in the YAML. For the paper's Figure 7 settings, the
+`empirical project <https://github.com/KempnerInstitute/DendriNet/tree/v0.5.0/projects/empirical#build-a-network>`_
+provides the full shunting and additive configurations, the training-stream
+gate calibration and the library version used for those experiments. Use
+**YAML → Import** to explore either full-size network in Studio.
 
 Working in Studio
 -----------------
@@ -265,7 +475,7 @@ To extend a population network:
    per cell. The **soma only** preset gives a point neuron. Use **Contacts
    on the soma** when the design calls for direct somatic input.
 #. Use **Connection** to choose a source and target. Set whether the
-   connection carries current-step or previous-step activity and which
+   connection carries current or delayed activity and which
    target depths receive it. Use **Synapses** on the receiving population
    for the corresponding feedforward or recurrent E or I contact count.
 #. Use **Layer** to extend the stack. Select a layer to choose its readout
@@ -273,6 +483,16 @@ To extend a population network:
    network to choose which layer supplies the decoder.
 
 An invalid edit is reported and the drawing keeps the last valid preview.
+If a depth has contacts but no source, select its connection and include
+that depth in **Placement**, add a source with **Connection**, or set the
+receiving count to zero. The connection editor reads the current draft's
+endpoints and budgets. You can also remove a population or layer containing an
+invalid setting. Studio checks the entire proposed design before saving a
+repair. **Undo** restores the previous draft, including the setting you removed.
+**Check model**, **Train**, **Export** and **Copy** wait for pending connection
+edits. If an edit is rejected, Studio shows the reason so you can correct it
+before trying the action again. Editing a disabled or zero-probability route
+preserves the contact budget it shares with other sources.
 Small neurons are drawn in full when their branches fit. For large trees,
 the neuron view draws representative branches and labels how many children
 each represents. The caption gives the number drawn and the total, including
@@ -300,9 +520,11 @@ loader checks it before replacing the current design. If you continue typing
 during validation, choose **Apply** again to use the latest text. Restoring
 an unsaved design keeps its browser draft available across reloads. Syntax errors include
 the line when the parser can identify it. **Import** opens a standalone
-experiment. **Export** writes its settings as YAML. Re-exporting preserves
-configuration values, including options without a graphical control.
-Comments and original formatting are lost. For a sweep, use
+experiment. **Export** and **Copy** use the current design, even immediately
+after **Undo** or **Redo**. If the editor contains unapplied changes, both use the text
+exactly as written. The generated YAML preserves configuration values,
+including options without a graphical control. Applying a file regenerates
+its formatting and omits its comments. For a sweep, use
 ``dendritic-sweep --config my_sweep.yaml --generate-only`` and import one
 generated experiment. For a file that uses ``extends``, open an already
 composed experiment with its parent settings included. See :ref:`config-extends`
@@ -369,7 +591,7 @@ Troubleshooting
 
 * **Browser says the site cannot be reached.** Confirm the command is still
   running and use its printed port. A browser on another computer needs a
-  connection to that host (see :ref:`studio-install`). If the page opens but
+  connection to that host (see :ref:`studio-cluster-gpu`). If the page opens but
   cannot reach the local service, reopen the complete URL with its current token.
 * **The diagram looks valid but Check model fails.** The live preview validates
   the configuration. The check also constructs the model with a sample from the
