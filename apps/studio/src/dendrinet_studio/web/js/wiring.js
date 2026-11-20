@@ -104,6 +104,12 @@ export function connectionEditor(li, { index, from, to } = {}) {
       notes.push("Uses the preceding time step. Feedback needs at least two input steps to act.");
       if (target && !view.layers[target.layer].recurrent) notes.push("This will enable recurrence on " + target.layer_name + ".");
     } else notes.push("Uses the current input or population response. Same-step routes must be acyclic.");
+    if (target) {
+      const otherSources = new Set(view.edges.filter(e => e !== original && e.enabled !== false &&
+        e.target_id === target.id && e.pathway === pathway).map(e => e.source_id));
+      if (otherSources.size) notes.push("Existing " + pathway.replace("_", " ") + " sources: " +
+        [...otherSources].join(", ") + ". Sources on this pathway share the target's contact budget.");
+    }
     if (target && sources.value && !eligible.some(Boolean)) notes.push("No receiving compartment is enabled. Check somatic contacts and target levels.");
     summary.textContent = notes.join(" ");
   }

@@ -35,6 +35,7 @@ from dendritic_modeling.networks.architectures.recurrent.population_common impor
     as_population_definition_config,
     population_config_from_definition,
     population_level_dims,
+    population_requires_temporal_state,
 )
 from dendritic_modeling.networks.architectures.recurrent.population_configs import (
     PopulationLayerConfig,
@@ -172,6 +173,7 @@ def _population_graph(network: dict[str, Any]) -> dict[str, Any]:
     settings: dict[str, Any] = {}
     for li, layer in enumerate(definitions):
         polarities = {}
+        steps_through_time = bool(layer.recurrent)
         for pi, item in enumerate(layer.populations):
             definition = as_population_definition_config(item)
             population = population_config_from_definition(
@@ -181,6 +183,12 @@ def _population_graph(network: dict[str, Any]) -> dict[str, Any]:
                 network_layer_idx=li,
             )
             levels = _levels_soma_first(population.branch_factors)
+            steps_through_time |= population_requires_temporal_state(population)
+            if population.level_taus and len(population.level_taus) != len(levels):
+                raise ValueError(
+                    f"{layer.name}.{definition.name}: level_taus needs {len(levels)} "
+                    "values from the most distal level to the soma"
+                )
             per_level = {}
             for stream in STREAMS:
                 field = stream + "_synapses"
@@ -234,6 +242,7 @@ def _population_graph(network: dict[str, Any]) -> dict[str, Any]:
                 "name": layer.name,
                 "readout": readout,
                 "recurrent": bool(layer.recurrent),
+                "steps_through_time": steps_through_time,
                 "dt": layer.dt,
                 "is_readout_layer": layer.name == selected_layer,
             }

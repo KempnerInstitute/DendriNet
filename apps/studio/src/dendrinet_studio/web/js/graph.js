@@ -109,7 +109,8 @@ export function drawNetwork(svg, preview, { selection, onSelectPopulation, onSel
     g.append(s("title", {}, [lane.label]));
     g.append(label);
     if (lane.kind === "layer") {
-      const mode = lane.layer.recurrent ? "Recurrent · dt " + lane.layer.dt : "Feedforward";
+      const mode = lane.layer.recurrent ? "Recurrent · dt " + lane.layer.dt
+        : lane.layer.steps_through_time ? "Stateful · dt " + lane.layer.dt : "Feedforward";
       g.append(s("text", { x: lane.x + 14, y: 50, class: "lane-meta" }, [mode + (lane.layer.is_readout_layer ? " · readout" : "")]));
       const index = preview.layers.indexOf(lane.layer);
       g.classList.add("clickable");

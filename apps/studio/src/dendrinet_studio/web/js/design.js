@@ -10,7 +10,7 @@ import { state, api, edit, editTopology, validationRevision, select, adopt, emit
 import { field, textInput, numberInput, stepper, selectInput, switchInput, segmented, mappingInput, factorEditor, sectionForm, disclosure, humanize, controlFor, describeCount, rebuildKeepingFocus } from "./fields.js";
 import { drawNetwork, drawOverview, layoutNetwork, svgForExport } from "./graph.js";
 import { externalControls, sourcesTable, structuredInputGuide } from "./afferents.js";
-import { compartmentLevels, drawNeuron, levelTable, neuronLegend } from "./morphology.js";
+import { compartmentLevels, drawNeuron, levelName, levelTable, neuronLegend } from "./morphology.js";
 import { toast, confirmDialog, dialog } from "./ui.js";
 import { connectionEditor } from "./wiring.js";
 
@@ -574,7 +574,7 @@ function optionField(ctx, name, overrides = {}) {
   const key = ctx.keyOf(name);
   return field({
     label: overrides.label || humanize(name),
-    control: controlFor(spec, shown, value => ctx.write(name, value)),
+    control: controlFor(spec, shown, value => ctx.write(name, value), overrides.label),
     key,
     inherited: own === undefined ? inherited.source : false,
     onReset: own !== undefined ? () => ctx.remove(name) : null,
@@ -672,6 +672,65 @@ function groupedOptions(ctx, groupName) {
   return POP_GROUPS[groupName].map(name => optionField(ctx, name));
 }
 
+function tauAtDepth(settings, depth) {
+  return settings.level_taus?.at(-1 - depth) ?? settings.tau_base * settings.tau_ratio ** depth;
+}
+
+function depthTimeTable(node, { ctx, edge } = {}) {
+  const deepest = node.branch_factors.length;
+  const rows = [];
+  for (let depth = 0; depth <= deepest; depth++) {
+    if (edge && (edge.enabled === false || !node.received_per_level[edge.pathway][depth] ||
+      (edge.target_depths && !edge.target_depths.includes(depth)))) continue;
+    const label = levelName(depth, deepest);
+    const value = tauAtDepth(node.settings, depth);
+    let cell = String(value);
+    if (ctx) {
+      cell = numberInput(value, next => {
+        // Resolve the latest edits, including changes made before the previous preview arrived.
+        const setting = key => ctx.ownOf(key) ?? ctx.inheritedOf(key).value;
+        const timing = { level_taus: setting("level_taus"), tau_base: setting("tau_base"), tau_ratio: setting("tau_ratio") };
+        const list = Array.from({ length: deepest + 1 }, (_, i) => tauAtDepth(timing, deepest - i));
+        list[deepest - depth] = next;
+        ctx.write("level_taus", list);
+      }, { positive: true });
+      cell.setAttribute("aria-label", "Response time at " + label);
+      cell.dataset.key = ctx.keyOf("level_taus") + "." + (deepest - depth);
+    }
+    rows.push(h("tr", {}, [h("th", { scope: "row", text: label }), h("td", {}, [cell])]));
+  }
+  if (!rows.length) return h("p", { class: "help", text: "This route has no active contacts at the selected depths." });
+  const columns = ["Receiving depth", node.settings.learnable_tau ? "Initial τ (learned)" : "Response τ (fixed)"];
+  return h("table", { class: "levels" + (ctx ? " editable" : ""), "aria-label": "Response times by depth" }, [
+    h("thead", {}, [h("tr", {}, columns.map(text => h("th", { scope: "col", text })))]), h("tbody", {}, rows),
+  ]);
+}
+
+function timeConstantsGroup(ctx, node) {
+  const fields = [
+    optionField(ctx, "tau_base", { label: "Soma time constant (base)" }),
+    optionField(ctx, "tau_ratio", { label: "Ratio per outward depth" }),
+    optionField(ctx, "learnable_tau", { label: "Learn one time constant per depth" }),
+  ];
+  if (node) {
+    fields.push(depthTimeTable(node, { ctx }));
+    const inherited = layers()[node.layer].population_defaults?.level_taus;
+    if (node.settings.level_taus.length) {
+      fields.push(h("button", { type: "button", class: "btn small",
+        onclick: () => inherited?.length ? ctx.write("level_taus", []) : ctx.remove("level_taus"),
+        text: "Use base and ratio" }));
+    }
+    if (inherited?.length && ctx.ownOf("level_taus") !== undefined) {
+      fields.push(h("button", { type: "button", class: "btn small",
+        onclick: () => ctx.remove("level_taus"), text: "Restore layer time constants" }));
+    }
+  } else {
+    fields.push(optionField(ctx, "level_taus", { label: "Explicit times, distal to soma", help: "Include one value per depth, including the soma. An empty list uses the base and ratio." }));
+  }
+  return group("Time constants", fields, "Larger τ makes the receiving compartment respond more slowly. " +
+    (node ? "Editing a depth sets an explicit time for every row." : "These defaults apply to each population in this layer."));
+}
+
 function allOptions(ctx, idPrefix) {
   return disclosure(`${idPrefix}-all`, "All population options", () => {
     const box = h("div");
@@ -701,7 +760,7 @@ function populationInspector(sel) {
   const itemPath = `${NET}.layers.${li}.populations.${pi}`;
   const ctx = populationContext(li, pi);
   const polarity = item.polarity || node?.polarity || "excitatory";
-  const recurrentRelevant = Boolean(layer.recurrent) || state.preview.edges.some(e => e.target_id === node?.id && e.timing === "delayed");
+  const recurrentRelevant = state.preview.layers[li].steps_through_time;
   const setItem = (key, value, structural = false) => structural
     ? safeTopology(cfg => { getPath(cfg, itemPath)[key] = value; })
     : edit(cfg => (getPath(cfg, itemPath)[key] = value), { path: `${itemPath}.${key}` });
@@ -720,13 +779,16 @@ function populationInspector(sel) {
         field({ label: "Branching per level (soma → distal)", control: factorEditor(factors, v => setFactors(li, pi, v)), key: `${itemPath}.branch_factors`, help: `${levels} ${levels === 1 ? "level" : "levels"} · ${fmt(node?.compartments_per_neuron ?? 1)} compartments per neuron` }),
       ]
     ),
-    node ? h("button", { type: "button", class: "btn small", onclick: () => pickTarget(node) }, [icon("plus"), "Connect from this population"]) : null,
+    node ? h("div", { class: "add-row" }, [
+      h("button", { type: "button", class: "btn small", onclick: () => connectionEditor(li, { to: node.id }) }, [icon("plus"), "Add input source"]),
+      h("button", { type: "button", class: "btn small", onclick: () => pickTarget(node) }, [icon("plus"), "Connect from this population"]),
+    ]) : null,
     li === 0 && node ? group("External input to this population", externalControls(node), "Choose the incoming synapse signs for this population. Connections from other populations are set separately.") : null,
     synapseGroup(ctx, { node, recurrentRelevant }),
     integrationGroup(ctx, null),
     group("Dendritic gate", groupedOptions(ctx, "Dendritic gate")),
     group("Initialization", groupedOptions(ctx, "Initialization"), "How synaptic weights, couplings and gates start."),
-    recurrentRelevant ? group("Time constants", groupedOptions(ctx, "Time constants")) : null,
+    recurrentRelevant ? timeConstantsGroup(ctx, node) : null,
     allOptions(ctx, `pop-${li}-${pi}`),
     h("div", { class: "danger-zone" }, [h("button", { type: "button", class: "btn danger small", onclick: () => removePopulation(li, pi) }, [icon("trash"), "Remove population"])]),
   ].filter(Boolean);
@@ -750,7 +812,6 @@ function connectionInspector(sel) {
     });
   const derived = edge ? edge.pathway : "";
   const levels = target ? target.levels_including_soma.length : 1;
-  const levelName = depth => (depth === 0 ? "soma" : depth === levels - 1 ? "distal" : depth === 1 ? "primary" : `level ${depth}`);
   const allLevels = conn.target_levels === undefined || conn.target_levels === null;
   const levelBoxes = h("div", { class: "level-checks" });
   for (let depth = levels - 1; depth >= 0; depth--) {
@@ -761,7 +822,7 @@ function connectionInspector(sel) {
       const chosen = [...levelBoxes.querySelectorAll("input")].filter(b => b.checked).map(b => Number(b.id.slice(4)));
       set("target_levels", chosen.length ? chosen.sort((a, b) => a - b) : null, true);
     });
-    levelBoxes.append(h("label", { class: "check", for: `lvl-${depth}` }, [box, `${depth} · ${levelName(depth)}`]));
+    levelBoxes.append(h("label", { class: "check", for: `lvl-${depth}` }, [box, levelName(depth, levels - 1)]));
   }
   const nav = h("div", { class: "nav-row" }, [
     h("button", { type: "button", class: "btn small", disabled: sel.index === 0, onclick: () => select({ kind: "connection", layer: li, index: sel.index - 1 }) }, ["Previous"]),
@@ -776,6 +837,14 @@ function connectionInspector(sel) {
       h("p", { text: (edge?.source_id || "input") + " → " + edge?.target_id }),
       h("button", { type: "button", class: "btn small", onclick: () => connectionEditor(li, { index: sel.index }) }, ["Edit connection"]),
     ]),
+    edge && target ? group("Connection timing", [
+      h("p", { text: edge.timing === "delayed" ? "Source delay: 1 step. Every contacted depth reads the same previous population output." : "Source delay: 0 steps. Every contacted depth reads the current source output." }),
+      state.preview.layers[li].steps_through_time ? [
+        h("p", { class: "help", text: `The target integrates its inputs at each depth with the response time below (layer dt = ${state.preview.layers[li].dt}).` }),
+        depthTimeTable(target, { edge }),
+        h("button", { type: "button", class: "btn small", onclick: () => select({ kind: "population", layer: li, population: target.population }), text: "Edit receiving population" }),
+      ] : h("p", { class: "help", text: "This feedforward layer computes its response directly at each step." }),
+    ].flat()) : null,
     group("Placement", [
       field({ label: "All levels of the target", control: switchInput(allLevels, v => set("target_levels", v ? null : Array.from({ length: levels }, (_, i) => i), true), "All levels"), key: `${path}.target_levels`, help: allLevels ? null : "Untick the levels this connection should not reach (0 = soma)." }),
       allLevels ? null : levelBoxes,
@@ -802,7 +871,7 @@ function layerInspector(sel) {
       else l[name] = value;
     }, { path: `${path}.${name}`, structural });
   const ctx = layerDefaultsContext(li);
-  const recurrentRelevant = Boolean(layer.recurrent) || (layer.connections || []).some(c => c.timing === "delayed");
+  const recurrentRelevant = view.steps_through_time;
   return [
     head(icon("layers"), `Layer · ${view.name}`, `${describeCount(layer.populations.length, "population")} · ${describeCount((layer.connections || []).length, "connection")}`),
     group("Layer", [
@@ -816,9 +885,9 @@ function layerInspector(sel) {
           if (v) net.readout_population = v;
           else delete net.readout_population;
         }
-      }), { allowCustom: false, labels: { "": "First excitatory population" } }), key: `${path}.readout_population`, help: "Its activity is what the next layer or the decoder reads." }),
+      }), { allowCustom: false, labels: { "": "First excitatory population" } }), key: `${path}.readout_population`, help: "The next layer's input route and the selected decoder readout use this population. Connect additional populations by name." }),
       field({ label: "Recurrent", control: switchInput(Boolean(layer.recurrent), v => safeTopology(cfg => { getPath(cfg, path).recurrent = v; }), "Recurrent"), key: `${path}.recurrent`, help: "Receives same-step and previous-step activity. Remove or retime delayed connections before switching off." }),
-      layer.recurrent ? field({ label: "Time step dt", control: numberInput(layer.dt ?? 1, v => set("dt", v), { min: 0, positive: true }), key: `${path}.dt` }) : null,
+      recurrentRelevant ? field({ label: "Time step dt", control: numberInput(layer.dt ?? 1, v => set("dt", v), { min: 0, positive: true }), key: `${path}.dt` }) : null,
       field({ label: "Connection seed", control: numberInput(layer.connection_seed ?? null, v => set("connection_seed", v), { integer: true, optional: true }), key: `${path}.connection_seed` }),
     ]),
     h("p", { class: "help lead", text: "Defaults for every population in this layer. A population's own setting overrides them." }),
@@ -826,7 +895,7 @@ function layerInspector(sel) {
     integrationGroup(ctx, null),
     group("Dendritic gate", groupedOptions(ctx, "Dendritic gate")),
     group("Initialization", groupedOptions(ctx, "Initialization")),
-    recurrentRelevant ? group("Time constants", groupedOptions(ctx, "Time constants")) : null,
+    recurrentRelevant ? timeConstantsGroup(ctx, null) : null,
     allOptions(ctx, `layer-${li}`),
     h("div", { class: "add-row" }, [
       h("button", { type: "button", class: "btn small", onclick: () => addPopulation(li, "excitatory") }, [icon("plus"), "E population"]),
@@ -1120,7 +1189,7 @@ function setFactors(li, pi, factors) {
     }
     const taus = node.settings.level_taus;
     if (taus?.length && taus.length !== levels) {
-      (item.population ||= {}).level_taus = Array.from({ length: levels }, (_, d) => taus.at(-1 - d) ?? node.settings.tau_base * node.settings.tau_ratio ** d).reverse();
+      (item.population ||= {}).level_taus = Array.from({ length: levels }, (_, d) => tauAtDepth(node.settings, d)).reverse();
     }
   });
 }

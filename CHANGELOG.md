@@ -12,6 +12,9 @@
 
 ### DendriNet Studio 0.2.0
 
+- Show and edit the receiving compartment's response time at each depth.
+  Add multiple same-step excitatory sources from the receiving population
+  and see which sources share its contact budget.
 - Open Studio from the documentation in a personal Binder session, train
   the two-class example on a CPU and download the configuration and curves.
 - Connect two populations from the diagram or choose both endpoints and the

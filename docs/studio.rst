@@ -164,6 +164,25 @@ feedback from a later layer. Adding one enables recurrence on the receiving
 layer. A recurrent layer can receive both kinds of input. A feedforward
 layer can supply delayed activity to another layer.
 
+To combine excitation from two populations, select the receiving population
+and choose **Add input source**. Choose **Same step** and select the source
+by name. Repeat for the second source. For example, ``layer0.e`` and
+``layer0.e2`` can both supply ``layer1.e`` with recurrence off.
+**Previous readout** selects only the previous layer's designated readout.
+The neuron's **Synapse sources per neuron** table lists the two named
+sources together. A budget of four excitatory contacts per compartment
+selects four across both source pools; the split can vary among compartments.
+
+Select a recurrent connection to see its source delay and the response
+time constant (τ) at each depth it contacts. To edit those times, select
+**Edit receiving population**, then **Time constants**. In the decision
+example, the soma, primary branches and distal branches of ``circuit.pyr``
+have response times of 10, 20 and 40 model time units. Larger values
+smooth the input over more time. Editing a row writes ``level_taus`` in
+the core's distal-to-soma order. **Use base and ratio** restores the
+geometric progression. **Learn one time constant per depth** shows the
+values that training starts from.
+
 The layer's **Time step dt** controls integration. Core 0.5 supports a delay
 of one update per delayed projection. A static example presented for one
 step has no previous activity to feed back. Use the decision example to

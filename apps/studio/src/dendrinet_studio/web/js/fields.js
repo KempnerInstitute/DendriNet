@@ -289,8 +289,7 @@ export function humanize(name) {
 
 const capitalize = text => text.charAt(0).toUpperCase() + text.slice(1);
 
-export function controlFor(spec, value, onCommit) {
-  const label = humanize(spec.name);
+export function controlFor(spec, value, onCommit, label = humanize(spec.name)) {
   switch (spec.kind) {
     case "bool":
       return switchInput(value ?? spec.default, onCommit, label);

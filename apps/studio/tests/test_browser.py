@@ -381,6 +381,132 @@ def wire(page, receiver, source, timing="same_step"):
     return dialog
 
 
+def test_add_a_second_feedforward_excitatory_source_and_build_the_export(page):
+    import torch
+
+    from dendritic_modeling.config import config_from_mapping
+    from dendritic_modeling.scripts.script_utils.setup_utils import initialize_model
+
+    raw = two_layer_document()
+    page.get_by_role("tab", name="YAML").click()
+    page.locator("textarea.yaml-text").fill(yaml.safe_dump(raw, sort_keys=False))
+    page.get_by_role("button", name="Apply").click()
+    page.get_by_role("tab", name="Model").click()
+    page.get_by_role("button", name="Edit population layer0.e", exact=True).click()
+    page.get_by_role("button", name="E population", exact=True).first.click()
+    page.get_by_role("button", name="Edit population layer0.e2").wait_for()
+    target = page.get_by_role("button", name="Edit population layer1.e", exact=True)
+    target.click()
+    source_row = page.get_by_role(
+        "region", name="Synapse sources per neuron"
+    ).get_by_role("row", name=re.compile(r"^E "))
+    original_budget = source_row.get_by_role("cell").last.inner_text()
+    page.get_by_role("button", name="Add input source").click()
+    dialog = page.get_by_role("dialog", name="Connect populations")
+    playwright.expect(dialog.get_by_label("Receiving population")).to_have_value(
+        "layer1.e"
+    )
+    dialog.get_by_label("Source", exact=True).select_option("layer0.e2")
+    playwright.expect(dialog.get_by_role("status")).to_contain_text("layer0.e.")
+    dialog.get_by_role("button", name="Add connection").click()
+    playwright.expect(edge(page, "layer0.e2", "layer1.e")).to_have_attribute(
+        "data-pathway", "ff_excitatory"
+    )
+    playwright.expect(
+        page.get_by_text("Source delay: 0 steps.", exact=False)
+    ).to_be_visible()
+    target.click()
+    playwright.expect(
+        source_row.get_by_role("button", name="layer0.e", exact=True)
+    ).to_be_visible()
+    playwright.expect(
+        source_row.get_by_role("button", name="layer0.e2", exact=True)
+    ).to_be_visible()
+    assert source_row.get_by_role("cell").last.inner_text() == original_budget
+    saved = exported(page)
+    model, _ = initialize_model(config_from_mapping(saved).model)
+    first, second = model.core_network.layers
+    assert not first.is_recurrent and not second.is_recurrent
+    assert second._stream_sources("e", "same_step", "ff_excitatory") == [
+        "layer0.e",
+        "layer0.e2",
+    ]
+    received = []
+    handle = second.populations["e"].register_forward_pre_hook(
+        lambda module, inputs: received.append(inputs[0])
+    )
+    model.core_network(torch.ones(2, 16))
+    handle.remove()
+    expected = torch.cat([first._last_outputs["e"], first._last_outputs["e2"]], dim=-1)
+    torch.testing.assert_close(received[0], expected, rtol=0, atol=0)
+    assert not page.errors
+
+
+def test_response_times_and_route_delay_survive_visual_edits_and_export(page):
+    import torch
+
+    from dendritic_modeling.config import config_from_mapping
+    from dendritic_modeling.scripts.script_utils.setup_utils import initialize_model
+
+    raw = example("recurrent_decision_population")
+    layer = raw["model"]["core"]["population_network"]["layers"][0]
+    layer["dt"] = 0.5
+    layer["connections"][-2]["target_levels"] = ["distal"]
+    layer["populations"][0]["population"] = {
+        "rec_excitatory_synapses_by_level": [2, 0, 0]
+    }
+    page.get_by_role("tab", name="YAML").click()
+    page.locator("textarea.yaml-text").fill(yaml.safe_dump(raw, sort_keys=False))
+    page.get_by_role("button", name="Apply").click()
+    page.get_by_role("tab", name="Model").click()
+    loop = page.get_by_role(
+        "button",
+        name="Connection circuit.pyr to circuit.pyr, rec_excitatory, delayed",
+        exact=True,
+    )
+    loop.press("Enter")
+    table = page.get_by_role("table", name="Response times by depth")
+    playwright.expect(
+        page.get_by_text("Source delay: 1 step.", exact=False)
+    ).to_be_visible()
+    playwright.expect(table.locator("tbody tr")).to_have_count(1)
+    playwright.expect(table.get_by_role("cell")).to_have_text("40")
+    page.get_by_role("button", name="Edit receiving population").click()
+    soma = table.get_by_role("spinbutton", name="Response time at soma")
+    primary = table.get_by_role("spinbutton", name="Response time at 1 · primary")
+    distal = table.get_by_role("spinbutton", name="Response time at 2 · distal")
+    for control, value in [(soma, "10"), (primary, "20"), (distal, "40")]:
+        playwright.expect(control).to_have_value(value)
+    distal.fill("55")
+    distal.press("Enter")
+    page.get_by_role("button", name="Use base and ratio").wait_for()
+    primary.fill("17.5")
+    primary.press("Enter")
+    page.get_by_label("Learn one time constant per depth").click()
+    playwright.expect(
+        table.get_by_role("columnheader", name="Initial τ (learned)")
+    ).to_be_visible()
+    result = exported(page)
+    layer = result["model"]["core"]["population_network"]["layers"][0]
+    assert layer["populations"][0]["population"]["level_taus"] == [55, 17.5, 10]
+    assert layer["dt"] == 0.5 and layer["connections"][-2]["timing"] == "delayed"
+    model, _ = initialize_model(config_from_mapping(result).model)
+    pyr = model.core_network.layers[0].populations["pyr"]
+    torch.testing.assert_close(
+        pyr.current_taus.detach(), torch.tensor([55.0, 17.5, 10.0])
+    )
+    page.get_by_role("tab", name="Model").click()
+    page.get_by_role("button", name="Use base and ratio").click()
+    playwright.expect(distal).to_have_value("40")
+    assert (
+        "level_taus"
+        not in exported(page)["model"]["core"]["population_network"]["layers"][0][
+            "populations"
+        ][0]["population"]
+    )
+    assert not page.errors
+
+
 def test_create_rewire_and_undo_without_invalidating_the_document(page):
     # The published Add Connection button immediately duplicated input -> e.
     dialog = wire(page, "layer0.e", "input")
